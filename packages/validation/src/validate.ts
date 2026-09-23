@@ -25,6 +25,7 @@ export interface Configurations {
 
 export interface Features {
     multiConnection?: "required" | "optional" | "none";
+    connectionRequirement?: "required" | "optional";
     minAPI?: string;
     enabledForPowerPlatformAPI?: boolean;
 }
@@ -92,6 +93,8 @@ export interface PPTBConfig {
 export const APPROVED_LICENSES = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "GPL-2.0", "GPL-3.0", "LGPL-3.0", "ISC", "AGPL-3.0-only"];
 
 export const VALID_MULTI_CONNECTION_VALUES = ["required", "optional", "none"] as const;
+
+export const VALID_CONNECTION_REQUIREMENT_VALUES = ["required", "optional"] as const;
 
 /**
  * Keep in sync with BUILT_IN_CAPABILITY_TAGS in
@@ -329,9 +332,9 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
     if (packageJson.features !== undefined) {
         const features = packageJson.features;
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
-            errors.push("features must be a non-array object with optional 'multiConnection', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
+            errors.push("features must be a non-array object with optional 'multiConnection', 'connectionRequirement', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI", "enabledForPowerPlatformAPI"];
+            const VALID_FEATURE_KEYS = ["multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
             const invalidKeys = Object.keys(features).filter((k) => !VALID_FEATURE_KEYS.includes(k));
             if (invalidKeys.length > 0) {
                 errors.push(`features can only contain ${VALID_FEATURE_KEYS.map((k) => `'${k}'`).join(", ")} properties. Invalid properties: ${invalidKeys.join(", ")}`);
@@ -340,6 +343,9 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
                 errors.push("features.multiConnection is required when features object is provided");
             } else if (!(VALID_MULTI_CONNECTION_VALUES as readonly string[]).includes(features.multiConnection)) {
                 errors.push(`features.multiConnection must be one of: ${VALID_MULTI_CONNECTION_VALUES.join(", ")}`);
+            }
+            if (features.connectionRequirement !== undefined && !(VALID_CONNECTION_REQUIREMENT_VALUES as readonly string[]).includes(features.connectionRequirement)) {
+                errors.push(`features.connectionRequirement must be one of: ${VALID_CONNECTION_REQUIREMENT_VALUES.join(", ")}`);
             }
             if (features.minAPI !== undefined) {
                 if (typeof features.minAPI !== "string" || !SEMVER_REGEX.test(features.minAPI)) {
@@ -467,7 +473,7 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
                 } else {
                     agents.modes.forEach((mode, idx) => {
                         if (mode !== "one-way" && mode !== "two-way") {
-                            errors.push(`agents.modes[${idx}] must be either \"one-way\" or \"two-way\"`);
+                            errors.push(`agents.modes[${idx}] must be either "one-way" or "two-way"`);
                         }
                     });
                 }

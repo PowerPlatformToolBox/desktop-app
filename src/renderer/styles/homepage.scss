@@ -510,6 +510,201 @@ body.dark-theme .sponsor-tier {
     border-color: #3e3e42;
 }
 
+.sponsor-list-section {
+    margin-bottom: 28px;
+}
+
+.sponsor-list-section[hidden] {
+    display: none;
+}
+
+.sponsor-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.sponsor-list-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary, var(--text-color));
+}
+
+.sponsor-list-count {
+    color: var(--text-secondary, #605e5c);
+    font-size: 13px;
+}
+
+body.dark-theme .sponsor-list-count {
+    color: var(--text-secondary, #a19f9d);
+}
+
+.sponsor-list {
+    display: flex;
+    gap: 12px;
+    max-width: 100%;
+    margin: 0 -4px;
+    padding: 4px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+}
+
+.sponsor-list:not(.sponsor-list-static):hover .sponsor-marquee-group,
+.sponsor-list:not(.sponsor-list-static):focus-within .sponsor-marquee-group {
+    animation-play-state: paused;
+}
+
+.sponsor-list-static {
+    justify-content: center;
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+.sponsor-marquee-group {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 12px;
+    min-width: max-content;
+    animation: sponsor-marquee var(--sponsor-carousel-duration, 30s) linear infinite;
+}
+
+.sponsor-list-static .sponsor-marquee-group {
+    animation: none;
+}
+
+@keyframes sponsor-marquee {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(calc(-100% - 12px));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sponsor-list {
+        justify-content: flex-start;
+        overflow-x: auto;
+        -webkit-mask-image: none;
+        mask-image: none;
+        scrollbar-width: thin;
+    }
+
+    .sponsor-marquee-group {
+        animation: none;
+    }
+
+    .sponsor-marquee-group[aria-hidden="true"] {
+        display: none;
+    }
+}
+
+.sponsor-list-loading {
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary, #605e5c);
+    font-size: 13px;
+    text-align: center;
+}
+
+body.dark-theme .sponsor-list-loading {
+    color: var(--text-secondary, #a19f9d);
+}
+
+.sponsor-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 min(260px, calc(100% - 16px));
+    width: 260px;
+    min-width: 0;
+    padding: 12px;
+    background: var(--input-background, #f3f2f1);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+}
+
+.sponsor-card:hover,
+.sponsor-card:focus-visible {
+    border-color: var(--accent-color, #6a00ff);
+    transform: translateY(-2px);
+}
+
+.sponsor-card:focus-visible {
+    outline: 2px solid var(--accent-color, #6a00ff);
+    outline-offset: 2px;
+}
+
+body.dark-theme .sponsor-card {
+    background: #1e1e1e;
+    border-color: #3e3e42;
+}
+
+.sponsor-card-avatar {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--card-background, var(--bg-color));
+}
+
+.sponsor-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.sponsor-card-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.sponsor-card-name {
+    overflow: hidden;
+    color: var(--text-primary, var(--text-color));
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sponsor-card-active-tag {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #dff6dd;
+    color: #107c10;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+body.dark-theme .sponsor-card-active-tag {
+    background: rgba(84, 163, 90, 0.18);
+    color: #7ee787;
+}
+
+.sponsor-card-contribution {
+    color: var(--text-secondary, #605e5c);
+    font-size: 13px;
+}
+
+body.dark-theme .sponsor-card-contribution {
+    color: var(--text-secondary, #a19f9d);
+}
+
 .sponsor-tier-name {
     font-size: 13px;
     font-weight: 600;

@@ -13,16 +13,15 @@ This feature allows tools to declare version compatibility requirements, prevent
 ### Backend Changes
 
 - [x] Add `minAPI` field to `ToolFeatures` interface (`src/common/types/tool.ts`)
-- [x] Add `minAPI`, `maxAPI`, and `isSupported` fields to `Tool` interface
-- [x] Add `minAPI` and `maxAPI` fields to `ToolManifest` interface
-- [x] Add `minAPI` and `maxAPI` fields to `ToolRegistryEntry` interface
+- [x] Add `minAPI` and `isSupported` fields to `Tool` interface
+- [x] Add `minAPI` field to `ToolManifest` interface
+- [x] Add `minAPI` field to `ToolRegistryEntry` interface
 - [x] Add `TOOLBOX_VERSION` and `MIN_SUPPORTED_API_VERSION` constants (`src/main/constants.ts`)
 - [x] Create `compareVersions()` utility function in `toolsManager.ts`
 - [x] Create `isToolSupported()` compatibility check function
 - [x] Update `loadToolFromManifest()` to set version fields and compatibility status
 - [x] Update `installTool()` to extract `minAPI` from package.json
-- [x] Update `installTool()` to extract `maxAPI` from npm-shrinkwrap.json
-- [x] Update Supabase schema mappings to include `min_api` and `max_api`
+- [x] Update Supabase schema mappings to include `min_api`
 - [x] Update local registry interface to support version fields
 
 ### UI Changes
@@ -101,22 +100,16 @@ This feature allows tools to declare version compatibility requirements, prevent
 - [x] Run schema update script:
     ```sql
     ALTER TABLE tools
-      ADD COLUMN IF NOT EXISTS min_api TEXT,
-      ADD COLUMN IF NOT EXISTS max_api TEXT;
+      ADD COLUMN IF NOT EXISTS min_api TEXT;
     ```
 - [ ] Add column comments:
     ```sql
     COMMENT ON COLUMN tools.min_api IS 'Minimum ToolBox API version required';
-    COMMENT ON COLUMN tools.max_api IS 'Maximum ToolBox API version tested';
     ```
 - [x] Create performance indexes:
     ```sql
     CREATE INDEX IF NOT EXISTS idx_tools_min_api ON tools(min_api)
       WHERE min_api IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS idx_tools_max_api ON tools(max_api)
-      WHERE max_api IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS idx_tools_versions ON tools(min_api, max_api)
-      WHERE min_api IS NOT NULL AND max_api IS NOT NULL;
     ```
 - [x] Verify indexes were created:
     ```sql
@@ -181,15 +174,10 @@ This feature allows tools to declare version compatibility requirements, prevent
 - [ ] Update submission validation to check for:
     - [ ] `features.minAPI` in package.json
     - [ ] Valid semver format for minAPI
-    - [ ] Presence of npm-shrinkwrap.json
-    - [ ] `@pptb/types` in shrinkwrap dependencies
 - [ ] Add extraction logic:
     - [ ] Read `package.json` → extract `features.minAPI`
-    - [ ] Read `npm-shrinkwrap.json` → extract `@pptb/types` version
-    - [ ] Remove semver prefixes (^, ~) from maxAPI
 - [ ] Add validation logic:
     - [ ] Validate semver format
-    - [ ] Check minAPI <= maxAPI if both present
     - [ ] Check minAPI >= MIN_SUPPORTED_API_VERSION
 - [ ] Update database insert/update to include version fields
 - [ ] Test with sample tool submission
@@ -199,14 +187,13 @@ This feature allows tools to declare version compatibility requirements, prevent
 Add to tool submission guidelines:
 
 - [ ] Tools must include `features.minAPI` in package.json
-- [ ] Tools must include npm-shrinkwrap.json
 - [ ] Tools must have `@pptb/types` in devDependencies
 - [ ] Version format must be valid semver
 
 ### Update Local Registry
 
 - [ ] Update `src/main/data/registry.json` with version fields
-- [ ] Add minAPI and maxAPI to existing tools
+- [ ] Add minAPI to existing tools
 - [ ] Commit updated registry
 
 ---
@@ -266,7 +253,7 @@ Add to tool submission guidelines:
 
 - [ ] **Test 1: Tool Installation**
     1. Install a test tool with version info
-    2. Verify minAPI and maxAPI are captured in manifest.json
+    2. Verify minAPI is captured in manifest.json
     3. Check tool displays correctly in sidebar
 
 - [ ] **Test 2: Compatibility Check**
@@ -298,7 +285,6 @@ Add to tool submission guidelines:
 - [ ] Write unit tests for `compareVersions()` function
 - [ ] Write unit tests for `isToolSupported()` function
 - [ ] Test version extraction from package.json
-- [ ] Test version extraction from npm-shrinkwrap.json
 - [ ] Test database schema with sample data
 
 ### Cross-Platform Testing
@@ -359,7 +345,7 @@ If critical issues are discovered:
 1. Backup current data:
     ```sql
     CREATE TABLE tools_version_backup AS
-    SELECT id, min_api, max_api FROM tools;
+    SELECT id, min_api FROM tools;
     ```
 2. Drop indexes and constraints
 3. Remove columns
@@ -413,7 +399,6 @@ The feature is considered successfully implemented when:
 
 - **External Resources**:
     - [Semantic Versioning](https://semver.org/)
-    - [npm Shrinkwrap Docs](https://docs.npmjs.com/cli/v8/commands/npm-shrinkwrap)
     - [Supabase Documentation](https://supabase.com/docs)
 
 ---

@@ -27,7 +27,6 @@ The Tool Version Compatibility System allows tools to specify which versions of 
 - **ToolBox Version**: The version of the Power Platform ToolBox application (e.g., `1.1.3`)
 - **API Version**: The version of the `@pptb/types` package that defines the tool API surface (matches ToolBox version)
 - **Minimum API Version (minAPI)**: The oldest ToolBox version required by the tool
-- **Maximum API Version (maxAPI)**: The newest ToolBox version the tool was built and tested against
 
 ---
 
@@ -43,7 +42,7 @@ A tool is considered **compatible** and will be enabled if:
     - The current ToolBox must be at least as new as what the tool requires
     - Ensures the ToolBox has all APIs the tool needs
 
-3. **Maximum Version**: The `maxAPI` field is **informational only**
+3. **Forward Compatibility**: Tools built against older APIs continue to work
     - Tools built with older APIs continue to work on newer ToolBox versions
     - Breaking changes are tracked by updating `MIN_SUPPORTED_API_VERSION` on ToolBox side
     - This allows forward compatibility by default
@@ -109,7 +108,7 @@ A tool is considered **compatible** and will be enabled if:
 
 - Tool's minAPI (1.0.2) >= MIN_SUPPORTED_API_VERSION (1.0.2) ✓
 - ToolBox version (1.0.5) >= tool.minAPI (1.0.2) ✓
-- Tool maxAPI (1.0.4) is ignored - tool works on v1.0.5 because no breaking changes
+- Tool works on v1.0.5 because no breaking changes
 
 ---
 
@@ -144,17 +143,7 @@ Install the appropriate version as a dev dependency:
 npm install --save-dev @pptb/types@^1.0.12
 ```
 
-### 3. Create npm-shrinkwrap.json
-
-After installing dependencies, create a shrinkwrap file:
-
-```bash
-npm shrinkwrap
-```
-
-This captures the exact `@pptb/types` version used, which becomes the `maxAPI` value.
-
-### 4. Testing Compatibility
+### 3. Testing Compatibility
 
 Before releasing your tool, test it with:
 
@@ -162,12 +151,11 @@ Before releasing your tool, test it with:
 - The latest ToolBox version available
 - Any versions in between if there were significant API changes
 
-### 5. Tool Submission Checklist
+### 4. Tool Submission Checklist
 
 When submitting your tool to the marketplace:
 
 - [ ] `package.json` includes `features.minAPI` field
-- [ ] `npm-shrinkwrap.json` exists and includes `@pptb/types`
 - [ ] Tool has been tested with minimum required version
 - [ ] Tool has been tested with latest ToolBox version
 - [ ] README documents version requirements
@@ -275,11 +263,9 @@ The Supabase `tools` table should include these columns:
 ```sql
 -- Add to existing tools table
 ALTER TABLE tools ADD COLUMN min_api TEXT;
-ALTER TABLE tools ADD COLUMN max_api TEXT;
 
 -- Indexes for performance
 CREATE INDEX idx_tools_min_api ON tools(min_api);
-CREATE INDEX idx_tools_max_api ON tools(max_api);
 ```
 
 ### Tool Intake Process
@@ -288,8 +274,7 @@ When processing a new tool submission or update:
 
 1. **Extract Version Information:**
     - Read `package.json` → get `features.minAPI`
-    - Read `npm-shrinkwrap.json` → get `dependencies["@pptb/types"].version`
-    - Validate both values are present and valid semver
+    - Validate the value is present and valid semver
 
 2. **Validate Versions:**
 
@@ -298,24 +283,18 @@ When processing a new tool submission or update:
     if (!semver.valid(minAPI)) {
         reject("Invalid minAPI version format");
     }
-    if (!semver.valid(maxAPI)) {
-        reject("Invalid maxAPI version format");
-    }
-    if (semver.gt(minAPI, maxAPI)) {
-        reject("minAPI cannot be greater than maxAPI");
-    }
     ```
 
 3. **Store in Database:**
 
     ```sql
-    INSERT INTO tools (id, name, version, min_api, max_api, ...)
-    VALUES ($1, $2, $3, $4, $5, ...);
+    INSERT INTO tools (id, name, version, min_api, ...)
+    VALUES ($1, $2, $3, $4, ...);
     ```
 
 4. **Update Local Registry (Backup):**
     - Update `src/main/data/registry.json` with new tool
-    - Include `minAPI` and `maxAPI` fields
+    - Include the `minAPI` field
     - Commit to repository
 
 ### Handling Legacy Tools
@@ -323,7 +302,6 @@ When processing a new tool submission or update:
 For existing tools without version information:
 
 - Set `minAPI = null` (assumed compatible)
-- Set `maxAPI = null` (assumed compatible)
 - Reach out to tool developers to update their submissions
 - Add notification in tool detail page about missing version info
 
@@ -375,9 +353,9 @@ function compareVersions(v1: string, v2: string): number {
 ### Compatibility Check Logic
 
 ```typescript
-function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
+function isToolSupported(minAPI?: string): boolean {
     // No version constraints = compatible (legacy tools)
-    if (!minAPI && !maxAPI) return true;
+    if (!minAPI) return true;
 
     if (minAPI) {
         // Check 1: Tool's minAPI >= MIN_SUPPORTED_API_VERSION
@@ -393,16 +371,12 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
         }
     }
 
-    // maxAPI is informational only - tools work on newer versions
-    // unless breaking changes occur (tracked by MIN_SUPPORTED_API_VERSION)
-
     return true;
 }
 ```
 
 **Key Points:**
 
-- `maxAPI` does not restrict compatibility - it's for informational purposes only
 - Tools built with older APIs continue to work on newer ToolBox versions
 - Breaking changes are signaled by updating `MIN_SUPPORTED_API_VERSION`
 - This approach maximizes forward compatibility
@@ -413,8 +387,8 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
 1. **Installation:**
     - User clicks "Install" on a tool
     - `toolRegistryManager.installTool()` downloads the package
-    - Reads `minAPI` and `maxAPI` from Supabase tools table (min_api and max_api columns)
-    - Stores in `manifest.json` as `minAPI` and `maxAPI`
+    - Reads `minAPI` from Supabase tools table (min_api column)
+    - Stores in `manifest.json` as `minAPI`
 
 2. **Loading:**
     - `toolsManager.loadTool()` reads manifest
@@ -428,7 +402,7 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
     - CSS applies visual indicators (opacity, border)
     - Launch button disabled with helpful tooltip
 
-**Note:** Version information (min_api and max_api) is pre-processed during tool intake/submission and stored in Supabase. The ToolBox application reads these values from the database, not from the tool package files.
+**Note:** Version information (min_api) is pre-processed during tool intake/submission and stored in Supabase. The ToolBox application reads this value from the database, not from the tool package files.
 
 ---
 
@@ -520,8 +494,7 @@ Current Version: 1.0.1
 **Possible Causes:**
 
 1. Tool missing `minAPI` in package.json
-2. Tool missing `npm-shrinkwrap.json`
-3. Registry data outdated
+2. Registry data outdated
 
 **Solution:**
 
@@ -573,5 +546,4 @@ git commit -m "Sync @pptb/types version to 1.0.11"
 ## References
 
 - [Semantic Versioning](https://semver.org/)
-- [npm Shrinkwrap Documentation](https://docs.npmjs.com/cli/v8/commands/npm-shrinkwrap)
 - [Power Platform ToolBox API Types](https://www.npmjs.com/package/@pptb/types)

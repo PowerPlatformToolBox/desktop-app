@@ -1,7 +1,8 @@
-import { BrowserView, BrowserWindow, ipcMain, shell } from "electron";
+import { BrowserView, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
+import { captureException } from "../../common/sentryHelper";
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
@@ -97,6 +98,7 @@ export class ToolWindowManager {
      * from pendingInvocations, which already stores callerInstanceId per callee entry.
      */
     private activeCallees: Map<string, string> = new Map();
+    private preventCloseTools: Set<string> = new Set();
     // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
     // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
     private activeToolId: string | null = null;
@@ -192,6 +194,8 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
     }
 
     /**
@@ -223,6 +227,10 @@ export class ToolWindowManager {
                 prefillData: Record<string, unknown>,
                 noReturn?: boolean,
             ) => {
+                if (this.getInstanceIdByWebContents(event.sender.id) !== callerInstanceId) {
+                    throw new Error("Invocation caller does not match the sending tool instance");
+                }
+
                 return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn);
             },
         );
@@ -272,6 +280,24 @@ export class ToolWindowManager {
         // Close a tool
         ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE, async (event, instanceId: string) => {
             return this.closeTool(instanceId);
+        });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE, async (event) => {
+            const instanceId = this.getInstanceIdByWebContents(event.sender.id);
+            if (!instanceId) {
+                return false;
+            }
+
+            this.preventCloseTools.add(instanceId);
+            return true;
+        });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE, async (event) => {
+            const instanceId = this.getInstanceIdByWebContents(event.sender.id);
+            if (!instanceId) {
+                return false;
+            }
+
+            this.preventCloseTools.delete(instanceId);
+            return true;
         });
 
         // Get active instance ID (activeToolId variable now stores instanceId values)
@@ -344,7 +370,13 @@ export class ToolWindowManager {
      */
     async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null, prefillData?: Record<string, unknown>): Promise<boolean> {
         try {
-            logInfo(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
+            logInfo("[ToolWindowManager] Tool launch started", {
+                instanceId,
+                toolId: tool.id,
+                hasPrimaryConnection: primaryConnectionId !== null,
+                hasSecondaryConnection: secondaryConnectionId !== null,
+                hasPrefillData: prefillData !== undefined && Object.keys(prefillData).length > 0,
+            });
 
             // Extract actual toolId from instanceId (format: toolId-timestamp-random)
             const toolId = instanceId.split("-").slice(0, -2).join("-");
@@ -514,6 +546,18 @@ export class ToolWindowManager {
             return true;
         } catch (error) {
             logError(`[ToolWindowManager] Error launching tool instance ${instanceId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: {
+                    operation: "launchTool",
+                    tool_id: tool.id,
+                },
+                extra: {
+                    instanceId,
+                    hasPrimaryConnection: primaryConnectionId !== null,
+                    hasSecondaryConnection: secondaryConnectionId !== null,
+                    hasPrefillData: prefillData !== undefined && Object.keys(prefillData).length > 0,
+                },
+            });
 
             return false;
         }
@@ -550,29 +594,59 @@ export class ToolWindowManager {
         noReturn?: boolean,
         invocationContext?: InvocationContextMetadata,
     ): Promise<unknown> {
+        const invocationLogContext = {
+            callerInstanceId,
+            calleeInstanceId,
+            targetToolId: tool.id,
+            mode: noReturn ? "one-way" : "two-way",
+            source: invocationContext?.source ?? "tool",
+            correlationId: invocationContext?.correlationId,
+            hasPrimaryConnectionOverride: primaryConnectionId !== null,
+            hasSecondaryConnectionOverride: secondaryConnectionId !== null,
+            hasPrefillData: Object.keys(prefillData).length > 0,
+        };
+
+        logInfo("[ToolWindowManager] Inter-tool invocation requested", invocationLogContext);
+
         // One-at-a-time enforcement
         if (this.activeCallees.has(callerInstanceId)) {
-            throw new Error("A callee invocation is already in progress");
+            const error = new Error("A callee invocation is already in progress");
+            logError("[ToolWindowManager] Inter-tool invocation rejected", { ...invocationLogContext, error: error.message });
+            captureException(error, {
+                tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "validation" },
+                extra: invocationLogContext,
+            });
+            throw error;
         }
 
-        // FXS connection auto-inheritance: use caller's primary connection when none is specified
+        // Use caller's primary connection when none is specified
         let effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
 
         // Multi-connection: if the callee requires a secondary connection but none was provided,
         // ask the main renderer to show the multi-connection selector before launching the tool.
+        // Tools declaring features.connectionRequirement === "optional" never block on connection
+        // selection, so they skip this prompt even if they support multi-connection.
+        const connectionRequirement = tool.features?.connectionRequirement ?? "required";
         const multiConnectionMode = tool.features?.multiConnection ?? "none";
-        const needsSecondary = multiConnectionMode === "required" || multiConnectionMode === "optional";
+        const needsSecondary = connectionRequirement === "required" && (multiConnectionMode === "required" || multiConnectionMode === "optional");
         let effectiveSecondaryConnectionId = secondaryConnectionId;
 
         if (needsSecondary && !effectiveSecondaryConnectionId) {
             const isSecondaryRequired = multiConnectionMode === "required";
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
+                logInfo("[ToolWindowManager] Inter-tool invocation awaiting connection selection", invocationLogContext);
                 const connectionResult = await this.promptForInvocationConnections(requestId, tool.name, isSecondaryRequired, effectivePrimaryConnectionId);
                 effectivePrimaryConnectionId = connectionResult.primaryConnectionId;
                 effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
             } catch (err) {
-                throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+                const error = new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+                logError("[ToolWindowManager] Inter-tool invocation connection selection failed", { ...invocationLogContext, error: error.message });
+                captureException(error, {
+                    tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "connection_selection" },
+                    extra: invocationLogContext,
+                });
+                throw error;
             }
         }
 
@@ -587,15 +661,23 @@ export class ToolWindowManager {
                 invocationContext,
             });
             this.activeCallees.set(callerInstanceId, calleeInstanceId);
+            logInfo("[ToolWindowManager] Inter-tool invocation launching target", {
+                ...invocationLogContext,
+                hasEffectivePrimaryConnection: effectivePrimaryConnectionId !== null,
+                hasEffectiveSecondaryConnection: effectiveSecondaryConnectionId !== null,
+            });
 
             this.launchTool(calleeInstanceId, tool, effectivePrimaryConnectionId, effectiveSecondaryConnectionId, prefillData)
                 .then((launched) => {
                     if (!launched) {
                         this.pendingInvocations.delete(calleeInstanceId);
                         this.activeCallees.delete(callerInstanceId);
-                        reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                        const error = new Error(`Failed to launch tool instance ${calleeInstanceId}`);
+                        logError("[ToolWindowManager] Inter-tool invocation target launch failed", { ...invocationLogContext, error: error.message });
+                        reject(error);
                         return;
                     }
+                    logInfo("[ToolWindowManager] Inter-tool invocation target launched", invocationLogContext);
                     // Notify the renderer to create a tab for the callee so it appears as a
                     // separate instance (its own tab) rather than replacing the caller's view.
                     this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_OPENED, {
@@ -609,7 +691,13 @@ export class ToolWindowManager {
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
                     this.activeCallees.delete(callerInstanceId);
-                    reject(error as Error);
+                    const launchError = error instanceof Error ? error : new Error(String(error));
+                    logError("[ToolWindowManager] Inter-tool invocation target launch rejected", { ...invocationLogContext, error: launchError.message });
+                    captureException(launchError, {
+                        tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "target_launch" },
+                        extra: invocationLogContext,
+                    });
+                    reject(launchError);
                 });
         });
     }
@@ -787,11 +875,28 @@ export class ToolWindowManager {
      * Close a tool (destroy its BrowserView)
      * @param instanceId The instance identifier to close
      */
-    async closeTool(instanceId: string): Promise<boolean> {
+    async closeTool(instanceId: string, options?: { force?: boolean }): Promise<boolean> {
         try {
             const toolView = this.toolViews.get(instanceId);
             if (!toolView) {
                 return false;
+            }
+
+            if (!options?.force && this.preventCloseTools.has(instanceId)) {
+                const toolName = this.toolInstanceNames.get(instanceId) ?? "this tool";
+                const response = dialog.showMessageBoxSync(this.mainWindow, {
+                    type: "warning",
+                    title: "Tool closure blocked",
+                    message: `${toolName} is preventing closure.`,
+                    detail: "This tool needs to complete an operation. Are you sure you want to close it?",
+                    buttons: ["Cancel", "Ignore & Close"],
+                    defaultId: 0,
+                    cancelId: 0,
+                    noLink: true,
+                });
+                if (response !== 1) {
+                    return false;
+                }
             }
 
             // If this is the active tool instance, clear it from window
@@ -811,6 +916,7 @@ export class ToolWindowManager {
             this.toolViews.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
             this.toolInstanceNames.delete(instanceId);
+            this.preventCloseTools.delete(instanceId);
 
             // If the tool was launched by another tool (inter-tool invocation) and it closes
             // without calling returnData, resolve the caller's Promise with null so the caller
@@ -1110,6 +1216,7 @@ export class ToolWindowManager {
 
         this.toolViews.clear();
         this.toolConnectionInfo.clear();
+        this.preventCloseTools.clear();
         logInfo("[ToolWindowManager] All stale tool views closed and state reset.");
     }
 
@@ -1215,6 +1322,8 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
@@ -1239,6 +1348,37 @@ export class ToolWindowManager {
         }
 
         this.closeAllToolViews();
+    }
+
+    hasPreventCloseTools(): boolean {
+        return this.preventCloseTools.size > 0;
+    }
+
+    confirmAppCloseIfPrevented(parentWindow?: BrowserWindow): boolean {
+        if (!this.hasPreventCloseTools()) {
+            return true;
+        }
+
+        const toolNames = Array.from(this.preventCloseTools)
+            .map((instanceId) => this.toolInstanceNames.get(instanceId))
+            .filter((name): name is string => Boolean(name));
+        const response = dialog.showMessageBoxSync(parentWindow ?? this.mainWindow, {
+            type: "warning",
+            title: "App closure blocked",
+            message: "One or more tools are preventing app closure.",
+            detail: `${toolNames.length > 0 ? `Tools: ${toolNames.join(", ")}.\n\n` : ""}Close anyway?`,
+            buttons: ["Cancel", "Ignore & Close"],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+
+        if (response === 1) {
+            this.preventCloseTools.clear();
+            return true;
+        }
+
+        return false;
     }
 
     /**

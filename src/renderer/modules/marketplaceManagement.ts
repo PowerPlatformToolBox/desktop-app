@@ -11,7 +11,10 @@ import { formatRatingMarkup } from "../utils/rating";
 import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
-import { openLocalPageAsTab } from "./toolManagement";
+import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
+import { openRateToolModal } from "./rateToolModal";
+import { openReportConcernModal } from "./reportConcernModal";
+import { launchTool, openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 interface InstalledTool {
@@ -59,13 +62,13 @@ export async function loadToolsLibrary(): Promise<void> {
                     website: tool.website,
                     createdAt: tool.createdAt, // Use createdAt for new tool detection
                     minAPI: tool.minAPI, // Include min API version
-                    maxAPI: tool.maxAPI, // Include max API version
                     isSupported: tool.isSupported, // Include compatibility status
                     npmPackageName: tool.npmPackageName, // Include npm package name for pre-release detection
                     mcpHeadlessEnabled: tool.mcpHeadlessEnabled,
                     marketplaceSourceId: tool.marketplaceSourceId,
                     marketplaceSourceLabel: tool.marketplaceSourceLabel,
                     marketplaceSourceType: tool.marketplaceSourceType,
+                    maturity: tool.maturity,
                 }) as ToolDetail,
         );
 
@@ -84,6 +87,8 @@ export async function loadMarketplace(): Promise<void> {
     const marketplaceList = document.getElementById("marketplace-tools-list");
     if (!marketplaceList) return;
 
+    await loadToolsLibrary();
+
     // Check if toolLibrary is empty (failed to load from registry)
     if (!toolLibrary || toolLibrary.length === 0) {
         marketplaceList.innerHTML = `
@@ -98,6 +103,10 @@ export async function loadMarketplace(): Promise<void> {
     // Get installed tools
     const installedTools = await window.toolboxAPI.getAllTools();
     const installedToolsMap = new Map((installedTools as InstalledTool[]).map((t) => [t.id, t]));
+    toolLibrary = toolLibrary.map((tool) => ({
+        ...tool,
+        mcpHeadlessEnabled: tool.mcpHeadlessEnabled === true || installedToolsMap.get(tool.id)?.mcpHeadlessEnabled === true,
+    }));
 
     // Get display mode setting
     const displayMode = ((await window.toolboxAPI.getSetting("toolDisplayMode")) as string) || "standard";
@@ -109,6 +118,7 @@ export async function loadMarketplace(): Promise<void> {
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
     const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
     const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
+    const verifiedOnlyFilter = document.getElementById("marketplace-verified-only-filter") as HTMLInputElement | null;
     const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
     const privateMarketplaceFilterRow = document.getElementById("marketplace-private-marketplace-filter-row") as HTMLElement | null;
     const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
@@ -127,11 +137,12 @@ export async function loadMarketplace(): Promise<void> {
     const selectedAuthor = authorFilter?.value || "";
     const showNewOnly = newFilter?.checked || false;
     const showMcpEnabledOnly = mcpEnabledFilter?.checked || false;
+    const showVerifiedOnly = verifiedOnlyFilter?.checked || false;
     const showPrivateMarketplaceOnly = hasConfiguredPrivateMarketplace && (privateMarketplaceFilter?.checked || false);
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
     // Update filter button indicator and one-click clear button visibility
-    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly);
+    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showVerifiedOnly || showPrivateMarketplaceOnly);
     const marketplaceFilterBtn = document.getElementById("marketplace-filter-btn");
     if (marketplaceFilterBtn) {
         marketplaceFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -187,6 +198,10 @@ export async function loadMarketplace(): Promise<void> {
             return false;
         }
 
+        if (showVerifiedOnly && !isVerifiedTool(t.maturity)) {
+            return false;
+        }
+
         if (showPrivateMarketplaceOnly && t.marketplaceSourceType !== "private") {
             return false;
         }
@@ -203,6 +218,9 @@ export async function loadMarketplace(): Promise<void> {
 
     // Sort tools based on selected option
     filteredTools = filteredTools.sort((a, b) => {
+        const maturityComparison = compareVerifiedFirst(a.maturity, b.maturity);
+        if (maturityComparison !== 0) return maturityComparison;
+
         switch (sortOption) {
             case "name-asc":
                 return a.name.localeCompare(b.name);
@@ -225,7 +243,7 @@ export async function loadMarketplace(): Promise<void> {
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
         const hasSearchTerm = searchTerm.length > 0;
-        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly;
+        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showVerifiedOnly || showPrivateMarketplaceOnly;
         const emptyMessage = hasSearchTerm ? "Try a different search term." : hasActiveFilters ? "No tools match the current filters." : "Check back later for new tools.";
         marketplaceList.innerHTML = `
             <div class="empty-state">
@@ -254,6 +272,8 @@ export async function loadMarketplace(): Promise<void> {
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
             const mcpHeadlessEnabled = tool.mcpHeadlessEnabled === true;
+            const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
+            const verifiedClass = isVerifiedTool(tool.maturity) ? "verified" : "";
             const mcpBadgeHtml = mcpHeadlessEnabled
                 ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
                 : "";
@@ -286,12 +306,12 @@ export async function loadMarketplace(): Promise<void> {
             if (displayMode === "compact") {
                 // Compact mode: icon, name, version, author only
                 return `
-        <div class="marketplace-item-pptb marketplace-item-compact ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb marketplace-item-compact ${verifiedClass} ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
                     <div class="marketplace-item-name-pptb">
-                        ${tool.name}
+                        ${tool.name}${verifiedBadgeHtml}
                     </div>
                     <div class="marketplace-item-version-pptb">v${tool.version}</div>
                 </div>
@@ -312,12 +332,12 @@ export async function loadMarketplace(): Promise<void> {
 
             // Standard mode: full details
             return `
-        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb ${verifiedClass} ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
                     <div class="marketplace-item-name-pptb">
-                        ${tool.name}
+                        ${tool.name}${verifiedBadgeHtml}
                     </div>
                     <div class="marketplace-item-version-pptb">v${tool.version}</div>
                 </div>
@@ -448,6 +468,13 @@ export async function loadMarketplace(): Promise<void> {
         });
     }
 
+    if (verifiedOnlyFilter && !(verifiedOnlyFilter as any)._pptbBound) {
+        (verifiedOnlyFilter as any)._pptbBound = true;
+        verifiedOnlyFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
     if (privateMarketplaceFilter && !(privateMarketplaceFilter as any)._pptbBound) {
         (privateMarketplaceFilter as any)._pptbBound = true;
         privateMarketplaceFilter.addEventListener("change", () => {
@@ -552,12 +579,12 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const tagsMarkup = `${mcpTagMarkup}${categoryTagsMarkup}`;
     const badgeMarkup = metaBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
     const ratingsHtml = formatRatingMarkup(tool.rating, { suffix: " ⭐" });
+    const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
 
     const iconHtml = buildToolIconHtml(tool);
 
     const linkItems: string[] = [];
-    const reviewUrl = `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`;
-    linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-tab-link" href="${escapeHtml(reviewUrl)}" data-url="${escapeHtml(reviewUrl)}">Leave a review</a>`);
+    linkItems.push(`<a id="tool-detail-rate-link" class="tool-detail-tab-link" href="#" role="button">Rate this tool</a>`);
     const repositoryUrl = normalizeRepositoryUrl(tool.repository);
     if (repositoryUrl) {
         linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(repositoryUrl)}" data-url="${escapeHtml(repositoryUrl)}">Repository</a>`);
@@ -566,6 +593,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     if (websiteUrl) {
         linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(websiteUrl)}" data-url="${escapeHtml(websiteUrl)}">Website</a>`);
     }
+    linkItems.push(`<a id="tool-detail-report-link" class="tool-detail-tab-link tool-detail-tab-link-warning" href="#" role="button">Report a concern</a>`);
     const linksMarkup = linkItems.length ? `<div class="tool-detail-tab-links">${linkItems.join('<span aria-hidden="true"> • </span>')}</div>` : "";
 
     const readmePlaceholder = tool.readmeUrl ? "Loading README..." : "README is not available for this tool.";
@@ -579,14 +607,14 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                 </div>
                 <div class="tool-detail-tab-meta">
                     ${tagsMarkup ? `<div class="tool-detail-tab-tags">${tagsMarkup}</div>` : ""}
-                    <h2 class="tool-detail-tab-name">${escapeHtml(tool.name)}</h2>
+                    <h2 class="tool-detail-tab-name">${escapeHtml(tool.name)}${verifiedBadgeHtml}<span id="tool-detail-installed-badge" class="marketplace-item-installed-icon tool-detail-tab-installed-badge" ${isInstalled ? "" : 'style="display:none"'} aria-label="Installed" title="Installed">✓</span></h2>
                     <p class="tool-detail-tab-description">${escapeHtml(tool.description || "")}</p>
                     <p class="tool-detail-tab-authors">By ${escapeHtml(authorsDisplay)}</p>
-                    ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
+                    ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list" id="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
                     <div class="tool-detail-tab-actions">
                         <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${isInstalled ? 'style="display:none"' : ""} ${unsupportedAttr}>Install</button>
+                        <button id="tool-detail-launch-btn" class="fluent-button fluent-button-primary" ${isInstalled ? "" : 'style="display:none"'}>Launch</button>
                         <button id="tool-detail-prerelease-btn" class="fluent-button fluent-button-secondary" style="display:none">Install Pre-Release Version</button>
-                        <span id="tool-detail-installed-badge" class="tool-detail-tab-installed-badge" ${isInstalled ? "" : 'style="display:none"'}>✓ Installed</span>
                     </div>
                     ${linksMarkup}
                 </div>
@@ -613,10 +641,43 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         });
     });
 
+    // Wire up "Rate this tool" link to open the in-app rating modal
+    const rateLink = panel.querySelector<HTMLAnchorElement>("#tool-detail-rate-link");
+    rateLink?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openRateToolModal({ id: tool.id, name: tool.name })
+            .then((aggregate) => {
+                if (!aggregate) return;
+                const metaList = panel.querySelector<HTMLElement>("#tool-detail-tab-meta-list");
+                if (metaList) {
+                    const updatedRatingsHtml = formatRatingMarkup(aggregate.rating, { suffix: " ⭐" });
+                    metaList.innerHTML = `${badgeMarkup}${updatedRatingsHtml}`;
+                }
+                void loadMarketplace();
+                void loadSidebarTools();
+            })
+            .catch((error) => {
+                logError("Failed to submit tool rating", error);
+            });
+    });
+
+    // Wire up "Report a concern" link to open the report modal
+    const reportLink = panel.querySelector<HTMLAnchorElement>("#tool-detail-report-link");
+    reportLink?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openReportConcernModal({ id: tool.id, name: tool.name, version: tool.version, maturity: tool.maturity }, "tool-detail").catch((error) => {
+            logError("Failed to open report concern modal", error);
+        });
+    });
+
     // Wire up install button
     const installBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-install-btn");
+    const launchBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-launch-btn");
     const prereleaseBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-prerelease-btn");
     const installedBadge = panel.querySelector<HTMLElement>("#tool-detail-installed-badge");
+    launchBtn?.addEventListener("click", () => {
+        void launchTool(tool.id);
+    });
     installBtn?.addEventListener("click", async () => {
         if (!installBtn || installBtn.disabled) return;
         installBtn.disabled = true;
@@ -624,6 +685,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         try {
             await window.toolboxAPI.installToolFromRegistry(tool.id);
             installBtn.style.display = "none";
+            if (launchBtn) launchBtn.style.display = "inline-flex";
             if (prereleaseBtn) prereleaseBtn.style.display = "none";
             if (installedBadge) installedBadge.style.display = "inline-flex";
             window.toolboxAPI.utils.showNotification({
@@ -653,6 +715,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         try {
             await window.toolboxAPI.installPrereleaseToolFromNpm(tool.npmPackageName);
             if (installBtn) installBtn.style.display = "none";
+            if (launchBtn) launchBtn.style.display = "inline-flex";
             prereleaseBtn.style.display = "none";
             if (installedBadge) installedBadge.style.display = "inline-flex";
             window.toolboxAPI.utils.showNotification({
@@ -728,7 +791,8 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined,
         if (!detailPanel || detailPanel.getAttribute("data-tab-id") !== tabId) return;
 
         // Render remote markdown safely (raw HTML blocks are escaped in the shared renderer).
-        readmeContainer.innerHTML = renderMarkdownToSafeHtml(markdown);
+        // readmeUrl is passed as the base for resolving repo-relative image paths in the README.
+        readmeContainer.innerHTML = renderMarkdownToSafeHtml(markdown, readmeUrl);
         wireExternalLinks(readmeContainer, (href) => window.toolboxAPI.openExternal(href));
     } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)));
@@ -790,6 +854,11 @@ function clearMarketplaceFilters(): void {
         mcpEnabledFilter.checked = false;
     }
 
+    const verifiedOnlyFilter = document.getElementById("marketplace-verified-only-filter") as HTMLInputElement | null;
+    if (verifiedOnlyFilter) {
+        verifiedOnlyFilter.checked = false;
+    }
+
     const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
     if (privateMarketplaceFilter) {
         privateMarketplaceFilter.checked = false;
@@ -826,6 +895,11 @@ export function clearMarketplaceDropdownFilters(): void {
     const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
     if (mcpEnabledFilter) {
         mcpEnabledFilter.checked = false;
+    }
+
+    const verifiedOnlyFilter = document.getElementById("marketplace-verified-only-filter") as HTMLInputElement | null;
+    if (verifiedOnlyFilter) {
+        verifiedOnlyFilter.checked = false;
     }
 
     const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;

@@ -30,6 +30,12 @@ export interface ToolFeatures {
      */
     multiConnection?: "required" | "optional" | "none";
     /**
+     * Whether a connection is mandatory before the tool can be opened
+     * - "required": A connection (per `multiConnection`) must be selected before launch (default behavior)
+     * - "optional": The tool opens immediately with no connection; the user can attach one later via "Change Connection"
+     */
+    connectionRequirement?: "required" | "optional";
+    /**
      * Minimum ToolBox API version required by this tool
      * Tool developers should specify this in their package.json
      * @example "1.0.12"
@@ -63,6 +69,7 @@ export interface Tool {
     license?: string;
     downloads?: number;
     rating?: number;
+    ratingCount?: number; // Number of ratings submitted for this tool
     mau?: number; // Monthly Active Users (unique machines per month)
     readmeUrl?: string;
     features?: ToolFeatures; // Tool features configuration
@@ -70,7 +77,6 @@ export interface Tool {
     repository?: string;
     website?: string;
     minAPI?: string; // Minimum ToolBox API version required
-    maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
@@ -78,6 +84,7 @@ export interface Tool {
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
+    maturity?: string;
 }
 
 /**
@@ -101,17 +108,18 @@ export interface ToolRegistryEntry {
     license?: string; // SPDX or license name
     downloads?: number; // analytics - total downloads
     rating?: number; // analytics - average rating
+    ratingCount?: number; // analytics - number of ratings submitted
     mau?: number; // analytics - Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
-    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
     npmPackageName?: string; // npm package name used for pre-release version detection
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
+    maturity?: string;
 }
 
 /**
@@ -119,6 +127,7 @@ export interface ToolRegistryEntry {
  */
 export interface ToolManifest {
     id: string;
+    packageName?: string; // Canonical package.json name used for inter-tool invocation lookup
     name: string;
     version: string;
     description: string;
@@ -134,6 +143,7 @@ export interface ToolManifest {
     license?: string;
     downloads?: number;
     rating?: number;
+    ratingCount?: number; // Number of ratings submitted for this tool
     mau?: number; // Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
@@ -142,13 +152,13 @@ export interface ToolManifest {
     publishedAt?: string;
     createdAt?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
-    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
     capabilities?: string[];
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
+    maturity?: string;
 }
 
 /**
@@ -156,6 +166,22 @@ export interface ToolManifest {
  */
 export interface ToolSettings {
     [key: string]: unknown;
+}
+
+/**
+ * A user's own rating for a tool, cached locally so the rating modal can pre-fill it.
+ */
+export interface MyToolRating {
+    rating: number;
+    comment?: string;
+}
+
+/**
+ * Aggregate rating result returned after submitting a rating (recomputed server-side).
+ */
+export interface ToolRatingAggregate {
+    rating?: number;
+    ratingCount?: number;
 }
 
 /**

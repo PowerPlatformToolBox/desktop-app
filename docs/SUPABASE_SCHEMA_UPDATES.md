@@ -4,51 +4,42 @@ This document outlines the database schema changes required to support tool vers
 
 ## Overview
 
-The tool version compatibility feature requires storing minimum and maximum API version information for each tool in the registry. This allows the application to determine which tools are compatible with a given ToolBox version.
+The tool version compatibility feature requires storing the minimum API version information for each tool in the registry. This allows the application to determine which tools are compatible with a given ToolBox version.
 
 ---
 
 ## Schema Changes
 
-### 1. Add Version Columns to `tools` Table
+### 1. Add Version Column to `tools` Table
 
 Execute the following SQL in your Supabase SQL Editor:
 
 ```sql
--- Add min_api and max_api columns to the tools table
+-- Add min_api column to the tools table
 ALTER TABLE tools 
-  ADD COLUMN IF NOT EXISTS min_api TEXT,
-  ADD COLUMN IF NOT EXISTS max_api TEXT;
+  ADD COLUMN IF NOT EXISTS min_api TEXT;
 
--- Add comments to explain the columns
+-- Add a comment to explain the column
 COMMENT ON COLUMN tools.min_api IS 'Minimum ToolBox API version required by this tool (from package.json features.minAPI)';
-COMMENT ON COLUMN tools.max_api IS 'Maximum ToolBox API version tested with this tool (from npm-shrinkwrap @pptb/types version)';
 ```
 
-### 2. Create Indexes for Performance
+### 2. Create Index for Performance
 
-Add indexes to improve query performance when filtering by version:
+Add an index to improve query performance when filtering by version:
 
 ```sql
--- Create indexes on version columns for faster lookups
+-- Create index on the version column for faster lookups
 CREATE INDEX IF NOT EXISTS idx_tools_min_api ON tools(min_api) 
   WHERE min_api IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_tools_max_api ON tools(max_api) 
-  WHERE max_api IS NOT NULL;
-
--- Composite index for version range queries
-CREATE INDEX IF NOT EXISTS idx_tools_versions ON tools(min_api, max_api) 
-  WHERE min_api IS NOT NULL AND max_api IS NOT NULL;
 ```
 
 ### 3. Update Row Level Security (RLS) Policies
 
-If you have RLS enabled, ensure the new columns are included:
+If you have RLS enabled, ensure the new column is included:
 
 ```sql
--- No changes needed to RLS policies - the columns follow the same access pattern
--- Just verify that SELECT policies allow reading these columns
+-- No changes needed to RLS policies - the column follows the same access pattern
+-- Just verify that SELECT policies allow reading this column
 
 -- Example verification query:
 SELECT 
@@ -79,8 +70,7 @@ For tools that already exist without version information:
 -- Option 2: Set to earliest supported version
 UPDATE tools 
 SET 
-  min_api = '1.0.0',
-  max_api = '1.1.3'  -- Current latest version
+  min_api = '1.0.0'
 WHERE min_api IS NULL;
 ```
 
@@ -112,26 +102,18 @@ async function backfillVersions() {
     try {
       // Download and extract tool package
       const packageJsonPath = `./temp/${tool.id}/package.json`;
-      const shrinkwrapPath = `./temp/${tool.id}/npm-shrinkwrap.json`;
-      
+
       if (fs.existsSync(packageJsonPath)) {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
         const minAPI = packageJson.features?.minAPI;
-        
-        let maxAPI = null;
-        if (fs.existsSync(shrinkwrapPath)) {
-          const shrinkwrap = JSON.parse(fs.readFileSync(shrinkwrapPath, 'utf-8'));
-          const typesVersion = shrinkwrap.dependencies?.['@pptb/types']?.version;
-          maxAPI = typesVersion?.replace(/^\^|~/, '');
-        }
-        
+
         // Update database
         await supabase
           .from('tools')
-          .update({ min_api: minAPI, max_api: maxAPI })
+          .update({ min_api: minAPI })
           .eq('id', tool.id);
-          
-        console.log(`Updated ${tool.id}: minAPI=${minAPI}, maxAPI=${maxAPI}`);
+
+        console.log(`Updated ${tool.id}: minAPI=${minAPI}`);
       }
     } catch (error) {
       console.error(`Failed to process ${tool.id}:`, error);
@@ -156,10 +138,6 @@ ALTER TABLE tools
   ADD CONSTRAINT check_min_api_format 
   CHECK (min_api IS NULL OR min_api ~ '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$');
 
-ALTER TABLE tools 
-  ADD CONSTRAINT check_max_api_format 
-  CHECK (max_api IS NULL OR max_api ~ '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$');
-
 -- Note: These are basic checks. Full semver validation should happen in application code.
 ```
 
@@ -173,7 +151,6 @@ interface ToolSubmission {
   name: string;
   version: string;
   minAPI?: string;
-  maxAPI?: string;
   // ... other fields
 }
 
@@ -183,18 +160,6 @@ function validateToolVersions(tool: ToolSubmission): string[] {
   // Validate minAPI format
   if (tool.minAPI && !isValidSemver(tool.minAPI)) {
     errors.push('Invalid minAPI format. Must be valid semver (e.g., 1.0.0)');
-  }
-  
-  // Validate maxAPI format
-  if (tool.maxAPI && !isValidSemver(tool.maxAPI)) {
-    errors.push('Invalid maxAPI format. Must be valid semver (e.g., 1.0.0)');
-  }
-  
-  // Ensure minAPI <= maxAPI if both are provided
-  if (tool.minAPI && tool.maxAPI) {
-    if (compareVersions(tool.minAPI, tool.maxAPI) > 0) {
-      errors.push('minAPI cannot be greater than maxAPI');
-    }
   }
   
   return errors;
@@ -218,7 +183,6 @@ SELECT
   t.downloadurl,
   t.iconurl,
   t.min_api,      -- NEW
-  t.max_api,      -- NEW
   -- ... other fields
 FROM tools t
 WHERE t.status = 'active';
@@ -234,16 +198,14 @@ INSERT INTO tools (
   name, 
   version, 
   min_api,        -- NEW
-  max_api,        -- NEW
   -- ... other fields
 ) VALUES (
-  $1, $2, $3, $4, $5, ...
+  $1, $2, $3, $4, ...
 )
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   version = EXCLUDED.version,
   min_api = EXCLUDED.min_api,        -- NEW
-  max_api = EXCLUDED.max_api,        -- NEW
   updated_at = NOW();
 ```
 
@@ -258,7 +220,6 @@ export async function getCompatibleTools(toolboxVersion: string) {
     .from('tools')
     .select('*')
     .or(`min_api.is.null,min_api.lte.${toolboxVersion}`)
-    .or(`max_api.is.null,max_api.gte.${toolboxVersion}`)
     .eq('status', 'active');
     
   return data;
@@ -281,12 +242,11 @@ SELECT
   is_nullable
 FROM information_schema.columns 
 WHERE table_name = 'tools' 
-  AND column_name IN ('min_api', 'max_api');
+  AND column_name IN ('min_api');
 
 -- Expected output:
 -- column_name | data_type | is_nullable
 -- min_api     | text      | YES
--- max_api     | text      | YES
 ```
 
 ### 2. Verify Indexes
@@ -302,8 +262,6 @@ WHERE tablename = 'tools'
 
 -- Expected output should include:
 -- idx_tools_min_api
--- idx_tools_max_api
--- idx_tools_versions
 ```
 
 ### 3. Test Data
@@ -320,7 +278,6 @@ INSERT INTO tools (
   downloadurl,
   iconurl,
   min_api,
-  max_api,
   status
 ) VALUES (
   'test-tool-001',
@@ -330,12 +287,11 @@ INSERT INTO tools (
   'https://example.com/test-tool.tgz',
   'https://example.com/icon.svg',
   '1.0.0',
-  '1.1.3',
   'active'
 );
 
 -- Verify insertion
-SELECT id, name, min_api, max_api FROM tools WHERE id = 'test-tool-001';
+SELECT id, name, min_api FROM tools WHERE id = 'test-tool-001';
 
 -- Clean up
 DELETE FROM tools WHERE id = 'test-tool-001';
@@ -352,8 +308,6 @@ DELETE FROM tools WHERE id = 'test-tool-001';
 ```sql
 SELECT 
   COUNT(*) FILTER (WHERE min_api IS NOT NULL) as with_min_api,
-  COUNT(*) FILTER (WHERE max_api IS NOT NULL) as with_max_api,
-  COUNT(*) FILTER (WHERE min_api IS NOT NULL AND max_api IS NOT NULL) as with_both,
   COUNT(*) as total
 FROM tools 
 WHERE status = 'active';
@@ -380,11 +334,10 @@ SELECT
   id,
   name,
   version,
-  min_api,
-  max_api
+  min_api
 FROM tools 
 WHERE status = 'active'
-  AND (min_api > '1.0.0' OR max_api < '1.1.3');
+  AND (min_api > '1.0.0');
 ```
 
 ---
@@ -395,17 +348,13 @@ If you need to rollback the changes:
 
 ```sql
 -- 1. Drop indexes
-DROP INDEX IF EXISTS idx_tools_versions;
-DROP INDEX IF EXISTS idx_tools_max_api;
 DROP INDEX IF EXISTS idx_tools_min_api;
 
 -- 2. Drop constraints (if added)
 ALTER TABLE tools DROP CONSTRAINT IF EXISTS check_min_api_format;
-ALTER TABLE tools DROP CONSTRAINT IF EXISTS check_max_api_format;
 
 -- 3. Remove columns
 ALTER TABLE tools DROP COLUMN IF EXISTS min_api;
-ALTER TABLE tools DROP COLUMN IF EXISTS max_api;
 ```
 
 **Warning:** This will permanently delete version data. Create a backup first:
@@ -413,7 +362,7 @@ ALTER TABLE tools DROP COLUMN IF EXISTS max_api;
 ```sql
 -- Backup version data before rollback
 CREATE TABLE tools_version_backup AS
-SELECT id, min_api, max_api FROM tools;
+SELECT id, min_api FROM tools;
 ```
 
 ---

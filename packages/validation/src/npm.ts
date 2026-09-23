@@ -68,7 +68,6 @@ export async function fetchNpmPackageMetadata(
 }
 
 export interface PackageStructureCheck {
-    hasNpmShrinkwrap: boolean;
     hasDistFolder: boolean;
     hasDistIndexHtml: boolean;
 }
@@ -108,7 +107,6 @@ export async function validatePackageStructure(packageName: string): Promise<{ s
         return {
             success: true,
             data: {
-                hasNpmShrinkwrap: await check(path.join(packageDir, "npm-shrinkwrap.json")),
                 hasDistFolder,
                 hasDistIndexHtml: hasDistFolder ? await check(path.join(packageDir, "dist", "index.html")) : false,
             },

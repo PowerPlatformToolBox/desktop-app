@@ -139,6 +139,12 @@ export function updateToolSidebarIconsForTheme(): void {
     const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
     const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
 
+    // Update "Update all tools" header button icon (lives outside the tools list container)
+    const updateAllToolsIcon = document.getElementById("update-all-tools-icon") as HTMLImageElement | null;
+    if (updateAllToolsIcon) {
+        updateAllToolsIcon.src = (isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg") + cacheBuster;
+    }
+
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
 

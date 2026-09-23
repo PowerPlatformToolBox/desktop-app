@@ -436,6 +436,16 @@ declare namespace ToolBoxAPI {
          * @internal Used internally by the framework
          */
         getToolContext: () => Promise<ToolContext>;
+        /**
+         * Mark this tool instance as preventing closure.
+         * While active, closing this tool tab or quitting PPTB shows a warning dialog
+         * with an "Ignore & Close" override.
+         */
+        preventClose: () => Promise<boolean>;
+        /**
+         * Clear a previously set prevent-close state for this tool instance.
+         */
+        releasePreventClose: () => Promise<boolean>;
     }
 
     /**
@@ -504,7 +514,9 @@ declare namespace ToolBoxAPI {
          * `features.multiConnection: "required"` or `"optional"` and
          * `options.secondaryConnectionId` is not provided, PPTB automatically shows
          * the multi-connection selector before launching the callee. The Promise rejects
-         * if the user cancels the selector.
+         * if the user cancels the selector. This prompt is skipped entirely when the callee
+         * declares `features.connectionRequirement: "optional"`, since a connection is never
+         * mandatory for that tool.
          *
          * **`noReturn`**: pass `true` when the caller does not expect the callee to
          * return data (e.g. a "Send To" pattern where data is only sent one-way).

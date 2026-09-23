@@ -10,6 +10,20 @@ import { filterMarketplaceByNew } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
 
+const SPONSORS_API_URL = "https://www.powerplatformtoolbox.com/api/sponsors";
+
+interface SponsorData {
+    name: string;
+    login: string;
+    avatarUrl: string;
+    githubUrl: string;
+    tier: string;
+    monthlyAmount: number;
+    isActive: boolean;
+    isOneTime: boolean;
+    totalContributed: number;
+}
+
 function normalizeHomepageError(error: unknown, fallbackMessage: string): Error {
     if (error instanceof Error) {
         return error;
@@ -30,6 +44,44 @@ function normalizeHomepageError(error: unknown, fallbackMessage: string): Error 
 function reportHomepageError(operation: string, error: unknown): void {
     const normalized = normalizeHomepageError(error, `Homepage operation failed: ${operation}`);
     logError(normalized);
+}
+
+function isSponsorData(value: unknown): value is SponsorData {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+
+    const candidate = value as Partial<Record<keyof SponsorData, unknown>>;
+    return (
+        typeof candidate.name === "string" &&
+        typeof candidate.login === "string" &&
+        typeof candidate.avatarUrl === "string" &&
+        typeof candidate.githubUrl === "string" &&
+        typeof candidate.tier === "string" &&
+        typeof candidate.monthlyAmount === "number" &&
+        typeof candidate.isActive === "boolean" &&
+        typeof candidate.isOneTime === "boolean" &&
+        typeof candidate.totalContributed === "number"
+    );
+}
+
+function sortSponsorsByWebPriority(sponsors: SponsorData[]): SponsorData[] {
+    return [...sponsors].sort((a, b) => {
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+        return b.totalContributed - a.totalContributed;
+    });
+}
+
+function formatSponsorAmount(amount: number): string {
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+    }).format(amount);
+}
+
+function getSponsorContributionText(sponsor: SponsorData): string {
+    return sponsor.isOneTime ? `${formatSponsorAmount(sponsor.totalContributed)} one-time` : `${formatSponsorAmount(sponsor.totalContributed)} contributed`;
 }
 
 /**
@@ -268,18 +320,112 @@ function parseReleaseHighlights(body: string): string[] {
  * Load sponsor information
  */
 async function loadSponsorData(): Promise<void> {
+    const sponsorsSection = document.getElementById("homepage-sponsors-section");
+    const sponsorsList = document.getElementById("homepage-sponsors-list");
+    const sponsorsCount = document.getElementById("homepage-sponsors-count");
+
+    if (!sponsorsSection || !sponsorsList) {
+        return;
+    }
+
     try {
-        // TODO: Placeholder sponsor count and avatars
-        const sponsorCountEl = document.getElementById("sponsor-count");
-        if (sponsorCountEl) {
-            sponsorCountEl.textContent = "0";
+        sponsorsSection.hidden = false;
+        sponsorsList.classList.remove("sponsor-list-static");
+        sponsorsList.style.removeProperty("--sponsor-carousel-duration");
+        sponsorsList.innerHTML = `<div class="sponsor-list-loading">Loading sponsors...</div>`;
+
+        const response = await fetch(SPONSORS_API_URL, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`Failed to fetch sponsors: ${response.status} ${response.statusText}`);
         }
 
-        // In the future, this could fetch real sponsor data from GitHub Sponsors API
-        // which would require authentication
+        const data: unknown = await response.json();
+        const sponsors = Array.isArray(data) ? sortSponsorsByWebPriority(data.filter(isSponsorData)) : [];
+
+        sponsorsList.replaceChildren();
+
+        if (sponsors.length === 0) {
+            sponsorsSection.hidden = true;
+            return;
+        }
+
+        if (sponsorsCount) {
+            sponsorsCount.textContent = `${sponsors.length} sponsor${sponsors.length === 1 ? "" : "s"}`;
+        }
+
+        sponsorsList.appendChild(createSponsorMarqueeGroup(sponsors, false));
+
+        if (sponsors.length > 1) {
+            sponsorsList.appendChild(createSponsorMarqueeGroup(sponsors, true));
+            sponsorsList.style.setProperty("--sponsor-carousel-duration", `${Math.max(18, sponsors.length * 5)}s`);
+        } else {
+            sponsorsList.classList.add("sponsor-list-static");
+        }
     } catch (error) {
+        sponsorsSection.hidden = true;
         reportHomepageError("loadSponsorData", error);
     }
+}
+
+function createSponsorMarqueeGroup(sponsors: SponsorData[], isDuplicate: boolean): HTMLElement {
+    const group = document.createElement("div");
+    group.className = "sponsor-marquee-group";
+    group.setAttribute("aria-hidden", isDuplicate ? "true" : "false");
+
+    sponsors.forEach((sponsor) => {
+        group.appendChild(createSponsorCard(sponsor, isDuplicate));
+    });
+
+    return group;
+}
+
+function createSponsorCard(sponsor: SponsorData, isDuplicate = false): HTMLElement {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "sponsor-card";
+    if (isDuplicate) {
+        card.tabIndex = -1;
+    }
+    card.setAttribute("aria-label", `Open ${sponsor.name} on GitHub`);
+    card.addEventListener("click", () => {
+        window.toolboxAPI.openExternal(sponsor.githubUrl);
+    });
+
+    const avatar = document.createElement("img");
+    avatar.className = "sponsor-card-avatar";
+    avatar.src = sponsor.avatarUrl;
+    avatar.alt = "";
+    avatar.loading = "lazy";
+    avatar.referrerPolicy = "no-referrer";
+
+    const body = document.createElement("div");
+    body.className = "sponsor-card-body";
+
+    const nameRow = document.createElement("div");
+    nameRow.className = "sponsor-card-name-row";
+
+    const name = document.createElement("span");
+    name.className = "sponsor-card-name";
+    name.textContent = sponsor.name;
+    nameRow.appendChild(name);
+
+    if (sponsor.isActive && !sponsor.isOneTime) {
+        const activeTag = document.createElement("span");
+        activeTag.className = "sponsor-card-active-tag";
+        activeTag.textContent = "Active";
+        nameRow.appendChild(activeTag);
+    }
+
+    const contribution = document.createElement("span");
+    contribution.className = "sponsor-card-contribution";
+    contribution.textContent = getSponsorContributionText(sponsor);
+
+    body.appendChild(nameRow);
+    body.appendChild(contribution);
+    card.appendChild(avatar);
+    card.appendChild(body);
+
+    return card;
 }
 
 /**

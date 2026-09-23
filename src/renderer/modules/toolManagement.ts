@@ -377,6 +377,9 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         // Determine multi-connection mode
         const multiConnectionMode = tool.features?.multiConnection || "none";
+        // Tools declaring "optional" never block launch on connection selection; the user can
+        // attach connection(s) later via "Change Connection" on the tab context menu.
+        const connectionRequirement = tool.features?.connectionRequirement || "required";
 
         const resolveConnectionId = async (connectionId: string | null): Promise<string | null> => {
             if (!connectionId) {
@@ -403,7 +406,11 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             secondaryConnectionId = await resolveConnectionId(secondaryConnectionId);
         }
 
-        if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
+        if (connectionRequirement === "optional") {
+            // Connectionless-capable tool: launch immediately with whatever connection(s) were
+            // already resolved (possibly none). No blocking modal is shown.
+            logInfo("Tool does not require a connection to launch; skipping connection selection.", { primaryConnectionId, secondaryConnectionId });
+        } else if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
             // Tool supports multi-connection - show multi-connection modal
             const isSecondaryRequired = multiConnectionMode === "required";
             logInfo(
@@ -963,6 +970,15 @@ export async function closeTool(instanceId: string): Promise<void> {
         return;
     }
 
+    if (!openTool.isDetailTab) {
+        // Real tool: close the tool window via IPC first.
+        // If main process blocks closure (PreventClose + user cancel), keep UI tab open.
+        const closed = await window.toolboxAPI.closeToolWindow(instanceId);
+        if (!closed) {
+            return;
+        }
+    }
+
     // Remove tab
     const tab = document.getElementById(`tool-tab-${instanceId}`);
     if (tab) {
@@ -987,12 +1003,6 @@ export async function closeTool(instanceId: string): Promise<void> {
                 toolPanelContent.style.display = "";
             }
         }
-    } else {
-        // Real tool: close the tool window via IPC
-        // The ToolWindowManager will destroy the BrowserView
-        window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
-            logError(error instanceof Error ? error : new Error(String(error)));
-        });
     }
 
     // Remove from open tools
