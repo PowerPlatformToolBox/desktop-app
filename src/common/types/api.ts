@@ -246,6 +246,13 @@ export interface ToolboxAPI {
     getSetting: (key: string) => Promise<unknown>;
     setSetting: (key: string, value: unknown) => Promise<void>;
     getMcpAccessToken: () => Promise<string>;
+    window: {
+        minimize: () => Promise<void>;
+        toggleMaximize: () => Promise<boolean>;
+        close: () => Promise<void>;
+        isMaximized: () => Promise<boolean>;
+        openMenu: (menuLabel: string, x: number, y: number) => Promise<void>;
+    };
 
     // Connections namespace
     connections: ConnectionsAPI;

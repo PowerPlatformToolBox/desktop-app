@@ -413,6 +413,11 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
         ipcMain.removeHandler(UTIL_CHANNELS.RESTART_APP);
+        ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_MINIMIZE);
+        ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE);
+        ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_CLOSE);
+        ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED);
+        ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_OPEN_MENU);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -538,6 +543,40 @@ class ToolBoxApp {
         // Remove existing handlers first to prevent duplicate registration errors
         // This is necessary on macOS where the app doesn't quit when windows are closed
         this.removeIpcHandlers();
+
+        ipcMain.handle(UTIL_CHANNELS.WINDOW_MINIMIZE, (event) => {
+            BrowserWindow.fromWebContents(event.sender)?.minimize();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE, (event) => {
+            const window = BrowserWindow.fromWebContents(event.sender);
+            if (!window) return false;
+
+            if (window.isMaximized()) {
+                window.unmaximize();
+            } else {
+                window.maximize();
+            }
+
+            return window.isMaximized();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.WINDOW_CLOSE, (event) => {
+            BrowserWindow.fromWebContents(event.sender)?.close();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED, (event) => {
+            return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.WINDOW_OPEN_MENU, (event, menuLabel: string, x: number, y: number) => {
+            const window = BrowserWindow.fromWebContents(event.sender);
+            const menu = Menu.getApplicationMenu();
+            const menuItem = menu?.items.find((item) => item.label === menuLabel);
+            if (!window || !menuItem?.submenu) return;
+
+            menuItem.submenu.popup({ window, x, y });
+        });
 
         // Settings handlers
         ipcMain.handle(SETTINGS_CHANNELS.GET_USER_SETTINGS, () => {
@@ -3068,6 +3107,9 @@ class ToolBoxApp {
         this.mainWindow = new BrowserWindow({
             width: 1200,
             height: 800,
+            frame: process.platform === "darwin",
+            autoHideMenuBar: process.platform !== "darwin",
+            ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset" as const } : {}),
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
@@ -3080,6 +3122,10 @@ class ToolBoxApp {
             title: "Power Platform ToolBox",
             icon: ToolBoxApp.resolveAppIcon(),
         });
+
+        if (process.platform !== "darwin") {
+            this.mainWindow.setMenuBarVisibility(false);
+        }
 
         // Initialize ToolWindowManager for managing tool BrowserViews
         this.toolWindowManager = new ToolWindowManager(
