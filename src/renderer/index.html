@@ -11,6 +11,52 @@
         <link rel="stylesheet" href="styles.scss" />
     </head>
     <body>
+        <header class="app-titlebar" id="app-titlebar">
+            <div class="app-titlebar-brand">
+                <img class="app-titlebar-app-icon" src="icons/dark/app-icon.svg" alt="" aria-hidden="true" />
+                <span>Power Platform ToolBox</span>
+                <button type="button" class="app-titlebar-button app-titlebar-sidebar-toggle" id="toggle-sidebar-btn" title="Hide sidebar" aria-label="Hide sidebar" aria-pressed="true">
+                    <svg class="sidebar-toggle-icon sidebar-toggle-icon-visible" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M5.25 2.75V13.25" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M9.5 6L7.5 8L9.5 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <svg class="sidebar-toggle-icon sidebar-toggle-icon-hidden" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M10.75 2.75V13.25" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M6.5 6L8.5 8L6.5 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+            <div class="app-titlebar-content" aria-label="Application toolbar">
+                <button type="button" class="app-titlebar-search" id="titlebar-search-btn" aria-label="Open global search">
+                    <svg class="app-titlebar-search-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M10.25 10.25L13.5 13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                    </svg>
+                    <span class="app-titlebar-search-placeholder">Search tools, connections, settings...</span>
+                    <kbd class="app-titlebar-search-shortcut">Ctrl+Shift+P</kbd>
+                </button>
+            </div>
+            <div class="app-titlebar-controls" aria-label="Window controls">
+                <button type="button" class="app-titlebar-button" id="window-minimize-btn" title="Minimize" aria-label="Minimize">
+                    <span class="window-control-glyph window-control-minimize" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="app-titlebar-button" id="window-maximize-btn" title="Maximize" aria-label="Maximize">
+                    <span class="window-control-glyph window-control-maximize" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="app-titlebar-button app-titlebar-close" id="window-close-btn" title="Close" aria-label="Close">
+                    <span class="window-control-glyph window-control-close" aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+        <nav class="app-menubar" id="app-menubar" aria-label="Application menu">
+            <button type="button" class="app-menubar-item" data-menu-label="File">File</button>
+            <button type="button" class="app-menubar-item" data-menu-label="Edit">Edit</button>
+            <button type="button" class="app-menubar-item" data-menu-label="View">View</button>
+            <button type="button" class="app-menubar-item" data-menu-label="Window">Window</button>
+            <button type="button" class="app-menubar-item" data-menu-label="Help">Help</button>
+        </nav>
         <div class="app-container">
             <!-- Activity Bar (PPTB-style narrow sidebar) -->
             <aside class="activity-bar" id="activity-bar">

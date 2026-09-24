@@ -173,6 +173,13 @@ export const UTIL_CHANNELS = {
     FETCH_FAVICON: "fetch-favicon",
     OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
     RESTART_APP: "restart-app",
+    WINDOW_MINIMIZE: "window-minimize",
+    WINDOW_TOGGLE_MAXIMIZE: "window-toggle-maximize",
+    WINDOW_CLOSE: "window-close",
+    WINDOW_IS_MAXIMIZED: "window-is-maximized",
+    WINDOW_FULL_SCREEN_CHANGED: "window-full-screen-changed",
+    WINDOW_IS_FULL_SCREEN: "window-is-full-screen",
+    WINDOW_OPEN_MENU: "window-open-menu",
 } as const;
 
 // Filesystem-related IPC channels
