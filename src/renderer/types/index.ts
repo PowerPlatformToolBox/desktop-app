@@ -60,6 +60,7 @@ export interface SettingsState {
     terminalFont?: string;
     notificationDuration?: number;
     restoreSessionOnStartup?: boolean;
+    enableConnectionDoubleClickConnect?: boolean;
     showCategoryColor?: boolean;
     showEnvironmentColor?: boolean;
     categoryColorThickness?: number;
