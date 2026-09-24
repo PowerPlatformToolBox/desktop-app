@@ -1,5 +1,7 @@
 import { randomBytes } from "crypto";
 import Store from "electron-store";
+import * as fs from "fs";
+import * as path from "path";
 import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import {
     CspConsentRecord,
@@ -10,6 +12,7 @@ import {
     MyToolRating,
     TelemetryConsentChoice,
     ToolSettings,
+    TrustedDebugToolPath,
     UserSettings,
 } from "../../common/types";
 import { buildPreviewFeatureFlags } from "../../common/types/settings";
@@ -47,6 +50,7 @@ export class SettingsManager {
                 installedTools: [],
                 favoriteTools: [],
                 cspConsents: {}, // Track CSP consent for each tool
+                trustedDebugToolPaths: [], // Folders trusted for CLI --debug-tool mounting
                 toolConnections: {}, // Map of toolId to connectionId
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
@@ -410,6 +414,94 @@ export class SettingsManager {
     getApprovedOptionalDomains(toolId: string): string[] {
         const cspConsents = this.store.get("cspConsents") || {};
         return cspConsents[toolId]?.optional ?? [];
+    }
+
+    /**
+     * Normalize a debug-tool path for comparison. Windows and macOS filesystems are
+     * case-insensitive by default, so trust lookups fold case there.
+     */
+    private getDebugToolIdentity(localPath: string): { resolvedPath: string; normalizedPath: string; packageName: string } | null {
+        try {
+            const resolvedPath = fs.realpathSync.native(path.resolve(localPath));
+            const packageJson = JSON.parse(fs.readFileSync(path.join(resolvedPath, "package.json"), "utf-8")) as { name?: unknown };
+            if (typeof packageJson.name !== "string" || packageJson.name.length === 0) {
+                return null;
+            }
+
+            return {
+                resolvedPath,
+                normalizedPath: resolvedPath,
+                packageName: packageJson.name,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    private normalizeStoredDebugToolPath(localPath: string): string {
+        return path.resolve(localPath);
+    }
+
+    /**
+     * Get every folder currently trusted for CLI `--debug-tool` mounting.
+     */
+    getTrustedDebugToolPaths(): TrustedDebugToolPath[] {
+        return this.store.get("trustedDebugToolPaths") || [];
+    }
+
+    /**
+     * Check whether a folder is trusted for CLI mounting.
+     *
+     * Trust is re-verified against the package name: if the `name` in the folder's
+     * package.json has changed since trust was granted, the grant no longer applies
+     * and the user must be prompted again.
+     */
+    private getDebugToolConnectionAuthorization(primaryConnectionId: string | null, secondaryConnectionId: string | null): string {
+        return JSON.stringify([primaryConnectionId, secondaryConnectionId]);
+    }
+
+    isDebugToolPathTrusted(localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null): boolean {
+        const identity = this.getDebugToolIdentity(localPath);
+        if (!identity || identity.packageName !== packageName) {
+            return false;
+        }
+
+        return this.getTrustedDebugToolPaths().some(
+            (entry) =>
+                this.normalizeStoredDebugToolPath(entry.resolvedPath) === identity.normalizedPath &&
+                entry.packageName === identity.packageName &&
+                Array.isArray(entry.connectionAuthorizations) &&
+                entry.connectionAuthorizations.includes(this.getDebugToolConnectionAuthorization(primaryConnectionId, secondaryConnectionId)),
+        );
+    }
+
+    /**
+     * Record trust for a folder, replacing any previous grant for the same path.
+     */
+    trustDebugToolPath(localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null): void {
+        const identity = this.getDebugToolIdentity(localPath);
+        if (!identity || identity.packageName !== packageName) {
+            throw new Error("The local tool identity changed before trust could be recorded.");
+        }
+
+        const existing = this.getTrustedDebugToolPaths().find(
+            (entry) => this.normalizeStoredDebugToolPath(entry.resolvedPath) === identity.normalizedPath && entry.packageName === identity.packageName,
+        );
+        const authorization = this.getDebugToolConnectionAuthorization(primaryConnectionId, secondaryConnectionId);
+        const connectionAuthorizations = Array.from(new Set([...(existing?.connectionAuthorizations ?? []), authorization]));
+        const remaining = this.getTrustedDebugToolPaths().filter((entry) => this.normalizeStoredDebugToolPath(entry.resolvedPath) !== identity.normalizedPath);
+        remaining.push({ resolvedPath: identity.resolvedPath, packageName: identity.packageName, connectionAuthorizations, grantedAt: new Date().toISOString() });
+        this.store.set("trustedDebugToolPaths", remaining);
+    }
+
+    /**
+     * Revoke trust for a folder.
+     */
+    revokeDebugToolPathTrust(localPath: string): void {
+        const identity = this.getDebugToolIdentity(localPath);
+        const normalized = identity?.normalizedPath ?? this.normalizeStoredDebugToolPath(localPath);
+        const remaining = this.getTrustedDebugToolPaths().filter((entry) => this.normalizeStoredDebugToolPath(entry.resolvedPath) !== normalized);
+        this.store.set("trustedDebugToolPaths", remaining);
     }
 
     /**

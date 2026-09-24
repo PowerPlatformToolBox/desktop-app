@@ -80,4 +80,34 @@ describe("ToolWindowManager prevent-close behavior", () => {
         expect(terminalManager.closeToolInstanceTerminals).toHaveBeenCalledWith("tool-1");
         expect(toolFilesystemAccessManager.revokeAllAccess).toHaveBeenCalledWith("tool-1");
     });
+
+    it("force closes without allowing PreventClose to veto rollback", async () => {
+        const { manager } = createManager();
+        (manager as any).toolViews.set("tool-1", new BrowserView());
+        (manager as any).preventCloseTools.add("tool-1");
+
+        const result = await manager.closeTool("tool-1", { force: true });
+
+        expect(result).toBe(true);
+        expect((manager as any).toolViews.has("tool-1")).toBe(false);
+        expect(dialog.showMessageBoxSync).not.toHaveBeenCalled();
+    });
+
+    it("keeps every tool open when a later atomic close confirmation is cancelled", async () => {
+        const { manager, terminalManager } = createManager();
+        (manager as any).toolViews.set("tool-1", new BrowserView());
+        (manager as any).toolViews.set("tool-2", new BrowserView());
+        (manager as any).toolInstanceNames.set("tool-1", "First Tool");
+        (manager as any).toolInstanceNames.set("tool-2", "Second Tool");
+        (manager as any).preventCloseTools.add("tool-1");
+        (manager as any).preventCloseTools.add("tool-2");
+        (dialog.showMessageBoxSync as jest.Mock).mockReturnValueOnce(1).mockReturnValueOnce(0);
+
+        const result = await manager.closeToolsAtomically(["tool-1", "tool-2"]);
+
+        expect(result).toBe(false);
+        expect((manager as any).toolViews.has("tool-1")).toBe(true);
+        expect((manager as any).toolViews.has("tool-2")).toBe(true);
+        expect(terminalManager.closeToolInstanceTerminals).not.toHaveBeenCalled();
+    });
 });

@@ -4,7 +4,7 @@
  */
 
 import { logError, logInfo } from "../../common/logger";
-import { CspConsentRecord, Tool } from "../../common/types";
+import { CspConsentRecord, Tool, TrustedDebugToolPath } from "../../common/types";
 import { getNormalizedCspDomains } from "../../common/utils/cspConsent";
 import { openCspConsentManagementModal } from "./cspExceptionModal";
 import { openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
@@ -338,6 +338,100 @@ function attachContextEventHandlers(context: ConsentReviewContext): void {
     bindActionHandling(context);
 }
 
+/**
+ * Render the list of folders trusted for CLI `--debug-tool` mounting, with a
+ * revoke action per folder. Revoking makes the next command-line launch re-prompt.
+ */
+async function refreshTrustedDebugFolders(container: HTMLElement): Promise<void> {
+    container.innerHTML = "";
+
+    let entries: TrustedDebugToolPath[] = [];
+    try {
+        entries = await window.toolboxAPI.getTrustedDebugToolPaths();
+    } catch (error) {
+        logError(error instanceof Error ? error : new Error(String(error)));
+        const errorCard = document.createElement("section");
+        errorCard.className = "settings-section-card";
+        const message = document.createElement("p");
+        message.className = "settings-section-description";
+        message.textContent = "Unable to load trusted folders. Try refreshing.";
+        errorCard.appendChild(message);
+        container.appendChild(errorCard);
+        return;
+    }
+
+    if (entries.length === 0) {
+        const emptyCard = document.createElement("section");
+        emptyCard.className = "settings-section-card";
+        const emptyText = document.createElement("p");
+        emptyText.className = "settings-section-description";
+        emptyText.textContent = "No folders are trusted for command-line mounting.";
+        emptyCard.appendChild(emptyText);
+        container.appendChild(emptyCard);
+        return;
+    }
+
+    const sorted = [...entries].sort((left, right) => left.packageName.localeCompare(right.packageName));
+
+    sorted.forEach((entry) => {
+        const card = document.createElement("section");
+        card.className = "settings-vscode-item consent-review-card";
+
+        const main = document.createElement("div");
+        main.className = "consent-review-card-main";
+
+        const title = document.createElement("p");
+        title.className = "consent-review-card-title";
+        title.textContent = entry.packageName;
+
+        const subtitle = document.createElement("p");
+        subtitle.className = "consent-review-card-subtitle";
+        subtitle.textContent = entry.resolvedPath;
+
+        const granted = document.createElement("p");
+        granted.className = "consent-review-card-description";
+        granted.textContent = `Trusted on ${new Date(entry.grantedAt).toLocaleString()}`;
+
+        main.append(title, subtitle, granted);
+
+        const control = document.createElement("div");
+        control.className = "consent-review-card-control";
+
+        const revokeButton = document.createElement("fluent-button");
+        revokeButton.setAttribute("appearance", "outline");
+        revokeButton.textContent = "Revoke";
+        revokeButton.addEventListener("click", () => {
+            revokeTrustedDebugFolder(entry, container).catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+
+        control.appendChild(revokeButton);
+        card.append(main, control);
+        container.appendChild(card);
+    });
+}
+
+async function revokeTrustedDebugFolder(entry: TrustedDebugToolPath, container: HTMLElement): Promise<void> {
+    try {
+        await window.toolboxAPI.revokeDebugToolPathTrust(entry.resolvedPath);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Folder Trust Revoked",
+            body: `${entry.resolvedPath}\nThe next --debug-tool launch for this folder will ask again.`,
+            type: "warning",
+        });
+    } catch (error) {
+        logError(error instanceof Error ? error : new Error(String(error)));
+        await window.toolboxAPI.utils.showNotification({
+            title: "Revoke Failed",
+            body: "Unable to revoke trust for this folder.",
+            type: "error",
+        });
+    }
+
+    await refreshTrustedDebugFolders(container);
+}
+
 function renderConsentTabContent(panel: HTMLElement): void {
     panel.className = "settings-tab-container";
     panel.innerHTML = `
@@ -362,6 +456,16 @@ function renderConsentTabContent(panel: HTMLElement): void {
                 </div>
                 <div id="consent-tab-list-container" class="consent-review-list"></div>
             </section>
+            <section class="settings-vscode-section" id="trusted-debug-folders-section">
+                <header class="consent-review-page-header">
+                    <h2 class="settings-vscode-section-title">Trusted Local Folders</h2>
+                    <p class="consent-review-page-description">
+                        Folders you allowed to be mounted from the command line with <code>--debug-tool</code>. A mounted local tool runs with full access to your files, terminal, and the
+                        selected Dataverse environment. Revoking a folder makes the next command-line launch ask again.
+                    </p>
+                </header>
+                <div id="trusted-debug-folders-container" class="consent-review-list"></div>
+            </section>
         </div>
     `;
 
@@ -369,6 +473,13 @@ function renderConsentTabContent(panel: HTMLElement): void {
     const statusFilter = panel.querySelector("#consent-tab-status-filter") as HTMLSelectElement | null;
     const listContainer = panel.querySelector("#consent-tab-list-container") as HTMLElement | null;
     const refreshBtn = panel.querySelector("#consent-tab-refresh-btn") as HTMLButtonElement | null;
+    const trustedFoldersContainer = panel.querySelector("#trusted-debug-folders-container") as HTMLElement | null;
+
+    if (trustedFoldersContainer) {
+        refreshTrustedDebugFolders(trustedFoldersContainer).catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
+        });
+    }
 
     if (!searchInput || !statusFilter || !listContainer) {
         return;
@@ -389,6 +500,11 @@ function renderConsentTabContent(panel: HTMLElement): void {
             refreshContext(context).catch((error) => {
                 logError(error instanceof Error ? error : new Error(String(error)));
             });
+            if (trustedFoldersContainer) {
+                refreshTrustedDebugFolders(trustedFoldersContainer).catch((error) => {
+                    logError(error instanceof Error ? error : new Error(String(error)));
+                });
+            }
         });
     }
 
