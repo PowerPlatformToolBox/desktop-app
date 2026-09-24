@@ -888,6 +888,7 @@ export class ToolRegistryManager extends EventEmitter {
             features: tool.features || packageJson.features, // Include features from registry or package.json
             categories: tool.categories,
             license: tool.license || packageJson.license,
+            size: tool.size,
             status: tool.status,
             repository: tool.repository, // Include repository URL from registry
             website: tool.website, // Include website URL from registry
@@ -1030,6 +1031,7 @@ export class ToolRegistryManager extends EventEmitter {
             status: manifestEntry.status,
             repository: manifestEntry.repository,
             website: manifestEntry.website,
+            size: manifestEntry.size,
             downloads: manifestEntry.downloads,
             rating: manifestEntry.rating,
             mau: manifestEntry.mau,

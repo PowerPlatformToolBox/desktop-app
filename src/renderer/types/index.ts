@@ -96,6 +96,7 @@ export interface ToolDetail {
     latestVersion?: string;
     authors?: string[];
     categories?: string[];
+    size?: number;
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users

@@ -8,6 +8,7 @@ import type { Tool } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
 import { formatRatingMarkup } from "../utils/rating";
+import { formatPackageSize } from "../utils/packageSize";
 import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
@@ -53,6 +54,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     categories: tool.categories,
                     version: tool.version,
                     icon: tool.icon,
+                    size: tool.size,
                     downloads: tool.downloads,
                     rating: tool.rating,
                     mau: tool.mau,
@@ -291,6 +293,7 @@ export async function loadMarketplace(): Promise<void> {
             const unsupportedBadgeHtml = isUnsupported ? `<span class="marketplace-item-unsupported-badge" title="${getUnsupportedBadgeTitle(unsupportedRequirement)}">Not Supported</span>` : "";
             const newBadgeHtml = isNewTool ? '<span class="marketplace-item-new-badge">NEW</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
+                ${tool.size !== undefined ? `<span class="marketplace-metric" title="Package size">📦 ${formatPackageSize(tool.size)}</span>` : ""}
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
                 ${formatRatingMarkup(tool.rating, { className: "marketplace-metric", title: "Rating", prefix: "⭐ " })}
                 ${tool.mau !== undefined ? `<span class="marketplace-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""}
@@ -552,6 +555,7 @@ export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Pr
         repository: tool.repository || libraryTool?.repository,
         website: tool.website || libraryTool?.website,
         readmeUrl: tool.readmeUrl || libraryTool?.readmeUrl,
+        size: tool.size ?? libraryTool?.size,
     };
     const tabId = `tool-detail-${tool.id}`;
     await openLocalPageAsTab(tabId, tool.name, (panel: HTMLElement) => {
@@ -566,6 +570,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const authorsDisplay = Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : "Unknown author";
     const metaBadges: string[] = [];
     if (tool.version) metaBadges.push(`v${tool.version}`);
+    if (tool.size !== undefined) metaBadges.push(formatPackageSize(tool.size));
     if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);
     const categories = tool.categories?.length ? tool.categories.map((c) => escapeHtml(c)) : [];
     const isDarkTheme = document.body.classList.contains("dark-theme");
