@@ -4,7 +4,9 @@ import { openGlobalSearch } from "./globalSearchManagement";
 /** Connect the custom renderer title bar to the main-process window controls. */
 export function initializeTitlebar(): void {
     const isMacOs = navigator.platform.toLowerCase().includes("mac");
+    const isWindows = navigator.platform.toLowerCase().includes("win");
     document.body.classList.toggle("macos", isMacOs);
+    document.body.classList.toggle("windows", isWindows);
 
     const minimizeButton = document.getElementById("window-minimize-btn");
     const maximizeButton = document.getElementById("window-maximize-btn");
@@ -12,6 +14,12 @@ export function initializeTitlebar(): void {
     const sidebarButton = document.getElementById("toggle-sidebar-btn");
     const searchButton = document.getElementById("titlebar-search-btn");
     const menuBar = document.getElementById("app-menubar");
+
+    const updateFullScreenState = (isFullScreen: boolean): void => {
+        document.body.classList.toggle("window-full-screen", isFullScreen);
+    };
+
+    window.toolboxAPI.window.onFullScreenChanged(updateFullScreenState);
 
     const updateSidebarButtonState = (): void => {
         const isCollapsed = document.getElementById("sidebar")?.classList.contains("collapsed") ?? false;
@@ -66,4 +74,6 @@ export function initializeTitlebar(): void {
             maximizeButton.setAttribute("aria-label", "Restore");
         }
     });
+
+    void window.toolboxAPI.window.isFullScreen().then(updateFullScreenState);
 }

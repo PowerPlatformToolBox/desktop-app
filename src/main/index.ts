@@ -417,6 +417,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_CLOSE);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED);
+        ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_IS_FULL_SCREEN);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_OPEN_MENU);
 
         // Filesystem handlers
@@ -567,6 +568,10 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED, (event) => {
             return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.WINDOW_IS_FULL_SCREEN, (event) => {
+            return BrowserWindow.fromWebContents(event.sender)?.isFullScreen() ?? false;
         });
 
         ipcMain.handle(UTIL_CHANNELS.WINDOW_OPEN_MENU, (event, menuLabel: string, x: number, y: number) => {
@@ -3121,6 +3126,13 @@ class ToolBoxApp {
             },
             title: "Power Platform ToolBox",
             icon: ToolBoxApp.resolveAppIcon(),
+        });
+
+        this.mainWindow.on("enter-full-screen", () => {
+            this.mainWindow?.webContents.send(UTIL_CHANNELS.WINDOW_FULL_SCREEN_CHANGED, true);
+        });
+        this.mainWindow.on("leave-full-screen", () => {
+            this.mainWindow?.webContents.send(UTIL_CHANNELS.WINDOW_FULL_SCREEN_CHANGED, false);
         });
 
         if (process.platform !== "darwin") {

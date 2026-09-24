@@ -251,6 +251,8 @@ export interface ToolboxAPI {
         toggleMaximize: () => Promise<boolean>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+        isFullScreen: () => Promise<boolean>;
+        onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => void;
         openMenu: (menuLabel: string, x: number, y: number) => Promise<void>;
     };
 

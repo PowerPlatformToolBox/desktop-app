@@ -223,6 +223,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         toggleMaximize: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
         close: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_CLOSE),
         isMaximized: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED) as Promise<boolean>,
+        isFullScreen: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_IS_FULL_SCREEN) as Promise<boolean>,
+        onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => {
+            ipcRenderer.on(UTIL_CHANNELS.WINDOW_FULL_SCREEN_CHANGED, (_event, isFullScreen: boolean) => callback(isFullScreen));
+        },
         openMenu: (menuLabel: string, x: number, y: number) => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_OPEN_MENU, menuLabel, x, y),
     },
 

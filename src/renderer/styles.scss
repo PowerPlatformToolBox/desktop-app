@@ -197,7 +197,7 @@ body {
 
 .app-titlebar-brand {
     flex: 0 0 auto;
-    gap: 9px;
+    gap: 7px;
     min-width: 0;
     overflow: hidden;
     color: var(--text-secondary);
@@ -219,6 +219,22 @@ body {
 
 body.macos .app-titlebar-brand {
     margin-left: 80px;
+}
+
+body.macos.window-full-screen .app-titlebar-brand {
+    margin-left: 0;
+}
+
+.app-titlebar-app-icon {
+    display: none;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+
+body.windows .app-titlebar-app-icon {
+    display: block;
 }
 
 body.macos .app-titlebar-controls {
