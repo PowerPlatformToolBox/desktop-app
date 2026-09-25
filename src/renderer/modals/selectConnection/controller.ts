@@ -47,6 +47,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     
     let selectedConnectionId = null;
     let allConnections = [];
+    const impersonateConnectionIds = new Set();
     const DEFAULT_SORT_OPTION = "last-used";
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => (value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION);
@@ -208,6 +209,10 @@ ${sortingUtilities}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
+                <label class="impersonate-checkbox-row" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="impersonate-checkbox" data-connection-id="\${escapeHtml(conn.id)}" \${impersonateConnectionIds.has(conn.id) ? 'checked' : ''} />
+                    Impersonate as another user
+                </label>
             </div>
         \`;
         };
@@ -278,6 +283,20 @@ ${sortingUtilities}
             });
         });
 
+        // Track the "Impersonate as another user" checkbox per connection card
+        connectionsListContainer.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const connectionId = checkbox.getAttribute('data-connection-id');
+                if (checkbox.checked) {
+                    impersonateConnectionIds.add(connectionId);
+                    // Checking the box implies the user wants this connection - select its card too
+                    selectConnection(connectionId);
+                } else {
+                    impersonateConnectionIds.delete(connectionId);
+                }
+            });
+        });
+
         // Auto-select active connection if it exists and is in filtered results
         const activeConnection = connections.find(conn => conn.isActive);
         if (activeConnection) {
@@ -319,9 +338,9 @@ ${sortingUtilities}
     // Connect button handler
     connectButton?.addEventListener('click', () => {
         if (!selectedConnectionId) return;
-        
+
         setButtonState(connectButton, true, "Connecting...", "Connect");
-        modalBridge.send(CHANNELS.selectConnection, { connectionId: selectedConnectionId });
+        modalBridge.send(CHANNELS.selectConnection, { connectionId: selectedConnectionId, wantsImpersonation: impersonateConnectionIds.has(selectedConnectionId) });
     });
 
     // Cancel and close button handlers

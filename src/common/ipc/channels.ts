@@ -249,6 +249,8 @@ export const DATAVERSE_CHANNELS = {
     ORDER_OPTION: "dataverse.orderOption",
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
     GET_SYSTEM_USERS: "dataverse.getSystemUsers",
+    /** ConnectionId-based system-users lookup used by the connection-selection modals (pre-launch, no tool instance yet). */
+    GET_SYSTEM_USERS_BY_CONNECTION: "dataverse.getSystemUsersByConnection",
 } as const;
 
 // Power Platform API-related IPC channels

@@ -2053,21 +2053,21 @@ body.dark-theme .consent-status.revoked {
     font-size: 13px;
 }
 
+/* Impersonation badge spans the full tab height (both rows) */
 .tool-tab-impersonation {
+    display: none;
     flex: 0 0 auto;
-    width: 15px;
-    height: 15px;
-    margin-right: 5px;
-    color: var(--accent-color);
+    align-self: stretch;
     align-items: center;
     justify-content: center;
+    width: 22px;
+    margin-right: 6px;
 }
 
-.tool-tab-impersonation svg {
+.tool-tab-impersonation img {
     display: block;
-    width: 14px;
-    height: 14px;
-    fill: currentColor;
+    width: 15px;
+    height: 15px;
 }
 
 .tool-tab-name-container {
@@ -6385,6 +6385,35 @@ body.dark-theme .global-search-item-badge.badge-settings {
 .invocation-banner-dismiss-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     color: #fff;
+}
+
+/* ===========================
+   Impersonation Banner
+   Shown above tool content while the active tool instance is impersonating a Dataverse user.
+   Stacks below the invocation banner (via JS-set `top`) when both are visible.
+   =========================== */
+.impersonation-banner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 899;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--primary-gradient);
+    color: #fff;
+    font-size: 13px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.impersonation-banner-text {
+    flex: 1;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .mcp-subheader {

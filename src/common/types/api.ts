@@ -26,6 +26,8 @@ export interface ConnectionsAPI {
     authenticate: (connectionId: string) => Promise<void>;
     exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<Connection>[] }>;
     importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
+    /** ConnectionId-based system-users lookup for the connection-selection modals (used before a tool instance exists). */
+    getSystemUsersForConnection: (connectionId: string) => Promise<DataverseUser[]>;
 }
 
 /**
@@ -290,10 +292,9 @@ export interface ToolboxAPI {
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
-    getToolImpersonation: (instanceId: string) => Promise<{ user: DataverseUser | null }>;
-    setToolImpersonation: (instanceId: string, user: DataverseUser) => Promise<void>;
-    resetToolImpersonation: (instanceId: string) => Promise<void>;
-    getDataverseUsers: (instanceId: string) => Promise<DataverseUser[]>;
+    getToolImpersonation: (instanceId: string, connectionTarget?: "primary" | "secondary") => Promise<{ user: DataverseUser | null }>;
+    setToolImpersonation: (instanceId: string, user: DataverseUser, connectionTarget?: "primary" | "secondary") => Promise<void>;
+    resetToolImpersonation: (instanceId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
     /** Find installed tools that declare a given capability tag in their pptb.config.json. */
     findToolsByCapability: (tag: string) => Promise<Tool[]>;
     /** Returns the list of known capability tags from the registry (Supabase-backed, with built-in fallback). */

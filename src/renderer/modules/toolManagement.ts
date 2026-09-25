@@ -5,6 +5,7 @@
 
 import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Connection } from "../../common/types/connection";
+import type { DataverseUser } from "../../common/types/dataverse";
 import { getCspConsentDelta, getNormalizedCspDomains } from "../../common/utils/cspConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
@@ -18,14 +19,12 @@ import type { OpenTool, SessionData } from "../types/index";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
-import { openSelectDataverseUserModal } from "./dataverseUserManagement";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
 const SCROLL_TOLERANCE = 1; // Tolerance for rounding errors when checking scroll position
 const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
-
 
 export interface LaunchToolOptions {
     source?: string;
@@ -153,6 +152,10 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
 
             await setToolConnection(instanceId, result.primaryConnectionId);
             await setToolSecondaryConnection(instanceId, result.secondaryConnectionId);
+            await applyImpersonationSelection(instanceId, "primary", result.primaryImpersonationUser);
+            if (result.secondaryConnectionId) {
+                await applyImpersonationSelection(instanceId, "secondary", result.secondaryImpersonationUser);
+            }
 
             const connections = await window.toolboxAPI.connections.getAll();
             const primaryConnection = connections.find((item: Connection) => item.id === result.primaryConnectionId);
@@ -166,13 +169,14 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
                 type: "success",
             });
         } else {
-            const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId, targetTool.tool.name, requirePowerPlatformApi);
+            const { connectionId: selectedConnectionId, impersonationUser } = await openSelectConnectionModal(targetTool.connectionId, targetTool.tool.name, requirePowerPlatformApi);
 
             if (!selectedConnectionId) {
                 return;
             }
 
             await setToolConnection(instanceId, selectedConnectionId);
+            await applyImpersonationSelection(instanceId, "primary", impersonationUser);
 
             const connections = await window.toolboxAPI.connections.getAll();
             const connection = connections.find((item: Connection) => item.id === selectedConnectionId);
@@ -198,7 +202,6 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
     const currentPane = isSplitActive ? getTabCurrentPane(instanceId) : null;
     const canMoveToRight = isSplitActive && currentPane === "left" && canManageTab;
     const canMoveToLeft = isSplitActive && currentPane === "right" && canManageTab;
-    const impersonation = canManageTab ? await window.toolboxAPI.getToolImpersonation(instanceId) : { user: null };
     let action: string | null = null;
     try {
         action = await window.toolboxAPI.utils.showContextMenu({
@@ -216,9 +219,6 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
                 { id: "duplicate-tab", label: "Duplicate Tab", enabled: canManageTab },
                 { id: "duplicate-tab-new-connection", label: "Duplicate Tab with New Connection", enabled: canManageTab },
                 { id: "change-connection", label: "Change Connection", enabled: canManageTab },
-                { type: "separator" },
-                { id: "impersonate", label: "Impersonate Dataverse User", enabled: canManageTab && Boolean(openTools.get(instanceId)?.connectionId) && !impersonation.user },
-                { id: "reset-impersonation", label: "Reset Dataverse Impersonation", enabled: canManageTab && Boolean(impersonation.user) },
             ],
         });
     } catch (error) {
@@ -267,35 +267,6 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
 
     if (action === "change-connection") {
         await changeToolConnectionForInstance(instanceId);
-        return;
-    }
-
-    if (action === "impersonate") {
-        try {
-            const tool = openTools.get(instanceId);
-            if (!tool?.connectionId) return;
-            const users = await window.toolboxAPI.getDataverseUsers(instanceId);
-            const selected = await openSelectDataverseUserModal(users);
-            if (selected) {
-                await window.toolboxAPI.setToolImpersonation(instanceId, selected);
-                await updateTabImpersonationIndicator(instanceId);
-                window.toolboxAPI.utils.showNotification({ title: "Dataverse Impersonation", body: `Requests now run as ${selected.fullname}.`, type: "success" });
-            }
-        } catch (error) {
-            logError("Failed to enable Dataverse impersonation", error);
-            await window.toolboxAPI.utils.showNotification({ title: "Dataverse Impersonation", body: error instanceof Error ? error.message : String(error), type: "error" });
-        }
-        return;
-    }
-
-    if (action === "reset-impersonation") {
-        try {
-            await window.toolboxAPI.resetToolImpersonation(instanceId);
-            await updateTabImpersonationIndicator(instanceId);
-            window.toolboxAPI.utils.showNotification({ title: "Dataverse Impersonation", body: "Impersonation was reset.", type: "success" });
-        } catch (error) {
-            logError("Failed to reset Dataverse impersonation", error);
-        }
         return;
     }
 
@@ -432,6 +403,8 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         let primaryConnectionId: string | null = options?.primaryConnectionId ?? null;
         let secondaryConnectionId: string | null = options?.secondaryConnectionId ?? null;
+        let primaryImpersonationUser: DataverseUser | null = null;
+        let secondaryImpersonationUser: DataverseUser | null = null;
 
         if (primaryConnectionId) {
             primaryConnectionId = await resolveConnectionId(primaryConnectionId);
@@ -461,6 +434,8 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     const result = await openSelectMultiConnectionModal(isSecondaryRequired, tool.name, tool.features?.enabledForPowerPlatformAPI === true);
                     primaryConnectionId = result.primaryConnectionId;
                     secondaryConnectionId = result.secondaryConnectionId;
+                    primaryImpersonationUser = result.primaryImpersonationUser;
+                    secondaryImpersonationUser = result.secondaryImpersonationUser;
                     logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
 
                     if (isSecondaryRequired && !secondaryConnectionId) {
@@ -484,10 +459,11 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 // Regular single-connection flow - prompt if no stored connection
                 logInfo("Showing connection selection modal for new instance...");
                 try {
-                    const selectedConnectionId = await openSelectConnectionModal(null, tool.name, tool.features?.enabledForPowerPlatformAPI === true);
+                    const { connectionId: selectedConnectionId, impersonationUser } = await openSelectConnectionModal(null, tool.name, tool.features?.enabledForPowerPlatformAPI === true);
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
+                        primaryImpersonationUser = impersonationUser;
                     } else {
                         throw new Error("No connection was selected");
                     }
@@ -646,6 +622,13 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         // Tab is appended synchronously; connection subtext is populated asynchronously
         createTab(instanceId, tool, instanceNumber);
 
+        if (primaryImpersonationUser) {
+            await applyImpersonationSelection(instanceId, "primary", primaryImpersonationUser);
+        }
+        if (secondaryImpersonationUser) {
+            await applyImpersonationSelection(instanceId, "secondary", secondaryImpersonationUser);
+        }
+
         // Switch to the new tab (this will also call backend to show the BrowserView)
         switchToTool(instanceId);
 
@@ -694,13 +677,17 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     titleRow.appendChild(name);
     nameContainer.appendChild(titleRow);
 
+    // Impersonation badge spans the full tab height (both rows) so it stands out from other tabs
     const impersonationIcon = document.createElement("span");
     impersonationIcon.className = "tool-tab-impersonation";
     impersonationIcon.setAttribute("aria-hidden", "true");
     impersonationIcon.title = "Dataverse impersonation active";
-    impersonationIcon.innerHTML = `<svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.5 13 3.6v3.7c0 3.2-2 5.9-5 7.2-3-1.3-5-4-5-7.2V3.6L8 1.5Zm0 1.6L4.5 4.6v2.7c0 2.4 1.4 4.5 3.5 5.6 2.1-1.1 3.5-3.2 3.5-5.6V4.6L8 3.1Zm0 1.7a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2Zm-2.3 5.1c.5-1 1.3-1.5 2.3-1.5s1.8.5 2.3 1.5A5.9 5.9 0 0 1 8 11.7a5.9 5.9 0 0 1-2.3-1.8Z"/></svg>`;
+    const impersonationIconImg = document.createElement("img");
+    const isDarkThemeForImpersonation = document.body.classList.contains("dark-theme");
+    impersonationIconImg.src = isDarkThemeForImpersonation ? "icons/dark/impersonate.svg" : "icons/light/impersonate.svg";
+    impersonationIconImg.alt = "";
+    impersonationIcon.appendChild(impersonationIconImg);
     impersonationIcon.style.display = "none";
-    titleRow.insertBefore(impersonationIcon, name);
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
@@ -760,6 +747,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
     attachTabContextMenu(tab, instanceId);
 
+    tab.appendChild(impersonationIcon);
     tab.appendChild(nameContainer);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
@@ -772,19 +760,89 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     updateTabScrollButtons();
 }
 
+/**
+ * Apply an impersonation selection made in a connection modal to a launched tool instance,
+ * setting or clearing it depending on whether a user was picked.
+ */
+async function applyImpersonationSelection(instanceId: string, connectionTarget: "primary" | "secondary", user: DataverseUser | null): Promise<void> {
+    try {
+        if (user) {
+            await window.toolboxAPI.setToolImpersonation(instanceId, user, connectionTarget);
+        } else {
+            await window.toolboxAPI.resetToolImpersonation(instanceId, connectionTarget);
+        }
+        await updateTabImpersonationIndicator(instanceId);
+    } catch (error) {
+        logError(`Failed to apply ${connectionTarget} Dataverse impersonation`, error);
+        window.toolboxAPI.utils.showNotification({ title: "Dataverse Impersonation", body: error instanceof Error ? error.message : String(error), type: "error" });
+    }
+}
+
+/**
+ * Fetch the combined primary/secondary impersonation state for a tool instance.
+ */
+async function getImpersonationStatus(instanceId: string): Promise<{ isActive: boolean; summary: string }> {
+    const openTool = openTools.get(instanceId);
+    const [primaryImpersonation, secondaryImpersonation] = await Promise.all([
+        window.toolboxAPI.getToolImpersonation(instanceId, "primary"),
+        openTool?.secondaryConnectionId ? window.toolboxAPI.getToolImpersonation(instanceId, "secondary") : Promise.resolve({ user: null }),
+    ]);
+    const labels = [
+        primaryImpersonation.user ? `Primary: ${primaryImpersonation.user.fullname}` : null,
+        secondaryImpersonation.user ? `Secondary: ${secondaryImpersonation.user.fullname}` : null,
+    ].filter((label): label is string => Boolean(label));
+    return { isActive: labels.length > 0, summary: labels.join(", ") };
+}
+
 async function updateTabImpersonationIndicator(instanceId: string): Promise<void> {
     const tab = document.getElementById(`tool-tab-${instanceId}`);
     const indicator = tab?.querySelector<HTMLElement>(".tool-tab-impersonation");
     if (!indicator) return;
 
     try {
-        const impersonation = await window.toolboxAPI.getToolImpersonation(instanceId);
-        const isActive = Boolean(impersonation.user);
+        const { isActive, summary } = await getImpersonationStatus(instanceId);
         indicator.style.display = isActive ? "inline-flex" : "none";
-        indicator.title = isActive ? `Dataverse impersonation: ${impersonation.user?.fullname ?? "active"}` : "";
-        indicator.setAttribute("aria-label", isActive ? `Dataverse impersonation active for ${impersonation.user?.fullname ?? "selected user"}` : "");
+        indicator.title = isActive ? `Dataverse impersonation active - ${summary}` : "";
+        indicator.setAttribute("aria-label", isActive ? `Dataverse impersonation active - ${summary}` : "");
     } catch (error) {
         logWarn("Failed to update tab impersonation indicator", { instanceId, error: error instanceof Error ? error.message : String(error) });
+    }
+
+    if (instanceId === activeToolId) {
+        void updateImpersonationBanner(instanceId);
+    }
+}
+
+/**
+ * Show/hide the impersonation banner above the active tool's content, stacking below the
+ * inter-tool invocation banner (if visible). Notifies the main process so it can shrink the
+ * BrowserView bounds to make room, mirroring the invocation banner's approach.
+ */
+async function updateImpersonationBanner(instanceId: string | null): Promise<void> {
+    const banner = document.getElementById("impersonation-banner");
+    const bannerText = document.getElementById("impersonation-banner-text");
+    if (!banner) return;
+
+    const wasVisible = banner.style.display !== "none";
+
+    if (!instanceId) {
+        banner.style.display = "none";
+        if (wasVisible) window.api.send("impersonation-banner-visibility-changed");
+        return;
+    }
+
+    try {
+        const { isActive, summary } = await getImpersonationStatus(instanceId);
+        if (bannerText) bannerText.textContent = isActive ? `Dataverse impersonation active - ${summary}` : "";
+
+        const invocationBanner = document.getElementById("invocation-banner");
+        const invocationVisible = Boolean(invocationBanner && invocationBanner.style.display !== "none");
+        banner.style.top = invocationVisible ? `${Math.round(invocationBanner!.getBoundingClientRect().height)}px` : "0";
+        banner.style.display = isActive ? "flex" : "none";
+
+        if (isActive !== wasVisible) window.api.send("impersonation-banner-visibility-changed");
+    } catch (error) {
+        logWarn("Failed to update impersonation banner", { instanceId, error: error instanceof Error ? error.message : String(error) });
     }
 }
 
@@ -985,6 +1043,7 @@ export async function switchToTool(instanceId: string): Promise<void> {
             detailPanel.style.display = "flex";
         }
 
+        void updateImpersonationBanner(null);
         await updateActiveToolConnectionStatus();
         return;
     }
@@ -1006,6 +1065,7 @@ export async function switchToTool(instanceId: string): Promise<void> {
     });
 
     // Update connection status display based on this tool's connection
+    void updateImpersonationBanner(instanceId);
     await updateActiveToolConnectionStatus();
 }
 
@@ -1097,6 +1157,7 @@ export async function closeTool(instanceId: string): Promise<void> {
                 homeView.style.display = "block";
             }
             activeToolId = null;
+            void updateImpersonationBanner(null);
         }
     }
 }
@@ -1807,11 +1868,12 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         const { openSelectConnectionModal } = await import("./connectionManagement");
 
         // Open the modal and pass the tool's current secondary connection ID to highlight it
-        const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name);
+        const { connectionId: selectedConnectionId, impersonationUser } = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name);
 
         // After modal closes with a successful connection, update the tool's secondary connection
         if (selectedConnectionId && activeToolId) {
             await setToolSecondaryConnection(activeToolId, selectedConnectionId);
+            await applyImpersonationSelection(activeToolId, "secondary", impersonationUser);
 
             // Get connection from all connections list
             const connections = await window.toolboxAPI.connections.getAll();
@@ -2077,6 +2139,7 @@ export function initializeCalleeToolListeners(): void {
             void switchToTool(lastInstanceId);
         } else {
             activeToolId = null;
+            void updateImpersonationBanner(null);
             const toolPanel = document.getElementById("tool-panel");
             if (toolPanel) {
                 toolPanel.style.display = "none";

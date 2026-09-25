@@ -1787,6 +1787,11 @@ class ToolBoxApp {
             const result = await this.dataverseManager.getSystemUsers(connectionId);
             return result.value;
         });
+        // Used by the connection-selection modals to populate the "Impersonate as..." picker before a tool instance exists.
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SYSTEM_USERS_BY_CONNECTION, async (_event, connectionId: string) => {
+            const result = await this.dataverseManager.getSystemUsers(connectionId);
+            return result.value;
+        });
         ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (event, entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
             try {
                 const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
@@ -2102,7 +2107,9 @@ class ToolBoxApp {
                         const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
-                    return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.associate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId));
+                    return await this.dataverseManager.withImpersonation(callerObjectId, () =>
+                        this.dataverseManager.associate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId),
+                    );
                 } catch (error) {
                     throw new Error(`Dataverse associate failed: ${(error as Error).message}`);
                 }
@@ -2122,7 +2129,9 @@ class ToolBoxApp {
                         const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
-                    return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId));
+                    return await this.dataverseManager.withImpersonation(callerObjectId, () =>
+                        this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId),
+                    );
                 } catch (error) {
                     throw new Error(`Dataverse disassociate failed: ${(error as Error).message}`);
                 }

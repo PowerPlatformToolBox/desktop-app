@@ -1,8 +1,8 @@
-export interface SelectDataverseUserModalChannelIds {
+export interface SelectImpersonationUserModalChannelIds {
     selectUser: string;
 }
 
-export function getSelectDataverseUserModalControllerScript(channels: SelectDataverseUserModalChannelIds): string {
+export function getSelectImpersonationUserModalControllerScript(channels: SelectImpersonationUserModalChannelIds): string {
     return `
 <script>
 (() => {
@@ -10,8 +10,8 @@ export function getSelectDataverseUserModalControllerScript(channels: SelectData
     const modalBridge = window.modalBridge;
     if (!modalBridge) return;
 
-    const search = document.getElementById("select-dataverse-user-search");
-    const empty = document.getElementById("dataverse-users-empty");
+    const search = document.getElementById("select-impersonation-user-search");
+    const empty = document.getElementById("impersonation-users-empty");
     const filterUsers = () => {
         const query = (search?.value || "").trim().toLowerCase();
         let visible = 0;
@@ -27,8 +27,8 @@ export function getSelectDataverseUserModalControllerScript(channels: SelectData
     document.querySelectorAll(".user-row").forEach((row) => {
         row.addEventListener("click", () => modalBridge.send(CHANNELS.selectUser, { index: Number(row.dataset.index) }));
     });
-    document.getElementById("cancel-select-dataverse-user-btn")?.addEventListener("click", () => modalBridge.close());
-    document.getElementById("close-select-dataverse-user-modal")?.addEventListener("click", () => modalBridge.close());
+    document.getElementById("skip-select-impersonation-user-btn")?.addEventListener("click", () => modalBridge.send(CHANNELS.selectUser, { index: null }));
+    document.getElementById("close-select-impersonation-user-modal")?.addEventListener("click", () => modalBridge.send(CHANNELS.selectUser, { index: null }));
     search?.focus();
 })();
 </script>`;

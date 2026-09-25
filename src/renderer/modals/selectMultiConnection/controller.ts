@@ -55,6 +55,7 @@ export function getSelectMultiConnectionModalControllerScript(
     let authenticatedPrimaryConnectionId = null;
     let authenticatedSecondaryConnectionId = null;
     let allConnections = [];
+    const impersonateConnectionKeys = new Set();
     const DEFAULT_SORT_OPTION = "last-used";
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => (value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION);
@@ -237,6 +238,10 @@ ${sortingUtilities}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
+                <label class="impersonate-checkbox-row" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="impersonate-checkbox" data-connection-id="\${safeId}" data-list="\${idPrefix}" \${impersonateConnectionKeys.has(idPrefix + ':' + conn.id) ? 'checked' : ''} />
+                    Impersonate as another user
+                </label>
             </div>
         \`;
         };
@@ -317,6 +322,18 @@ ${sortingUtilities}
             });
         });
 
+        // Track the "Impersonate as another user" checkbox per connection card
+        document.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const key = checkbox.getAttribute('data-list') + ':' + checkbox.getAttribute('data-connection-id');
+                if (checkbox.checked) {
+                    impersonateConnectionKeys.add(key);
+                } else {
+                    impersonateConnectionKeys.delete(key);
+                }
+            });
+        });
+
         // Update confirm button state
         updateConfirmButtonState();
     };
@@ -374,6 +391,8 @@ ${sortingUtilities}
         modalBridge.send(CHANNELS.selectConnections, { 
             primaryConnectionId: authenticatedPrimaryConnectionId,
             secondaryConnectionId: authenticatedSecondaryConnectionId,
+            primaryWantsImpersonation: impersonateConnectionKeys.has('primary:' + authenticatedPrimaryConnectionId),
+            secondaryWantsImpersonation: authenticatedSecondaryConnectionId ? impersonateConnectionKeys.has('secondary:' + authenticatedSecondaryConnectionId) : false,
             action: 'confirm'
         });
     });
