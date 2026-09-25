@@ -27,6 +27,6 @@ describe("theme management", () => {
 
         expect(firstIcon.src).toBe("icons/dark/verified.svg");
         expect(secondIcon.src).toBe("icons/dark/verified.svg");
-        expect(globalWithDocument.document.querySelectorAll).toHaveBeenCalledWith(".tool-verified-badge img");
+        expect(globalWithDocument.document.querySelectorAll).toHaveBeenCalledWith(".tool-verified-badge-icon");
     });
 });

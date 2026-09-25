@@ -325,7 +325,7 @@ export function updateVerifiedBadgeIconsForTheme(): void {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const verifiedIconPath = isDarkTheme ? "icons/dark/verified.svg" : "icons/light/verified.svg";
 
-    document.querySelectorAll(".tool-verified-badge img").forEach((img) => {
+    document.querySelectorAll(".tool-verified-badge-icon").forEach((img) => {
         (img as HTMLImageElement).src = verifiedIconPath;
     });
 }
