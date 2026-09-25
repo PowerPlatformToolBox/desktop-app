@@ -45,6 +45,9 @@ export function applyTheme(theme: string): void {
     // Update tool detail tab icons when theme changes
     updateToolDetailIconsForTheme();
 
+    // Update verified badge icons when theme changes
+    updateVerifiedBadgeIconsForTheme();
+
     // Update homepage icon when theme changes
     updateHomepageIconForTheme();
 
@@ -313,6 +316,25 @@ export function updateToolDetailIconsForTheme(): void {
             (img as HTMLImageElement).src = defaultToolIcon + cacheBuster;
         }
     });
+}
+
+/**
+ * Update verified badge icons to match current theme
+ */
+export function updateVerifiedBadgeImageSources(isDarkTheme: boolean, badgeImages: ArrayLike<{ src: string }>): void {
+    const verifiedIconPath = isDarkTheme ? "icons/dark/verified.svg" : "icons/light/verified.svg";
+
+    for (const img of Array.from(badgeImages)) {
+        img.src = verifiedIconPath;
+    }
+}
+
+/**
+ * Update verified badge icons to match current theme
+ */
+export function updateVerifiedBadgeIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    updateVerifiedBadgeImageSources(isDarkTheme, document.querySelectorAll<HTMLImageElement>(".tool-verified-badge-icon"));
 }
 
 /**
