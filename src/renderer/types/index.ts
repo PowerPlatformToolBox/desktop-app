@@ -60,7 +60,6 @@ export interface SettingsState {
     terminalFont?: string;
     notificationDuration?: number;
     restoreSessionOnStartup?: boolean;
-    enableConnectionDoubleClickConnect?: boolean;
     showCategoryColor?: boolean;
     showEnvironmentColor?: boolean;
     categoryColorThickness?: number;
@@ -97,7 +96,6 @@ export interface ToolDetail {
     latestVersion?: string;
     authors?: string[];
     categories?: string[];
-    size?: number;
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users

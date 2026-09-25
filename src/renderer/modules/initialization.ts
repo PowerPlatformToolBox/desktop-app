@@ -56,7 +56,6 @@ import {
     showHomePage,
 } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
-import { initializeTitlebar } from "./titlebarManagement";
 
 /**
  * Initialize the application
@@ -64,7 +63,6 @@ import { initializeTitlebar } from "./titlebarManagement";
  */
 export async function initializeApplication(): Promise<void> {
     try {
-        initializeTitlebar();
         // Signal the main process that the renderer is starting fresh so it can clean up
         // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
         // This must be the very first IPC call so the cleanup happens before session restore.

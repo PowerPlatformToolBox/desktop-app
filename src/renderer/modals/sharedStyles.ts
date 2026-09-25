@@ -151,9 +151,8 @@ export function getModalStyles(isDarkTheme: boolean): string {
     }
 
     .modal-input:focus {
-        outline: none;
-        border-color: #0e639c;
-        box-shadow: inset 0 0 0 1px #0e639c;
+        outline: 2px solid #0e639c;
+        border-color: transparent;
     }
 
     .field-group {

@@ -327,7 +327,6 @@ export async function loadSettings(): Promise<void> {
     const customFontContainer = document.getElementById("custom-font-input-container");
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
     const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
-    const enableConnectionDoubleClickConnectCheck = document.getElementById("sidebar-enable-connection-double-click-check") as HTMLInputElement | null;
     const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
@@ -351,7 +350,6 @@ export async function loadSettings(): Promise<void> {
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
             notificationDuration: settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION,
             restoreSessionOnStartup: settings.restoreSessionOnStartup ?? true,
-            enableConnectionDoubleClickConnect: settings.enableConnectionDoubleClickConnect ?? false,
             showCategoryColor: settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR,
             showEnvironmentColor: settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR,
             categoryColorThickness: settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS,
@@ -374,9 +372,6 @@ export async function loadSettings(): Promise<void> {
 
         if (restoreSessionCheck) {
             restoreSessionCheck.checked = settings.restoreSessionOnStartup ?? true;
-        }
-        if (enableConnectionDoubleClickConnectCheck) {
-            enableConnectionDoubleClickConnectCheck.checked = settings.enableConnectionDoubleClickConnect ?? false;
         }
         if (showCategoryColorCheck) {
             showCategoryColorCheck.checked = settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR;
@@ -447,7 +442,6 @@ export async function saveSettings(): Promise<void> {
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
     const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
-    const enableConnectionDoubleClickConnectCheck = document.getElementById("sidebar-enable-connection-double-click-check") as HTMLInputElement | null;
     const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
@@ -486,7 +480,6 @@ export async function saveSettings(): Promise<void> {
         terminalFont: terminalFont,
         notificationDuration,
         restoreSessionOnStartup: restoreSessionCheck ? restoreSessionCheck.checked : true,
-        enableConnectionDoubleClickConnect: enableConnectionDoubleClickConnectCheck ? enableConnectionDoubleClickConnectCheck.checked : false,
         showCategoryColor,
         showEnvironmentColor,
         categoryColorThickness,
@@ -525,9 +518,6 @@ export async function saveSettings(): Promise<void> {
     }
     if (currentSettings.restoreSessionOnStartup !== originalSettings.restoreSessionOnStartup) {
         changedSettings.restoreSessionOnStartup = currentSettings.restoreSessionOnStartup;
-    }
-    if (currentSettings.enableConnectionDoubleClickConnect !== (originalSettings.enableConnectionDoubleClickConnect ?? false)) {
-        changedSettings.enableConnectionDoubleClickConnect = currentSettings.enableConnectionDoubleClickConnect;
     }
     if (currentSettings.showCategoryColor !== originalSettings.showCategoryColor) {
         changedSettings.showCategoryColor = currentSettings.showCategoryColor;
@@ -620,7 +610,6 @@ function hasUnsavedChanges(): boolean {
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
     const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
     const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
-    const enableConnectionDoubleClickConnectCheck = document.getElementById("sidebar-enable-connection-double-click-check") as HTMLInputElement | null;
     const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
@@ -645,7 +634,6 @@ function hasUnsavedChanges(): boolean {
     if (notificationDurationSelect && Number(notificationDurationSelect.value) !== (originalSettings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION)) return true;
     if ((normalizeTelemetryConsent(sentryTelemetryConsentSelect?.value) ?? null) !== (originalSettings.sentryTelemetryConsent ?? null)) return true;
     if (restoreSessionCheck && restoreSessionCheck.checked !== (originalSettings.restoreSessionOnStartup ?? true)) return true;
-    if (enableConnectionDoubleClickConnectCheck && enableConnectionDoubleClickConnectCheck.checked !== (originalSettings.enableConnectionDoubleClickConnect ?? false)) return true;
     if (showCategoryColorCheck && showCategoryColorCheck.checked !== (originalSettings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR)) return true;
     if (showEnvironmentColorCheck && showEnvironmentColorCheck.checked !== (originalSettings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR)) return true;
     if (categoryColorThicknessInput) {
@@ -763,19 +751,6 @@ export function renderSettingsContent(panel: HTMLElement): void {
                     <div class="settings-vscode-item-control">
                         <label class="settings-vscode-checkbox-label">
                             <input type="checkbox" id="sidebar-restore-session-check" class="settings-vscode-checkbox" />
-                            <span>Enable</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="settings-vscode-item">
-                    <div class="settings-vscode-item-info">
-                        <label class="settings-vscode-item-label" for="sidebar-enable-connection-double-click-check">Double-Click to Connect</label>
-                        <p class="settings-vscode-item-description">Allow double-clicking a connection in selection modals to trigger Connect. Keep this off if double-click gestures are an accessibility concern.</p>
-                    </div>
-                    <div class="settings-vscode-item-control">
-                        <label class="settings-vscode-checkbox-label">
-                            <input type="checkbox" id="sidebar-enable-connection-double-click-check" class="settings-vscode-checkbox" />
                             <span>Enable</span>
                         </label>
                     </div>

@@ -67,7 +67,6 @@ export interface Tool {
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
     categories?: string[];
     license?: string;
-    size?: number;
     downloads?: number;
     rating?: number;
     ratingCount?: number; // Number of ratings submitted for this tool
@@ -142,7 +141,6 @@ export interface ToolManifest {
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
     categories?: string[];
     license?: string;
-    size?: number;
     downloads?: number;
     rating?: number;
     ratingCount?: number; // Number of ratings submitted for this tool

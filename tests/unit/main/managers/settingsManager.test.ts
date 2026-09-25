@@ -21,7 +21,6 @@ describe("SettingsManager", () => {
             const settings = manager.getUserSettings();
             expect(settings.theme).toBe("system");
             expect(settings.autoUpdate).toBe(true);
-            expect(settings.enableConnectionDoubleClickConnect).toBe(false);
             expect(settings.installedTools).toEqual([]);
             expect(settings.favoriteTools).toEqual([]);
             expect(settings.sentryTelemetryConsent).toBeNull();
@@ -41,11 +40,6 @@ describe("SettingsManager", () => {
             manager.updateUserSettings({ theme: "light", autoUpdate: false });
             expect(manager.getSetting("theme")).toBe("light");
             expect(manager.getSetting("autoUpdate")).toBe(false);
-        });
-
-        it("persists connection modal double-click setting", () => {
-            manager.updateUserSettings({ enableConnectionDoubleClickConnect: true });
-            expect(manager.getSetting("enableConnectionDoubleClickConnect")).toBe(true);
         });
     });
 

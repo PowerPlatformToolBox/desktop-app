@@ -222,19 +222,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // External URL - Only for PPTB UI
     openExternal: (url: string) => ipcRenderer.invoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
 
-    // Main window controls for the custom renderer title bar
-    window: {
-        minimize: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_MINIMIZE),
-        toggleMaximize: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
-        close: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_CLOSE),
-        isMaximized: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED) as Promise<boolean>,
-        isFullScreen: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_IS_FULL_SCREEN) as Promise<boolean>,
-        onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => {
-            ipcRenderer.on(UTIL_CHANNELS.WINDOW_FULL_SCREEN_CHANGED, (_event, isFullScreen: boolean) => callback(isFullScreen));
-        },
-        openMenu: (menuLabel: string, x: number, y: number) => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_OPEN_MENU, menuLabel, x, y),
-    },
-
     // Favicon proxy - fetches a favicon URL via main process to bypass renderer CSP
     fetchFavicon: (url: string) => ipcRenderer.invoke(UTIL_CHANNELS.FETCH_FAVICON, url) as Promise<string | null>,
 
