@@ -863,6 +863,14 @@ function setupToolPanelBoundsListener(): void {
                 adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
             }
 
+            // Same treatment for the impersonation banner (stacks below the invocation banner if both are visible).
+            const impersonationBanner = document.getElementById("impersonation-banner");
+            if (impersonationBanner && impersonationBanner.style.display !== "none") {
+                const bannerHeight = Math.round(impersonationBanner.getBoundingClientRect().height);
+                adjustedY += bannerHeight;
+                adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
+            }
+
             const bounds = {
                 x: Math.round(rect.left),
                 y: adjustedY,

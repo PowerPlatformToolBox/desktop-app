@@ -473,6 +473,10 @@
                                 <button id="invocation-banner-dismiss" class="invocation-banner-dismiss-btn" title="Dismiss banner (does not cancel invocation)" aria-label="Dismiss banner">✕</button>
                             </div>
                         </div>
+                        <!-- Impersonation Banner: sits above tool content when the active tool instance is impersonating a Dataverse user -->
+                        <div id="impersonation-banner" class="impersonation-banner" style="display: none" role="status" aria-live="polite">
+                            <span id="impersonation-banner-text" class="impersonation-banner-text"></span>
+                        </div>
                     </div>
                     <!-- Terminal Panel -->
                     <div class="terminal-panel" id="terminal-panel" style="display: none">

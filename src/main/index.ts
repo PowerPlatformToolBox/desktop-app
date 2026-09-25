@@ -1825,8 +1825,20 @@ class ToolBoxApp {
         // Dataverse API handlers
         // All handlers automatically get the connectionId from the calling tool's WebContents
         // For multi-connection tools, an optional connectionTarget parameter can be passed to specify "primary" or "secondary"
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, async (_event, instanceId: string) => {
+            const connectionId = this.toolWindowManager?.getPrimaryConnectionIdByInstance(instanceId);
+            if (!connectionId) throw new Error("No connection found for this tool instance.");
+            const result = await this.dataverseManager.getSystemUsers(connectionId);
+            return result.value;
+        });
+        // Used by the connection-selection modals to populate the "Impersonate as..." picker before a tool instance exists.
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SYSTEM_USERS_BY_CONNECTION, async (_event, connectionId: string) => {
+            const result = await this.dataverseManager.getSystemUsers(connectionId);
+            return result.value;
+        });
         ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (event, entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 // Get the connectionId based on connectionTarget (defaults to primary)
                 const connectionId =
                     connectionTarget === "secondary"
@@ -1837,7 +1849,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                return await this.dataverseManager.create(connectionId, entityLogicalName, record);
+                return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.create(connectionId, entityLogicalName, record));
             } catch (error) {
                 throw new Error(`Dataverse create failed: ${(error as Error).message}`);
             }
@@ -1845,6 +1857,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (event, entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -1854,7 +1867,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                return await this.dataverseManager.retrieve(connectionId, entityLogicalName, id, columns);
+                return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.retrieve(connectionId, entityLogicalName, id, columns));
             } catch (error) {
                 throw new Error(`Dataverse retrieve failed: ${(error as Error).message}`);
             }
@@ -1862,6 +1875,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (event, entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -1871,7 +1885,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                await this.dataverseManager.update(connectionId, entityLogicalName, id, record);
+                await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.update(connectionId, entityLogicalName, id, record));
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse update failed: ${(error as Error).message}`);
@@ -1880,6 +1894,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (event, entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -1889,7 +1904,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                await this.dataverseManager.delete(connectionId, entityLogicalName, id);
+                await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.delete(connectionId, entityLogicalName, id));
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse delete failed: ${(error as Error).message}`);
@@ -1898,6 +1913,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -1907,7 +1923,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                return await this.dataverseManager.retrieveMultiple(connectionId, fetchXml);
+                return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.retrieveMultiple(connectionId, fetchXml));
             } catch (error) {
                 throw new Error(`Dataverse retrieveMultiple failed: ${(error as Error).message}`);
             }
@@ -1927,6 +1943,7 @@ class ToolBoxApp {
                 connectionTarget?: "primary" | "secondary",
             ) => {
                 try {
+                    const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const connectionId =
                         connectionTarget === "secondary"
                             ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -1936,7 +1953,7 @@ class ToolBoxApp {
                         const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
-                    return await this.dataverseManager.execute(connectionId, request);
+                    return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.execute(connectionId, request));
                 } catch (error) {
                     throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
                 }
@@ -1945,6 +1962,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -1954,7 +1972,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                return await this.dataverseManager.fetchXmlQuery(connectionId, fetchXml);
+                return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.fetchXmlQuery(connectionId, fetchXml));
             } catch (error) {
                 throw new Error(`Dataverse fetchXmlQuery failed: ${(error as Error).message}`);
             }
@@ -2036,6 +2054,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (event, odataQuery: string, connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -2045,7 +2064,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                return await this.dataverseManager.queryData(connectionId, odataQuery);
+                return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.queryData(connectionId, odataQuery));
             } catch (error) {
                 throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
             }
@@ -2071,6 +2090,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.CREATE_MULTIPLE, async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -2079,7 +2099,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                return await this.dataverseManager.createMultiple(connectionId, entityLogicalName, records);
+                return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.createMultiple(connectionId, entityLogicalName, records));
             } catch (error) {
                 throw new Error(`Dataverse createMultiple failed: ${(error as Error).message}`);
             }
@@ -2087,6 +2107,7 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => {
             try {
+                const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const connectionId =
                     connectionTarget === "secondary"
                         ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -2095,7 +2116,7 @@ class ToolBoxApp {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-                return await this.dataverseManager.updateMultiple(connectionId, entityLogicalName, records);
+                return await this.dataverseManager.withImpersonation(callerObjectId, () => this.dataverseManager.updateMultiple(connectionId, entityLogicalName, records));
             } catch (error) {
                 throw new Error(`Dataverse updateMultiple failed: ${(error as Error).message}`);
             }
@@ -2121,6 +2142,7 @@ class ToolBoxApp {
                 connectionTarget?: "primary" | "secondary",
             ) => {
                 try {
+                    const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const connectionId =
                         connectionTarget === "secondary"
                             ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -2129,7 +2151,9 @@ class ToolBoxApp {
                         const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
-                    return await this.dataverseManager.associate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId);
+                    return await this.dataverseManager.withImpersonation(callerObjectId, () =>
+                        this.dataverseManager.associate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId),
+                    );
                 } catch (error) {
                     throw new Error(`Dataverse associate failed: ${(error as Error).message}`);
                 }
@@ -2140,6 +2164,7 @@ class ToolBoxApp {
             DATAVERSE_CHANNELS.DISASSOCIATE,
             async (event, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => {
                 try {
+                    const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const connectionId =
                         connectionTarget === "secondary"
                             ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
@@ -2148,7 +2173,9 @@ class ToolBoxApp {
                         const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
-                    return await this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId);
+                    return await this.dataverseManager.withImpersonation(callerObjectId, () =>
+                        this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId),
+                    );
                 } catch (error) {
                     throw new Error(`Dataverse disassociate failed: ${(error as Error).message}`);
                 }

@@ -97,6 +97,9 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     .connected-badge {
         font-size: 11px;
     }
+
+    .impersonate-checkbox-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; }
+    .impersonate-checkbox-row input { margin: 0; }
 </style>`;
 
     const toolNameHtml = toolName ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>` : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;

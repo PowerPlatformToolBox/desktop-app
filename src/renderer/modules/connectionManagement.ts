@@ -4,7 +4,7 @@
  */
 
 import { logDebug, logError, logInfo, logWarn } from "../../common/logger";
-import type { Connection, ConnectionsSortOption, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
+import type { Connection, ConnectionsSortOption, DataverseUser, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
@@ -12,6 +12,8 @@ import { getEditConnectionModalControllerScript } from "../modals/editConnection
 import { getEditConnectionModalView } from "../modals/editConnection/view";
 import { getImportConnectionSourceModalControllerScript } from "../modals/importConnectionSource/controller";
 import { getImportConnectionSourceModalView } from "../modals/importConnectionSource/view";
+import { getSelectImpersonationUserModalControllerScript } from "../modals/selectImpersonationUser/controller";
+import { getSelectImpersonationUserModalView, ImpersonationPickerContext } from "../modals/selectImpersonationUser/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
@@ -20,6 +22,7 @@ import { sortConnections } from "../utils/connectionSorting";
 import {
     closeBrowserWindowModal,
     offBrowserWindowModalClosed,
+    offBrowserWindowModalMessage,
     onBrowserWindowModalClosed,
     onBrowserWindowModalMessage,
     sendBrowserWindowModalMessage,
@@ -65,6 +68,8 @@ interface ConfirmConnectionsAction {
     action: "confirm";
     primaryConnectionId: string;
     secondaryConnectionId: string | null;
+    primaryWantsImpersonation?: boolean;
+    secondaryWantsImpersonation?: boolean;
 }
 
 interface LegacyConnectionSelection {
@@ -124,6 +129,15 @@ const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
     height: 700,
 };
 
+const SELECT_IMPERSONATION_USER_MODAL_CHANNELS = {
+    selectUser: "select-impersonation-user:select",
+} as const;
+
+const SELECT_IMPERSONATION_USER_MODAL_DIMENSIONS = {
+    width: 480,
+    height: 560,
+};
+
 const IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS = {
     select: "import-connection-source:select",
 } as const;
@@ -139,9 +153,9 @@ let selectConnectionModalHandlersRegistered = false;
 let selectMultiConnectionModalHandlersRegistered = false;
 let importConnectionSourceModalHandlersRegistered = false;
 
-// Store promise handlers for select connection modal - now returns connectionId
+// Store promise handlers for select connection modal - now returns connectionId + optional impersonation user
 const selectConnectionModalPromiseHandlers: {
-    resolve: ((value: string) => void) | null;
+    resolve: ((value: { connectionId: string; impersonationUser: DataverseUser | null }) => void) | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -150,7 +164,9 @@ const selectConnectionModalPromiseHandlers: {
 
 // Store promise handlers for select multi-connection modal
 const selectMultiConnectionModalPromiseHandlers: {
-    resolve: ((result: { primaryConnectionId: string; secondaryConnectionId: string | null }) => void) | null;
+    resolve:
+        | ((result: { primaryConnectionId: string; secondaryConnectionId: string | null; primaryImpersonationUser: DataverseUser | null; secondaryImpersonationUser: DataverseUser | null }) => void)
+        | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -282,7 +298,11 @@ export function initializeSelectConnectionModalBridge(): void {
  * @param toolName - Optional name of the tool requesting the connection (shown in modal header)
  * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
  */
-export async function openSelectConnectionModal(toolConnectionId?: string | null, toolName?: string, enabledForPowerPlatformAPI: boolean = false): Promise<string> {
+export async function openSelectConnectionModal(
+    toolConnectionId?: string | null,
+    toolName?: string,
+    enabledForPowerPlatformAPI: boolean = false,
+): Promise<{ connectionId: string; impersonationUser: DataverseUser | null }> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
 
@@ -337,7 +357,7 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 
     switch (payload.channel) {
         case SELECT_CONNECTION_MODAL_CHANNELS.selectConnection:
-            void handleSelectConnectionRequest(payload.data as { connectionId?: string });
+            void handleSelectConnectionRequest(payload.data as { connectionId?: string; wantsImpersonation?: boolean });
             break;
         case SELECT_CONNECTION_MODAL_CHANNELS.populateConnections:
             void handlePopulateConnectionsRequest();
@@ -358,7 +378,7 @@ function buildSelectConnectionModalHtml(enabledForPowerPlatformAPI: boolean = fa
     return `${styles}\n${body}\n${script}`.trim();
 }
 
-async function handleSelectConnectionRequest(data?: { connectionId?: string }): Promise<void> {
+async function handleSelectConnectionRequest(data?: { connectionId?: string; wantsImpersonation?: boolean }): Promise<void> {
     const connectionId = data?.connectionId;
 
     if (!connectionId) {
@@ -378,6 +398,19 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
             throw new Error("Connection was not successfully established");
         }
 
+        // If the user checked "Impersonate as another user", show the user picker (same modal
+        // window, new content) before finalizing; otherwise resolve immediately as before.
+        let impersonationUser: DataverseUser | null = null;
+        if (data?.wantsImpersonation) {
+            try {
+                const users = await window.toolboxAPI.connections.getSystemUsersForConnection(connectionId);
+                const context = await buildImpersonationPickerContext(connectionId);
+                impersonationUser = await promptForImpersonationUser(users, context);
+            } catch (usersError) {
+                logWarn("Failed to fetch Dataverse users for impersonation picker", { error: usersError instanceof Error ? usersError.message : String(usersError) });
+            }
+        }
+
         // Resolve the promise BEFORE closing the modal to avoid race condition
         // where modal close handler might reject the promise
         const resolveHandler = selectConnectionModalPromiseHandlers.resolve;
@@ -393,7 +426,7 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
 
         // Now resolve the promise with the connectionId after handlers are cleared
         if (resolveHandler) {
-            resolveHandler(connectionId);
+            resolveHandler({ connectionId, impersonationUser });
         }
     } catch (error) {
         logError("Error connecting to selected connection", error);
@@ -469,6 +502,51 @@ async function signalSelectConnectionReady(): Promise<void> {
 }
 
 /**
+ * Build the context shown in the impersonation picker (connection name, environment, and
+ * primary/secondary role) so users can tell which connection they're picking an identity for.
+ */
+async function buildImpersonationPickerContext(connectionId: string, connectionRoleLabel?: string): Promise<ImpersonationPickerContext | undefined> {
+    try {
+        const connection = await window.toolboxAPI.connections.getById(connectionId);
+        if (!connection) return connectionRoleLabel ? { connectionName: "Selected connection", connectionRoleLabel } : undefined;
+        return { connectionName: connection.name, environment: connection.environment, connectionRoleLabel };
+    } catch {
+        return connectionRoleLabel ? { connectionName: "Selected connection", connectionRoleLabel } : undefined;
+    }
+}
+
+/**
+ * Show the "Impersonate as..." user picker (reusing the same modal window) and resolve with the
+ * chosen user, or null if the list is empty / the user skips. Never rejects.
+ */
+async function promptForImpersonationUser(users: DataverseUser[], context?: ImpersonationPickerContext): Promise<DataverseUser | null> {
+    if (users.length === 0) return null;
+
+    return new Promise((resolve) => {
+        const messageHandler = (payload: ModalWindowMessagePayload) => {
+            if (payload.channel !== SELECT_IMPERSONATION_USER_MODAL_CHANNELS.selectUser) return;
+            offBrowserWindowModalMessage(messageHandler);
+            const index = (payload.data as { index?: number | null } | undefined)?.index;
+            resolve(typeof index === "number" ? (users[index] ?? null) : null);
+        };
+        onBrowserWindowModalMessage(messageHandler);
+
+        const isDarkTheme = document.body.classList.contains("dark-theme");
+        const { styles, body } = getSelectImpersonationUserModalView(isDarkTheme, users, context);
+        const script = getSelectImpersonationUserModalControllerScript(SELECT_IMPERSONATION_USER_MODAL_CHANNELS);
+        showBrowserWindowModal({
+            id: "select-impersonation-user-browser-modal",
+            html: `${styles}\n${body}\n${script}`,
+            width: SELECT_IMPERSONATION_USER_MODAL_DIMENSIONS.width,
+            height: SELECT_IMPERSONATION_USER_MODAL_DIMENSIONS.height,
+        }).catch(() => {
+            offBrowserWindowModalMessage(messageHandler);
+            resolve(null);
+        });
+    });
+}
+
+/**
  * Initialize select multi-connection modal bridge
  */
 export function initializeSelectMultiConnectionModalBridge(): void {
@@ -488,7 +566,7 @@ export async function openSelectMultiConnectionModal(
     isSecondaryRequired: boolean = true,
     toolName?: string,
     enabledForPowerPlatformAPI: boolean = false,
-): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
+): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null; primaryImpersonationUser: DataverseUser | null; secondaryImpersonationUser: DataverseUser | null }> {
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
 
@@ -596,6 +674,30 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
     // Handle confirm button - connections are already authenticated
     if (data && "action" in data && data.action === "confirm") {
         try {
+            // If the user checked "Impersonate as another user" for a column, prompt for that user now
+            // (primary first, then secondary), reusing the same modal window for each step.
+            let primaryImpersonationUser: DataverseUser | null = null;
+            let secondaryImpersonationUser: DataverseUser | null = null;
+
+            if (data.primaryWantsImpersonation) {
+                try {
+                    const users = await window.toolboxAPI.connections.getSystemUsersForConnection(data.primaryConnectionId);
+                    const context = await buildImpersonationPickerContext(data.primaryConnectionId, "Primary Connection");
+                    primaryImpersonationUser = await promptForImpersonationUser(users, context);
+                } catch (usersError) {
+                    logWarn("Failed to fetch Dataverse users for primary impersonation picker", { error: usersError instanceof Error ? usersError.message : String(usersError) });
+                }
+            }
+            if (data.secondaryWantsImpersonation && data.secondaryConnectionId) {
+                try {
+                    const users = await window.toolboxAPI.connections.getSystemUsersForConnection(data.secondaryConnectionId);
+                    const context = await buildImpersonationPickerContext(data.secondaryConnectionId, "Secondary Connection");
+                    secondaryImpersonationUser = await promptForImpersonationUser(users, context);
+                } catch (usersError) {
+                    logWarn("Failed to fetch Dataverse users for secondary impersonation picker", { error: usersError instanceof Error ? usersError.message : String(usersError) });
+                }
+            }
+
             // Resolve the promise BEFORE closing the modal
             const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
             selectMultiConnectionModalPromiseHandlers.resolve = null;
@@ -607,7 +709,12 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
 
             // Now resolve the promise with both connection IDs
             if (resolveHandler) {
-                resolveHandler({ primaryConnectionId: data.primaryConnectionId, secondaryConnectionId: data.secondaryConnectionId });
+                resolveHandler({
+                    primaryConnectionId: data.primaryConnectionId,
+                    secondaryConnectionId: data.secondaryConnectionId,
+                    primaryImpersonationUser,
+                    secondaryImpersonationUser,
+                });
             }
         } catch (error) {
             logError("Error confirming multi-connections", error);
@@ -635,7 +742,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
 
         // Now resolve the promise with both connection IDs
         if (resolveHandler) {
-            resolveHandler({ primaryConnectionId, secondaryConnectionId });
+            resolveHandler({ primaryConnectionId, secondaryConnectionId, primaryImpersonationUser: null, secondaryImpersonationUser: null });
         }
     } catch (error) {
         logError("Error selecting multi-connections", error);
@@ -1588,7 +1695,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
 
         // Build connection from parsed data
         const connection: Connection = {
-            id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
+            id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
             name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
             url: parsed.url,
             environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
@@ -1626,7 +1733,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
 
     // Standard connection building for non-connection-string types
     const connection: Connection = {
-        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
+        id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
         environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",

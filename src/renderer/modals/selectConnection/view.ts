@@ -10,7 +10,13 @@ export interface ModalViewTemplate {
  * Returns the view markup (styles + body) for the select connection modal BrowserWindow.
  */
 export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string): ModalViewTemplate {
-    const styles = getModalStyles(isDarkTheme);
+    const styles =
+        getModalStyles(isDarkTheme) +
+        `
+<style>
+    .impersonate-checkbox-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; }
+    .impersonate-checkbox-row input { margin: 0; }
+</style>`;
     const toolNameHtml = toolName ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>` : `<p class="modal-eyebrow">Connections</p>`;
 
     const body = `

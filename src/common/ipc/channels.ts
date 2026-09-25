@@ -139,6 +139,9 @@ export const TOOL_WINDOW_CHANNELS = {
     CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
     PREVENT_CLOSE: "tool-window:prevent-close",
     RELEASE_PREVENT_CLOSE: "tool-window:release-prevent-close",
+    GET_IMPERSONATION: "tool-window:get-impersonation",
+    SET_IMPERSONATION: "tool-window:set-impersonation",
+    RESET_IMPERSONATION: "tool-window:reset-impersonation",
 } as const;
 
 // Terminal-related IPC channels
@@ -252,6 +255,9 @@ export const DATAVERSE_CHANNELS = {
     DELETE_OPTION_VALUE: "dataverse.deleteOptionValue",
     ORDER_OPTION: "dataverse.orderOption",
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
+    GET_SYSTEM_USERS: "dataverse.getSystemUsers",
+    /** ConnectionId-based system-users lookup used by the connection-selection modals (pre-launch, no tool instance yet). */
+    GET_SYSTEM_USERS_BY_CONNECTION: "dataverse.getSystemUsersByConnection",
 } as const;
 
 // Power Platform API-related IPC channels
