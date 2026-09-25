@@ -273,6 +273,30 @@ describe("SettingsManager", () => {
         });
     });
 
+    describe("Dataverse header consents", () => {
+        it("retains a revoked record and treats it as unapproved", () => {
+            manager.grantDataverseHeaderConsent("tool-a", "2026-09-18T10:00:00.000Z");
+            expect(manager.hasDataverseHeaderConsent("tool-a")).toBe(true);
+
+            manager.revokeDataverseHeaderConsent("tool-a", "2026-09-19T10:00:00.000Z");
+
+            expect(manager.hasDataverseHeaderConsent("tool-a")).toBe(false);
+            expect(manager.getDataverseHeaderConsents()["tool-a"]).toEqual({
+                status: "revoked",
+                grantedAt: "2026-09-18T10:00:00.000Z",
+                revokedAt: "2026-09-19T10:00:00.000Z",
+            });
+        });
+
+        it("re-granting replaces revoked state", () => {
+            manager.grantDataverseHeaderConsent("tool-a", "2026-09-18T10:00:00.000Z");
+            manager.revokeDataverseHeaderConsent("tool-a", "2026-09-19T10:00:00.000Z");
+            manager.grantDataverseHeaderConsent("tool-a", "2026-09-20T10:00:00.000Z");
+
+            expect(manager.getDataverseHeaderConsents()["tool-a"]).toEqual({ status: "granted", grantedAt: "2026-09-20T10:00:00.000Z" });
+        });
+    });
+
     // -----------------------------------------------------------------------
     // Tool connections
     // -----------------------------------------------------------------------

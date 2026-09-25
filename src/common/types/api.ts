@@ -6,8 +6,8 @@
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
-import { DataverseExecuteRequest, DataverseUser } from "./dataverse";
-import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseUser, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "./dataverse";
+import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolRatingAggregate, ToolSettings } from "./tool";
 
@@ -190,19 +190,27 @@ export interface TroubleshootingAPI {
  */
 export interface DataverseAPI {
     getSystemUsers: () => Promise<import("./dataverse").DataverseUser[]>;
-    create: (entityLogicalName: string, record: Record<string, unknown>) => Promise<unknown>;
-    retrieve: (entityLogicalName: string, id: string, columns?: string[]) => Promise<unknown>;
-    update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => Promise<void>;
-    delete: (entityLogicalName: string, id: string) => Promise<void>;
-    retrieveMultiple: (fetchXml: string) => Promise<unknown>;
-    execute: (request: DataverseExecuteRequest) => Promise<unknown>;
-    fetchXmlQuery: (fetchXml: string) => Promise<unknown>;
-    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => Promise<unknown>;
-    getAllEntitiesMetadata: () => Promise<unknown>;
-    queryData: (odataQuery: string) => Promise<unknown>;
-    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<string[]>;
-    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<void>;
+    create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<void>;
+    delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<void>;
+    retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    execute: (request: DataverseExecuteRequest, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    getEntityMetadata: (
+        entityLogicalName: string,
+        searchByLogicalName: boolean,
+        selectColumns?: string[],
+        connectionTarget?: "primary" | "secondary",
+        additionalHeaders?: Record<string, string>,
+    ) => Promise<unknown>;
+    getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<string[]>;
+    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<void>;
     getEntitySetName: (entityLogicalName: string) => Promise<string>;
+    executeBatch: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
+    executeTransaction: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
 }
 
 /**
@@ -280,6 +288,10 @@ export interface ToolboxAPI {
     grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[], seenOptionalDomains?: string[]) => Promise<void>;
     revokeCspConsent: (toolId: string) => Promise<void>;
     getCspConsents: () => Promise<{ [toolId: string]: CspConsentRecord }>;
+    getDataverseHeaderConsents: () => Promise<{ [toolId: string]: DataverseHeaderConsentRecord }>;
+    revokeDataverseHeaderConsent: (toolId: string) => Promise<void>;
+    respondToDataverseHeaderConsent: (requestId: string, decision: DataverseHeaderConsentDecision) => Promise<boolean>;
+    onDataverseHeaderConsentRequest: (callback: (request: DataverseHeaderConsentRequest) => void) => void;
 
     // Webview URL generation
     getToolWebviewUrl: (toolId: string) => Promise<string>;
@@ -439,9 +451,6 @@ export interface ToolboxAPI {
             isInsider: boolean;
         }) => void,
     ) => void;
-
-    // Dataverse namespace
-    dataverse: DataverseAPI;
 
     // Agent Invocation namespace
     agentInvocation: AgentInvocationAPI;

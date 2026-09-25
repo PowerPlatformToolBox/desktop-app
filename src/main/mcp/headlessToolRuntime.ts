@@ -3,12 +3,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { logError, logInfo } from "../../common/logger";
-import type { Connection, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, MetadataOperationOptions, ToolSettings } from "../../common/types";
+import type { Connection, DataverseBatchRequest, DataverseBatchResult, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, MetadataOperationOptions, ToolSettings } from "../../common/types";
 import { ToolManifest } from "../../common/types";
 import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
 import { PowerPlatformManager } from "../managers/powerplatformManager";
 import { SettingsManager } from "../managers/settingsManager";
+import { mergeDataverseHeaders, validateAndSnapshotHeaders, validateBatchRequests } from "../utilities/dataverseBatch";
 
 type HeadlessInvokeFn = (input: Record<string, unknown>, context: HeadlessInvokeContext) => Promise<Record<string, unknown>>;
 
@@ -16,6 +17,8 @@ interface HeadlessRuntimeModule {
     invokeHeadless?: HeadlessInvokeFn;
     default?: HeadlessInvokeFn | { invokeHeadless?: HeadlessInvokeFn };
 }
+
+type HeadlessMetadataOperationOptions = MetadataOperationOptions & { customHeaders?: Record<string, string> };
 
 export interface HeadlessInvokeContext {
     toolId: string;
@@ -48,27 +51,36 @@ interface HeadlessToolboxAPI {
         getSecondaryConnection: () => Promise<Record<string, unknown> | null>;
     };
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        getEntityMetadata: (
+            entityLogicalName: string,
+            searchByLogicalName: boolean,
+            selectColumns?: string[],
+            connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
+        ) => Promise<unknown>;
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
         getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(
             entityLogicalName: string,
             relatedPath: P,
             selectColumns?: string[],
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<EntityRelatedMetadataResponse<P>>;
-        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        getCSDLDocument: (connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        getCSDLDocument: (connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        executeBatch: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
+        executeTransaction: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
         getEntitySetName: (entityLogicalName: string) => Promise<unknown>;
         associate: (
             primaryEntityName: string,
@@ -77,8 +89,16 @@ interface HeadlessToolboxAPI {
             relatedEntityName: string,
             relatedEntityId: string,
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        disassociate: (
+            primaryEntityName: string,
+            primaryEntityId: string,
+            relationshipName: string,
+            relatedEntityId: string,
+            connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
+        ) => Promise<unknown>;
         deploySolution: (
             base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
             options?: {
@@ -89,53 +109,80 @@ interface HeadlessToolboxAPI {
                 convertToManaged?: boolean;
             },
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
         buildLabel: (text: string, languageCode?: number) => unknown;
         getAttributeODataType: (attributeType: string) => string;
-        createEntityDefinition: (entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        createEntityDefinition: (
+            entityDefinition: Record<string, unknown>,
+            options?: HeadlessMetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
+        ) => Promise<unknown>;
         updateEntityDefinition: (
             entityIdentifier: string,
             entityDefinition: Record<string, unknown>,
-            options?: MetadataOperationOptions,
+            options?: HeadlessMetadataOperationOptions,
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        createAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        createAttribute: (
+            entityLogicalName: string,
+            attributeDefinition: Record<string, unknown>,
+            options?: HeadlessMetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
+        ) => Promise<unknown>;
         updateAttribute: (
             entityLogicalName: string,
             attributeIdentifier: string,
             attributeDefinition: Record<string, unknown>,
-            options?: MetadataOperationOptions,
+            options?: HeadlessMetadataOperationOptions,
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
         createPolymorphicLookupAttribute: (
             entityLogicalName: string,
             attributeDefinition: Record<string, unknown>,
-            options?: MetadataOperationOptions,
+            options?: HeadlessMetadataOperationOptions,
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        createRelationship: (relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        createRelationship: (
+            relationshipDefinition: Record<string, unknown>,
+            options?: HeadlessMetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
+        ) => Promise<unknown>;
         updateRelationship: (
             relationshipIdentifier: string,
             relationshipDefinition: Record<string, unknown>,
-            options?: MetadataOperationOptions,
+            options?: HeadlessMetadataOperationOptions,
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        createGlobalOptionSet: (optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        createGlobalOptionSet: (
+            optionSetDefinition: Record<string, unknown>,
+            options?: HeadlessMetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
+        ) => Promise<unknown>;
         updateGlobalOptionSet: (
             optionSetIdentifier: string,
             optionSetDefinition: Record<string, unknown>,
-            options?: MetadataOperationOptions,
+            options?: HeadlessMetadataOperationOptions,
             connectionTarget?: "primary" | "secondary",
+            additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
-        orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<unknown>;
+        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
     };
     utils: {
         showNotification: (options: Record<string, unknown>) => Promise<void>;
@@ -299,6 +346,41 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
     const resolvePrimaryConnection = () => resolveConnection(manifest, context, services, "primary");
     const resolveSecondaryConnection = () => resolveConnection(manifest, context, services, "secondary");
 
+    const requireHeaderConsent = (...headerSets: ReadonlyArray<Readonly<Record<string, string>>>) => {
+        const hasAdditionalHeaders = headerSets.some((headers) => Object.keys(headers).length > 0);
+        if (hasAdditionalHeaders && !getSettingsManager()?.hasDataverseHeaderConsent(context.toolId)) {
+            throw new Error(`Headless Dataverse requests with additional headers require prior consent for tool '${context.toolId}'. A windowed request must grant consent first.`);
+        }
+    };
+
+    const runDataverse = async <T>(
+        connectionTarget: "primary" | "secondary",
+        additionalHeaders: Record<string, string> | undefined,
+        operation: (manager: DataverseManager, connection: Connection) => Promise<T>,
+        metadataCustomHeaders?: Record<string, string>,
+    ): Promise<T> => {
+        const headers = mergeDataverseHeaders(metadataCustomHeaders, additionalHeaders);
+        requireHeaderConsent(headers);
+        const manager = getDataverseManager();
+        const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
+        return manager.withAdditionalHeaders(headers, () => operation(manager, connection));
+    };
+
+    const runDataverseBatch = async (
+        requests: DataverseBatchRequest[],
+        transaction: boolean,
+        connectionTarget: "primary" | "secondary",
+        additionalHeaders?: Record<string, string>,
+    ): Promise<DataverseBatchResult[]> => {
+        const headers = validateAndSnapshotHeaders(additionalHeaders);
+        const validatedRequests = validateBatchRequests(requests, transaction);
+        requireHeaderConsent(headers, ...validatedRequests.map((request) => request.headers ?? {}));
+        const manager = getDataverseManager();
+        const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
+        const requestSnapshot = validatedRequests.map((request) => ({ ...request, headers: request.headers ? { ...request.headers } : undefined }));
+        return manager.withAdditionalHeaders(headers, () => (transaction ? manager.executeTransaction(connection.id, requestSnapshot) : manager.executeBatch(connection.id, requestSnapshot)));
+    };
+
     const unsupported = (name: string) => {
         throw new Error(`${name} is not available in headless mode.`);
     };
@@ -321,168 +403,131 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
             getSecondaryConnection: async () => toToolSafeConnection(resolveSecondaryConnection()),
         },
         dataverse: {
-            create: async (entityLogicalName, record, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().create(connection.id, entityLogicalName, record);
-            },
-            retrieve: async (entityLogicalName, id, columns, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().retrieve(connection.id, entityLogicalName, id, columns);
-            },
-            update: async (entityLogicalName, id, record, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().update(connection.id, entityLogicalName, id, record);
-            },
-            delete: async (entityLogicalName, id, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().delete(connection.id, entityLogicalName, id);
-            },
-            retrieveMultiple: async (fetchXml, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().retrieveMultiple(connection.id, fetchXml);
-            },
-            execute: async (request, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().execute(connection.id, request as Parameters<DataverseManager["execute"]>[1]);
-            },
-            fetchXmlQuery: async (fetchXml, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().fetchXmlQuery(connection.id, fetchXml);
-            },
-            getEntityMetadata: async (entityLogicalName, searchByLogicalName, selectColumns, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().getEntityMetadata(connection.id, entityLogicalName, searchByLogicalName, selectColumns);
-            },
-            getAllEntitiesMetadata: async (selectColumns, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().getAllEntitiesMetadata(connection.id, selectColumns);
-            },
+            create: (entityLogicalName, record, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.create(connection.id, entityLogicalName, record)),
+            retrieve: (entityLogicalName, id, columns, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.retrieve(connection.id, entityLogicalName, id, columns)),
+            update: (entityLogicalName, id, record, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.update(connection.id, entityLogicalName, id, record)),
+            delete: (entityLogicalName, id, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.delete(connection.id, entityLogicalName, id)),
+            retrieveMultiple: (fetchXml, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.retrieveMultiple(connection.id, fetchXml)),
+            execute: (request, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.execute(connection.id, request as Parameters<DataverseManager["execute"]>[1])),
+            fetchXmlQuery: (fetchXml, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.fetchXmlQuery(connection.id, fetchXml)),
+            getEntityMetadata: (entityLogicalName, searchByLogicalName, selectColumns, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.getEntityMetadata(connection.id, entityLogicalName, searchByLogicalName, selectColumns)),
+            getAllEntitiesMetadata: (selectColumns, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.getAllEntitiesMetadata(connection.id, selectColumns)),
             getEntityRelatedMetadata: async <P extends EntityRelatedMetadataPath>(
                 entityLogicalName: string,
                 relatedPath: P,
                 selectColumns?: string[],
                 connectionTarget: "primary" | "secondary" = "primary",
+                additionalHeaders?: Record<string, string>,
             ) => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().getEntityRelatedMetadata(connection.id, entityLogicalName, relatedPath, selectColumns) as Promise<EntityRelatedMetadataResponse<P>>;
+                return runDataverse(connectionTarget, additionalHeaders, (manager, connection) =>
+                    manager.getEntityRelatedMetadata(connection.id, entityLogicalName, relatedPath, selectColumns),
+                ) as Promise<EntityRelatedMetadataResponse<P>>;
             },
-            getSolutions: async (selectColumns, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().getSolutions(connection.id, selectColumns);
-            },
-            getCSDLDocument: async (connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().getCSDLDocument(connection.id);
-            },
-            queryData: async (odataQuery, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().queryData(connection.id, odataQuery);
-            },
-            publishCustomizations: async (tableLogicalName, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().publishCustomizations(connection.id, tableLogicalName);
-            },
-            createMultiple: async (entityLogicalName, records, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().createMultiple(connection.id, entityLogicalName, records);
-            },
-            updateMultiple: async (entityLogicalName, records, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().updateMultiple(connection.id, entityLogicalName, records);
-            },
+            getSolutions: (selectColumns, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.getSolutions(connection.id, selectColumns)),
+            getCSDLDocument: (connectionTarget = "primary", additionalHeaders) => runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.getCSDLDocument(connection.id)),
+            queryData: (odataQuery, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.queryData(connection.id, odataQuery)),
+            publishCustomizations: (tableLogicalName, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.publishCustomizations(connection.id, tableLogicalName)),
+            createMultiple: (entityLogicalName, records, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.createMultiple(connection.id, entityLogicalName, records)),
+            updateMultiple: (entityLogicalName, records, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.updateMultiple(connection.id, entityLogicalName, records)),
+            executeBatch: (requests, connectionTarget = "primary", additionalHeaders) => runDataverseBatch(requests, false, connectionTarget, additionalHeaders),
+            executeTransaction: (requests, connectionTarget = "primary", additionalHeaders) => runDataverseBatch(requests, true, connectionTarget, additionalHeaders),
             getEntitySetName: async (entityLogicalName) => {
                 return getDataverseManager().getEntitySetName(entityLogicalName);
             },
-            associate: async (primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().associate(connection.id, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId);
-            },
-            disassociate: async (primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().disassociate(connection.id, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId);
-            },
-            deploySolution: async (base64SolutionContent, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().deploySolution(connection.id, base64SolutionContent, options);
-            },
-            getImportJobStatus: async (importJobId, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().getImportJobStatus(connection.id, importJobId);
-            },
+            associate: (primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) =>
+                    manager.associate(connection.id, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId),
+                ),
+            disassociate: (primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.disassociate(connection.id, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId)),
+            deploySolution: (base64SolutionContent, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.deploySolution(connection.id, base64SolutionContent, options)),
+            getImportJobStatus: (importJobId, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.getImportJobStatus(connection.id, importJobId)),
             buildLabel: (text, languageCode = 1033) => {
                 return getDataverseManager().buildLabel(text, languageCode);
             },
             getAttributeODataType: (attributeType) => {
                 return getDataverseManager().getAttributeODataType(attributeType as never);
             },
-            createEntityDefinition: async (entityDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().createEntityDefinition(connection.id, entityDefinition, options);
-            },
-            updateEntityDefinition: async (entityIdentifier, entityDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().updateEntityDefinition(connection.id, entityIdentifier, entityDefinition, options);
-            },
-            deleteEntityDefinition: async (entityIdentifier, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().deleteEntityDefinition(connection.id, entityIdentifier);
-            },
-            createAttribute: async (entityLogicalName, attributeDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().createAttribute(connection.id, entityLogicalName, attributeDefinition, options);
-            },
-            updateAttribute: async (entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().updateAttribute(connection.id, entityLogicalName, attributeIdentifier, attributeDefinition, options);
-            },
-            deleteAttribute: async (entityLogicalName, attributeIdentifier, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().deleteAttribute(connection.id, entityLogicalName, attributeIdentifier);
-            },
-            createPolymorphicLookupAttribute: async (entityLogicalName, attributeDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().createPolymorphicLookupAttribute(connection.id, entityLogicalName, attributeDefinition, options);
-            },
-            createRelationship: async (relationshipDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().createRelationship(connection.id, relationshipDefinition, options);
-            },
-            updateRelationship: async (relationshipIdentifier, relationshipDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().updateRelationship(connection.id, relationshipIdentifier, relationshipDefinition, options);
-            },
-            deleteRelationship: async (relationshipIdentifier, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().deleteRelationship(connection.id, relationshipIdentifier);
-            },
-            createGlobalOptionSet: async (optionSetDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().createGlobalOptionSet(connection.id, optionSetDefinition, options);
-            },
-            updateGlobalOptionSet: async (optionSetIdentifier, optionSetDefinition, options, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().updateGlobalOptionSet(connection.id, optionSetIdentifier, optionSetDefinition, options);
-            },
-            deleteGlobalOptionSet: async (optionSetIdentifier, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().deleteGlobalOptionSet(connection.id, optionSetIdentifier);
-            },
-            insertOptionValue: async (params, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().insertOptionValue(connection.id, params);
-            },
-            updateOptionValue: async (params, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().updateOptionValue(connection.id, params);
-            },
-            deleteOptionValue: async (params, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().deleteOptionValue(connection.id, params);
-            },
-            orderOption: async (params, connectionTarget = "primary") => {
-                const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
-                return getDataverseManager().orderOption(connection.id, params);
-            },
+            createEntityDefinition: (entityDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.createEntityDefinition(connection.id, entityDefinition, options), options?.customHeaders),
+            updateEntityDefinition: (entityIdentifier, entityDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(
+                    connectionTarget,
+                    additionalHeaders,
+                    (manager, connection) => manager.updateEntityDefinition(connection.id, entityIdentifier, entityDefinition, options),
+                    options?.customHeaders,
+                ),
+            deleteEntityDefinition: (entityIdentifier, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.deleteEntityDefinition(connection.id, entityIdentifier)),
+            createAttribute: (entityLogicalName, attributeDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(
+                    connectionTarget,
+                    additionalHeaders,
+                    (manager, connection) => manager.createAttribute(connection.id, entityLogicalName, attributeDefinition, options),
+                    options?.customHeaders,
+                ),
+            updateAttribute: (entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(
+                    connectionTarget,
+                    additionalHeaders,
+                    (manager, connection) => manager.updateAttribute(connection.id, entityLogicalName, attributeIdentifier, attributeDefinition, options),
+                    options?.customHeaders,
+                ),
+            deleteAttribute: (entityLogicalName, attributeIdentifier, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.deleteAttribute(connection.id, entityLogicalName, attributeIdentifier)),
+            createPolymorphicLookupAttribute: (entityLogicalName, attributeDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(
+                    connectionTarget,
+                    additionalHeaders,
+                    (manager, connection) => manager.createPolymorphicLookupAttribute(connection.id, entityLogicalName, attributeDefinition, options),
+                    options?.customHeaders,
+                ),
+            createRelationship: (relationshipDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.createRelationship(connection.id, relationshipDefinition, options), options?.customHeaders),
+            updateRelationship: (relationshipIdentifier, relationshipDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(
+                    connectionTarget,
+                    additionalHeaders,
+                    (manager, connection) => manager.updateRelationship(connection.id, relationshipIdentifier, relationshipDefinition, options),
+                    options?.customHeaders,
+                ),
+            deleteRelationship: (relationshipIdentifier, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.deleteRelationship(connection.id, relationshipIdentifier)),
+            createGlobalOptionSet: (optionSetDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.createGlobalOptionSet(connection.id, optionSetDefinition, options), options?.customHeaders),
+            updateGlobalOptionSet: (optionSetIdentifier, optionSetDefinition, options, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(
+                    connectionTarget,
+                    additionalHeaders,
+                    (manager, connection) => manager.updateGlobalOptionSet(connection.id, optionSetIdentifier, optionSetDefinition, options),
+                    options?.customHeaders,
+                ),
+            deleteGlobalOptionSet: (optionSetIdentifier, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.deleteGlobalOptionSet(connection.id, optionSetIdentifier)),
+            insertOptionValue: (params, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.insertOptionValue(connection.id, params)),
+            updateOptionValue: (params, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.updateOptionValue(connection.id, params)),
+            deleteOptionValue: (params, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.deleteOptionValue(connection.id, params)),
+            orderOption: (params, connectionTarget = "primary", additionalHeaders) =>
+                runDataverse(connectionTarget, additionalHeaders, (manager, connection) => manager.orderOption(connection.id, params)),
         },
         utils: {
             showNotification: async (options) => {
@@ -557,10 +602,11 @@ async function installHeadlessGlobals(manifest: ToolManifest, input: Record<stri
     const previousDataverseApi = globalScope.dataverseAPI;
     const previousPowerPlatformApi = globalScope.powerplatformAPI;
 
-    const toolboxAPI = buildHeadlessToolboxApi(manifest, input, context, services);
+    const toolboxApiWithDataverse = buildHeadlessToolboxApi(manifest, input, context, services);
+    const { dataverse: dataverseAPI, ...toolboxAPI } = toolboxApiWithDataverse;
     globalScope.window = globalThis as unknown as Record<string, unknown>;
     globalScope.toolboxAPI = toolboxAPI;
-    globalScope.dataverseAPI = toolboxAPI.dataverse;
+    globalScope.dataverseAPI = dataverseAPI;
     globalScope.powerplatformAPI = {
         Analytics: buildPowerPlatformCategoryClient(manifest, context, services, "Analytics"),
         AppManagement: buildPowerPlatformCategoryClient(manifest, context, services, "AppManagement"),

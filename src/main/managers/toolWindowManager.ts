@@ -1071,6 +1071,15 @@ export class ToolWindowManager {
         return instanceId.split("-").slice(0, -2).join("-");
     }
 
+    getToolIdentityByWebContents(webContentsId: number): { toolId: string; toolName: string } | null {
+        const instanceId = this.getInstanceIdByWebContents(webContentsId);
+        if (!instanceId) return null;
+        return {
+            toolId: instanceId.split("-").slice(0, -2).join("-"),
+            toolName: this.toolInstanceNames.get(instanceId) ?? "Unknown tool",
+        };
+    }
+
     /**
      * Check whether a tool has been granted mailto consent.
      * The sentinel domain "mailto:" must appear in the tool's stored required or optional consent domains.

@@ -2,6 +2,43 @@
  * Dataverse API-related type definitions
  */
 
+export type DataverseConnectionTarget = "primary" | "secondary";
+
+export type DataverseAdditionalHeaders = Readonly<Record<string, string>>;
+
+export type DataverseBatchMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+
+export interface DataverseBatchRequest {
+    method: DataverseBatchMethod;
+    url: string;
+    headers?: Record<string, string>;
+    body?: unknown;
+    contentId?: string;
+}
+
+export interface DataverseBatchResult {
+    contentId?: string;
+    status: number;
+    statusText?: string;
+    headers: Record<string, string>;
+    body?: unknown;
+}
+
+export interface DataverseHeaderConsentRequest {
+    requestId: string;
+    toolId: string;
+    toolName: string;
+    operation: string;
+    headers: ReadonlyArray<Readonly<{ name: string; value: string; scope?: string }>>;
+}
+
+export type DataverseHeaderConsentDecision = "allow-tool" | "allow-once" | "reject";
+
+export interface DataverseHeaderConsentResponse {
+    requestId: string;
+    decision: DataverseHeaderConsentDecision;
+}
+
 /**
  * Dataverse execute request
  */

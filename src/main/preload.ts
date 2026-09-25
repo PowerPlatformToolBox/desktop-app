@@ -3,6 +3,7 @@ import {
     AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
+    DATAVERSE_HEADER_CONSENT_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
     MCP_SERVER_CHANNELS,
@@ -14,7 +15,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
+import type { DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
 
 /**
  * Preload script that exposes safe APIs to the renderer process
@@ -157,6 +158,12 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains, seenOptionalDomains),
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
+    getDataverseHeaderConsents: () => ipcRenderer.invoke(DATAVERSE_HEADER_CONSENT_CHANNELS.GET_ALL),
+    revokeDataverseHeaderConsent: (toolId: string) => ipcRenderer.invoke(DATAVERSE_HEADER_CONSENT_CHANNELS.REVOKE, toolId),
+    respondToDataverseHeaderConsent: (requestId: string, decision: DataverseHeaderConsentDecision) => ipcRenderer.invoke(DATAVERSE_HEADER_CONSENT_CHANNELS.RESPOND, requestId, decision),
+    onDataverseHeaderConsentRequest: (callback: (request: DataverseHeaderConsentRequest) => void) => {
+        ipcRenderer.on(DATAVERSE_HEADER_CONSENT_CHANNELS.REQUEST, (_event, request) => callback(request));
+    },
 
     // Tool-Connection mapping - Only for PPTB UI
     setToolConnection: (toolId: string, connectionId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, toolId, connectionId),

@@ -5,6 +5,25 @@
  */
 
 declare namespace DataverseAPI {
+    export type AdditionalHeaders = Record<string, string>;
+    export type ConnectionTarget = "primary" | "secondary";
+    export type BatchMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+
+    export interface BatchRequest {
+        method: BatchMethod;
+        url: string;
+        headers?: AdditionalHeaders;
+        body?: unknown;
+        contentId?: string;
+    }
+
+    export interface BatchResult {
+        contentId?: string;
+        status: number;
+        statusText?: string;
+        headers: Record<string, string>;
+        body?: unknown;
+    }
     /**
      * FetchXML query result
      */
@@ -336,7 +355,7 @@ declare namespace DataverseAPI {
          *     name: 'Contoso Ltd'
          * }, 'secondary');
          */
-        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<CreateResult>;
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<CreateResult>;
 
         /**
          * Retrieve a single record by ID
@@ -359,7 +378,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const account = await dataverseAPI.retrieve('account', 'guid-here', ['name'], 'secondary');
          */
-        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<Record<string, unknown>>;
 
         /**
          * Update an existing record
@@ -379,7 +398,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * await dataverseAPI.update('account', 'guid-here', { name: 'Updated' }, 'secondary');
          */
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
 
         /**
          * Delete a record
@@ -395,7 +414,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * await dataverseAPI.delete('account', 'guid-here', 'secondary');
          */
-        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        delete: (entityLogicalName: string, id: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
 
         /**
          * Execute a FetchXML query
@@ -428,7 +447,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const result = await dataverseAPI.fetchXmlQuery(fetchXml, 'secondary');
          */
-        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => Promise<FetchXmlResult>;
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<FetchXmlResult>;
 
         /**
          * Retrieve multiple records (alias for fetchXmlQuery for backward compatibility)
@@ -437,7 +456,7 @@ declare namespace DataverseAPI {
          * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object with value array containing matching records
          */
-        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => Promise<FetchXmlResult>;
+        retrieveMultiple: (fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<FetchXmlResult>;
 
         /**
          * Execute a Dataverse Web API action or function
@@ -473,7 +492,7 @@ declare namespace DataverseAPI {
          *     operationType: 'function'
          * }, 'secondary');
          */
-        execute: (request: ExecuteRequest, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        execute: (request: ExecuteRequest, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<Record<string, unknown>>;
 
         /**
          * Get metadata for a specific entity
@@ -500,7 +519,13 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName'], 'secondary');
          */
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, entityProperties?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadata>;
+        getEntityMetadata: (
+            entityLogicalName: string,
+            searchByLogicalName: boolean,
+            entityProperties?: string[],
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
+        ) => Promise<EntityMetadata>;
 
         /**
          * Get metadata for all entities
@@ -519,7 +544,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const allEntities = await dataverseAPI.getAllEntitiesMetadata(['LogicalName'], 'secondary');
          */
-        getAllEntitiesMetadata: (entityProperties?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadataCollection>;
+        getAllEntitiesMetadata: (entityProperties?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<EntityMetadataCollection>;
 
         /**
          * Get related metadata for a specific entity (attributes, relationships, etc.)
@@ -601,7 +626,8 @@ declare namespace DataverseAPI {
             entityLogicalName: string,
             relatedPath: P,
             relatedProperties?: string[],
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<EntityRelatedMetadataResponse<P>>;
 
         /**
@@ -628,7 +654,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const solutions = await dataverseAPI.getSolutions(['uniquename'], 'secondary');
          */
-        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
+        getSolutions: (selectColumns: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<{ value: Record<string, unknown>[] }>;
 
         /**
          * Query data from Dataverse using OData query parameters
@@ -663,7 +689,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const result = await dataverseAPI.queryData('contacts?$filter=statecode eq 0', 'secondary');
          */
-        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
+        queryData: (odataQuery: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<{ value: Record<string, unknown>[] }>;
 
         /**
          * Publish customizations for the current environment.
@@ -682,7 +708,7 @@ declare namespace DataverseAPI {
          * // Publish only the account table
          * await dataverseAPI.publishCustomizations('account');
          */
-        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        publishCustomizations: (tableLogicalName?: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
 
         /**
          * Create multiple records in Dataverse
@@ -698,7 +724,7 @@ declare namespace DataverseAPI {
          *     { name: 'Fabrikam Inc', "@odata.type": "Microsoft.Dynamics.CRM.account" }
          * ]);
          */
-        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<string[]>;
+        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<string[]>;
 
         /**
          * Update multiple records in Dataverse
@@ -712,7 +738,10 @@ declare namespace DataverseAPI {
          *     { accountid: 'guid-2', name: 'Updated Name 2', "@odata.type": "Microsoft.Dynamics.CRM.account" }
          * ]);
          */
-        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<void>;
+        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
+
+        executeBatch: (requests: BatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<BatchResult[]>;
+        executeTransaction: (requests: BatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<BatchResult[]>;
 
         /**
          * Gets the Dataverse entity set (collection) name for the specified table.
@@ -783,7 +812,8 @@ declare namespace DataverseAPI {
             relationshipName: string,
             relatedEntityName: string,
             relatedEntityId: string,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<void>;
 
         /**
@@ -823,7 +853,14 @@ declare namespace DataverseAPI {
          *     'secondary'
          * );
          */
-        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        disassociate: (
+            primaryEntityName: string,
+            primaryEntityId: string,
+            relationshipName: string,
+            relatedEntityId: string,
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
+        ) => Promise<void>;
 
         /**
          * Deploy (import) a solution to the Dataverse environment
@@ -889,7 +926,8 @@ declare namespace DataverseAPI {
                  */
                 convertToManaged?: boolean;
             },
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<{ ImportJobId: string }>;
 
         /**
@@ -934,7 +972,7 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const status = await dataverseAPI.getImportJobStatus(importJobId, 'secondary');
          */
-        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        getImportJobStatus: (importJobId: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<Record<string, unknown>>;
 
         // ========================================
         // Metadata Helper Utilities
@@ -977,7 +1015,7 @@ declare namespace DataverseAPI {
          * @param connectionTarget - Optional connection target for multi-connection tools
          * @returns Raw CSDL/EDMX XML document as string (typically 1-5MB)
          */
-        getCSDLDocument: (connectionTarget?: "primary" | "secondary") => Promise<string>;
+        getCSDLDocument: (connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<string>;
 
         /**
          * Get the OData type string for an attribute metadata type
@@ -1043,7 +1081,12 @@ declare namespace DataverseAPI {
          * // IMPORTANT: Publish customizations to make changes active
          * await dataverseAPI.publishCustomizations("new_project");
          */
-        createEntityDefinition: (entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<{ id: string }>;
+        createEntityDefinition: (
+            entityDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
+        ) => Promise<{ id: string }>;
 
         /**
          * Update an entity (table) definition
@@ -1082,7 +1125,13 @@ declare namespace DataverseAPI {
          *   { mergeLabels: true }
          * );
          */
-        updateEntityDefinition: (entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        updateEntityDefinition: (
+            entityIdentifier: string,
+            entityDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
+        ) => Promise<void>;
 
         /**
          * Delete an entity (table) definition
@@ -1099,7 +1148,7 @@ declare namespace DataverseAPI {
          * // Delete using MetadataId
          * await dataverseAPI.deleteEntityDefinition("70816501-edb9-4740-a16c-6a5efbc05d84");
          */
-        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
 
         // ========================================
         // Attribute (Column) Metadata CRUD Operations
@@ -1167,7 +1216,8 @@ declare namespace DataverseAPI {
             entityLogicalName: string,
             attributeDefinition: Record<string, unknown>,
             options?: MetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<{ id: string }>;
 
         /**
@@ -1210,7 +1260,8 @@ declare namespace DataverseAPI {
             attributeIdentifier: string,
             attributeDefinition: Record<string, unknown>,
             options?: MetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<void>;
 
         /**
@@ -1228,7 +1279,7 @@ declare namespace DataverseAPI {
          * // Delete using MetadataId
          * await dataverseAPI.deleteAttribute("new_project", "00aa00aa-bb11-cc22-dd33-44ee44ee44ee");
          */
-        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
 
         /**
          * Create a polymorphic lookup attribute (Customer/Regarding field)
@@ -1260,7 +1311,8 @@ declare namespace DataverseAPI {
             entityLogicalName: string,
             attributeDefinition: Record<string, unknown>,
             options?: Record<string, unknown>,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<{ AttributeId: string }>;
 
         // ========================================
@@ -1315,7 +1367,12 @@ declare namespace DataverseAPI {
          * });
          * await dataverseAPI.publishCustomizations();
          */
-        createRelationship: (relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<{ id: string }>;
+        createRelationship: (
+            relationshipDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
+        ) => Promise<{ id: string }>;
 
         /**
          * Update a relationship definition
@@ -1331,7 +1388,8 @@ declare namespace DataverseAPI {
             relationshipIdentifier: string,
             relationshipDefinition: Record<string, unknown>,
             options?: MetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<void>;
 
         /**
@@ -1344,7 +1402,7 @@ declare namespace DataverseAPI {
          * @example
          * await dataverseAPI.deleteRelationship("new_project_tasks");
          */
-        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
 
         // ========================================
         // Global Option Set (Choice) CRUD Operations
@@ -1379,7 +1437,12 @@ declare namespace DataverseAPI {
          *
          * await dataverseAPI.publishCustomizations();
          */
-        createGlobalOptionSet: (optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<{ id: string }>;
+        createGlobalOptionSet: (
+            optionSetDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
+        ) => Promise<{ id: string }>;
 
         /**
          * Update a global option set definition
@@ -1395,7 +1458,8 @@ declare namespace DataverseAPI {
             optionSetIdentifier: string,
             optionSetDefinition: Record<string, unknown>,
             options?: MetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
+            additionalHeaders?: AdditionalHeaders,
         ) => Promise<void>;
 
         /**
@@ -1408,7 +1472,7 @@ declare namespace DataverseAPI {
          * @example
          * await dataverseAPI.deleteGlobalOptionSet("new_projectstatus");
          */
-        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<void>;
 
         // ========================================
         // Option Value Modification Actions
@@ -1445,7 +1509,7 @@ declare namespace DataverseAPI {
          * });
          * await dataverseAPI.publishCustomizations();
          */
-        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<Record<string, unknown>>;
 
         /**
          * Update an existing option value in a local or global option set
@@ -1476,7 +1540,7 @@ declare namespace DataverseAPI {
          * });
          * await dataverseAPI.publishCustomizations();
          */
-        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<Record<string, unknown>>;
 
         /**
          * Delete an option value from a local or global option set
@@ -1503,7 +1567,7 @@ declare namespace DataverseAPI {
          * });
          * await dataverseAPI.publishCustomizations();
          */
-        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<Record<string, unknown>>;
 
         /**
          * Reorder options in a local or global option set
@@ -1530,7 +1594,7 @@ declare namespace DataverseAPI {
          * });
          * await dataverseAPI.publishCustomizations();
          */
-        orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        orderOption: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: AdditionalHeaders) => Promise<Record<string, unknown>>;
     }
 }
 

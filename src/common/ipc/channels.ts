@@ -258,6 +258,15 @@ export const DATAVERSE_CHANNELS = {
     GET_SYSTEM_USERS: "dataverse.getSystemUsers",
     /** ConnectionId-based system-users lookup used by the connection-selection modals (pre-launch, no tool instance yet). */
     GET_SYSTEM_USERS_BY_CONNECTION: "dataverse.getSystemUsersByConnection",
+    EXECUTE_BATCH: "dataverse.executeBatch",
+    EXECUTE_TRANSACTION: "dataverse.executeTransaction",
+} as const;
+
+export const DATAVERSE_HEADER_CONSENT_CHANNELS = {
+    REQUEST: "dataverse-header-consent:request",
+    RESPOND: "dataverse-header-consent:respond",
+    GET_ALL: "dataverse-header-consent:get-all",
+    REVOKE: "dataverse-header-consent:revoke",
 } as const;
 
 // Power Platform API-related IPC channels
