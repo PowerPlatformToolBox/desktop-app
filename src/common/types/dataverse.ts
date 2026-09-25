@@ -86,6 +86,18 @@ export interface DataverseExecuteRequest {
 }
 
 /**
+ * System user entity in Dataverse representing a user record
+ */
+export interface DataverseUser {
+    systemuserid: string;
+    azureactivedirectoryobjectid?: string;
+    fullname: string;
+    domainname?: string;
+    internalemailaddress?: string;
+    isdisabled?: boolean;
+}
+
+/**
  * Navigation properties available on EntityDefinition
  * Used by getEntityRelatedMetadata to provide compile-time safety
  */

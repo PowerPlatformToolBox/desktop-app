@@ -12,6 +12,7 @@ import { SplitLayoutManager } from "./splitLayoutManager";
 import { TerminalManager } from "./terminalManager";
 import { ToolFileSystemAccessManager } from "./toolFileSystemAccessManager";
 import { ToolManager } from "./toolsManager";
+import type { DataverseUser } from "../../common/types/dataverse";
 
 interface InvocationContextMetadata {
     source?: "tool" | "mcp";
@@ -56,7 +57,10 @@ export class ToolWindowManager {
      *   cosmetic only and must be done consistently across all usages.
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
-    private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
+    private toolConnectionInfo: Map<
+        string,
+        { primaryConnectionId: string | null; secondaryConnectionId: string | null; impersonatedUsers: { primary: DataverseUser | null; secondary: DataverseUser | null } }
+    > = new Map();
     /** Maps instanceId → tool display name (used for the "Return to [CallerToolName]" banner). */
     private toolInstanceNames: Map<string, string> = new Map();
     /**
@@ -196,6 +200,9 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_IMPERSONATION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SET_IMPERSONATION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RESET_IMPERSONATION);
     }
 
     /**
@@ -314,6 +321,11 @@ export class ToolWindowManager {
         ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
             return this.updateToolConnection(instanceId, primaryConnectionId, secondaryConnectionId);
         });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_IMPERSONATION, (_event, instanceId: string, connectionTarget?: "primary" | "secondary") => this.getImpersonation(instanceId, connectionTarget));
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SET_IMPERSONATION, (_event, instanceId: string, user: DataverseUser, connectionTarget?: "primary" | "secondary") =>
+            this.setImpersonation(instanceId, user, connectionTarget),
+        );
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RESET_IMPERSONATION, (_event, instanceId: string, connectionTarget?: "primary" | "secondary") => this.resetImpersonation(instanceId, connectionTarget));
 
         // Hide all tool windows (used when showing tool detail tabs)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.HIDE_ALL, async () => {
@@ -354,6 +366,7 @@ export class ToolWindowManager {
         // When terminal is shown/hidden, we need to adjust BrowserView bounds
         ipcMain.on("terminal-visibility-changed", this.terminalVisibilityListener);
         ipcMain.on("invocation-banner-visibility-changed", this.bannerVisibilityListener);
+        ipcMain.on("impersonation-banner-visibility-changed", this.bannerVisibilityListener);
         ipcMain.on("sidebar-layout-changed", this.sidebarLayoutListener);
 
         // Periodic frame scheduling helper
@@ -519,6 +532,7 @@ export class ToolWindowManager {
             this.toolConnectionInfo.set(instanceId, {
                 primaryConnectionId: primaryConnectionId,
                 secondaryConnectionId: secondaryConnectionId,
+                impersonatedUsers: { primary: null, secondary: null },
             });
 
             // Show this tool instance
@@ -979,6 +993,35 @@ export class ToolWindowManager {
         return null;
     }
 
+    getImpersonatedUserByWebContents(webContentsId: number, connectionTarget: "primary" | "secondary" = "primary"): DataverseUser | null {
+        for (const [instanceId, toolView] of this.toolViews.entries()) {
+            if (toolView.webContents.id === webContentsId) return this.toolConnectionInfo.get(instanceId)?.impersonatedUsers[connectionTarget] ?? null;
+        }
+        return null;
+    }
+
+    getImpersonation(instanceId: string, connectionTarget: "primary" | "secondary" = "primary"): { user: DataverseUser | null } {
+        return { user: this.toolConnectionInfo.get(instanceId)?.impersonatedUsers[connectionTarget] ?? null };
+    }
+
+    getPrimaryConnectionIdByInstance(instanceId: string): string | null {
+        return this.toolConnectionInfo.get(instanceId)?.primaryConnectionId ?? null;
+    }
+
+    setImpersonation(instanceId: string, user: DataverseUser, connectionTarget: "primary" | "secondary" = "primary"): void {
+        const info = this.toolConnectionInfo.get(instanceId);
+        const connectionId = connectionTarget === "secondary" ? info?.secondaryConnectionId : info?.primaryConnectionId;
+        if (!info || !connectionId) throw new Error(`The tool has no ${connectionTarget} connection.`);
+        if (!user || !user.azureactivedirectoryobjectid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.azureactivedirectoryobjectid))
+            throw new Error("Selected Dataverse user has no valid Azure AD object ID.");
+        info.impersonatedUsers[connectionTarget] = user;
+    }
+
+    resetImpersonation(instanceId: string, connectionTarget: "primary" | "secondary" = "primary"): void {
+        const info = this.toolConnectionInfo.get(instanceId);
+        if (info) info.impersonatedUsers[connectionTarget] = null;
+    }
+
     /**
      * Get the secondary connectionId for a tool instance by its WebContents
      * This is used by multi-connection tools
@@ -1266,14 +1309,17 @@ export class ToolWindowManager {
         // Update stored connection info
         const connectionInfo = this.toolConnectionInfo.get(instanceId);
         if (connectionInfo) {
+            if (connectionInfo.primaryConnectionId !== primaryConnectionId) connectionInfo.impersonatedUsers.primary = null;
             connectionInfo.primaryConnectionId = primaryConnectionId;
             if (secondaryConnectionId !== undefined) {
+                if (connectionInfo.secondaryConnectionId !== secondaryConnectionId) connectionInfo.impersonatedUsers.secondary = null;
                 connectionInfo.secondaryConnectionId = secondaryConnectionId;
             }
         } else {
             this.toolConnectionInfo.set(instanceId, {
                 primaryConnectionId,
                 secondaryConnectionId: secondaryConnectionId || null,
+                impersonatedUsers: { primary: null, secondary: null },
             });
         }
 
@@ -1337,6 +1383,7 @@ export class ToolWindowManager {
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
         if (this.bannerVisibilityListener) ipcMain.removeListener("invocation-banner-visibility-changed", this.bannerVisibilityListener);
+        if (this.bannerVisibilityListener) ipcMain.removeListener("impersonation-banner-visibility-changed", this.bannerVisibilityListener);
         if (this.sidebarLayoutListener) ipcMain.removeListener("sidebar-layout-changed", this.sidebarLayoutListener);
         if (this.rendererInitializedListener) ipcMain.removeListener(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED, this.rendererInitializedListener);
 

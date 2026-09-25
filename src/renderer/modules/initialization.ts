@@ -57,6 +57,7 @@ import {
     showHomePage,
 } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
+import { initializeTitlebar } from "./titlebarManagement";
 
 /**
  * Initialize the application
@@ -64,6 +65,7 @@ import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFro
  */
 export async function initializeApplication(): Promise<void> {
     try {
+        initializeTitlebar();
         // Signal the main process that the renderer is starting fresh so it can clean up
         // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
         // This must be the very first IPC call so the cleanup happens before session restore.
@@ -859,6 +861,14 @@ function setupToolPanelBoundsListener(): void {
             const invocationBanner = document.getElementById("invocation-banner");
             if (invocationBanner && invocationBanner.style.display !== "none") {
                 const bannerHeight = Math.round(invocationBanner.getBoundingClientRect().height);
+                adjustedY += bannerHeight;
+                adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
+            }
+
+            // Same treatment for the impersonation banner (stacks below the invocation banner if both are visible).
+            const impersonationBanner = document.getElementById("impersonation-banner");
+            if (impersonationBanner && impersonationBanner.style.display !== "none") {
+                const bannerHeight = Math.round(impersonationBanner.getBoundingClientRect().height);
                 adjustedY += bannerHeight;
                 adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
             }

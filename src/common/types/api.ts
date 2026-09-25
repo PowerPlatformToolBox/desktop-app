@@ -6,7 +6,7 @@
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
-import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "./dataverse";
+import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseUser, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "./dataverse";
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolRatingAggregate, ToolSettings } from "./tool";
@@ -26,6 +26,8 @@ export interface ConnectionsAPI {
     authenticate: (connectionId: string) => Promise<void>;
     exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<Connection>[] }>;
     importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
+    /** ConnectionId-based system-users lookup for the connection-selection modals (used before a tool instance exists). */
+    getSystemUsersForConnection: (connectionId: string) => Promise<DataverseUser[]>;
 }
 
 /**
@@ -187,6 +189,7 @@ export interface TroubleshootingAPI {
  * Dataverse API namespace
  */
 export interface DataverseAPI {
+    getSystemUsers: () => Promise<import("./dataverse").DataverseUser[]>;
     create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
     retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
     update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<void>;
@@ -254,6 +257,15 @@ export interface ToolboxAPI {
     getSetting: (key: string) => Promise<unknown>;
     setSetting: (key: string, value: unknown) => Promise<void>;
     getMcpAccessToken: () => Promise<string>;
+    window: {
+        minimize: () => Promise<void>;
+        toggleMaximize: () => Promise<boolean>;
+        close: () => Promise<void>;
+        isMaximized: () => Promise<boolean>;
+        isFullScreen: () => Promise<boolean>;
+        onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => void;
+        openMenu: (menuLabel: string, x: number, y: number) => Promise<void>;
+    };
 
     // Connections namespace
     connections: ConnectionsAPI;
@@ -301,6 +313,9 @@ export interface ToolboxAPI {
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
+    getToolImpersonation: (instanceId: string, connectionTarget?: "primary" | "secondary") => Promise<{ user: DataverseUser | null }>;
+    setToolImpersonation: (instanceId: string, user: DataverseUser, connectionTarget?: "primary" | "secondary") => Promise<void>;
+    resetToolImpersonation: (instanceId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
     /** Find installed tools that declare a given capability tag in their pptb.config.json. */
     findToolsByCapability: (tag: string) => Promise<Tool[]>;
     /** Returns the list of known capability tags from the registry (Supabase-backed, with built-in fallback). */

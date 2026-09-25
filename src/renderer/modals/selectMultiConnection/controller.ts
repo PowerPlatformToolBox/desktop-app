@@ -18,11 +18,13 @@ export interface ConnectionListData {
  * @param channels - Channel IDs for IPC communication
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
  * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
+ * @param enableDoubleClickConnect - Whether double-clicking a connection triggers Connect
  */
 export function getSelectMultiConnectionModalControllerScript(
     channels: SelectMultiConnectionModalChannelIds,
     isSecondaryRequired: boolean = true,
     enabledForPowerPlatformAPI: boolean = false,
+    enableDoubleClickConnect: boolean = false,
 ): string {
     const serializedChannels = JSON.stringify(channels);
     const sortingUtilities = getConnectionSortingUtilitiesScript();
@@ -32,6 +34,7 @@ export function getSelectMultiConnectionModalControllerScript(
     const CHANNELS = ${serializedChannels};
     const IS_SECONDARY_REQUIRED = ${isSecondaryRequired};
     const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -55,6 +58,7 @@ export function getSelectMultiConnectionModalControllerScript(
     let authenticatedPrimaryConnectionId = null;
     let authenticatedSecondaryConnectionId = null;
     let allConnections = [];
+    const impersonateConnectionKeys = new Set();
     const DEFAULT_SORT_OPTION = "last-used";
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => (value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION);
@@ -237,6 +241,10 @@ ${sortingUtilities}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
+                <label class="impersonate-checkbox-row" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="impersonate-checkbox" data-connection-id="\${safeId}" data-list="\${idPrefix}" \${impersonateConnectionKeys.has(idPrefix + ':' + conn.id) ? 'checked' : ''} />
+                    Impersonate as another user
+                </label>
             </div>
         \`;
         };
@@ -317,6 +325,33 @@ ${sortingUtilities}
             });
         });
 
+        if (ENABLE_DOUBLE_CLICK_CONNECT) {
+            document.querySelectorAll('.connection-item').forEach(item => {
+                item.addEventListener('dblclick', async (event) => {
+                    if (event.target instanceof Element && event.target.closest('.connect-button')) return;
+                    if (item.classList.contains('disabled') || item.classList.contains('authenticated')) return;
+
+                    const connectionId = item.getAttribute('data-connection-id');
+                    const listType = item.getAttribute('data-list');
+                    if (!connectionId || !listType) return;
+
+                    await handleConnectClick(connectionId, listType);
+                });
+            });
+        }
+
+        // Track the "Impersonate as another user" checkbox per connection card
+        document.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const key = checkbox.getAttribute('data-list') + ':' + checkbox.getAttribute('data-connection-id');
+                if (checkbox.checked) {
+                    impersonateConnectionKeys.add(key);
+                } else {
+                    impersonateConnectionKeys.delete(key);
+                }
+            });
+        });
+
         // Update confirm button state
         updateConfirmButtonState();
     };
@@ -374,6 +409,8 @@ ${sortingUtilities}
         modalBridge.send(CHANNELS.selectConnections, { 
             primaryConnectionId: authenticatedPrimaryConnectionId,
             secondaryConnectionId: authenticatedSecondaryConnectionId,
+            primaryWantsImpersonation: impersonateConnectionKeys.has('primary:' + authenticatedPrimaryConnectionId),
+            secondaryWantsImpersonation: authenticatedSecondaryConnectionId ? impersonateConnectionKeys.has('secondary:' + authenticatedSecondaryConnectionId) : false,
             action: 'confirm'
         });
     });

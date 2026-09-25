@@ -27,6 +27,9 @@ export function applyTheme(theme: string): void {
     // Update pin icons in tabs when theme changes
     updatePinIconsForTheme();
 
+    // Update impersonation icons in tabs when theme changes
+    updateImpersonationIconsForTheme();
+
     // Update activity bar icons when theme changes
     updateActivityBarIconsForTheme();
 
@@ -65,6 +68,20 @@ export function updatePinIconsForTheme(): void {
             } else {
                 pinBtn.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
             }
+        }
+    });
+}
+
+/**
+ * Update impersonation icons to match current theme
+ */
+export function updateImpersonationIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+        const icon = tab.querySelector(".tool-tab-impersonation img") as HTMLImageElement;
+        if (icon) {
+            icon.src = isDarkTheme ? "icons/dark/impersonate.svg" : "icons/light/impersonate.svg";
         }
     });
 }
