@@ -17,8 +17,9 @@ export interface ConnectionListData {
  * Returns the controller script that wires up DOM events for the select connection modal.
  * @param channels - Channel IDs for IPC communication
  * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
+ * @param enableDoubleClickConnect - Whether double-clicking a connection triggers Connect
  */
-export function getSelectConnectionModalControllerScript(channels: SelectConnectionModalChannelIds, enabledForPowerPlatformAPI: boolean = false): string {
+export function getSelectConnectionModalControllerScript(channels: SelectConnectionModalChannelIds, enabledForPowerPlatformAPI: boolean = false, enableDoubleClickConnect: boolean = false): string {
     const serializedChannels = JSON.stringify(channels);
     const sortingUtilities = getConnectionSortingUtilitiesScript();
     return `
@@ -26,6 +27,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
 (() => {
     const CHANNELS = ${serializedChannels};
     const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -281,6 +283,29 @@ ${sortingUtilities}
                 const connectionId = item.getAttribute('data-connection-id');
                 selectConnection(connectionId);
             });
+
+            if (ENABLE_DOUBLE_CLICK_CONNECT) {
+                item.addEventListener('dblclick', () => {
+                    const connectionId = item.getAttribute('data-connection-id');
+                    if (!connectionId) return;
+                    selectConnection(connectionId);
+                    triggerConnect();
+                });
+            }
+        });
+
+        // Track the "Impersonate as another user" checkbox per connection card
+        connectionsListContainer.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const connectionId = checkbox.getAttribute('data-connection-id');
+                if (checkbox.checked) {
+                    impersonateConnectionIds.add(connectionId);
+                    // Checking the box implies the user wants this connection - select its card too
+                    selectConnection(connectionId);
+                } else {
+                    impersonateConnectionIds.delete(connectionId);
+                }
+            });
         });
 
         // Track the "Impersonate as another user" checkbox per connection card
@@ -335,13 +360,16 @@ ${sortingUtilities}
         }
     };
 
-    // Connect button handler
-    connectButton?.addEventListener('click', () => {
+    const triggerConnect = () => {
         if (!selectedConnectionId) return;
+        if (connectButton instanceof HTMLButtonElement && connectButton.disabled) return;
 
         setButtonState(connectButton, true, "Connecting...", "Connect");
         modalBridge.send(CHANNELS.selectConnection, { connectionId: selectedConnectionId, wantsImpersonation: impersonateConnectionIds.has(selectedConnectionId) });
-    });
+    };
+
+    // Connect button handler
+    connectButton?.addEventListener('click', triggerConnect);
 
     // Cancel and close button handlers
     const closeModal = () => modalBridge.close();

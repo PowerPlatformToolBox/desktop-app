@@ -51,6 +51,7 @@ export class SettingsManager {
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
                 restoreSessionOnStartup: true, // Reopen previously open tools on app start
+                enableConnectionDoubleClickConnect: false, // Require explicit opt-in for double-click connect behavior
                 keepMcpServerRunning: false, // Auto-start MCP server when tools open/reopen
                 enablePreviewFeatures: false, // Show preview/experimental features in the UI
                 previewFeatures: buildPreviewFeatureFlags(), // Per-feature preview toggles

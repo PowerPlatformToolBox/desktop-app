@@ -18,11 +18,13 @@ export interface ConnectionListData {
  * @param channels - Channel IDs for IPC communication
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
  * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
+ * @param enableDoubleClickConnect - Whether double-clicking a connection triggers Connect
  */
 export function getSelectMultiConnectionModalControllerScript(
     channels: SelectMultiConnectionModalChannelIds,
     isSecondaryRequired: boolean = true,
     enabledForPowerPlatformAPI: boolean = false,
+    enableDoubleClickConnect: boolean = false,
 ): string {
     const serializedChannels = JSON.stringify(channels);
     const sortingUtilities = getConnectionSortingUtilitiesScript();
@@ -32,6 +34,7 @@ export function getSelectMultiConnectionModalControllerScript(
     const CHANNELS = ${serializedChannels};
     const IS_SECONDARY_REQUIRED = ${isSecondaryRequired};
     const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -321,6 +324,21 @@ ${sortingUtilities}
                 await handleConnectClick(connectionId, listType);
             });
         });
+
+        if (ENABLE_DOUBLE_CLICK_CONNECT) {
+            document.querySelectorAll('.connection-item').forEach(item => {
+                item.addEventListener('dblclick', async (event) => {
+                    if (event.target instanceof Element && event.target.closest('.connect-button')) return;
+                    if (item.classList.contains('disabled') || item.classList.contains('authenticated')) return;
+
+                    const connectionId = item.getAttribute('data-connection-id');
+                    const listType = item.getAttribute('data-list');
+                    if (!connectionId || !listType) return;
+
+                    await handleConnectClick(connectionId, listType);
+                });
+            });
+        }
 
         // Track the "Impersonate as another user" checkbox per connection card
         document.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
