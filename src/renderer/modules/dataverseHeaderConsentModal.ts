@@ -43,7 +43,7 @@ function buildModalHtml(request: DataverseHeaderConsentRequest): string {
         .header-name { color: ${isDarkTheme ? "#75b6e7" : "#005a9e"}; }
         .header-value { color: inherit; }
         .modal-footer { flex-wrap: nowrap; }
-        .reject-button { margin-right: auto; }
+        .consent-footer-note { margin: 0 auto 0 0; color: ${isDarkTheme ? "rgba(255,255,255,.62)" : "rgba(0,0,0,.62)"}; font-size: 12px; line-height: 1.4; }
         @media (max-width: 520px) { .header-row { grid-template-columns: 1fr; } .modal-footer { flex-wrap: wrap; } }
     </style>
 </head>
@@ -58,15 +58,16 @@ function buildModalHtml(request: DataverseHeaderConsentRequest): string {
         </header>
         <p class="request-summary"><strong>${escapeHtml(request.toolName)}</strong> wants to ${escapeHtml(request.operation.toLowerCase())} using the headers below.</p>
         <div class="scope-warning">
-            <strong>Allow for this tool</strong> also permits different Dataverse header names and values in future requests until you revoke access in Consent Review.
+            <strong>Allow always</strong> also permits different Dataverse header names and values in future requests until you revoke access in Consent Review.
         </div>
         <section class="modal-body" aria-label="Requested headers">
             <ul class="header-list">${headerRows}</ul>
         </section>
         <footer class="modal-footer">
-            <button class="fluent-button fluent-button-ghost reject-button" type="button" data-decision="reject">Reject</button>
+            <p class="consent-footer-note">This consent applies only to this tool.</p>
+            <button class="fluent-button fluent-button-secondary" type="button" data-decision="reject">Reject</button>
             <button id="allow-once-button" class="fluent-button fluent-button-secondary" type="button" data-decision="allow-once">Allow once</button>
-            <button class="fluent-button fluent-button-primary" type="button" data-decision="allow-tool">Allow for this tool</button>
+            <button class="fluent-button fluent-button-primary" type="button" data-decision="allow-tool">Allow always</button>
         </footer>
     </main>
     <script>

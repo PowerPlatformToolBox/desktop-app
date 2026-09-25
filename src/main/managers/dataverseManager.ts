@@ -819,15 +819,20 @@ export class DataverseManager {
         preferOptions?: string[],
         customHeaders?: Record<string, string>,
         maxResponseBytes = MAX_DATAVERSE_BATCH_RESPONSE_BYTES,
+        resolveMultipartErrors = false,
     ): Promise<{ status: number; data: unknown; rawBody: string; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
             const bodyData = body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body);
-            const validatedHeaders = mergeDataverseHeaders(customHeaders, this.additionalHeadersContext.getStore());
+            const validatedHeaders = { ...mergeDataverseHeaders(customHeaders, this.additionalHeadersContext.getStore()) };
 
             // Build Prefer header with multiple comma-separated values
             const preferValues = ["return=representation"];
-            if (preferOptions && preferOptions.length > 0) {
+            const customPreferHeader = Object.entries(validatedHeaders).find(([name]) => name.toLowerCase() === "prefer");
+            if (customPreferHeader?.[1]) {
+                preferValues.push(customPreferHeader[1]);
+                delete validatedHeaders[customPreferHeader[0]];
+            } else if (preferOptions && preferOptions.length > 0) {
                 preferValues.push(...preferOptions);
             }
             const preferHeader = preferValues.join(",");
@@ -879,6 +884,8 @@ export class DataverseManager {
                         });
                     }
 
+                    const responseContentType = responseHeaders["content-type"] ?? "";
+
                     // Handle success responses
                     if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
                         // Parse JSON response if there is data
@@ -893,6 +900,10 @@ export class DataverseManager {
                         }
                         resolve({ status: res.statusCode, data: parsedData, rawBody: data, headers: responseHeaders });
                     } else {
+                        if (resolveMultipartErrors && responseContentType.toLowerCase().includes("multipart/mixed")) {
+                            resolve({ status: res.statusCode ?? 0, data: {}, rawBody: data, headers: responseHeaders });
+                            return;
+                        }
                         // Handle error responses
                         let errorMessage = `HTTP ${res.statusCode}`;
                         try {
@@ -1985,7 +1996,7 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/$batch`);
         const headers = overrideDataverseHeaders({ "Content-Type": encoded.contentType, Accept: "multipart/mixed" }, additionalHeaders);
-        const response = await this.makeHttpRequest(url, "POST", accessToken, encoded.body, undefined, headers, MAX_DATAVERSE_BATCH_RESPONSE_BYTES);
+        const response = await this.makeHttpRequest(url, "POST", accessToken, encoded.body, undefined, headers, MAX_DATAVERSE_BATCH_RESPONSE_BYTES, true);
         const responseContentType = response.headers["content-type"];
         if (!responseContentType?.toLowerCase().includes("multipart/mixed")) {
             throw new Error("Malformed Dataverse batch response: expected multipart/mixed");

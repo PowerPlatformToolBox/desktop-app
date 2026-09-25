@@ -46,7 +46,7 @@ describe("Dataverse batch utilities", () => {
         ]);
         expect(encoded.contentType).toContain(`boundary=${encoded.boundary}`);
         expect(encoded.body).toContain("GET /api/data/v9.2/accounts?$top=1 HTTP/1.1\r\n");
-        expect(encoded.body).toContain('Content-Type: application/json\r\n\r\n{"firstname":"Ada"}');
+        expect(encoded.body).toContain('Content-Type: application/json; type=entry\r\n\r\n{"firstname":"Ada"}');
         expect(encoded.body.endsWith(`--${encoded.boundary}--\r\n`)).toBe(true);
     });
 
@@ -123,6 +123,30 @@ describe("Dataverse batch utilities", () => {
         const results = parseDataverseBatchResponse(body, `multipart/mixed; boundary=${boundary}`, ["1", "2"]);
         expect(results.map((result) => result.contentId)).toEqual(["1", "2"]);
         expect(results[0].body).toContain("--batch_response");
+    });
+
+    it("correlates ordered responses when Dataverse omits Content-ID headers", () => {
+        const boundary = "batch_response";
+        const body = [
+            `--${boundary}`,
+            "Content-Type: application/http",
+            "",
+            "HTTP/1.1 200 OK",
+            "Content-Type: application/json",
+            "",
+            '{"value":[{"name":"Account"}]}',
+            `--${boundary}`,
+            "Content-Type: application/http",
+            "",
+            "HTTP/1.1 200 OK",
+            "Content-Type: application/json",
+            "",
+            '{"value":[{"fullname":"Contact"}]}',
+            `--${boundary}--`,
+            "",
+        ].join("\r\n");
+
+        expect(parseDataverseBatchResponse(body, `multipart/mixed; boundary=${boundary}`, ["1", "2"]).map((result) => result.contentId)).toEqual(["1", "2"]);
     });
 
     it("rejects duplicate or missing response content IDs", () => {

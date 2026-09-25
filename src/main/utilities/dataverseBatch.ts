@@ -196,7 +196,9 @@ function encodeHttpPart(request: Readonly<DataverseBatchRequest>): string {
         .join("\r\n");
     const serializedBody = request.body === undefined ? "" : typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     const contentHeaders =
-        serializedBody && !Object.keys(request.headers ?? {}).some((name) => name.toLowerCase() === "content-type") ? `${headers ? `${headers}\r\n` : ""}Content-Type: application/json` : headers;
+        serializedBody && !Object.keys(request.headers ?? {}).some((name) => name.toLowerCase() === "content-type")
+            ? `${headers ? `${headers}\r\n` : ""}Content-Type: application/json; type=entry`
+            : headers;
     return [
         `Content-Type: application/http`,
         `Content-Transfer-Encoding: binary`,
@@ -299,6 +301,13 @@ export function parseDataverseBatchResponse(body: string, contentType: string, e
     if (!boundaryMatch) throw new Error("Malformed Dataverse batch response: missing boundary");
     const results = parseMultipartParts(body, boundaryMatch[1] || boundaryMatch[2]).flatMap(parsePart);
     if (expectedContentIds) {
+        const allContentIdsMissing = results.length === expectedContentIds.length && results.every((result) => !result.contentId);
+        if (allContentIdsMissing) {
+            return results.map((result, index) => ({ ...result, contentId: expectedContentIds[index] }));
+        }
+        if (allowPartialFailure && results.length < expectedContentIds.length && results.some((result) => result.status >= 400) && results.every((result) => !result.contentId)) {
+            return results;
+        }
         const expected = new Set(expectedContentIds);
         const seen = new Set<string>();
         for (const result of results) {
