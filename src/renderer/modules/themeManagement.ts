@@ -5,6 +5,19 @@
 
 import { ACTIVITY_BAR_ICONS } from "../constants";
 
+export interface VerifiedBadgeThemeDocument {
+    body: {
+        classList: {
+            contains(token: string): boolean;
+        };
+    };
+    querySelectorAll(selectors: string): Iterable<{
+        src: string;
+    }> | ArrayLike<{
+        src: string;
+    }>;
+}
+
 /**
  * Apply theme to the application
  */
@@ -321,13 +334,17 @@ export function updateToolDetailIconsForTheme(): void {
 /**
  * Update verified badge icons to match current theme
  */
-export function updateVerifiedBadgeIconsForTheme(): void {
-    const isDarkTheme = document.body.classList.contains("dark-theme");
+export function updateVerifiedBadgeIconsForTheme(themeDocument?: VerifiedBadgeThemeDocument): void {
+    const targetDocument: VerifiedBadgeThemeDocument = themeDocument ?? {
+        body: document.body,
+        querySelectorAll: (selectors: string) => document.querySelectorAll<HTMLImageElement>(selectors),
+    };
+    const isDarkTheme = targetDocument.body.classList.contains("dark-theme");
     const verifiedIconPath = isDarkTheme ? "icons/dark/verified.svg" : "icons/light/verified.svg";
 
-    document.querySelectorAll(".tool-verified-badge-icon").forEach((img) => {
-        (img as HTMLImageElement).src = verifiedIconPath;
-    });
+    for (const img of Array.from(targetDocument.querySelectorAll(".tool-verified-badge-icon"))) {
+        img.src = verifiedIconPath;
+    }
 }
 
 /**
