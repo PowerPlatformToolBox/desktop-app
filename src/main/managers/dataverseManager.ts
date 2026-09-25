@@ -1,7 +1,6 @@
 import * as https from "https";
 import { AsyncLocalStorage } from "async_hooks";
 import * as zlib from "zlib";
-import { AsyncLocalStorage } from "async_hooks";
 import { logError, logWarn } from "../../common/logger";
 import {
     AttributeMetadataType,
