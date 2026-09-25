@@ -190,6 +190,7 @@ let requestingToolName: string | undefined = undefined;
 
 // Store whether the tool requires Power Platform API connections
 let requirePowerPlatformApi: boolean = false;
+let connectionModalDoubleClickConnectEnabled: boolean = false;
 
 // Store the connection ID being edited
 let editingConnectionId: string | null = null;
@@ -335,12 +336,17 @@ export async function openSelectConnectionModal(
 
         onBrowserWindowModalClosed(modalClosedHandler);
 
-        showBrowserWindowModal({
-            id: "select-connection-browser-modal",
-            html: buildSelectConnectionModalHtml(requirePowerPlatformApi),
-            width: SELECT_CONNECTION_MODAL_DIMENSIONS.width,
-            height: SELECT_CONNECTION_MODAL_DIMENSIONS.height,
-        }).catch(reject);
+        void (async () => {
+            const settings = await window.toolboxAPI.getUserSettings();
+            connectionModalDoubleClickConnectEnabled = settings.enableConnectionDoubleClickConnect ?? false;
+
+            await showBrowserWindowModal({
+                id: "select-connection-browser-modal",
+                html: buildSelectConnectionModalHtml(requirePowerPlatformApi),
+                width: SELECT_CONNECTION_MODAL_DIMENSIONS.width,
+                height: SELECT_CONNECTION_MODAL_DIMENSIONS.height,
+            });
+        })().catch(reject);
     });
 }
 
@@ -364,7 +370,11 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 function buildSelectConnectionModalHtml(enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName);
-    const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS, enabledForPowerPlatformAPI);
+    const script = getSelectConnectionModalControllerScript(
+        SELECT_CONNECTION_MODAL_CHANNELS,
+        enabledForPowerPlatformAPI,
+        connectionModalDoubleClickConnectEnabled,
+    );
     return `${styles}\n${body}\n${script}`.trim();
 }
 
@@ -586,12 +596,17 @@ export async function openSelectMultiConnectionModal(
 
         onBrowserWindowModalClosed(modalClosedHandler);
 
-        showBrowserWindowModal({
-            id: "select-multi-connection-browser-modal",
-            html: buildSelectMultiConnectionModalHtml(isSecondaryRequired, enabledForPowerPlatformAPI),
-            width: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.width,
-            height: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.height,
-        }).catch(reject);
+        void (async () => {
+            const settings = await window.toolboxAPI.getUserSettings();
+            connectionModalDoubleClickConnectEnabled = settings.enableConnectionDoubleClickConnect ?? false;
+
+            await showBrowserWindowModal({
+                id: "select-multi-connection-browser-modal",
+                html: buildSelectMultiConnectionModalHtml(isSecondaryRequired, enabledForPowerPlatformAPI),
+                width: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.width,
+                height: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.height,
+            });
+        })().catch(reject);
     });
 }
 
@@ -615,7 +630,12 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
 function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true, enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired, requestingToolName);
-    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired, enabledForPowerPlatformAPI);
+    const script = getSelectMultiConnectionModalControllerScript(
+        SELECT_MULTI_CONNECTION_MODAL_CHANNELS,
+        isSecondaryRequired,
+        enabledForPowerPlatformAPI,
+        connectionModalDoubleClickConnectEnabled,
+    );
     return `${styles}\n${body}\n${script}`.trim();
 }
 
