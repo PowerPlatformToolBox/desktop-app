@@ -121,8 +121,8 @@ importers:
   packages/types:
     dependencies:
       '@pptb/validate':
-        specifier: 1.0.2
-        version: 1.0.2
+        specifier: 1.0.3
+        version: 1.0.3
 
   packages/validation:
     dependencies:
@@ -892,8 +892,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@pptb/validate@1.0.2':
-    resolution: {integrity: sha512-D6bfEa1a7p9ju7BUY2l/jJ8tK7s5SEtpvNriBRfasazP91mJ6eL5mLqOGwwjQ9aPyRJoeFyVmdF4gRyFMCcG7Q==}
+  '@pptb/validate@1.0.3':
+    resolution: {integrity: sha512-tjF7nASpGbqBDhrvpIehh5f0CncKmieOEfYwPBY+hcnhYD6FemKW3eSaBd+QfQaXfcBJNj7Ory3L1WpJk+SUCw==}
     hasBin: true
 
   '@rollup/rollup-android-arm-eabi@4.63.3':
@@ -3019,10 +3019,6 @@ packages:
     resolution: {integrity: sha512-3FnjYuehv9k6ovOEbyOswadCDPX1piCfhV8ncmYtHOjuPwylVWsghTLo7rabjC3Rx5xD4HDx8Wm1xnMF7S5qFQ==}
     engines: {node: '>=8'}
 
-  minipass@7.1.2:
-    resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
-    engines: {node: '>=16 || 14 >=14.17'}
-
   minipass@7.1.3:
     resolution: {integrity: sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -3748,10 +3744,6 @@ packages:
     resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
     engines: {node: '>=10'}
     deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
-
-  tar@7.5.16:
-    resolution: {integrity: sha512-56adEpPMouktRlBLXiaYFFzZ/3+JXa8P9n7WbR+ibIjtviN55mEaOkiysCnPnWm+7kkui1Dn8J9l+g6zV8731w==}
-    engines: {node: '>=18'}
 
   tar@7.5.21:
     resolution: {integrity: sha512-XdhtCvlMywwxpCW8YEq3lOXBJpUPTR2OHHcwLPO3HwsJqOHa2Ok/oJ7ruGzp+JrKoRPVCzJwAdEjqLW/vNRPHA==}
@@ -5023,9 +5015,9 @@ snapshots:
     dependencies:
       playwright: 1.60.0
 
-  '@pptb/validate@1.0.2':
+  '@pptb/validate@1.0.3':
     dependencies:
-      tar: 7.5.16
+      tar: 7.5.21
 
   '@rollup/rollup-android-arm-eabi@4.63.3':
     optional: true
@@ -7601,8 +7593,6 @@ snapshots:
 
   minipass@5.0.0: {}
 
-  minipass@7.1.2: {}
-
   minipass@7.1.3: {}
 
   minizlib@2.1.2:
@@ -8338,14 +8328,6 @@ snapshots:
       minizlib: 2.1.2
       mkdirp: 1.0.4
       yallist: 4.0.0
-
-  tar@7.5.16:
-    dependencies:
-      '@isaacs/fs-minipass': 4.0.1
-      chownr: 3.0.0
-      minipass: 7.1.2
-      minizlib: 3.1.0
-      yallist: 5.0.0
 
   tar@7.5.21:
     dependencies:

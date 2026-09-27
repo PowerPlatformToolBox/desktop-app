@@ -28,6 +28,7 @@
  *   },
  *   "agents": {
  *     "version": "1.0.0",
+ *     "headless": false,
  *     "invokable": true,
  *     "modes": ["one-way", "two-way"],
  *     "defaultMode": "two-way",
@@ -107,6 +108,7 @@ export type AgentInvocationMode = "one-way" | "two-way";
  * Agent-specific launch contract for external automation callers.
  *
  * - `version`: semantic version for the agent-facing contract.
+ * - `headless`: whether the tool supports headless execution (required when agents is present).
  * - `invokable`: opt-in flag that exposes the tool to the MCP server.
  * - `modes`: supported MCP invocation modes for this tool.
  * - `defaultMode`: fallback mode when the caller does not specify one.
@@ -115,6 +117,8 @@ export type AgentInvocationMode = "one-way" | "two-way";
 export interface AgentsConfig {
     /** Semantic version of this agent contract. */
     version: string;
+    /** Whether the tool supports headless execution. */
+    headless: boolean;
     /** Whether the tool may be invoked by an external agent. */
     invokable?: boolean;
     /** Invocation modes supported by the tool when called by an agent. */

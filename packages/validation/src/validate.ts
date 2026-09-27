@@ -68,6 +68,7 @@ export type AgentInvocationMode = "one-way" | "two-way";
 
 export interface AgentsConfig {
     version: string;
+    headless: boolean;
     invokable?: boolean;
     modes?: AgentInvocationMode[];
     defaultMode?: AgentInvocationMode;
@@ -461,6 +462,12 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
                 errors.push("agents.version must be a string");
             } else if (!SEMVER_REGEX.test(agents.version)) {
                 errors.push(`agents.version "${agents.version}" is not a valid semantic version string (e.g. "1.0.0")`);
+            }
+
+            if (agents.headless === undefined) {
+                errors.push("agents.headless is required");
+            } else if (typeof agents.headless !== "boolean") {
+                errors.push("agents.headless must be a boolean (true or false)");
             }
 
             if (agents.invokable !== undefined && typeof agents.invokable !== "boolean") {
