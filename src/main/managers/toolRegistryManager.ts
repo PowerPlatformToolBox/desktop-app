@@ -46,14 +46,6 @@ interface SupabaseAnalyticsRow {
     mau?: number; // Monthly Active Users
 }
 
-interface SupabaseMaturityRow {
-    status?: string;
-}
-
-export function getSupabaseMaturityStatus(relation: SupabaseMaturityRow | SupabaseMaturityRow[] | undefined): string | undefined {
-    return (Array.isArray(relation) ? relation[0] : relation)?.status;
-}
-
 function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
     return typeof value === "number" ? value : undefined;
 }
@@ -82,34 +74,110 @@ interface SupabaseTool {
     packagename?: string;
     name: string;
     description: string;
-    download?: string; // new Azure Blob download URL (used by app v1.2+)
-    downloadurl: string; // legacy download URL (used by app v1.1.3 and older)
-    icon?: string; // New column for SVG icon URLs (GitHub Release URL)
-    iconurl: string; // Legacy column, kept for backward compatibility
-    readmeurl?: string;
+    download?: string;
+    icon?: string;
+    readme_url?: string;
     version?: string;
     checksum?: string;
     size?: string; // stored as text in schema
     published_at?: string;
     created_at?: string;
     csp_exceptions?: unknown;
-    features?: unknown; // JSON column for tool features
     license?: string;
     status?: string; // Tool lifecycle status: active, deprecated, archived
     repository?: string;
     website?: string;
     min_api?: string; // Minimum ToolBox API version required
-    tool_maturity?: SupabaseMaturityRow | SupabaseMaturityRow[];
+    multi_connection?: string | null;
+    connection_requirement?: string | null;
+    enabled_for_power_platform_api?: boolean | null;
+    mcp_enabled?: boolean | null;
+    maturity_status?: string | null;
+    mcpHeadlessEnabled?: boolean;
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
 }
 
+const SUPABASE_CATALOG_COLUMNS = [
+    "id",
+    "packagename",
+    "name",
+    "description",
+    "download",
+    "icon",
+    "readme_url",
+    "version",
+    "checksum",
+    "size",
+    "published_at",
+    "created_at",
+    "license",
+    "csp_exceptions",
+    "status",
+    "repository",
+    "website",
+    "min_api",
+    "multi_connection",
+    "connection_requirement",
+    "enabled_for_power_platform_api",
+    "mcp_enabled",
+    "maturity_status",
+    "tool_categories(categories(name))",
+    "tool_contributors(contributors(name,profile_url))",
+    "tool_analytics(downloads,rating,mau)",
+].join(", ");
+
+function getTypedFeatureValue<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+    return typeof value === "string" && allowed.includes(value as T) ? (value as T) : undefined;
+}
+
+export function mapSupabaseToolRow(tool: SupabaseTool): ToolRegistryEntry {
+    const categories = (tool.tool_categories || []).map((row) => row.categories?.name?.trim()).filter((name): name is string => !!name);
+    const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((name): name is string => !!name);
+    const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
+    const minAPI = tool.min_api;
+    const features: ToolRegistryEntry["features"] = {
+        multiConnection: getTypedFeatureValue(tool.multi_connection, ["required", "optional", "none"]),
+        connectionRequirement: getTypedFeatureValue(tool.connection_requirement, ["required", "optional"]),
+        minAPI,
+        enabledForPowerPlatformAPI: typeof tool.enabled_for_power_platform_api === "boolean" ? tool.enabled_for_power_platform_api : undefined,
+    };
+    const hasFeatures = Object.values(features).some((value) => value !== undefined);
+
+    return {
+        id: tool.id,
+        name: tool.name,
+        description: tool.description,
+        authors: contributors,
+        version: tool.version || "1.0.0",
+        downloadUrl: tool.download || "",
+        icon: tool.icon,
+        readmeUrl: tool.readme_url,
+        repository: tool.repository,
+        website: tool.website,
+        publishedAt: tool.published_at || new Date().toISOString(),
+        createdAt: tool.created_at || new Date().toISOString(),
+        checksum: tool.checksum,
+        size: tool.size ? Number(tool.size) || undefined : undefined,
+        categories,
+        cspExceptions: (tool.csp_exceptions as Record<string, unknown> | undefined) || undefined,
+        features: hasFeatures ? features : undefined,
+        license: tool.license,
+        downloads: getOptionalAnalyticsNumber(analytics?.downloads),
+        rating: getOptionalAnalyticsNumber(analytics?.rating),
+        mau: getOptionalAnalyticsNumber(analytics?.mau),
+        status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+        minAPI: minAPI ?? undefined,
+        mcpHeadlessEnabled: typeof tool.mcp_enabled === "boolean" ? tool.mcp_enabled : tool.mcpHeadlessEnabled,
+        npmPackageName: tool.packagename || undefined,
+        maturity: tool.maturity_status ?? undefined,
+    };
+}
+
 interface AzureBlobRegistryFile {
     tools?: Array<
         OfflineMockRegistryTool & {
-            downloadurl?: string;
-            readmeurl?: string;
             website?: string;
             published_at?: string;
             authors?: string[] | string;
@@ -356,7 +424,7 @@ export class ToolRegistryManager extends EventEmitter {
                     description: tool.description,
                     authors: this.normalizeAuthorList(tool.authors),
                     version: tool.version,
-                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || tool.downloadurl || "", registryUrl),
+                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || "", registryUrl),
                     checksum: tool.checksum,
                     size: tool.size,
                     publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
@@ -382,42 +450,13 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             logInfo(`[ToolRegistry] Fetching registry from Supabase (new schema)`);
 
-            const selectColumns = [
-                "id",
-                "packagename",
-                "name",
-                "description",
-                "download",
-                "downloadurl",
-                "icon",
-                "iconurl",
-                "readmeurl",
-                "version",
-                "checksum",
-                "size",
-                "published_at",
-                "created_at",
-                "license",
-                "csp_exceptions",
-                "features",
-                "status",
-                "repository",
-                "website",
-                "min_api",
-                // embedded relations
-                "tool_maturity(status)",
-                "tool_categories(categories(name))",
-                "tool_contributors(contributors(name,profile_url))",
-                "tool_analytics(downloads,rating,mau)",
-            ].join(", ");
-
             if (!this.supabase) {
                 throw new Error("Supabase client is not initialized");
             }
-            const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).in("status", ["active", "deprecated"]).order("name", { ascending: true });
+            const { data: toolsData, error } = await this.supabase.from("tools_catalog").select(SUPABASE_CATALOG_COLUMNS).in("status", ["active", "deprecated"]).order("name", { ascending: true });
 
             if (error) {
-                throw new Error(`Supabase query failed: ${error.message}`);
+                throw new Error(`Supabase registry query failed: ${error.message}`);
             }
 
             if (!toolsData || toolsData.length === 0) {
@@ -425,48 +464,7 @@ export class ToolRegistryManager extends EventEmitter {
                 return [];
             }
 
-            // toolsData typing from supabase-js is loose; coerce via unknown first to satisfy TS
-            const tools: ToolRegistryEntry[] = (toolsData as unknown as SupabaseTool[]).map((tool) => {
-                const categories = (tool.tool_categories || []).map((row) => row.categories?.name?.trim()).filter((n): n is string => !!n);
-                const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((n): n is string => !!n);
-                let downloads: number | undefined;
-                let rating: number | undefined;
-                let mau: number | undefined;
-                if (tool.tool_analytics) {
-                    const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
-                    downloads = getOptionalAnalyticsNumber(analytics?.downloads);
-                    rating = getOptionalAnalyticsNumber(analytics?.rating);
-                    mau = getOptionalAnalyticsNumber(analytics?.mau);
-                }
-
-                return {
-                    id: tool.id,
-                    name: tool.name,
-                    description: tool.description,
-                    authors: contributors,
-                    version: tool.version || "1.0.0",
-                    downloadUrl: tool.download || tool.downloadurl,
-                    icon: tool.icon || tool.iconurl, // Prefer new 'icon' column, fallback to 'iconurl' for backward compatibility
-                    readmeUrl: tool.readmeurl,
-                    repository: tool.repository,
-                    website: tool.website,
-                    publishedAt: tool.published_at || new Date().toISOString(),
-                    createdAt: tool.created_at || new Date().toISOString(),
-                    checksum: tool.checksum,
-                    size: tool.size ? Number(tool.size) || undefined : undefined,
-                    categories: categories,
-                    cspExceptions: (tool.csp_exceptions as Record<string, unknown> | undefined) || undefined,
-                    features: (tool.features as Record<string, unknown> | undefined) || undefined,
-                    license: tool.license,
-                    downloads,
-                    rating,
-                    mau,
-                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
-                    minAPI: tool.min_api, // Include min API version from database
-                    npmPackageName: tool.packagename || undefined, // npm package name for pre-release detection
-                    maturity: getSupabaseMaturityStatus(tool.tool_maturity),
-                } as ToolRegistryEntry;
-            });
+            const tools: ToolRegistryEntry[] = (toolsData as unknown as SupabaseTool[]).map(mapSupabaseToolRow);
 
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
             return tools;
@@ -543,7 +541,7 @@ export class ToolRegistryManager extends EventEmitter {
                 description: tool.description,
                 authors: this.normalizeAuthorList(tool.authors),
                 version: tool.version,
-                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || tool.downloadurl || ""),
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || ""),
                 checksum: tool.checksum,
                 size: tool.size,
                 publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
@@ -644,7 +642,7 @@ export class ToolRegistryManager extends EventEmitter {
                 size: tool.size,
                 publishedAt: tool.publishedAt || new Date().toISOString(),
                 tags: tool.tags,
-                readme: tool.readme,
+                readmeUrl: tool.readme,
                 repository: tool.repository,
                 website: tool.homepage,
                 cspExceptions: tool.cspExceptions,
@@ -852,7 +850,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Extract version information from registry (Supabase)
         // These are pre-processed during tool intake and stored in the database
-        const minAPI: string | undefined = tool.minAPI; // From Supabase tools table (min_api column)
+        const minAPI: string | undefined = tool.minAPI;
 
         // Log if version info is missing (informational only, tools will still work as legacy)
         if (!minAPI) {
@@ -883,7 +881,7 @@ export class ToolRegistryManager extends EventEmitter {
             installedAt: new Date().toISOString(),
             source: "registry",
             sourceUrl: tool.downloadUrl,
-            readme: tool.readmeUrl, // Include readme URL from registry
+            readmeUrl: tool.readmeUrl,
             cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
             features: tool.features || packageJson.features, // Include features from registry or package.json
             categories: tool.categories,
@@ -894,8 +892,8 @@ export class ToolRegistryManager extends EventEmitter {
             website: tool.website, // Include website URL from registry
             createdAt: tool.createdAt,
             publishedAt: tool.publishedAt,
-            minAPI, // Minimum API version required
-            mcpHeadlessEnabled,
+            minAPI,
+            mcpHeadlessEnabled: tool.mcpHeadlessEnabled ?? mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
             marketplaceSourceId: tool.marketplaceSourceId,
             marketplaceSourceLabel: tool.marketplaceSourceLabel,
@@ -971,7 +969,7 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
-        const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string } };
+        const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string }; readme?: string };
         const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
         let packageName = manifestEntry.packageName;
         let authors: string[] | undefined = this.normalizeAuthorList((manifestEntry as unknown as { authors?: unknown }).authors);
@@ -1023,7 +1021,7 @@ export class ToolRegistryManager extends EventEmitter {
             installedAt: manifestEntry.installedAt,
             source: manifestEntry.source,
             sourceUrl: manifestEntry.sourceUrl,
-            readme: manifestEntry.readme,
+            readmeUrl: manifestEntry.readmeUrl || manifestEntry.readme,
             cspExceptions: manifestEntry.cspExceptions,
             features: manifestEntry.features,
             categories,
@@ -1043,6 +1041,7 @@ export class ToolRegistryManager extends EventEmitter {
             marketplaceSourceId: manifestEntry.marketplaceSourceId,
             marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,
             marketplaceSourceType: manifestEntry.marketplaceSourceType,
+            maturity: manifestEntry.maturity,
         };
     }
 
@@ -1057,7 +1056,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         try {
-            const { data, error } = await this.supabase!.from("tools").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
+            const { data, error } = await this.supabase!.from("tools_catalog").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
 
             if (error) {
                 logError(`[ToolRegistry] Failed to fetch analytics: ${(error as Error).message}`);

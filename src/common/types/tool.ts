@@ -50,20 +50,15 @@ export interface ToolFeatures {
 }
 
 /**
- * Represents a tool that can be loaded into the ToolBox
+ * Metadata shared by registry releases, installed manifests, and runtime tools.
  */
-export interface Tool {
+export interface ToolMetadata {
     id: string;
     name: string;
     version: string;
     description: string;
-    publishedAt?: string;
-    createdAt?: string; // ISO date string from created_at field
     authors?: string[];
     icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
-    settings?: ToolSettings;
-    localPath?: string; // For local development tools - absolute path to tool directory
-    npmPackageName?: string; // For npm-installed tools - package name in node_modules
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
     categories?: string[];
     license?: string;
@@ -77,8 +72,9 @@ export interface Tool {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    publishedAt?: string;
+    createdAt?: string; // ISO date string from created_at field
     minAPI?: string; // Minimum ToolBox API version required
-    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
     capabilities?: string[];
@@ -86,81 +82,35 @@ export interface Tool {
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
     maturity?: string;
+}
+
+/** Represents a tool as returned to the application runtime. */
+export interface Tool extends ToolMetadata {
+    settings?: ToolSettings;
+    localPath?: string; // For local development tools - absolute path to tool directory
+    npmPackageName?: string; // For npm-installed tools - package name in node_modules
+    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
 }
 
 /**
  * Tool registry entry - metadata from the registry
  */
-export interface ToolRegistryEntry {
-    id: string;
-    name: string;
-    description: string;
-    authors?: string[]; // full list of contributors
-    version: string;
-    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
+export interface ToolRegistryEntry extends ToolMetadata {
     downloadUrl: string;
-    readmeUrl?: string; // URL or relative path to README file
     checksum?: string;
-    size?: number;
-    publishedAt: string;
-    createdAt?: string; // Supabase created_at timestamp
-    categories?: string[];
-    cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
-    license?: string; // SPDX or license name
-    downloads?: number; // analytics - total downloads
-    rating?: number; // analytics - average rating
-    ratingCount?: number; // analytics - number of ratings submitted
-    mau?: number; // analytics - Monthly Active Users (unique machines per month)
-    features?: ToolFeatures; // Tool features configuration
-    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
-    repository?: string;
-    website?: string;
-    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
     npmPackageName?: string; // npm package name used for pre-release version detection
-    marketplaceSourceId?: string;
-    marketplaceSourceLabel?: string;
-    marketplaceSourceType?: "builtin" | "private";
-    maturity?: string;
+    isSupported?: boolean; // App-computed compatibility status for marketplace display
 }
 
 /**
  * Tool manifest - stored locally after installation
  */
-export interface ToolManifest {
-    id: string;
+export interface ToolManifest extends ToolMetadata {
     packageName?: string; // Canonical package.json name used for inter-tool invocation lookup
-    name: string;
-    version: string;
-    description: string;
-    authors?: string[]; // contributors list
-    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     installPath: string;
     installedAt: string;
     source: "registry" | "npm" | "local"; // Track installation source
     sourceUrl?: string;
-    readme?: string; // URL or relative path to README file
-    cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
-    categories?: string[];
-    license?: string;
-    size?: number;
-    downloads?: number;
-    rating?: number;
-    ratingCount?: number; // Number of ratings submitted for this tool
-    mau?: number; // Monthly Active Users (unique machines per month)
-    features?: ToolFeatures; // Tool features configuration
-    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
-    repository?: string;
-    website?: string;
-    publishedAt?: string;
-    createdAt?: string;
-    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
-    mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
-    /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
-    capabilities?: string[];
-    marketplaceSourceId?: string;
-    marketplaceSourceLabel?: string;
-    marketplaceSourceType?: "builtin" | "private";
-    maturity?: string;
 }
 
 /**

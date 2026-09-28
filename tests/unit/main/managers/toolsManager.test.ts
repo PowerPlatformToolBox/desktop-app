@@ -72,6 +72,43 @@ describe("ToolManager invocation target resolution", () => {
         expect(target).toMatchObject({ id: "fetchxml-studio" });
     });
 
+    it("restores shared release metadata from an installed manifest into runtime tools", () => {
+        const installPath = path.join(toolsDirectory, "fetchxml-studio");
+        writeToolPackage(installPath, "@mohsinonxrm/pptb-fetchxml-studio");
+        fs.writeFileSync(
+            path.join(toolsDirectory, "manifest.json"),
+            JSON.stringify({
+                tools: [
+                    {
+                        id: "fetchxml-studio",
+                        packageName: "@mohsinonxrm/pptb-fetchxml-studio",
+                        name: "FetchXML Studio",
+                        version: "2.1.0",
+                        description: "FetchXML tool",
+                        installPath,
+                        installedAt: new Date().toISOString(),
+                        source: "registry",
+                        authors: ["Contoso"],
+                        readmeUrl: "https://example.com/readme",
+                        features: { multiConnection: "optional", connectionRequirement: "required" },
+                        maturity: "verified",
+                    },
+                ],
+            }),
+        );
+
+        const [tool] = new ToolManager(toolsDirectory).getAllTools();
+
+        expect(tool).toMatchObject({
+            id: "fetchxml-studio",
+            version: "2.1.0",
+            authors: ["Contoso"],
+            readmeUrl: "https://example.com/readme",
+            features: { multiConnection: "optional", connectionRequirement: "required" },
+            maturity: "verified",
+        });
+    });
+
     it("resolves a local tool by its canonical package name", async () => {
         const localPath = path.join(toolsDirectory, "local-source");
         writeToolPackage(localPath, "@contoso/local-caller-target");
