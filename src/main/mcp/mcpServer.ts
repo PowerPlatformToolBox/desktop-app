@@ -520,7 +520,7 @@ export class McpServerManager {
             downloads: loadedTool.downloads,
             rating: loadedTool.rating,
             mau: loadedTool.mau,
-            readme: loadedTool.readmeUrl,
+            readmeUrl: loadedTool.readmeUrl,
             features: loadedTool.features,
             status: loadedTool.status,
             repository: loadedTool.repository,

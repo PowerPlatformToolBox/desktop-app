@@ -14,6 +14,7 @@ import {
     ToolConcernReportSubmission,
     ToolFeatures,
     ToolManifest,
+    ToolRegistryEntry,
 } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
@@ -95,7 +96,7 @@ export class ToolManager extends EventEmitter {
             status: manifest.status,
             repository: manifest.repository,
             website: manifest.website,
-            readmeUrl: manifest.readme,
+            readmeUrl: manifest.readmeUrl,
             publishedAt: manifest.publishedAt,
             createdAt: manifest.createdAt,
             minAPI: manifest.minAPI,
@@ -155,41 +156,7 @@ export class ToolManager extends EventEmitter {
      * Load tool from registry manifest
      */
     private loadToolFromManifest(manifest: ToolManifest): Tool {
-        const tool: Tool = {
-            id: manifest.id,
-            name: manifest.name,
-            version: manifest.version,
-            description: manifest.description,
-            authors: manifest.authors,
-            icon: manifest.icon,
-            cspExceptions: manifest.cspExceptions,
-            features: manifest.features,
-            categories: manifest.categories,
-            license: manifest.license,
-            size: manifest.size,
-            downloads: manifest.downloads,
-            rating: manifest.rating,
-            mau: manifest.mau,
-            status: manifest.status,
-            repository: manifest.repository,
-            website: manifest.website,
-            readmeUrl: manifest.readme,
-            minAPI: manifest.minAPI,
-            isSupported: VersionManager.isToolSupported(manifest.minAPI),
-            mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
-            capabilities: manifest.capabilities,
-            marketplaceSourceId: manifest.marketplaceSourceId,
-            marketplaceSourceLabel: manifest.marketplaceSourceLabel,
-            marketplaceSourceType: manifest.marketplaceSourceType,
-        };
-
-        const cached = this.analyticsCache.get(tool.id);
-        if (cached) {
-            tool.downloads = cached.downloads;
-            tool.rating = cached.rating;
-            tool.mau = cached.mau;
-        }
-
+        const tool = this.createToolFromInstalledManifest(manifest);
         this.tools.set(tool.id, tool);
         this.emit("tool:loaded", tool);
 
@@ -328,17 +295,42 @@ export class ToolManager extends EventEmitter {
     /**
      * Fetch available tools from registry
      */
-    async fetchAvailableTools(): Promise<Tool[]> {
+    async fetchAvailableTools(): Promise<ToolRegistryEntry[]> {
         const registryTools = await this.registryManager.fetchRegistry();
 
-        // Convert ToolRegistryEntry[] to Tool[] and add isSupported field
-        return registryTools.map((registryTool) => {
-            const tool: Tool = {
-                ...registryTool,
-                isSupported: VersionManager.isToolSupported(registryTool.minAPI),
-            };
-            return tool;
-        });
+        return registryTools.map((registryTool) => ({
+            id: registryTool.id,
+            name: registryTool.name,
+            version: registryTool.version,
+            description: registryTool.description,
+            authors: registryTool.authors,
+            icon: registryTool.icon,
+            cspExceptions: registryTool.cspExceptions,
+            categories: registryTool.categories,
+            license: registryTool.license,
+            size: registryTool.size,
+            downloads: registryTool.downloads,
+            rating: registryTool.rating,
+            ratingCount: registryTool.ratingCount,
+            mau: registryTool.mau,
+            features: registryTool.features,
+            status: registryTool.status,
+            repository: registryTool.repository,
+            website: registryTool.website,
+            publishedAt: registryTool.publishedAt,
+            createdAt: registryTool.createdAt,
+            minAPI: registryTool.minAPI,
+            readmeUrl: registryTool.readmeUrl,
+            downloadUrl: registryTool.downloadUrl,
+            checksum: registryTool.checksum,
+            npmPackageName: registryTool.npmPackageName,
+            mcpHeadlessEnabled: registryTool.mcpHeadlessEnabled,
+            marketplaceSourceId: registryTool.marketplaceSourceId,
+            marketplaceSourceLabel: registryTool.marketplaceSourceLabel,
+            marketplaceSourceType: registryTool.marketplaceSourceType,
+            maturity: registryTool.maturity,
+            isSupported: VersionManager.isToolSupported(registryTool.minAPI),
+        }));
     }
 
     /**

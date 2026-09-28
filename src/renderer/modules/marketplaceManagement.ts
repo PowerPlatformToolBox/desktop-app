@@ -4,7 +4,7 @@
  */
 
 import { logError, logInfo, logWarn } from "../../common/logger";
-import type { Tool } from "../../common/types";
+import type { ToolRegistryEntry } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
 import { formatRatingMarkup } from "../utils/rating";
@@ -35,6 +35,35 @@ export function getToolLibrary(): ToolDetail[] {
     return toolLibrary;
 }
 
+function mapRegistryEntryToToolDetail(tool: ToolRegistryEntry): ToolDetail {
+    return {
+        id: tool.id,
+        name: tool.name,
+        description: tool.description,
+        authors: tool.authors,
+        categories: tool.categories,
+        version: tool.version,
+        icon: tool.icon,
+        size: tool.size,
+        downloads: tool.downloads,
+        rating: tool.rating,
+        mau: tool.mau,
+        readmeUrl: tool.readmeUrl,
+        status: tool.status,
+        repository: tool.repository,
+        website: tool.website,
+        createdAt: tool.createdAt,
+        minAPI: tool.minAPI,
+        isSupported: tool.isSupported,
+        npmPackageName: tool.npmPackageName,
+        mcpHeadlessEnabled: tool.mcpHeadlessEnabled,
+        marketplaceSourceId: tool.marketplaceSourceId,
+        marketplaceSourceLabel: tool.marketplaceSourceLabel,
+        marketplaceSourceType: tool.marketplaceSourceType,
+        maturity: tool.maturity,
+    };
+}
+
 /**
  * Load tools library from registry
  */
@@ -44,35 +73,7 @@ export async function loadToolsLibrary(): Promise<void> {
         const registryTools = await window.toolboxAPI.fetchRegistryTools();
 
         // Map registry tools to the format expected by the UI
-        toolLibrary = (registryTools as Tool[]).map(
-            (tool) =>
-                ({
-                    id: tool.id,
-                    name: tool.name,
-                    description: tool.description,
-                    authors: tool.authors,
-                    categories: tool.categories,
-                    version: tool.version,
-                    icon: tool.icon,
-                    size: tool.size,
-                    downloads: tool.downloads,
-                    rating: tool.rating,
-                    mau: tool.mau,
-                    readmeUrl: tool.readmeUrl,
-                    status: tool.status,
-                    repository: tool.repository,
-                    website: tool.website,
-                    createdAt: tool.createdAt, // Use createdAt for new tool detection
-                    minAPI: tool.minAPI, // Include min API version
-                    isSupported: tool.isSupported, // Include compatibility status
-                    npmPackageName: tool.npmPackageName, // Include npm package name for pre-release detection
-                    mcpHeadlessEnabled: tool.mcpHeadlessEnabled,
-                    marketplaceSourceId: tool.marketplaceSourceId,
-                    marketplaceSourceLabel: tool.marketplaceSourceLabel,
-                    marketplaceSourceType: tool.marketplaceSourceType,
-                    maturity: tool.maturity,
-                }) as ToolDetail,
-        );
+        toolLibrary = registryTools.map(mapRegistryEntryToToolDetail);
 
         logInfo(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {

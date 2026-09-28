@@ -9,7 +9,7 @@ import { Connection } from "./connection";
 import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseUser, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "./dataverse";
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolRatingAggregate, ToolSettings } from "./tool";
+import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
 
 /**
  * Connections API namespace
@@ -371,9 +371,9 @@ export interface ToolboxAPI {
     openDirectoryPicker: () => Promise<string | null>;
 
     // Registry-based tools
-    fetchRegistryTools: () => Promise<Tool[]>;
+    fetchRegistryTools: () => Promise<ToolRegistryEntry[]>;
     fetchCommunityLinks: () => Promise<CommunityLinksCollection | null>;
-    installToolFromRegistry: (toolId: string) => Promise<{ manifest: unknown; tool: Tool }>;
+    installToolFromRegistry: (toolId: string) => Promise<{ manifest: ToolManifest; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
     isToolUpdating: (toolId: string) => Promise<boolean>;
     /** Check whether a beta (pre-release) npm package version exists for the given npm package name. */

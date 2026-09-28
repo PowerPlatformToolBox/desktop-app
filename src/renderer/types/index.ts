@@ -2,7 +2,7 @@
  * Renderer-specific type definitions
  */
 
-import type { MarketplaceSource, PreviewFeatureFlags, TelemetryConsentChoice } from "../../common/types";
+import type { MarketplaceSource, PreviewFeatureFlags, TelemetryConsentChoice, ToolRegistryEntry } from "../../common/types";
 
 /**
  * Interface for an open tool instance
@@ -86,33 +86,39 @@ export interface SessionData {
 }
 
 /**
- * Tool detail for installed & marketplace display
+ * Tool detail view model for installed and marketplace display
  */
-export interface ToolDetail {
-    id: string;
-    name: string;
-    version: string;
+export type ToolDetail = Omit<
+    Pick<
+        ToolRegistryEntry,
+        | "id"
+        | "name"
+        | "version"
+        | "description"
+        | "authors"
+        | "categories"
+        | "size"
+        | "downloads"
+        | "rating"
+        | "mau"
+        | "icon"
+        | "readmeUrl"
+        | "status"
+        | "repository"
+        | "website"
+        | "createdAt"
+        | "minAPI"
+        | "isSupported"
+        | "npmPackageName"
+        | "mcpHeadlessEnabled"
+        | "marketplaceSourceId"
+        | "marketplaceSourceLabel"
+        | "marketplaceSourceType"
+        | "maturity"
+    >,
+    "description"
+> & {
     description?: string;
     hasUpdate?: boolean;
     latestVersion?: string;
-    authors?: string[];
-    categories?: string[];
-    size?: number;
-    downloads?: number;
-    rating?: number;
-    mau?: number; // Monthly Active Users
-    icon?: string;
-    readmeUrl?: string;
-    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
-    repository?: string;
-    website?: string;
-    createdAt?: string; // ISO date string from created_at field
-    minAPI?: string; // Minimum ToolBox API version required
-    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
-    npmPackageName?: string; // npm package name used for pre-release version detection
-    mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
-    marketplaceSourceId?: string;
-    marketplaceSourceLabel?: string;
-    marketplaceSourceType?: "builtin" | "private";
-    maturity?: string;
-}
+};
