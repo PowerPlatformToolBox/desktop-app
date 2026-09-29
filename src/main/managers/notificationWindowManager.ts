@@ -805,6 +805,11 @@ export class NotificationWindowManager {
             font-size: 12px;
             line-height: 1.4;
             color: ${dark ? "#cccccc" : "#444444"};
+            overflow-wrap: anywhere;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
         }
 
         .notification-actions {
