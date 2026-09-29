@@ -65,6 +65,20 @@ describe("ModalWindowManager", () => {
             expect(modalWindow.focus).not.toHaveBeenCalled();
         });
 
+        it("does nothing when the modal window is not visible (e.g. main window minimized)", () => {
+            const mainWindow = new BrowserWindow() as MockWindow;
+            const manager = new ModalWindowManager(mainWindow);
+            const modalWindow = openModal(manager);
+            modalWindow.isVisible.mockReturnValue(false);
+            modalWindow.moveTop.mockClear();
+            modalWindow.focus.mockClear();
+
+            getListener(mainWindow, "focus")!();
+
+            expect(modalWindow.moveTop).not.toHaveBeenCalled();
+            expect(modalWindow.focus).not.toHaveBeenCalled();
+        });
+
         it("does nothing when no modal has been opened", () => {
             const mainWindow = new BrowserWindow() as MockWindow;
             new ModalWindowManager(mainWindow);
