@@ -116,8 +116,11 @@ export class DataverseManager {
             if (
                 cursor.origin !== url.origin ||
                 cursor.pathname !== url.pathname ||
-                !cursor.searchParams.has("$skiptoken") ||
-                [...url.searchParams].some(([key, value]) => cursor.searchParams.get(key) !== value) ||
+                cursor.username !== url.username ||
+                cursor.password !== url.password ||
+                cursor.hash !== "" ||
+                cursor.searchParams.getAll("$skiptoken").length !== 1 ||
+                [...url.searchParams].some(([key, value]) => cursor.searchParams.getAll(key).length !== 1 || cursor.searchParams.get(key) !== value) ||
                 [...cursor.searchParams.keys()].some((key) => !url.searchParams.has(key) && key !== "$skiptoken")
             ) {
                 throw new Error("Invalid user search continuation.");
