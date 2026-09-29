@@ -38,6 +38,8 @@ describe("Dataverse impersonation user search", () => {
         await expect(manager.searchSystemUsers("connection-1", "Alex", first.toString())).rejects.toThrow("Invalid user search continuation");
         first.hostname = "example.crm.dynamics.com";
         await expect(manager.searchSystemUsers("connection-1", "Different", first.toString())).rejects.toThrow("Invalid user search continuation");
+        first.searchParams.append("$filter", "isdisabled eq false");
+        await expect(manager.searchSystemUsers("connection-1", "Alex", first.toString())).rejects.toThrow("Invalid user search continuation");
         expect(internal.makeHttpRequest).toHaveBeenCalledTimes(2);
     });
 
