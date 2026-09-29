@@ -19,7 +19,12 @@ export interface ConnectionListData {
  * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
  * @param enableDoubleClickConnect - Whether double-clicking a connection triggers Connect
  */
-export function getSelectConnectionModalControllerScript(channels: SelectConnectionModalChannelIds, enabledForPowerPlatformAPI: boolean = false, enableDoubleClickConnect: boolean = false): string {
+export function getSelectConnectionModalControllerScript(
+    channels: SelectConnectionModalChannelIds,
+    enabledForPowerPlatformAPI: boolean = false,
+    enableDoubleClickConnect: boolean = false,
+    allowClearSelection: boolean = false,
+): string {
     const serializedChannels = JSON.stringify(channels);
     const sortingUtilities = getConnectionSortingUtilitiesScript();
     return `
@@ -28,6 +33,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const CHANNELS = ${serializedChannels};
     const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
     const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
+    const ALLOW_CLEAR_SELECTION = ${allowClearSelection};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -37,6 +43,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const connectionsListContainer = document.getElementById("connections-list-container");
     const connectButton = document.getElementById("connect-selected-connection-btn");
     const cancelButton = document.getElementById("cancel-select-connection-btn");
+    const clearButton = document.getElementById("clear-selected-connection-btn");
     const closeButton = document.getElementById("close-select-connection-modal");
     const searchInput = document.getElementById("select-connection-search");
     const searchClearButton = document.getElementById("select-connection-search-clear");
@@ -370,6 +377,13 @@ ${sortingUtilities}
 
     // Connect button handler
     connectButton?.addEventListener('click', triggerConnect);
+
+    clearButton?.addEventListener('click', () => {
+        if (!ALLOW_CLEAR_SELECTION || !(clearButton instanceof HTMLButtonElement)) return;
+        clearButton.disabled = true;
+        clearButton.textContent = "Clearing...";
+        modalBridge.send(CHANNELS.selectConnection, { clearConnection: true });
+    });
 
     // Cancel and close button handlers
     const closeModal = () => modalBridge.close();

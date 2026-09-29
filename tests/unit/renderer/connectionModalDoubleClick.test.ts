@@ -6,6 +6,7 @@ jest.mock("../../../src/renderer/utils/browserIcons", () => ({
 }));
 
 import { getSelectConnectionModalControllerScript } from "../../../src/renderer/modals/selectConnection/controller";
+import { getSelectConnectionModalView } from "../../../src/renderer/modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../../../src/renderer/modals/selectMultiConnection/controller";
 
 describe("connection modal double-click controller wiring", () => {
@@ -23,6 +24,26 @@ describe("connection modal double-click controller wiring", () => {
         expect(script).toContain("const ENABLE_DOUBLE_CLICK_CONNECT = true;");
         expect(script).toContain("item.addEventListener('dblclick'");
         expect(script).toContain("triggerConnect();");
+    });
+
+    it("shows and wires the optional clear-secondary action", () => {
+        const view = getSelectConnectionModalView(false, "Sample Tool", true);
+        const script = getSelectConnectionModalControllerScript(
+            {
+                selectConnection: "select-connection:select",
+                connectReady: "select-connection:connect:ready",
+                populateConnections: "select-connection:populate",
+            },
+            false,
+            false,
+            true,
+        );
+        const standardView = getSelectConnectionModalView(false, "Sample Tool");
+
+        expect(view.body).toContain('id="clear-selected-connection-btn"');
+        expect(standardView.body).not.toContain('id="clear-selected-connection-btn"');
+        expect(script).toContain("const ALLOW_CLEAR_SELECTION = true;");
+        expect(script).toContain("{ clearConnection: true }");
     });
 
     it("injects multi-connection double-click toggle into controller script", () => {

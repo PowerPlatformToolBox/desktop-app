@@ -9,7 +9,7 @@ export interface ModalViewTemplate {
 /**
  * Returns the view markup (styles + body) for the select connection modal BrowserWindow.
  */
-export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string): ModalViewTemplate {
+export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string, allowClearSelection: boolean = false): ModalViewTemplate {
     const styles =
         getModalStyles(isDarkTheme) +
         `
@@ -93,6 +93,8 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
         </div>
     </div>
     <div class="modal-footer">
+        ${allowClearSelection ? '<button id="clear-selected-connection-btn" class="fluent-button fluent-button-secondary">Clear Secondary Connection</button>' : ""}
+        <span class="footer-spacer"></span>
         <button id="cancel-select-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="connect-selected-connection-btn" class="fluent-button fluent-button-primary" disabled>Connect</button>
     </div>

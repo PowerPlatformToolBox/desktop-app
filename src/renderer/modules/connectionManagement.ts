@@ -12,10 +12,10 @@ import { getEditConnectionModalControllerScript } from "../modals/editConnection
 import { getEditConnectionModalView } from "../modals/editConnection/view";
 import { getImportConnectionSourceModalControllerScript } from "../modals/importConnectionSource/controller";
 import { getImportConnectionSourceModalView } from "../modals/importConnectionSource/view";
-import { getSelectImpersonationUserModalControllerScript } from "../modals/selectImpersonationUser/controller";
-import { getSelectImpersonationUserModalView, ImpersonationPickerContext } from "../modals/selectImpersonationUser/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
+import { getSelectImpersonationUserModalControllerScript } from "../modals/selectImpersonationUser/controller";
+import { getSelectImpersonationUserModalView, ImpersonationPickerContext } from "../modals/selectImpersonationUser/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
 import { getSelectMultiConnectionModalView } from "../modals/selectMultiConnection/view";
 import { sortConnections } from "../utils/connectionSorting";
@@ -153,9 +153,9 @@ let selectConnectionModalHandlersRegistered = false;
 let selectMultiConnectionModalHandlersRegistered = false;
 let importConnectionSourceModalHandlersRegistered = false;
 
-// Store promise handlers for select connection modal - now returns connectionId + optional impersonation user
+// Store promise handlers for select connection modal
 const selectConnectionModalPromiseHandlers: {
-    resolve: ((value: { connectionId: string; impersonationUser: DataverseUser | null }) => void) | null;
+    resolve: ((value: { connectionId: string | null; impersonationUser: DataverseUser | null; cleared: boolean }) => void) | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -191,6 +191,7 @@ let requestingToolName: string | undefined = undefined;
 // Store whether the tool requires Power Platform API connections
 let requirePowerPlatformApi: boolean = false;
 let connectionModalDoubleClickConnectEnabled: boolean = false;
+let allowClearSelectedConnection: boolean = false;
 
 // Store the connection ID being edited
 let editingConnectionId: string | null = null;
@@ -297,12 +298,14 @@ export function initializeSelectConnectionModalBridge(): void {
  * @param toolConnectionId - Optional connection ID to highlight as active (for tool-specific selection)
  * @param toolName - Optional name of the tool requesting the connection (shown in modal header)
  * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
+ * @param allowClearSelection - Whether to show a clear action for an existing secondary connection
  */
 export async function openSelectConnectionModal(
     toolConnectionId?: string | null,
     toolName?: string,
     enabledForPowerPlatformAPI: boolean = false,
-): Promise<{ connectionId: string; impersonationUser: DataverseUser | null }> {
+    allowClearSelection: boolean = false,
+): Promise<{ connectionId: string | null; impersonationUser: DataverseUser | null; cleared: boolean }> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
 
@@ -314,6 +317,7 @@ export async function openSelectConnectionModal(
 
         // Store whether to require Power Platform API enabled connections
         requirePowerPlatformApi = enabledForPowerPlatformAPI;
+        allowClearSelectedConnection = allowClearSelection && Boolean(toolConnectionId);
 
         // Store resolve/reject handlers for later use
         selectConnectionModalPromiseHandlers.resolve = resolve;
@@ -329,6 +333,7 @@ export async function openSelectConnectionModal(
                 highlightConnectionId = null; // Clear highlight
                 requestingToolName = undefined; // Clear tool name
                 requirePowerPlatformApi = false; // Clear Power Platform API flag
+                allowClearSelectedConnection = false;
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -357,7 +362,7 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 
     switch (payload.channel) {
         case SELECT_CONNECTION_MODAL_CHANNELS.selectConnection:
-            void handleSelectConnectionRequest(payload.data as { connectionId?: string; wantsImpersonation?: boolean });
+            void handleSelectConnectionRequest(payload.data as { connectionId?: string; wantsImpersonation?: boolean; clearConnection?: boolean });
             break;
         case SELECT_CONNECTION_MODAL_CHANNELS.populateConnections:
             void handlePopulateConnectionsRequest();
@@ -369,16 +374,26 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 
 function buildSelectConnectionModalHtml(enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName);
-    const script = getSelectConnectionModalControllerScript(
-        SELECT_CONNECTION_MODAL_CHANNELS,
-        enabledForPowerPlatformAPI,
-        connectionModalDoubleClickConnectEnabled,
-    );
+    const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName, allowClearSelectedConnection);
+    const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS, enabledForPowerPlatformAPI, connectionModalDoubleClickConnectEnabled, allowClearSelectedConnection);
     return `${styles}\n${body}\n${script}`.trim();
 }
 
-async function handleSelectConnectionRequest(data?: { connectionId?: string; wantsImpersonation?: boolean }): Promise<void> {
+async function handleSelectConnectionRequest(data?: { connectionId?: string; wantsImpersonation?: boolean; clearConnection?: boolean }): Promise<void> {
+    if (data?.clearConnection && allowClearSelectedConnection) {
+        const resolveHandler = selectConnectionModalPromiseHandlers.resolve;
+        selectConnectionModalPromiseHandlers.resolve = null;
+        selectConnectionModalPromiseHandlers.reject = null;
+        highlightConnectionId = null;
+        requestingToolName = undefined;
+        requirePowerPlatformApi = false;
+        allowClearSelectedConnection = false;
+
+        await closeBrowserWindowModal();
+        resolveHandler?.({ connectionId: null, impersonationUser: null, cleared: true });
+        return;
+    }
+
     const connectionId = data?.connectionId;
 
     if (!connectionId) {
@@ -420,13 +435,14 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string; wan
         // Clear highlight connection ID
         highlightConnectionId = null;
         requestingToolName = undefined;
+        allowClearSelectedConnection = false;
 
         // Close the modal
         await closeBrowserWindowModal();
 
         // Now resolve the promise with the connectionId after handlers are cleared
         if (resolveHandler) {
-            resolveHandler({ connectionId, impersonationUser });
+            resolveHandler({ connectionId, impersonationUser, cleared: false });
         }
     } catch (error) {
         logError("Error connecting to selected connection", error);
@@ -630,12 +646,7 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
 function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true, enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired, requestingToolName);
-    const script = getSelectMultiConnectionModalControllerScript(
-        SELECT_MULTI_CONNECTION_MODAL_CHANNELS,
-        isSecondaryRequired,
-        enabledForPowerPlatformAPI,
-        connectionModalDoubleClickConnectEnabled,
-    );
+    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired, enabledForPowerPlatformAPI, connectionModalDoubleClickConnectEnabled);
     return `${styles}\n${body}\n${script}`.trim();
 }
 

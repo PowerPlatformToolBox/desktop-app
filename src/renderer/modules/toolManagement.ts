@@ -1868,7 +1868,22 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         const { openSelectConnectionModal } = await import("./connectionManagement");
 
         // Open the modal and pass the tool's current secondary connection ID to highlight it
-        const { connectionId: selectedConnectionId, impersonationUser } = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name);
+        const {
+            connectionId: selectedConnectionId,
+            impersonationUser,
+            cleared,
+        } = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name, false, Boolean(activeTool.secondaryConnectionId));
+
+        if (cleared && activeToolId) {
+            await setToolSecondaryConnection(activeToolId, null);
+            await applyImpersonationSelection(activeToolId, "secondary", null);
+            window.toolboxAPI.utils.showNotification({
+                title: "Secondary Connection Cleared",
+                body: `${activeTool.tool.name} secondary connection has been cleared.`,
+                type: "success",
+            });
+            return;
+        }
 
         // After modal closes with a successful connection, update the tool's secondary connection
         if (selectedConnectionId && activeToolId) {
