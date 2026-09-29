@@ -129,6 +129,21 @@ export class ModalWindowManager {
             }
         });
         this.mainWindow.on("closed", () => this.destroy());
+
+        // Some Linux window managers ignore the parent/modal relationship, so clicking the
+        // main window raises it above the modal. Bring the modal back to the front instead.
+        if (process.platform === "linux") {
+            this.mainWindow.on("focus", () => this.bringModalToFront());
+        }
+    }
+
+    private bringModalToFront(): void {
+        if (!this.currentOptions || !this.modalWindow || this.modalWindow.isDestroyed() || !this.modalWindow.isVisible()) {
+            return;
+        }
+
+        this.modalWindow.moveTop();
+        this.modalWindow.focus();
     }
 
     private updateWindowBounds(): void {
