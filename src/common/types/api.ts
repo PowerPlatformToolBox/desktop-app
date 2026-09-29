@@ -6,7 +6,7 @@
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
-import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseUser, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "./dataverse";
+import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseUser, DataverseUserPage, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "./dataverse";
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
@@ -28,6 +28,7 @@ export interface ConnectionsAPI {
     importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
     /** ConnectionId-based system-users lookup for the connection-selection modals (used before a tool instance exists). */
     getSystemUsersForConnection: (connectionId: string) => Promise<DataverseUser[]>;
+    searchSystemUsersForConnection: (connectionId: string, search?: string, nextLink?: string) => Promise<DataverseUserPage>;
 }
 
 /**

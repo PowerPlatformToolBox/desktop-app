@@ -97,6 +97,11 @@ export interface DataverseUser {
     isdisabled?: boolean;
 }
 
+export interface DataverseUserPage {
+    users: DataverseUser[];
+    nextLink: string | null;
+}
+
 /**
  * Navigation properties available on EntityDefinition
  * Used by getEntityRelatedMetadata to provide compile-time safety

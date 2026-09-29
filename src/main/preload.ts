@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         exportConnections: (ids?: string[]) => ipcRenderer.invoke(CONNECTION_CHANNELS.EXPORT_CONNECTIONS, ids),
         importConnections: (data: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.IMPORT_CONNECTIONS, data),
         getSystemUsersForConnection: (connectionId: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SYSTEM_USERS_BY_CONNECTION, connectionId),
+        searchSystemUsersForConnection: (connectionId: string, search?: string, nextLink?: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.SEARCH_SYSTEM_USERS_BY_CONNECTION, connectionId, search, nextLink),
     },
 
     // Tools - Only for PPTB UI

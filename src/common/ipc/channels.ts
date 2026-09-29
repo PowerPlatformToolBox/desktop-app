@@ -258,6 +258,7 @@ export const DATAVERSE_CHANNELS = {
     GET_SYSTEM_USERS: "dataverse.getSystemUsers",
     /** ConnectionId-based system-users lookup used by the connection-selection modals (pre-launch, no tool instance yet). */
     GET_SYSTEM_USERS_BY_CONNECTION: "dataverse.getSystemUsersByConnection",
+    SEARCH_SYSTEM_USERS_BY_CONNECTION: "dataverse.searchSystemUsersByConnection",
     EXECUTE_BATCH: "dataverse.executeBatch",
     EXECUTE_TRANSACTION: "dataverse.executeTransaction",
 } as const;
