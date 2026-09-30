@@ -6,8 +6,8 @@
  * Sentry from the appropriate subpath in the calling code
  */
 
-import type { TelemetryConsentChoice } from "./types";
 import { scrubPii, scrubPiiFromObject } from "./sentry";
+import type { TelemetryConsentChoice } from "./types";
 
 // Define types for Sentry operations (these are compatible with both main and renderer)
 export interface SentryScope {
@@ -90,6 +90,19 @@ export function setSentryMachineId(id: string): void {
     sentryModule.setTag("machine_id", id);
 
     logInfo(`[Sentry] Machine ID set: ${id}`);
+}
+
+export async function recordSentryTelemetryDisabled(installId: string, release: string, releaseAction: string, previousRelease: string): Promise<void> {
+    if (!sentryModule?.logger || telemetryConsent !== "no") return;
+
+    sentryModule.logger.info("Sentry telemetry disabled", {
+        event_type: "telemetry_disabled",
+        machine_id: installId,
+        release,
+        release_action: releaseAction,
+        previous_release: previousRelease,
+    });
+    await sentryModule.flush(2000);
 }
 
 /**
@@ -188,7 +201,7 @@ export function captureException(
         level?: string;
     },
 ): void {
-    if (!sentryModule) return;
+    if (!sentryModule || !hasSentryTelemetryConsent()) return;
 
     const level = context?.level || "error";
     const errorMessage = `${error.name}: ${error.message}`;
@@ -239,7 +252,7 @@ export function captureMessage(
         extra?: Record<string, unknown>;
     },
 ): void {
-    if (!sentryModule) return;
+    if (!sentryModule || !hasSentryTelemetryConsent()) return;
 
     const logData = {
         ...context?.extra,
@@ -379,7 +392,7 @@ export function logTrace(message: string, data?: Record<string, unknown>): void 
         console.debug("[TRACE]", message, data || "");
     }
 
-    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
+    if (!sentryModule || !sentryModule.logger || !isDevelopment || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.trace(scrubPii(message), {
         ...(scrubPiiFromObject(data) as Record<string, unknown>),
@@ -397,7 +410,7 @@ export function logDebug(message: string, data?: Record<string, unknown>): void 
         console.debug("[DEBUG]", message, data || "");
     }
 
-    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
+    if (!sentryModule || !sentryModule.logger || !isDevelopment || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.debug(scrubPii(message), {
         ...(scrubPiiFromObject(data) as Record<string, unknown>),
@@ -413,7 +426,7 @@ export function logInfo(message: string, data?: Record<string, unknown>): void {
     // eslint-disable-next-line no-console
     console.info("[INFO]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.info(scrubPii(message), {
         ...(scrubPiiFromObject(data) as Record<string, unknown>),
@@ -429,7 +442,7 @@ export function logWarn(message: string, data?: Record<string, unknown>): void {
     // eslint-disable-next-line no-console
     console.warn("[WARN]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.warn(scrubPii(message), {
         ...(scrubPiiFromObject(data) as Record<string, unknown>),
@@ -445,7 +458,7 @@ export function logError(message: string, data?: Record<string, unknown>): void 
     // eslint-disable-next-line no-console
     console.error("[ERROR]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.error(scrubPii(message), {
         ...(scrubPiiFromObject(data) as Record<string, unknown>),
@@ -461,7 +474,7 @@ export function logFatal(message: string, data?: Record<string, unknown>): void 
     // eslint-disable-next-line no-console
     console.error("[FATAL]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.fatal(scrubPii(message), {
         ...(scrubPiiFromObject(data) as Record<string, unknown>),

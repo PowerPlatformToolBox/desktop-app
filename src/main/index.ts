@@ -23,7 +23,7 @@ import {
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
-import { captureException, captureMessage } from "../common/sentryHelper";
+import { captureException, captureMessage, logInfo as logSentryInfo, recordSentryTelemetryDisabled } from "../common/sentryHelper";
 import {
     AttributeMetadataType,
     DataverseBatchRequest,
@@ -34,6 +34,7 @@ import {
     ModalWindowMessagePayload,
     ModalWindowOptions,
     NativeContextMenuRequest,
+    TelemetryConsentChoice,
     ToolBoxEvent,
     ToolConcernReportSubmission,
 } from "../common/types";
@@ -42,8 +43,8 @@ import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
-import { DataverseManager } from "./managers/dataverseManager";
 import { DataverseHeaderConsentManager } from "./managers/dataverseHeaderConsentManager";
+import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
@@ -138,10 +139,11 @@ class ToolBoxApp {
         try {
             this.settingsManager = new SettingsManager();
             this.installIdManager = new InstallIdManager(this.settingsManager);
-            void applyMainSentryConsent(
-                this.settingsManager.getSentryTelemetryConsent(),
-                this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
-            );
+            const initialSentryConsent = this.settingsManager.getSentryTelemetryConsent();
+            const initialInstallId = initialSentryConsent === "yes" || initialSentryConsent === "no" ? this.installIdManager.getInstallId() : undefined;
+            void applyMainSentryConsent(initialSentryConsent, initialInstallId).then((initialized) => {
+                if (initialized) void this.trackSentryReleaseLifecycle(initialSentryConsent);
+            });
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
@@ -631,10 +633,12 @@ class ToolBoxApp {
         ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, async (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
             if (Object.prototype.hasOwnProperty.call(settings, "sentryTelemetryConsent")) {
-                await applyMainSentryConsent(
-                    this.settingsManager.getSentryTelemetryConsent(),
-                    this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+                const currentSentryConsent = this.settingsManager.getSentryTelemetryConsent();
+                const sentryInitialized = await applyMainSentryConsent(
+                    currentSentryConsent,
+                    currentSentryConsent === "yes" || currentSentryConsent === "no" ? this.installIdManager.getInstallId() : undefined,
                 );
+                if (sentryInitialized) await this.trackSentryReleaseLifecycle(currentSentryConsent);
             }
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
         });
@@ -646,10 +650,12 @@ class ToolBoxApp {
         ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (_, key, value) => {
             this.settingsManager.setSetting(key, value);
             if (key === "sentryTelemetryConsent") {
-                await applyMainSentryConsent(
-                    this.settingsManager.getSentryTelemetryConsent(),
-                    this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+                const currentSentryConsent = this.settingsManager.getSentryTelemetryConsent();
+                const sentryInitialized = await applyMainSentryConsent(
+                    currentSentryConsent,
+                    currentSentryConsent === "yes" || currentSentryConsent === "no" ? this.installIdManager.getInstallId() : undefined,
                 );
+                if (sentryInitialized) await this.trackSentryReleaseLifecycle(currentSentryConsent);
             }
         });
 
@@ -3375,6 +3381,35 @@ class ToolBoxApp {
 
         this.mainWindow.show();
         this.mainWindow.focus();
+    }
+
+    private async trackSentryReleaseLifecycle(consent: TelemetryConsentChoice | null): Promise<void> {
+        if (consent !== "yes" && consent !== "no") return;
+        const release = app.getVersion();
+        const previousRelease = this.settingsManager.getSetting("sentryLastTrackedRelease");
+        const releaseAction = previousRelease ? (previousRelease === release ? "consent_changed" : "update") : "install";
+        const installId = this.installIdManager.getInstallId();
+
+        if (consent === "no") {
+            const lastDisabledRelease = this.settingsManager.getSetting("sentryLastDisabledRelease");
+            if (lastDisabledRelease === release) return;
+
+            await recordSentryTelemetryDisabled(installId, release, releaseAction, previousRelease ?? "");
+            this.settingsManager.setSetting("sentryLastDisabledRelease", release);
+            this.settingsManager.setSetting("sentryLastTrackedRelease", release);
+            return;
+        }
+
+        if (previousRelease === release) return;
+
+        logSentryInfo("Application release started", {
+            event_type: "release_lifecycle",
+            release_action: releaseAction,
+            release,
+            previous_release: previousRelease ?? "",
+            machine_id: installId,
+        });
+        this.settingsManager.setSetting("sentryLastTrackedRelease", release);
     }
 
     /**

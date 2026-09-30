@@ -137,6 +137,8 @@ export interface UserSettings {
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
     installId?: string; // Unique install identifier for analytics
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
+    sentryLastTrackedRelease?: string; // Last app release reported to Sentry for this install
+    sentryLastDisabledRelease?: string; // Last release with a one-time telemetry-disabled lifecycle entry
     pendingWhatsNewVersion?: string | null; // Version whose What's New should be shown after restart (auto-update)
     restoreSessionOnStartup?: boolean; // Whether to reopen previously open tools on app start
     enableConnectionDoubleClickConnect?: boolean; // Enable double-click to trigger connection in connection selection modals

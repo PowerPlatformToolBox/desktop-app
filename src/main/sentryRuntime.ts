@@ -29,7 +29,7 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
                 environment: sentryConfig.environment,
                 release: sentryConfig.release,
                 tracesSampleRate: sentryConfig.tracesSampleRate,
-                enableLogs: sentryConfig.environment !== "production",
+                enableLogs: true,
                 integrations: [
                     Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }),
                     Sentry.httpIntegration(),
@@ -60,6 +60,9 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
 
                     return scrubbed;
                 },
+                beforeSendTransaction(event) {
+                    return hasSentryTelemetryConsent() ? event : null;
+                },
             });
 
             initializeSentryHelper(Sentry);
@@ -68,14 +71,14 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
     }
 
     if (consent !== "yes") {
-        return false;
+        return isMainSentryInitialized;
     }
 
     if (!sentryConfig) {
         return false;
     }
 
-    if (installId) {
+    if (consent === "yes" && installId) {
         setSentryMachineId(installId);
     }
 

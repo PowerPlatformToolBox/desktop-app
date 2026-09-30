@@ -40,7 +40,7 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
             tracesSampleRate: sentryConfig.tracesSampleRate,
             replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
             replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
-            enableLogs: sentryConfig.environment !== "production",
+            enableLogs: true,
             integrations: [Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }), Sentry.browserTracingIntegration({ enableLongTask: true }), Sentry.contextLinesIntegration()],
             beforeSend(event) {
                 if (!hasSentryTelemetryConsent()) {
@@ -56,6 +56,9 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
                 scrubbed.tags.os_arch = arch;
 
                 return scrubbed;
+            },
+            beforeSendTransaction(event) {
+                return hasSentryTelemetryConsent() ? event : null;
             },
         });
 
