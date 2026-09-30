@@ -1,12 +1,6 @@
 import { escapeHtml } from "../../utils/toolIconResolver";
 import { getModalStyles } from "../sharedStyles";
 
-export interface ImpersonationUserListItem {
-    systemuserid: string;
-    fullname: string;
-    internalemailaddress?: string;
-}
-
 /** Describes which connection the picker is choosing an impersonation user for, so the modal can call it out (important when picking for both a primary and secondary connection). */
 export interface ImpersonationPickerContext {
     connectionName: string;
@@ -15,17 +9,7 @@ export interface ImpersonationPickerContext {
     connectionRoleLabel?: string;
 }
 
-export function getSelectImpersonationUserModalView(isDarkTheme: boolean, users: ImpersonationUserListItem[], context?: ImpersonationPickerContext): { styles: string; body: string } {
-    const rows = users
-        .map(
-            (user, index) => `
-                <button type="button" class="user-row" data-index="${index}" data-search="${escapeHtml(`${user.fullname} ${user.internalemailaddress ?? ""}`)}">
-                    <strong>${escapeHtml(user.fullname)}</strong>
-                    ${user.internalemailaddress ? `<span>${escapeHtml(user.internalemailaddress)}</span>` : ""}
-                </button>`,
-        )
-        .join("");
-
+export function getSelectImpersonationUserModalView(isDarkTheme: boolean, context?: ImpersonationPickerContext): { styles: string; body: string } {
     const styles =
         getModalStyles(isDarkTheme) +
         `
@@ -40,7 +24,9 @@ export function getSelectImpersonationUserModalView(isDarkTheme: boolean, users:
     .user-row:focus { outline: 2px solid #0e639c; outline-offset: 1px; }
     .user-row strong { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
     .user-row span { flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; color: ${isDarkTheme ? "rgba(255,255,255,.65)" : "rgba(0,0,0,.6)"}; font-size: 12px; }
-    .empty-users { padding: 32px 8px; text-align: center; color: ${isDarkTheme ? "rgba(255,255,255,.65)" : "rgba(0,0,0,.6)"}; display: none; }
+    .user-status { padding: 8px; color: ${isDarkTheme ? "rgba(255,255,255,.65)" : "rgba(0,0,0,.6)"}; font-size: 12px; }
+    .user-more { align-self: center; margin: 8px; }
+    .user-more[hidden] { display: none; }
 </style>`;
 
     const body = `
@@ -56,11 +42,12 @@ export function getSelectImpersonationUserModalView(isDarkTheme: boolean, users:
         <div class="info-message impersonation-user-intro">Optionally select a Dataverse user to impersonate for ${context ? `<strong>${escapeHtml(context.connectionName)}</strong>${context.connectionRoleLabel ? ` (${escapeHtml(context.connectionRoleLabel)})` : ""}` : "this connection"}.</div>
         <div class="impersonation-user-filter">
             <div class="modal-search-input-wrapper">
-                <input id="select-impersonation-user-search" class="modal-search-input user-search" type="search" placeholder="Filter by name or email..." aria-label="Filter Dataverse users" autocomplete="off" />
+                <input id="select-impersonation-user-search" class="modal-search-input user-search" type="search" placeholder="Search all users by name or email..." aria-label="Search Dataverse users" autocomplete="off" />
             </div>
         </div>
-        <div id="impersonation-users-list" class="user-list">${rows}</div>
-        <div id="impersonation-users-empty" class="empty-users">No matching users.</div>
+        <div id="impersonation-users-status" class="user-status" role="status" aria-live="polite">Loading users...</div>
+        <div id="impersonation-users-list" class="user-list"></div>
+        <button id="impersonation-users-more" class="fluent-button fluent-button-secondary user-more" type="button" hidden>Load more</button>
     </div>
     <div class="modal-footer">
         <button id="skip-select-impersonation-user-btn" class="fluent-button fluent-button-secondary">Skip</button>

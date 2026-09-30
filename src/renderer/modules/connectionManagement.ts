@@ -131,6 +131,8 @@ const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
 
 const SELECT_IMPERSONATION_USER_MODAL_CHANNELS = {
     selectUser: "select-impersonation-user:select",
+    searchUsers: "select-impersonation-user:search",
+    usersReady: "select-impersonation-user:ready",
 } as const;
 
 const SELECT_IMPERSONATION_USER_MODAL_DIMENSIONS = {
@@ -418,9 +420,8 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string; wan
         let impersonationUser: DataverseUser | null = null;
         if (data?.wantsImpersonation) {
             try {
-                const users = await window.toolboxAPI.connections.getSystemUsersForConnection(connectionId);
                 const context = await buildImpersonationPickerContext(connectionId);
-                impersonationUser = await promptForImpersonationUser(users, context);
+                impersonationUser = await promptForImpersonationUser(connectionId, context);
             } catch (usersError) {
                 logWarn("Failed to fetch Dataverse users for impersonation picker", { error: usersError instanceof Error ? usersError.message : String(usersError) });
             }
@@ -533,22 +534,51 @@ async function buildImpersonationPickerContext(connectionId: string, connectionR
 
 /**
  * Show the "Impersonate as..." user picker (reusing the same modal window) and resolve with the
- * chosen user, or null if the list is empty / the user skips. Never rejects.
+ * chosen user, or null if the user skips or closes the picker. Never rejects.
  */
-async function promptForImpersonationUser(users: DataverseUser[], context?: ImpersonationPickerContext): Promise<DataverseUser | null> {
-    if (users.length === 0) return null;
-
+async function promptForImpersonationUser(connectionId: string, context?: ImpersonationPickerContext): Promise<DataverseUser | null> {
     return new Promise((resolve) => {
-        const messageHandler = (payload: ModalWindowMessagePayload) => {
-            if (payload.channel !== SELECT_IMPERSONATION_USER_MODAL_CHANNELS.selectUser) return;
+        let users: DataverseUser[] = [];
+        let latestRequestId = 0;
+        let closed = false;
+        const finish = (user: DataverseUser | null) => {
+            if (closed) return;
+            closed = true;
             offBrowserWindowModalMessage(messageHandler);
+            offBrowserWindowModalClosed(closedHandler);
+            resolve(user);
+        };
+        const closedHandler = (payload: ModalWindowClosedPayload) => {
+            if (payload.id === "select-impersonation-user-browser-modal") finish(null);
+        };
+        const messageHandler = (payload: ModalWindowMessagePayload) => {
+            if (payload.channel === SELECT_IMPERSONATION_USER_MODAL_CHANNELS.searchUsers) {
+                const data = payload.data as { search: string; nextLink?: string | null; requestId: number; append: boolean };
+                if (!data || typeof data.requestId !== "number" || data.requestId <= latestRequestId || typeof data.search !== "string") return;
+                latestRequestId = data.requestId;
+                void window.toolboxAPI.connections
+                    .searchSystemUsersForConnection(connectionId, data.search, data.nextLink || undefined)
+                    .then(async (page) => {
+                        if (closed || latestRequestId !== data.requestId) return;
+                        users = data.append ? [...users, ...page.users] : page.users;
+                        await sendBrowserWindowModalMessage({ channel: SELECT_IMPERSONATION_USER_MODAL_CHANNELS.usersReady, data: { ...page, requestId: data.requestId } });
+                    })
+                    .catch(async (error) => {
+                        if (closed || latestRequestId !== data.requestId) return;
+                        logWarn("Failed to search Dataverse users for impersonation picker", { error: error instanceof Error ? error.message : String(error) });
+                        await sendBrowserWindowModalMessage({ channel: SELECT_IMPERSONATION_USER_MODAL_CHANNELS.usersReady, data: { error: true, requestId: data.requestId } });
+                    });
+                return;
+            }
+            if (payload.channel !== SELECT_IMPERSONATION_USER_MODAL_CHANNELS.selectUser) return;
             const index = (payload.data as { index?: number | null } | undefined)?.index;
-            resolve(typeof index === "number" ? (users[index] ?? null) : null);
+            finish(typeof index === "number" && Number.isInteger(index) ? (users[index] ?? null) : null);
         };
         onBrowserWindowModalMessage(messageHandler);
+        onBrowserWindowModalClosed(closedHandler);
 
         const isDarkTheme = document.body.classList.contains("dark-theme");
-        const { styles, body } = getSelectImpersonationUserModalView(isDarkTheme, users, context);
+        const { styles, body } = getSelectImpersonationUserModalView(isDarkTheme, context);
         const script = getSelectImpersonationUserModalControllerScript(SELECT_IMPERSONATION_USER_MODAL_CHANNELS);
         showBrowserWindowModal({
             id: "select-impersonation-user-browser-modal",
@@ -556,8 +586,7 @@ async function promptForImpersonationUser(users: DataverseUser[], context?: Impe
             width: SELECT_IMPERSONATION_USER_MODAL_DIMENSIONS.width,
             height: SELECT_IMPERSONATION_USER_MODAL_DIMENSIONS.height,
         }).catch(() => {
-            offBrowserWindowModalMessage(messageHandler);
-            resolve(null);
+            finish(null);
         });
     });
 }
@@ -692,18 +721,16 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
 
             if (data.primaryWantsImpersonation) {
                 try {
-                    const users = await window.toolboxAPI.connections.getSystemUsersForConnection(data.primaryConnectionId);
                     const context = await buildImpersonationPickerContext(data.primaryConnectionId, "Primary Connection");
-                    primaryImpersonationUser = await promptForImpersonationUser(users, context);
+                    primaryImpersonationUser = await promptForImpersonationUser(data.primaryConnectionId, context);
                 } catch (usersError) {
                     logWarn("Failed to fetch Dataverse users for primary impersonation picker", { error: usersError instanceof Error ? usersError.message : String(usersError) });
                 }
             }
             if (data.secondaryWantsImpersonation && data.secondaryConnectionId) {
                 try {
-                    const users = await window.toolboxAPI.connections.getSystemUsersForConnection(data.secondaryConnectionId);
                     const context = await buildImpersonationPickerContext(data.secondaryConnectionId, "Secondary Connection");
-                    secondaryImpersonationUser = await promptForImpersonationUser(users, context);
+                    secondaryImpersonationUser = await promptForImpersonationUser(data.secondaryConnectionId, context);
                 } catch (usersError) {
                     logWarn("Failed to fetch Dataverse users for secondary impersonation picker", { error: usersError instanceof Error ? usersError.message : String(usersError) });
                 }

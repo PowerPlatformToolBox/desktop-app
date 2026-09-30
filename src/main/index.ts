@@ -1891,6 +1891,9 @@ class ToolBoxApp {
             const result = await this.dataverseManager.getSystemUsers(connectionId);
             return result.value;
         });
+        ipcMain.handle(DATAVERSE_CHANNELS.SEARCH_SYSTEM_USERS_BY_CONNECTION, async (_event, connectionId: string, search?: string, nextLink?: string) => {
+            return this.dataverseManager.searchSystemUsers(connectionId, search, nextLink);
+        });
         ipcMain.handle(DATAVERSE_CHANNELS.EXECUTE_BATCH, async (event, requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
             try {
                 const approved = await this.dataverseHeaderConsentManager.authorizeBatch(event.sender, "Execute batch", requests, false, additionalHeaders);

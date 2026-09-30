@@ -14,6 +14,7 @@ import {
     LocalizedLabel,
     MetadataOperationOptions,
     DataverseUser,
+    DataverseUserPage,
 } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import {
@@ -95,6 +96,41 @@ export class DataverseManager {
         );
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: DataverseUser[] };
+    }
+
+    async searchSystemUsers(connectionId: string, search: string = "", nextLink?: string): Promise<DataverseUserPage> {
+        if (typeof search !== "string" || search.length > 200 || (nextLink !== undefined && typeof nextLink !== "string")) {
+            throw new Error("Invalid user search request.");
+        }
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const term = search.trim().replace(/'/g, "''");
+        const filter = `isdisabled eq false and azureactivedirectoryobjectid ne null${term ? ` and (contains(fullname,'${term}') or contains(internalemailaddress,'${term}'))` : ""}`;
+        const url = new URL(this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/systemusers`));
+        url.searchParams.set("$select", "systemuserid,azureactivedirectoryobjectid,fullname,domainname,internalemailaddress,isdisabled");
+        url.searchParams.set("$filter", filter);
+        url.searchParams.set("$orderby", "fullname,systemuserid");
+
+        let requestUrl = url;
+        if (nextLink) {
+            const cursor = new URL(nextLink, url);
+            if (
+                cursor.origin !== url.origin ||
+                cursor.pathname !== url.pathname ||
+                cursor.username !== url.username ||
+                cursor.password !== url.password ||
+                cursor.hash !== "" ||
+                cursor.searchParams.getAll("$skiptoken").length !== 1 ||
+                [...url.searchParams].some(([key, value]) => cursor.searchParams.getAll(key).length !== 1 || cursor.searchParams.get(key) !== value) ||
+                [...cursor.searchParams.keys()].some((key) => !url.searchParams.has(key) && key !== "$skiptoken")
+            ) {
+                throw new Error("Invalid user search continuation.");
+            }
+            requestUrl = cursor;
+        }
+
+        const response = await this.makeHttpRequest(requestUrl.toString(), "GET", accessToken, undefined, ["odata.maxpagesize=50"]);
+        const data = response.data as { value: DataverseUser[]; "@odata.nextLink"?: string };
+        return { users: data.value, nextLink: data["@odata.nextLink"] ?? null };
     }
 
     withAdditionalHeaders<T>(additionalHeaders: Record<string, string>, operation: () => Promise<T>): Promise<T> {
