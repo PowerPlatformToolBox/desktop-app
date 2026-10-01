@@ -12,6 +12,7 @@ import {
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
     TOOL_WINDOW_CHANNELS,
+    TOOL_IDEA_CHANNELS,
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
@@ -148,6 +149,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     installPrereleaseToolFromNpm: (npmPackageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, npmPackageName),
     submitToolRating: (toolId: string, rating: number, comment?: string) => ipcRenderer.invoke(TOOL_CHANNELS.SUBMIT_TOOL_RATING, toolId, rating, comment),
     getMyToolRating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_MY_TOOL_RATING, toolId),
+    fetchToolIdeas: () => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.FETCH),
+    submitToolIdea: (idea: unknown) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.SUBMIT, idea),
+    upvoteToolIdea: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.UPVOTE, ideaId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),

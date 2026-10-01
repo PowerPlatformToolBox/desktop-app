@@ -6,7 +6,7 @@
 import { logError, logInfo } from "../../common/logger";
 import { ToolDetail } from "../types/index";
 import { formatRatingMarkup } from "../utils/rating";
-import { normalizeRepositoryUrl } from "../utils/repositoryUrl";
+import { buildToolIssueUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
@@ -620,6 +620,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
     const reportIconPath = isDarkTheme ? "icons/dark/report.svg" : "icons/light/report.svg";
     const libraryTool = getToolLibrary().find((libraryEntry) => libraryEntry.id === tool.id);
     const repositoryUrl = normalizeRepositoryUrl(tool.repository || libraryTool?.repository);
+    const issueUrl = buildToolIssueUrl(tool.repository || libraryTool?.repository, tool.name);
 
     const hasUpdate = !!tool.hasUpdate;
     const latestVersion = tool.latestVersion;
@@ -655,6 +656,14 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
                 ? `<div class="context-menu-item" data-menu-action="repository">
             <img src="${repositoryIconPath}" class="context-menu-icon" alt="" />
             <span>Repository</span>
+        </div>`
+                : ""
+        }
+        ${
+            issueUrl
+                ? `<div class="context-menu-item" data-menu-action="issue">
+            <img src="${reportIconPath}" class="context-menu-icon" alt="" />
+            <span>Tool Feedback</span>
         </div>`
                 : ""
         }
@@ -770,6 +779,16 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
                 await window.toolboxAPI.openExternal(repositoryUrl);
             } catch (error) {
                 logError("Failed to open repository link", error);
+            }
+            return;
+        }
+
+        if (action === "issue") {
+            if (!issueUrl) return;
+            try {
+                await window.toolboxAPI.openExternal(issueUrl);
+            } catch (error) {
+                logError("Failed to open tool issue link", error);
             }
             return;
         }

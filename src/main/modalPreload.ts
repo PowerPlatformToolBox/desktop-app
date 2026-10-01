@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { CONNECTION_CHANNELS, MODAL_WINDOW_CHANNELS, TOOL_REPORT_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import { CONNECTION_CHANNELS, MODAL_WINDOW_CHANNELS, TOOL_IDEA_CHANNELS, TOOL_REPORT_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
 
 type ModalMessageHandler = (payload: unknown) => void;
 const messageHandlers = new Set<ModalMessageHandler>();
@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     reportTool: {
         submitConcern: (report: unknown) => ipcRenderer.invoke(TOOL_REPORT_CHANNELS.SUBMIT_CONCERN, report),
         hasReportedConcern: (toolId: string) => ipcRenderer.invoke(TOOL_REPORT_CHANNELS.HAS_REPORTED_CONCERN, toolId),
+    },
+    toolIdeas: {
+        fetch: () => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.FETCH),
+        submit: (idea: unknown) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.SUBMIT, idea),
+        upvote: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.UPVOTE, ideaId),
     },
     utils: {
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),

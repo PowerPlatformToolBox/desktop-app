@@ -10,6 +10,7 @@ import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, D
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
+import { ToolIdea, ToolIdeaSubmission, ToolIdeaUpvoteResult } from "./toolIdea";
 
 /**
  * Connections API namespace
@@ -385,6 +386,9 @@ export interface ToolboxAPI {
     submitToolRating: (toolId: string, rating: number, comment?: string) => Promise<ToolRatingAggregate>;
     /** Get this install's previously submitted rating/comment for a tool, if any. */
     getMyToolRating: (toolId: string) => Promise<MyToolRating | null>;
+    fetchToolIdeas: () => Promise<ToolIdea[]>;
+    submitToolIdea: (idea: ToolIdeaSubmission) => Promise<void>;
+    upvoteToolIdea: (ideaId: string) => Promise<ToolIdeaUpvoteResult>;
 
     // Split layout namespace
     splitLayout: SplitLayoutAPI;

@@ -17,6 +17,9 @@ import {
     MarketplaceSource,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
+    ToolIdea,
+    ToolIdeaSubmission,
+    ToolIdeaUpvoteResult,
     ToolManifest,
     ToolRegistryEntry,
 } from "../../common/types";
@@ -1339,6 +1342,82 @@ export class ToolRegistryManager extends EventEmitter {
             });
             return { success: false, error: error instanceof Error ? error.message : "Failed to submit report" };
         }
+    }
+
+    async fetchToolIdeas(): Promise<ToolIdea[]> {
+        if (!this.supabase || this.useLocalFallback) {
+            throw new Error("Tool ideas require an online connection to the tool registry.");
+        }
+        if (!this.installIdManager) {
+            throw new Error("Install ID is unavailable; cannot load tool ideas.");
+        }
+
+        const { data, error } = await this.supabase.rpc("get_tool_ideas", { p_install_id: this.installIdManager.getInstallId() });
+        if (error) {
+            throw new Error(error.message ?? JSON.stringify(error));
+        }
+
+        return (Array.isArray(data) ? data : []).flatMap((row: Record<string, unknown>) => {
+            if (typeof row.id !== "string" || typeof row.title !== "string" || typeof row.description !== "string") {
+                return [];
+            }
+            return [
+                {
+                    id: row.id,
+                    title: row.title,
+                    description: row.description,
+                    upvotes: typeof row.upvotes === "number" ? row.upvotes : 0,
+                    createdAt: typeof row.created_at === "string" ? row.created_at : "",
+                    hasUpvoted: row.has_upvoted === true,
+                },
+            ];
+        });
+    }
+
+    async submitToolIdea(idea: ToolIdeaSubmission): Promise<void> {
+        if (!this.supabase || this.useLocalFallback) {
+            throw new Error("Submitting a tool idea requires an online connection to the tool registry.");
+        }
+        if (!this.installIdManager) {
+            throw new Error("Install ID is unavailable; cannot submit a tool idea.");
+        }
+
+        const { error } = await this.supabase.from("tool_ideas").insert({
+            title: idea.title.trim(),
+            description: idea.description.trim(),
+            email: idea.email?.trim() || null,
+            install_id: this.installIdManager.getInstallId(),
+            app_version: app.getVersion(),
+        });
+        if (error) {
+            throw new Error(error.message ?? JSON.stringify(error));
+        }
+    }
+
+    async upvoteToolIdea(ideaId: string): Promise<ToolIdeaUpvoteResult> {
+        if (!this.supabase || this.useLocalFallback) {
+            throw new Error("Upvoting tool ideas requires an online connection to the tool registry.");
+        }
+        if (!this.installIdManager) {
+            throw new Error("Install ID is unavailable; cannot upvote a tool idea.");
+        }
+        if (typeof ideaId !== "string" || !ideaId.trim()) {
+            throw new Error("A tool idea ID is required.");
+        }
+
+        const { data, error } = await this.supabase.rpc("upvote_tool_idea", {
+            p_idea_id: ideaId,
+            p_install_id: this.installIdManager.getInstallId(),
+        });
+        if (error) {
+            throw new Error(error.message ?? JSON.stringify(error));
+        }
+
+        const row = Array.isArray(data) ? data[0] : data;
+        return {
+            upvotes: typeof row?.upvotes === "number" ? row.upvotes : 0,
+            hasUpvoted: row?.has_upvoted === true,
+        };
     }
 
     /**

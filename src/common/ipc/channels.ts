@@ -98,6 +98,12 @@ export const TOOL_REPORT_CHANNELS = {
     HAS_REPORTED_CONCERN: "tool-report:has-reported-concern",
 } as const;
 
+export const TOOL_IDEA_CHANNELS = {
+    FETCH: "tool-idea:fetch",
+    SUBMIT: "tool-idea:submit",
+    UPVOTE: "tool-idea:upvote",
+} as const;
+
 // Tool Window-related IPC channels
 export const TOOL_WINDOW_CHANNELS = {
     LAUNCH: "tool-window:launch",
