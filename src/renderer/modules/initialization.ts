@@ -37,6 +37,7 @@ import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
 import { openReportConcernModal } from "./reportConcernModal";
+import { openToolIdeasModal } from "./toolIdeasModal";
 import { openSentryConsentModal } from "./sentryConsentModal";
 import { applyRendererSentryConsent } from "./sentryRuntime";
 import { openSettingsTab } from "./settingsManagement";
@@ -72,6 +73,9 @@ export async function initializeApplication(): Promise<void> {
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
 
         initializeBrowserWindowModals();
+        window.api.on("open-suggest-tool-modal", () => {
+            openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+        });
         initializeDataverseHeaderConsentModal();
         const initialSettings = await window.toolboxAPI.getUserSettings();
         applyTheme(initialSettings.theme);

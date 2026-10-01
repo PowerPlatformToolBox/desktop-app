@@ -117,6 +117,36 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         expect(result[0]).toMatchObject({ maturity: "verified", downloadUrl: catalogRow.download });
     });
 
+    it("fetches, submits, and upvotes tool ideas using the install identity", async () => {
+        const installIdManager = { getInstallId: () => "install-123" };
+        const manager = new ToolRegistryManager(toolsDirectory, "https://supabase.example", "anon-key", installIdManager as any);
+        const rpc = jest.fn().mockResolvedValueOnce({
+            data: [{ id: "idea-1", title: "Tool idea", description: "Details", upvotes: 4, created_at: "2026-10-01", has_upvoted: false }],
+            error: null,
+        });
+        const insert = jest.fn().mockResolvedValue({ error: null });
+        const from = jest.fn().mockReturnValue({ insert });
+        (manager as unknown as { supabase: unknown }).supabase = { rpc, from };
+
+        await expect(manager.fetchToolIdeas()).resolves.toEqual([
+            { id: "idea-1", title: "Tool idea", description: "Details", upvotes: 4, createdAt: "2026-10-01", hasUpvoted: false },
+        ]);
+        expect(rpc).toHaveBeenCalledWith("get_tool_ideas", { p_install_id: "install-123" });
+
+        await manager.submitToolIdea({ title: "  Idea  ", description: "  Details  ", email: "  user@example.com  " });
+        expect(insert).toHaveBeenCalledWith({
+            title: "Idea",
+            description: "Details",
+            email: "user@example.com",
+            install_id: "install-123",
+            app_version: expect.any(String),
+        });
+
+        rpc.mockResolvedValueOnce({ data: { upvotes: 5, has_upvoted: true }, error: null });
+        await expect(manager.upvoteToolIdea("idea-1")).resolves.toEqual({ upvotes: 5, hasUpvoted: true });
+        expect(rpc).toHaveBeenLastCalledWith("upvote_tool_idea", { p_idea_id: "idea-1", p_install_id: "install-123" });
+    });
+
     it("persists release metadata on install and uses registry install for updates", async () => {
         const extractedPath = path.join(toolsDirectory, "extracted");
         fs.mkdirSync(extractedPath, { recursive: true });

@@ -18,6 +18,7 @@ import {
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
+    TOOL_IDEA_CHANNELS,
     TOOL_REPORT_CHANNELS,
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
@@ -37,6 +38,7 @@ import {
     TelemetryConsentChoice,
     ToolBoxEvent,
     ToolConcernReportSubmission,
+    ToolIdeaSubmission,
 } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
@@ -1243,6 +1245,33 @@ class ToolBoxApp {
         // Check whether this install has already reported a concern for a tool
         ipcMain.handle(TOOL_REPORT_CHANNELS.HAS_REPORTED_CONCERN, (_, toolId: string) => {
             return this.settingsManager.hasReportedToolConcern(toolId);
+        });
+
+        ipcMain.handle(TOOL_IDEA_CHANNELS.FETCH, async () => {
+            return this.toolManager.fetchToolIdeas();
+        });
+
+        ipcMain.handle(TOOL_IDEA_CHANNELS.SUBMIT, async (_, idea: ToolIdeaSubmission) => {
+            if (!idea || typeof idea.title !== "string" || typeof idea.description !== "string") {
+                throw new Error("A title and description are required.");
+            }
+            const title = idea.title.trim();
+            const description = idea.description.trim();
+            const email = typeof idea.email === "string" ? idea.email.trim() : "";
+            if (!title || title.length > 120) {
+                throw new Error("The title must be between 1 and 120 characters.");
+            }
+            if (!description || description.length > 3000) {
+                throw new Error("The description must be between 1 and 3000 characters.");
+            }
+            if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+                throw new Error("Enter a valid contact email address.");
+            }
+            await this.toolManager.submitToolIdea({ title, description, email: email || undefined });
+        });
+
+        ipcMain.handle(TOOL_IDEA_CHANNELS.UPVOTE, async (_, ideaId: string) => {
+            return this.toolManager.upvoteToolIdea(ideaId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -3152,6 +3181,12 @@ class ToolBoxApp {
                         label: "Join our Discord community!",
                         click: async () => {
                             await shell.openExternal("https://discord.gg/efwAu9sXyJ");
+                        },
+                    },
+                    {
+                        label: "Suggest a Tool",
+                        click: () => {
+                            this.mainWindow?.webContents.send("open-suggest-tool-modal");
                         },
                     },
                     { type: "separator" },

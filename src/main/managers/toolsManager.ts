@@ -12,6 +12,9 @@ import {
     Tool,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
+    ToolIdea,
+    ToolIdeaSubmission,
+    ToolIdeaUpvoteResult,
     ToolFeatures,
     ToolManifest,
     ToolRegistryEntry,
@@ -451,6 +454,18 @@ export class ToolManager extends EventEmitter {
      */
     async submitConcernReport(report: ToolConcernReportSubmission): Promise<ToolConcernReportResult> {
         return this.registryManager.submitConcernReport(report);
+    }
+
+    async fetchToolIdeas(): Promise<ToolIdea[]> {
+        return this.registryManager.fetchToolIdeas();
+    }
+
+    async submitToolIdea(idea: ToolIdeaSubmission): Promise<void> {
+        return this.registryManager.submitToolIdea(idea);
+    }
+
+    async upvoteToolIdea(ideaId: string): Promise<ToolIdeaUpvoteResult> {
+        return this.registryManager.upvoteToolIdea(ideaId);
     }
 
     // ========================================================================

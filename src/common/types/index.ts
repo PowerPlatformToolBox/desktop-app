@@ -32,3 +32,6 @@ export * from "./communityLinks";
 
 // Tool concern report ("Report a Concern") types
 export * from "./toolReport";
+
+// Tool idea types
+export * from "./toolIdea";
