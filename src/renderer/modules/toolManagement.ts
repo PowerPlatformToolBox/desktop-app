@@ -1166,6 +1166,10 @@ export async function closeTool(instanceId: string): Promise<void> {
  * Close all tools
  */
 export async function closeAllTools(): Promise<void> {
+    if (!window.confirm("Are you sure you want to close all open tabs and tools?")) {
+        return;
+    }
+
     // Close all tools
     const toolIds = Array.from(openTools.keys());
     for (const toolId of toolIds) {
