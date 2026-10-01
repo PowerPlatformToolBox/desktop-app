@@ -253,8 +253,15 @@ export async function loadMarketplace(): Promise<void> {
                 <p>No matching tools</p>
                 <p class="empty-state-hint">${emptyMessage}</p>
                 ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="marketplace-clear-filters-link">Clear all filters</a>' : ""}
+                <button type="button" class="fluent-button fluent-button-primary" id="marketplace-suggest-tool-empty-btn">Suggest a Tool</button>
             </div>
         `;
+
+        document.getElementById("marketplace-suggest-tool-empty-btn")?.addEventListener("click", () => {
+            import("./toolIdeasModal")
+                .then(({ openToolIdeasModal }) => openToolIdeasModal())
+                .catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+        });
 
         // Add event listener for clear filters link
         if (hasActiveFilters) {
