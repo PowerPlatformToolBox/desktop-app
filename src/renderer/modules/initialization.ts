@@ -333,6 +333,13 @@ function setupToolbarButtons(): void {
  * Set up sidebar buttons
  */
 function setupSidebarButtons(): void {
+    const marketplaceSuggestToolButton = document.getElementById("marketplace-suggest-tool-btn");
+    if (marketplaceSuggestToolButton) {
+        marketplaceSuggestToolButton.addEventListener("click", () => {
+            openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+        });
+    }
+
     // Sidebar update all tools button
     const sidebarUpdateAllToolsBtn = document.getElementById("sidebar-update-all-tools-btn");
     if (sidebarUpdateAllToolsBtn) {

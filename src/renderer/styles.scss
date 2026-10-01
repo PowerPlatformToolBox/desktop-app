@@ -4410,6 +4410,23 @@ body.light-theme .install-button:focus-visible img {
     flex-shrink: 0;
 }
 
+.sidebar-header-suggest-btn {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-color);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.sidebar-header-suggest-btn:hover {
+    border-color: var(--accent-color, #6a00ff);
+    color: var(--accent-color, #6a00ff);
+}
+
 /* Compact icon-only button for sidebar header actions */
 .sidebar-icon-btn {
     background: none;

@@ -663,7 +663,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
             issueUrl
                 ? `<div class="context-menu-item" data-menu-action="issue">
             <img src="${reportIconPath}" class="context-menu-icon" alt="" />
-            <span>Log an Issue</span>
+            <span>Tool Feedback</span>
         </div>`
                 : ""
         }

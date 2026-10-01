@@ -30,8 +30,8 @@ export function buildToolIssueUrl(repository?: string, toolName?: string): strin
         url.pathname = `${cleanPath}/issues/new`;
         url.search = "";
         url.hash = "";
-        url.searchParams.set("title", `[Issue]: ${toolName || "Tool"}`);
-        url.searchParams.set("body", `Tool: ${toolName || "Tool"}\n\nDescribe the issue or feature request here.`);
+        url.searchParams.set("title", `[Feedback]: ${toolName || "Tool"}`);
+        url.searchParams.set("body", `Tool: ${toolName || "Tool"}\n\nShare feedback, report a bug, or request a feature here.`);
         return url.toString();
     } catch {
         return null;

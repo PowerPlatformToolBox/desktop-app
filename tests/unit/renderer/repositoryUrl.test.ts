@@ -9,8 +9,8 @@ describe("buildToolIssueUrl", () => {
         expect(url).not.toBeNull();
         const parsed = new URL(url!);
         expect(parsed.pathname).toBe("/PowerPlatformToolBox/sample-tool/issues/new");
-        expect(parsed.searchParams.get("title")).toBe("[Issue]: Sample Tool");
-        expect(parsed.searchParams.get("body")).toContain("Tool: Sample Tool");
+        expect(parsed.searchParams.get("title")).toBe("[Feedback]: Sample Tool");
+        expect(parsed.searchParams.get("body")).toContain("Share feedback");
     });
 
     it("rejects non-GitHub and invalid repositories", () => {
