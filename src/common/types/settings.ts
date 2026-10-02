@@ -76,12 +76,14 @@ export interface LastUsedToolConnectionInfo {
 export interface LastUsedToolEntry {
     toolId: string;
     lastUsedAt: string;
+    connections?: Array<LastUsedToolConnectionInfo | null>;
     primaryConnection?: LastUsedToolConnectionInfo | null;
     secondaryConnection?: LastUsedToolConnectionInfo | null;
 }
 
 export interface LastUsedToolUpdate {
     toolId: string;
+    connections?: Array<LastUsedToolConnectionInfo | null>;
     primaryConnection?: LastUsedToolConnectionInfo | null;
     secondaryConnection?: LastUsedToolConnectionInfo | null;
     lastUsedAt?: string;
@@ -135,6 +137,7 @@ export interface UserSettings {
     dataverseHeaderConsents: { [toolId: string]: DataverseHeaderConsentRecord }; // Dataverse additional-header consent records per tool
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
+    toolConnectionSlots?: { [toolId: string]: Array<string | null> };
     installId?: string; // Unique install identifier for analytics
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
     sentryLastTrackedRelease?: string; // Last app release reported to Sentry for this install

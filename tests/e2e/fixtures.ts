@@ -16,6 +16,7 @@ interface AppFixtures {
     electronApp: ElectronApplication;
     window: Page;
     maturityData: boolean;
+    multiConnectionData: boolean;
 }
 
 async function dismissTelemetryConsentModalIfPresent(electronApp: ElectronApplication): Promise<void> {
@@ -129,11 +130,12 @@ async function waitForRendererInitialization(window: Page): Promise<void> {
 
 export const test = base.extend<AppFixtures>({
     maturityData: [false, { option: true }],
+    multiConnectionData: [false, { option: true }],
 
     // Playwright fixtures require object destructuring for the first argument.
-    electronApp: async ({ maturityData }, use) => {
+    electronApp: async ({ maturityData, multiConnectionData }, use) => {
         const mainEntry = path.resolve(__dirname, "../../dist/main/index.js");
-        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), maturityData ? "pptb-maturity-e2e-" : "pptb-e2e-"));
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), maturityData ? "pptb-maturity-e2e-" : multiConnectionData ? "pptb-multiconnection-e2e-" : "pptb-e2e-"));
         const userDataDirectory = path.join(tempRoot, "user-data");
         let maturityEnvironment: Record<string, string> = {};
 
@@ -164,6 +166,67 @@ export const test = base.extend<AppFixtures>({
                 SUPABASE_ANON_KEY: "",
                 AZURE_BLOB_BASE_URL: "",
                 PPTB_TEST_REGISTRY_PATH: registryPath,
+                PPTB_TEST_TOOLS_DIRECTORY: toolsDirectory,
+            };
+        }
+
+        if (multiConnectionData) {
+            const toolsDirectory = path.join(userDataDirectory, "tools");
+            const toolDefinitions = [
+                { id: "e2e-required-connections", name: "E2E Required Connections", features: { connections: 2 } },
+                { id: "e2e-optional-connections", name: "E2E Optional Connections", features: { multiConnection: "optional" } },
+                { id: "e2e-single-connection", name: "E2E Single Connection" },
+                { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
+            ];
+            const installedTools = toolDefinitions.map((tool) => {
+                const installPath = path.join(toolsDirectory, tool.id);
+                fs.mkdirSync(path.join(installPath, "dist"), { recursive: true });
+                fs.writeFileSync(path.join(installPath, "package.json"), JSON.stringify({ name: tool.id, version: "1.0.0", ...(tool.features ? { features: tool.features } : {}) }, null, 2));
+                fs.writeFileSync(path.join(installPath, "dist", "index.html"), "<!doctype html><html><body><main>Connection picker E2E fixture</main></body></html>");
+                return {
+                    ...tool,
+                    description: "Static tool fixture for multi-connection E2E tests.",
+                    version: "1.0.0",
+                    installPath,
+                    installedAt: "2026-10-01T00:00:00.000Z",
+                    source: "registry",
+                    sourceUrl: "https://example.test/fixture.tgz",
+                };
+            });
+            fs.mkdirSync(toolsDirectory, { recursive: true });
+            fs.writeFileSync(path.join(toolsDirectory, "manifest.json"), JSON.stringify({ tools: installedTools }, null, 2));
+            fs.writeFileSync(
+                path.join(userDataDirectory, "connections.json"),
+                JSON.stringify(
+                    {
+                        connections: [
+                            {
+                                id: "e2e-dev-connection",
+                                name: "E2E Development",
+                                url: "https://dev.crm.dynamics.com",
+                                environment: "Dev",
+                                authenticationType: "interactive",
+                                createdAt: "2026-10-01T00:00:00.000Z",
+                            },
+                            {
+                                id: "e2e-test-connection",
+                                name: "E2E Test",
+                                url: "https://test.crm.dynamics.com",
+                                environment: "Test",
+                                authenticationType: "interactive",
+                                createdAt: "2026-10-01T00:00:00.000Z",
+                            },
+                        ],
+                    },
+                    null,
+                    2,
+                ),
+            );
+            maturityEnvironment = {
+                PPTB_TEST_MODE: "1",
+                SUPABASE_URL: "",
+                SUPABASE_ANON_KEY: "",
+                AZURE_BLOB_BASE_URL: "",
                 PPTB_TEST_TOOLS_DIRECTORY: toolsDirectory,
             };
         }

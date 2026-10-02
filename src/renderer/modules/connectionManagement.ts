@@ -6,6 +6,8 @@
 import { logDebug, logError, logInfo, logWarn } from "../../common/logger";
 import type { Connection, ConnectionsSortOption, DataverseUser, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
+import darkImpersonationIcon from "../icons/dark/impersonate.svg?raw";
+import lightImpersonationIcon from "../icons/light/impersonate.svg?raw";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getEditConnectionModalControllerScript } from "../modals/editConnection/controller";
@@ -17,7 +19,7 @@ import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectImpersonationUserModalControllerScript } from "../modals/selectImpersonationUser/controller";
 import { getSelectImpersonationUserModalView, ImpersonationPickerContext } from "../modals/selectImpersonationUser/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
-import { getSelectMultiConnectionModalView } from "../modals/selectMultiConnection/view";
+import { getSelectMultiConnectionModalView, SelectMultiConnectionModalOptions } from "../modals/selectMultiConnection/view";
 import { sortConnections } from "../utils/connectionSorting";
 import {
     closeBrowserWindowModal,
@@ -61,13 +63,15 @@ interface ConnectionFormPayload {
 interface AuthenticateConnectionAction {
     action: "authenticate";
     connectionId: string;
-    listType: "primary" | "secondary";
+    listType: "primary" | "secondary" | `slot-${number}`;
 }
 
 interface ConfirmConnectionsAction {
     action: "confirm";
-    primaryConnectionId: string;
-    secondaryConnectionId: string | null;
+    connectionIds?: Array<string | null>;
+    impersonateSlots?: number[];
+    primaryConnectionId?: string;
+    secondaryConnectionId?: string | null;
     primaryWantsImpersonation?: boolean;
     secondaryWantsImpersonation?: boolean;
 }
@@ -79,6 +83,15 @@ interface LegacyConnectionSelection {
 }
 
 type SelectMultiConnectionPayload = AuthenticateConnectionAction | ConfirmConnectionsAction | LegacyConnectionSelection;
+
+interface SelectMultiConnectionResult {
+    connectionIds: Array<string | null>;
+    impersonationUsers: Array<DataverseUser | null>;
+    primaryConnectionId: string;
+    secondaryConnectionId: string | null;
+    primaryImpersonationUser: DataverseUser | null;
+    secondaryImpersonationUser: DataverseUser | null;
+}
 
 const ADD_CONNECTION_MODAL_CHANNELS = {
     submit: "add-connection:submit",
@@ -125,7 +138,7 @@ const SELECT_MULTI_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
-    width: 920,
+    width: 1040,
     height: 700,
 };
 
@@ -166,9 +179,7 @@ const selectConnectionModalPromiseHandlers: {
 
 // Store promise handlers for select multi-connection modal
 const selectMultiConnectionModalPromiseHandlers: {
-    resolve:
-        | ((result: { primaryConnectionId: string; secondaryConnectionId: string | null; primaryImpersonationUser: DataverseUser | null; secondaryImpersonationUser: DataverseUser | null }) => void)
-        | null;
+    resolve: ((result: SelectMultiConnectionResult) => void) | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -192,6 +203,7 @@ let requestingToolName: string | undefined = undefined;
 
 // Store whether the tool requires Power Platform API connections
 let requirePowerPlatformApi: boolean = false;
+let selectMultiConnectionOptions: SelectMultiConnectionModalOptions | null = null;
 let connectionModalDoubleClickConnectEnabled: boolean = false;
 let allowClearSelectedConnection: boolean = false;
 
@@ -607,16 +619,29 @@ export function initializeSelectMultiConnectionModalBridge(): void {
  * @param toolName - Optional name of the tool requesting the connections (shown in modal header)
  * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
  */
+export async function openSelectMultiConnectionModal(options: SelectMultiConnectionModalOptions, enabledForPowerPlatformAPI?: boolean): Promise<SelectMultiConnectionResult>;
+export async function openSelectMultiConnectionModal(isSecondaryRequired?: boolean, toolName?: string, enabledForPowerPlatformAPI?: boolean): Promise<SelectMultiConnectionResult>;
 export async function openSelectMultiConnectionModal(
-    isSecondaryRequired: boolean = true,
-    toolName?: string,
-    enabledForPowerPlatformAPI: boolean = false,
-): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null; primaryImpersonationUser: DataverseUser | null; secondaryImpersonationUser: DataverseUser | null }> {
+    optionsOrIsSecondaryRequired: SelectMultiConnectionModalOptions | boolean = true,
+    toolNameOrEnabledForPowerPlatformAPI?: string | boolean,
+    legacyEnabledForPowerPlatformAPI = false,
+): Promise<SelectMultiConnectionResult> {
+    const options: SelectMultiConnectionModalOptions =
+        typeof optionsOrIsSecondaryRequired === "boolean"
+            ? {
+                  minConnections: optionsOrIsSecondaryRequired ? 2 : 1,
+                  maxConnections: 2,
+                  toolName: typeof toolNameOrEnabledForPowerPlatformAPI === "string" ? toolNameOrEnabledForPowerPlatformAPI : undefined,
+              }
+            : optionsOrIsSecondaryRequired;
+    const enabledForPowerPlatformAPI = typeof optionsOrIsSecondaryRequired === "boolean" ? legacyEnabledForPowerPlatformAPI : toolNameOrEnabledForPowerPlatformAPI === true;
+    const isSecondaryRequired = options.minConnections > 1;
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
 
         // Store the tool name to display in the modal header
-        requestingToolName = toolName;
+        requestingToolName = options.toolName;
+        selectMultiConnectionOptions = options;
 
         // Store whether to require Power Platform API enabled connections
         requirePowerPlatformApi = enabledForPowerPlatformAPI;
@@ -634,6 +659,7 @@ export async function openSelectMultiConnectionModal(
                 selectMultiConnectionModalPromiseHandlers.reject = null;
                 requestingToolName = undefined; // Clear tool name
                 requirePowerPlatformApi = false; // Clear Power Platform API flag
+                selectMultiConnectionOptions = null;
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -674,8 +700,17 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
 
 function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true, enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired, requestingToolName);
-    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired, enabledForPowerPlatformAPI, connectionModalDoubleClickConnectEnabled);
+    const modalOptions = selectMultiConnectionOptions ?? isSecondaryRequired;
+    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, modalOptions, requestingToolName);
+    const impersonationIconSvg = isDarkTheme ? darkImpersonationIcon : lightImpersonationIcon;
+    const impersonationIconUrl = `data:image/svg+xml,${encodeURIComponent(impersonationIconSvg)}`;
+    const script = getSelectMultiConnectionModalControllerScript(
+        SELECT_MULTI_CONNECTION_MODAL_CHANNELS,
+        modalOptions,
+        enabledForPowerPlatformAPI,
+        connectionModalDoubleClickConnectEnabled,
+        impersonationIconUrl,
+    );
     return `${styles}\n${body}\n${script}`.trim();
 }
 
@@ -714,12 +749,53 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
     // Handle confirm button - connections are already authenticated
     if (data && "action" in data && data.action === "confirm") {
         try {
+            if (Array.isArray(data.connectionIds)) {
+                const connectionIds = [...data.connectionIds];
+                const options = selectMultiConnectionOptions;
+                const minConnections = options?.minConnections ?? 1;
+                if (connectionIds.slice(0, minConnections).filter(Boolean).length < minConnections) {
+                    await signalSelectMultiConnectionReady();
+                    return;
+                }
+                const impersonationUsers: Array<DataverseUser | null> = connectionIds.map(() => null);
+                for (const slotIndex of data.impersonateSlots ?? []) {
+                    const connectionId = connectionIds[slotIndex];
+                    if (!connectionId) continue;
+                    try {
+                        const context = await buildImpersonationPickerContext(connectionId, `Connection ${slotIndex + 1}`);
+                        impersonationUsers[slotIndex] = await promptForImpersonationUser(connectionId, context);
+                    } catch (usersError) {
+                        logWarn(`Failed to fetch Dataverse users for connection slot ${slotIndex + 1} impersonation picker`, {
+                            error: usersError instanceof Error ? usersError.message : String(usersError),
+                        });
+                    }
+                }
+
+                const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
+                selectMultiConnectionModalPromiseHandlers.resolve = null;
+                selectMultiConnectionModalPromiseHandlers.reject = null;
+                requestingToolName = undefined;
+                selectMultiConnectionOptions = null;
+                await closeBrowserWindowModal();
+                if (resolveHandler) {
+                    resolveHandler({
+                        connectionIds,
+                        impersonationUsers,
+                        primaryConnectionId: connectionIds[0] ?? "",
+                        secondaryConnectionId: connectionIds[1] ?? null,
+                        primaryImpersonationUser: impersonationUsers[0] ?? null,
+                        secondaryImpersonationUser: impersonationUsers[1] ?? null,
+                    });
+                }
+                return;
+            }
+
             // If the user checked "Impersonate as another user" for a column, prompt for that user now
             // (primary first, then secondary), reusing the same modal window for each step.
             let primaryImpersonationUser: DataverseUser | null = null;
             let secondaryImpersonationUser: DataverseUser | null = null;
 
-            if (data.primaryWantsImpersonation) {
+            if (data.primaryWantsImpersonation && data.primaryConnectionId) {
                 try {
                     const context = await buildImpersonationPickerContext(data.primaryConnectionId, "Primary Connection");
                     primaryImpersonationUser = await promptForImpersonationUser(data.primaryConnectionId, context);
@@ -741,6 +817,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
             selectMultiConnectionModalPromiseHandlers.resolve = null;
             selectMultiConnectionModalPromiseHandlers.reject = null;
             requestingToolName = undefined; // Clear tool name
+            selectMultiConnectionOptions = null;
 
             // Close the modal
             await closeBrowserWindowModal();
@@ -748,8 +825,10 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
             // Now resolve the promise with both connection IDs
             if (resolveHandler) {
                 resolveHandler({
-                    primaryConnectionId: data.primaryConnectionId,
-                    secondaryConnectionId: data.secondaryConnectionId,
+                    connectionIds: [data.primaryConnectionId ?? "", data.secondaryConnectionId ?? null],
+                    impersonationUsers: [primaryImpersonationUser, secondaryImpersonationUser],
+                    primaryConnectionId: data.primaryConnectionId ?? "",
+                    secondaryConnectionId: data.secondaryConnectionId ?? null,
                     primaryImpersonationUser,
                     secondaryImpersonationUser,
                 });
@@ -780,7 +859,14 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
 
         // Now resolve the promise with both connection IDs
         if (resolveHandler) {
-            resolveHandler({ primaryConnectionId, secondaryConnectionId, primaryImpersonationUser: null, secondaryImpersonationUser: null });
+            resolveHandler({
+                connectionIds: [primaryConnectionId, secondaryConnectionId],
+                impersonationUsers: [null, null],
+                primaryConnectionId,
+                secondaryConnectionId,
+                primaryImpersonationUser: null,
+                secondaryImpersonationUser: null,
+            });
         }
     } catch (error) {
         logError("Error selecting multi-connections", error);

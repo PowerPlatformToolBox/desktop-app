@@ -323,6 +323,31 @@ describe("SettingsManager", () => {
             expect(all["tool-a"]).toBe("conn-1");
             expect(all["tool-b"]).toBe("conn-2");
         });
+
+        it("lazily migrates legacy primary and secondary IDs into slot storage", () => {
+            manager.setSetting("toolConnections", { "tool-a": "primary-id" });
+            manager.setSetting("toolSecondaryConnections", { "tool-a": "secondary-id" });
+
+            expect(manager.getToolConnectionSlots("tool-a")).toEqual(["primary-id", "secondary-id"]);
+            expect(manager.getSetting("toolConnectionSlots")?.["tool-a"]).toEqual(["primary-id", "secondary-id"]);
+        });
+
+        it("stores slots while keeping legacy primary and secondary keys synchronized", () => {
+            manager.setToolConnectionSlots("tool-a", ["primary-id", "secondary-id", "third-id"]);
+
+            expect(manager.getToolConnectionSlots("tool-a")).toEqual(["primary-id", "secondary-id", "third-id"]);
+            expect(manager.getAllToolConnections()["tool-a"]).toBe("primary-id");
+            expect(manager.getAllToolSecondaryConnections()["tool-a"]).toBe("secondary-id");
+        });
+
+        it("returns a defensive copy of stored slot IDs", () => {
+            manager.setToolConnectionSlots("tool-a", ["primary-id", null, "third-id"]);
+
+            const slots = manager.getToolConnectionSlots("tool-a");
+            slots[0] = "changed-id";
+
+            expect(manager.getToolConnectionSlots("tool-a")).toEqual(["primary-id", null, "third-id"]);
+        });
     });
 
     // -----------------------------------------------------------------------
@@ -364,6 +389,27 @@ describe("SettingsManager", () => {
             manager.addLastUsedTool({ toolId: "tool-a" });
             manager.addLastUsedTool({ toolId: "tool-a" });
             expect(manager.getLastUsedTools()).toHaveLength(1);
+        });
+
+        it("stores all connection slots and preserves the legacy first two fields", () => {
+            manager.addLastUsedTool({
+                toolId: "tool-a",
+                connections: [
+                    { id: "primary-id", name: "Primary" },
+                    { id: "secondary-id", name: "Secondary" },
+                    { id: "third-id", name: "Third" },
+                ],
+            });
+
+            expect(manager.getLastUsedTools()[0]).toMatchObject({
+                connections: [
+                    { id: "primary-id", name: "Primary" },
+                    { id: "secondary-id", name: "Secondary" },
+                    { id: "third-id", name: "Third" },
+                ],
+                primaryConnection: { id: "primary-id", name: "Primary" },
+                secondaryConnection: { id: "secondary-id", name: "Secondary" },
+            });
         });
 
         it("clearLastUsedTools empties the list", () => {

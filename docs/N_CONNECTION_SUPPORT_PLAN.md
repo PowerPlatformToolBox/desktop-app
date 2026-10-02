@@ -54,16 +54,20 @@ in `packages/types/toolManifest.d.ts`, exported from `packages/types/index.d.ts`
 
 **Checks:** focused Jest 43/43 passed; modified Playwright spec 7/7 passed; typecheck, build, validation package build, lint, and `git diff --check` passed. Full unit run had 331 tests pass and one unrelated compile failure in `tests/unit/renderer/closeAllTools.test.ts` (`window.toolboxAPI` is missing from that test's `Window` type).
 
-### [ ] PR 2 — Slot storage and selection modal
+### [x] PR 2 — Slot storage and selection modal
+
+**Status:** Complete. The user manually verified restart persistence and authenticated connection assignment. Automated coverage for those flows remains a follow-up, not a blocker for proceeding to PR 3.
 
 - Add `toolConnectionSlots[toolId]` as the canonical stored array; lazily migrate old primary/secondary keys.
 - Keep legacy getters/setters and keys for slots 0/1 so downgrade remains safe.
 - Replace the two-column picker with a slot rail and existing connection list; support add, clear, required-slot confirmation, double-click assignment, and the existing connection filters.
 - Route launch selection using the resolver: max 0 launches without a picker, max 1 uses the single picker, otherwise use the slot rail.
 
-**Unit tests:** extend `tests/unit/main/managers/settingsManager.test.ts`, `tests/unit/renderer/connectionModalDoubleClick.test.ts`, and tool launch tests.
+**Unit tests:** `tests/unit/main/managers/settingsManager.test.ts` covers migration, legacy dual-writes, arrays, and recent-use compatibility; `tests/unit/renderer/connectionModalDoubleClick.test.ts` covers slot markup/controller options and double-click wiring. Focused automated tests for `toolManagement.launchTool` remain outstanding.
 
-**E2E tests:** add `tests/e2e/multiConnectionModal.spec.ts` for legacy required/optional/none flows, no-connection launch, and persisted selection after restart.
+**E2E tests:** `tests/e2e/multiConnectionModal.spec.ts` covers rendering seeded saved connections in the rail, required slots, optional add/clear at max, legacy single-picker behavior, and zero-connection launch. Authenticated connection assignment and persisted selection after restart were manually verified by the user but do not yet have automated E2E coverage.
+
+**Current checks:** focused PR 2 unit tests pass (54/54); typecheck, lint, and build pass; slot-rail Playwright E2E passes (4/4), including the populated-list regression. Max greater than two is explicitly deferred with a notification until PR 4 provides array-based runtime routing.
 
 ### [ ] PR 3 — Status-bar squares and connection management
 

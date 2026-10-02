@@ -3,6 +3,7 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
+import { resolveConnectionSlots } from "../../common/connectionSlots";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Connection } from "../../common/types/connection";
 import type { DataverseUser } from "../../common/types/dataverse";
@@ -141,14 +142,26 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
         return;
     }
 
-    const multiConnectionMode = targetTool.tool.features?.multiConnection || "none";
-    const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
+    const connectionSlots = resolveConnectionSlots(targetTool.tool.features);
     const requirePowerPlatformApi = targetTool.tool.features?.enabledForPowerPlatformAPI === true;
 
     try {
-        if (hasMultiConnection) {
-            const isSecondaryRequired = multiConnectionMode === "required";
-            const result = await openSelectMultiConnectionModal(isSecondaryRequired, targetTool.tool.name, requirePowerPlatformApi);
+        if (connectionSlots.max > 2) {
+            window.toolboxAPI.utils.showNotification({
+                title: "Connection Update Required",
+                body: `${targetTool.tool.name} supports up to ${connectionSlots.max} connections. Multi-connection runtime support is not available in this release yet.`,
+                type: "warning",
+            });
+        } else if (connectionSlots.max > 1) {
+            const result = await openSelectMultiConnectionModal(
+                {
+                    minConnections: connectionSlots.min,
+                    maxConnections: connectionSlots.max,
+                    toolName: targetTool.tool.name,
+                    initialConnectionIds: [targetTool.connectionId, targetTool.secondaryConnectionId],
+                },
+                requirePowerPlatformApi,
+            );
 
             await setToolConnection(instanceId, result.primaryConnectionId);
             await setToolSecondaryConnection(instanceId, result.secondaryConnectionId);
@@ -382,10 +395,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         }
 
         // Determine multi-connection mode
-        const multiConnectionMode = tool.features?.multiConnection || "none";
-        // Tools declaring "optional" never block launch on connection selection; the user can
-        // attach connection(s) later via "Change Connection" on the tab context menu.
-        const connectionRequirement = tool.features?.connectionRequirement || "required";
+        const connectionSlots = resolveConnectionSlots(tool.features);
 
         const resolveConnectionId = async (connectionId: string | null): Promise<string | null> => {
             if (!connectionId) {
@@ -414,41 +424,43 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             secondaryConnectionId = await resolveConnectionId(secondaryConnectionId);
         }
 
-        if (connectionRequirement === "optional") {
-            // Connectionless-capable tool: launch immediately with whatever connection(s) were
-            // already resolved (possibly none). No blocking modal is shown.
-            logInfo("Tool does not require a connection to launch; skipping connection selection.", { primaryConnectionId, secondaryConnectionId });
-        } else if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
-            // Tool supports multi-connection - show multi-connection modal
-            const isSecondaryRequired = multiConnectionMode === "required";
-            logInfo(
-                `Tool supports multi-connection (secondary ${isSecondaryRequired ? "required" : "optional"}). ` +
-                    `${primaryConnectionId ? "Reusing stored connections when available." : "Showing selection modal."}`,
-            );
-
-            const missingPrimary = !primaryConnectionId;
-            const missingSecondary = isSecondaryRequired && !secondaryConnectionId;
-
-            if (missingPrimary || missingSecondary) {
+        if (connectionSlots.max > 2) {
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Not Supported Yet",
+                body: `${tool.name} supports up to ${connectionSlots.max} connections. Multi-connection runtime support is not available in this release yet.`,
+                type: "warning",
+            });
+            return;
+        } else if (connectionSlots.max === 0 || connectionSlots.min === 0) {
+            logInfo("Tool does not require a connection to launch; skipping connection selection.", { toolId });
+        } else if (connectionSlots.max > 1) {
+            const selectedIds = [primaryConnectionId, secondaryConnectionId];
+            const requiredSelections = selectedIds.slice(0, connectionSlots.min).filter(Boolean).length;
+            if (requiredSelections < connectionSlots.min) {
                 try {
-                    const result = await openSelectMultiConnectionModal(isSecondaryRequired, tool.name, tool.features?.enabledForPowerPlatformAPI === true);
-                    primaryConnectionId = result.primaryConnectionId;
-                    secondaryConnectionId = result.secondaryConnectionId;
-                    primaryImpersonationUser = result.primaryImpersonationUser;
-                    secondaryImpersonationUser = result.secondaryImpersonationUser;
+                    const result = await openSelectMultiConnectionModal(
+                        {
+                            minConnections: connectionSlots.min,
+                            maxConnections: connectionSlots.max,
+                            toolName: tool.name,
+                            initialConnectionIds: selectedIds,
+                        },
+                        tool.features?.enabledForPowerPlatformAPI === true,
+                    );
+                    primaryConnectionId = result.connectionIds[0] ?? null;
+                    secondaryConnectionId = result.connectionIds[1] ?? null;
+                    primaryImpersonationUser = result.impersonationUsers[0] ?? null;
+                    secondaryImpersonationUser = result.impersonationUsers[1] ?? null;
                     logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
 
-                    if (isSecondaryRequired && !secondaryConnectionId) {
-                        throw new Error("Secondary connection is required but was not provided");
+                    if (result.connectionIds.slice(0, connectionSlots.min).filter(Boolean).length < connectionSlots.min) {
+                        throw new Error(`At least ${connectionSlots.min} connections are required`);
                     }
                 } catch (error) {
                     logInfo("Multi-connection selection cancelled:", { error });
-                    const errorMessage = isSecondaryRequired
-                        ? "This tool requires two connections. Please select both connections to continue."
-                        : "This tool requires a primary connection. Please select at least a primary connection to continue.";
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Cancelled",
-                        body: errorMessage,
+                        body: `This tool requires ${connectionSlots.min} connections. Please select the required connections to continue.`,
                         type: "info",
                     });
                     return;
@@ -614,6 +626,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             toolId: toolId,
             tool: tool,
             isPinned: false,
+            connectionIds: [primaryConnectionId, secondaryConnectionId],
             connectionId: primaryConnectionId,
             secondaryConnectionId: secondaryConnectionId,
         });
@@ -965,6 +978,7 @@ export async function openLocalPageAsTab(tabId: string, displayName: string, ren
         toolId: "",
         tool: { name: displayName },
         isPinned: false,
+        connectionIds: [],
         connectionId: null,
         secondaryConnectionId: null,
         isDetailTab: true,
@@ -1386,6 +1400,7 @@ export async function setToolConnection(instanceId: string, connectionId: string
 
     // Update local state
     tool.connectionId = connectionId;
+    tool.connectionIds = [connectionId, tool.secondaryConnectionId];
 
     await updateTabConnectionSubtext(instanceId);
 
@@ -1824,6 +1839,7 @@ export async function setToolSecondaryConnection(instanceId: string, connectionI
 
     // Update local state
     tool.secondaryConnectionId = connectionId;
+    tool.connectionIds = [tool.connectionId, connectionId];
 
     await updateTabConnectionSubtext(instanceId);
 
@@ -2104,6 +2120,7 @@ export function initializeCalleeToolListeners(): void {
             toolId: tool.id,
             tool: tool,
             isPinned: false,
+            connectionIds: [primaryConnectionId, secondaryConnectionId],
             connectionId: primaryConnectionId,
             secondaryConnectionId: secondaryConnectionId,
         });
