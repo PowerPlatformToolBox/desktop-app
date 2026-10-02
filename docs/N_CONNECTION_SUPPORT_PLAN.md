@@ -14,18 +14,70 @@ New tools use one feature field:
 }
 ```
 
-`connections` accepts an integer from 0 to 10 (an exact count), or `{ "min"?: number, "max"?: number }`. In object form, `min` defaults to 1 and `max` defaults to `min`. Thus `{ "max": 5 }` means 1 to 5, `{ "min": 2 }` means exactly 2, and `0` means the tool never needs a connection. `{ "min": 0, "max": 1 }` means an optional single connection.
+`connections` accepts an integer from 0 to 10 (an exact count), or `{ "min"?: number, "max"?: number }`. In object form, `min` defaults to 1 and `max` defaults to the resolved `min`. Therefore `{ "max": 5 }` means 1–5, `{ "min": 2 }` means exactly 2, `{ "min": 0 }` means 0, and `{ "min": 0, "max": 1 }` means 0–1. The tool must be coded to use the range it declares; the UI never allows more than `max` slots.
 
 `multiConnection` and `connectionRequirement` remain accepted for old tools and are resolved by one compatibility helper. They cannot be combined with `connections`. The validator warns when legacy fields are used; runtime use remains silent. Existing manifests require no changes.
 
-| Legacy declaration                                                 | Resolved range |
-| ------------------------------------------------------------------ | -------------: |
-| No feature declaration                                             |            1–1 |
-| `multiConnection: "none"`                                          |            1–1 |
-| `multiConnection: "none"`, `connectionRequirement: "optional"`     |            0–1 |
-| `multiConnection: "optional"`                                      |            1–2 |
-| `multiConnection: "optional"`, `connectionRequirement: "optional"` |            0–2 |
-| `multiConnection: "required"`                                      |            2–2 |
+### Complete Declaration Matrix
+
+The resolved range is `{ min, max }`: the first `min` slots must be assigned before launch; the user may assign additional slots up to `max`. Slot 0 is Primary; slot 1 is Secondary; later slots are numbered from 3. A blank feature declaration (or no `features` object) keeps the historic default of one required connection.
+
+#### Modern declaration: `features.connections`
+
+Modern `connections` is mutually exclusive with both legacy connection fields. `min` and `max` must be integers from 0 through 10, and resolved `min` cannot exceed `max`.
+
+| Declaration                              | Resolved range | Meaning / capability                                                                   |
+| ---------------------------------------- | -------------: | -------------------------------------------------------------------------------------- |
+| No `features` declaration                |            1–1 | Existing default: one required connection.                                             |
+| `"connections": 0`                       |            0–0 | New: connectionless tool. Launch without a connection picker; connection UI is hidden. |
+| `"connections": 1`                       |            1–1 | Exactly one required connection.                                                       |
+| `"connections": 2`                       |            2–2 | Exactly two required connections.                                                      |
+| `"connections": 10`                      |          10–10 | New upper boundary: ten required connections.                                          |
+| `"connections": {}`                      |            1–1 | Object defaults preserve the ordinary one-required-connection case.                    |
+| `"connections": { "min": 1 }`            |            1–1 | One required; no extra slots.                                                          |
+| `"connections": { "max": 5 }`            |            1–5 | New: one required plus up to four optional additional slots.                           |
+| `"connections": { "min": 2 }`            |            2–2 | Exactly two required.                                                                  |
+| `"connections": { "min": 0 }`            |            0–0 | New: connectionless tool, equivalent in behavior to numeric zero.                      |
+| `"connections": { "min": 0, "max": 1 }`  |            0–1 | New: optional single connection; launch without one, attach one later.                 |
+| `"connections": { "min": 0, "max": 5 }`  |            0–5 | New: launch connectionless, optionally use up to five connections.                     |
+| `"connections": { "min": 1, "max": 5 }`  |            1–5 | New: one required plus up to four optional connections.                                |
+| `"connections": { "min": 3, "max": 5 }`  |            3–5 | New: three required plus up to two optional connections.                               |
+| `"connections": { "min": 0, "max": 10 }` |           0–10 | Full flexibility: connectionless launch through ten assigned connections.              |
+
+#### Legacy declaration: `multiConnection` + `connectionRequirement`
+
+Omitted legacy fields use `multiConnection: "none"` and `connectionRequirement: "required"` as defaults. All accepted combinations resolve as follows:
+
+| `multiConnection` | `connectionRequirement` | Resolved range | Legacy behavior                                                       |
+| ----------------- | ----------------------- | -------------: | --------------------------------------------------------------------- |
+| omitted           | omitted                 |            1–1 | Default single required connection.                                   |
+| omitted           | `"required"`            |            1–1 | Single required connection.                                           |
+| omitted           | `"optional"`            |            0–1 | Connection optional; can launch without one and attach one later.     |
+| `"none"`          | omitted                 |            1–1 | Single required connection.                                           |
+| `"none"`          | `"required"`            |            1–1 | Single required connection.                                           |
+| `"none"`          | `"optional"`            |            0–1 | Connection optional; can launch without one.                          |
+| `"optional"`      | omitted                 |            1–2 | Primary required; secondary optional.                                 |
+| `"optional"`      | `"required"`            |            1–2 | Primary required; secondary optional.                                 |
+| `"optional"`      | `"optional"`            |            0–2 | Both primary and secondary optional; launches with neither.           |
+| `"required"`      | omitted                 |            2–2 | Primary and secondary both required.                                  |
+| `"required"`      | `"required"`            |            2–2 | Primary and secondary both required.                                  |
+| `"required"`      | `"optional"`            |            0–2 | Legacy resolver permits launch with neither; both slots are optional. |
+
+#### Invalid combinations
+
+| Declaration                                                 | Result           | Reason                                                                                                      |
+| ----------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `connections` together with `multiConnection`               | Validation error | Modern and legacy connection vocabularies cannot be mixed.                                                  |
+| `connections` together with `connectionRequirement`         | Validation error | Modern and legacy connection vocabularies cannot be mixed.                                                  |
+| `connections: -1`, `connections: 1.5`, or `connections: 11` | Validation error | Exact counts must be integers in 0–10.                                                                      |
+| `{ "min": 3, "max": 2 }`                                    | Validation error | Minimum exceeds maximum.                                                                                    |
+| `{ "max": 11 }` or `{ "min": -1 }`                          | Validation error | Bounds must be integers in 0–10.                                                                            |
+| `{ "maxx": 2 }`                                             | Validation error | The object accepts only `min` and `max`.                                                                    |
+| `features: {}`                                              | Validation error | Without modern `connections`, legacy `multiConnection` remains required when a features object is supplied. |
+
+#### New capabilities compared with legacy declarations
+
+Legacy declarations can express at most two connections. The modern field adds exact zero, exact counts through ten, ranges with independently required and optional slots, and a connectionless tool that may accept connections later. Existing `"primary"`/`"secondary"` API targets and legacy manifests continue to work; numeric targets and runtime routing beyond slot 1 are enabled in PR 4.
 
 Runtime targets preserve the old names: `"primary"` and `"secondary"`; numeric targets address slots from zero (0 = primary, 1 = secondary, 2+ = additional slots). Maximum count is 10 and is capped by the tool declaration. Cleared/deleted slots stay null and indices are not compacted.
 
@@ -69,15 +121,17 @@ in `packages/types/toolManifest.d.ts`, exported from `packages/types/index.d.ts`
 
 **Current checks:** focused PR 2 unit tests pass (54/54); typecheck, lint, and build pass; slot-rail Playwright E2E passes (4/4), including the populated-list regression. Max greater than two is explicitly deferred with a notification until PR 4 provides array-based runtime routing.
 
-### [ ] PR 3 — Status-bar squares and connection management
+### [x] PR 3 — Status-bar squares and connection management
+
+**Status:** Complete. The user manually verified the status-bar features. The primary status stays in place and assigned secondary slots render as environment-coloured square buttons with accessible names, token-expiry state, and impersonation indicators. Click opens the slot-scoped picker; right-click exposes Change, Clear, and impersonation actions. Secondary updates persist through the existing settings API, tab subtext summarizes extra names, and full names are in its tooltip. Further runtime slots will be exposed when PR 4 adds the N-slot API.
 
 - Keep the primary status display in place. Render each filled non-primary slot as a numbered, clickable, environment-coloured square on the right.
 - Clicking a square opens a picker scoped to that slot; add Change/Clear/Impersonate actions, token-expiry and impersonation markers, keyboard navigation, and accessible names.
 - Update tab subtext/tooltip, impersonation state, and the tab menu to use “Manage Connections…”. Hide connection UI for max 0.
 
-**Unit tests:** add `tests/unit/renderer/statusBarSquares.test.ts`; extend tool tab/impersonation tests.
+**Unit tests:** `tests/unit/renderer/statusBarSquares.test.ts` covers square numbering, Production color-token mapping, expiry state, impersonation summary, and accessible labels. Context-menu, picker-routing, persistence, and arrow-key interaction assertions remain automated-test follow-up, not a blocker after manual verification.
 
-**E2E tests:** add `tests/e2e/statusBarConnections.spec.ts` for changing and clearing slots, markers, keyboard operation, and the zero-connection UI. Screen-reader speech is a manual VoiceOver check.
+**E2E tests:** existing `tests/e2e/multiConnectionModal.spec.ts` checks the accessible square-toolbar container and zero-connection footer hiding. A fixture-backed secondary assignment is still needed to automate square change/clear, expiry, impersonation, and arrow-key interactions. Screen-reader speech remains a manual VoiceOver check.
 
 ### [ ] PR 4 — Runtime support for more than two slots
 

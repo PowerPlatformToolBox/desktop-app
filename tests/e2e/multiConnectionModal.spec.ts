@@ -111,6 +111,10 @@ test.describe("Multi-connection selection modal", () => {
         await window.locator('#sidebar-tools-list .tool-item-pptb[data-tool-id="e2e-no-connection"]').click();
 
         await expect(window.locator("#tool-tabs")).toContainText("E2E No Connection", { timeout: 10_000 });
+        await expect(window.locator("#connection-status")).toBeHidden();
+        await expect(window.locator("#connection-slot-squares")).toHaveAttribute("role", "toolbar");
+        await expect(window.locator("#connection-slot-squares")).toHaveAttribute("aria-live", "polite");
+        await expect(window.locator("#connection-slot-squares .connection-slot-square")).toHaveCount(0);
         await expect
             .poll(async () => {
                 const windows = electronApp.windows();

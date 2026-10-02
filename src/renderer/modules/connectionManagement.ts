@@ -553,15 +553,22 @@ async function promptForImpersonationUser(connectionId: string, context?: Impers
         let users: DataverseUser[] = [];
         let latestRequestId = 0;
         let closed = false;
-        const finish = (user: DataverseUser | null) => {
+        const finish = async (user: DataverseUser | null, closeWindow = true) => {
             if (closed) return;
             closed = true;
             offBrowserWindowModalMessage(messageHandler);
             offBrowserWindowModalClosed(closedHandler);
+            if (closeWindow) {
+                try {
+                    await closeBrowserWindowModal();
+                } catch (error) {
+                    logWarn("Failed to close impersonation user picker", { error: error instanceof Error ? error.message : String(error) });
+                }
+            }
             resolve(user);
         };
         const closedHandler = (payload: ModalWindowClosedPayload) => {
-            if (payload.id === "select-impersonation-user-browser-modal") finish(null);
+            if (payload.id === "select-impersonation-user-browser-modal") void finish(null, false);
         };
         const messageHandler = (payload: ModalWindowMessagePayload) => {
             if (payload.channel === SELECT_IMPERSONATION_USER_MODAL_CHANNELS.searchUsers) {
@@ -584,7 +591,7 @@ async function promptForImpersonationUser(connectionId: string, context?: Impers
             }
             if (payload.channel !== SELECT_IMPERSONATION_USER_MODAL_CHANNELS.selectUser) return;
             const index = (payload.data as { index?: number | null } | undefined)?.index;
-            finish(typeof index === "number" && Number.isInteger(index) ? (users[index] ?? null) : null);
+            void finish(typeof index === "number" && Number.isInteger(index) ? (users[index] ?? null) : null);
         };
         onBrowserWindowModalMessage(messageHandler);
         onBrowserWindowModalClosed(closedHandler);
@@ -601,6 +608,11 @@ async function promptForImpersonationUser(connectionId: string, context?: Impers
             finish(null);
         });
     });
+}
+
+export async function openImpersonationUserPicker(connectionId: string, connectionRoleLabel?: string): Promise<DataverseUser | null> {
+    const context = await buildImpersonationPickerContext(connectionId, connectionRoleLabel);
+    return promptForImpersonationUser(connectionId, context);
 }
 
 /**
