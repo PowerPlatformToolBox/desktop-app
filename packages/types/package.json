@@ -32,6 +32,7 @@
     "dataverseAPI.d.ts",
     "powerplatformAPI.d.ts",
     "pptbConfig.d.ts",
+    "toolManifest.d.ts",
     "bin/",
     "README.md"
   ],

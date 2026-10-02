@@ -108,6 +108,7 @@ export type ToolDetail = Omit<
         | "website"
         | "createdAt"
         | "minAPI"
+        | "features"
         | "isSupported"
         | "npmPackageName"
         | "mcpHeadlessEnabled"

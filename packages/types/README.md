@@ -107,25 +107,34 @@ npx pptb-validate path/to/package.json
 
 The validator checks every field that the official review pipeline inspects:
 
-| Field                            | Required | Rules                                                                                                                                     |
-| -------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                           | ✅       | Must be a string                                                                                                                          |
-| `version`                        | ✅       | Must be a string                                                                                                                          |
-| `displayName`                    | ✅       | Must be a string                                                                                                                          |
-| `description`                    | ✅       | Must be a string                                                                                                                          |
-| `license`                        | ✅       | Must be one of the approved OSS licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, GPL-2.0, GPL-3.0, LGPL-3.0, ISC, AGPL-3.0-only)    |
-| `contributors`                   | ✅       | Non-empty array; each entry needs a `name`                                                                                                |
-| `configurations.repository`      | ✅       | Valid, reachable URL                                                                                                                      |
-| `configurations.readmeUrl`       | ✅       | Valid URL; must **not** be hosted on `github.com` (use `raw.githubusercontent.com`)                                                       |
-| `configurations.website`         | ❌       | Valid, reachable URL when provided                                                                                                        |
-| `configurations.funding`         | ❌       | Valid, reachable URL when provided                                                                                                        |
-| `icon`                           | ❌       | Relative path to a `.svg` file bundled under `dist/`; must not be an HTTP URL or an absolute path                                         |
-| `cspExceptions`                  | ❌       | When present: must not be empty; only recognised directives; each directive must be a non-empty array                                     |
-| `features.multiConnection`       | ❌\*     | Required when `features` is present; must be `"required"`, `"optional"`, or `"none"`                                                      |
-| `features.connectionRequirement` | ❌       | Must be `"required"` or `"optional"` when provided; defaults to `"required"`. `"optional"` lets the tool open with no connection selected |
-| `features.minAPI`                | ❌       | Valid semver string when provided                                                                                                         |
+| Field                            | Required | Rules                                                                                                                                  |
+| -------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                           | ✅       | Must be a string                                                                                                                       |
+| `version`                        | ✅       | Must be a string                                                                                                                       |
+| `displayName`                    | ✅       | Must be a string                                                                                                                       |
+| `description`                    | ✅       | Must be a string                                                                                                                       |
+| `license`                        | ✅       | Must be one of the approved OSS licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, GPL-2.0, GPL-3.0, LGPL-3.0, ISC, AGPL-3.0-only) |
+| `contributors`                   | ✅       | Non-empty array; each entry needs a `name`                                                                                             |
+| `configurations.repository`      | ✅       | Valid, reachable URL                                                                                                                   |
+| `configurations.readmeUrl`       | ✅       | Valid URL; must **not** be hosted on `github.com` (use `raw.githubusercontent.com`)                                                    |
+| `configurations.website`         | ❌       | Valid, reachable URL when provided                                                                                                     |
+| `configurations.funding`         | ❌       | Valid, reachable URL when provided                                                                                                     |
+| `icon`                           | ❌       | Relative path to a `.svg` file bundled under `dist/`; must not be an HTTP URL or an absolute path                                      |
+| `cspExceptions`                  | ❌       | When present: must not be empty; only recognised directives; each directive must be a non-empty array                                  |
+| `features.connections`           | ❌       | Number `0..10` for an exact count, or `{ min?, max? }` where `0 <= min <= max <= 10`; defaults to exactly one connection               |
+| `features.minAPI`                | ❌       | Valid semver string when provided                                                                                                      |
+| `features.multiConnection`       | ❌       | **Deprecated.** Legacy cardinality field; use `features.connections` instead. Required with legacy feature declarations only.          |
+| `features.connectionRequirement` | ❌       | **Deprecated.** Legacy required/optional field; use `features.connections` instead.                                                    |
 
-> \* Required only when the `features` object is present.
+Modern and legacy connection fields must not be combined. `connections: 0` means the tool never uses a connection; `{ "min": 0, "max": 1 }` means a connection is optional. Legacy fields remain supported for existing tools and produce a validation warning.
+
+Examples:
+
+```json
+{ "features": { "connections": 1 } }
+{ "features": { "connections": { "min": 1, "max": 5 } } }
+{ "features": { "connections": 0 } }
+```
 
 #### pptb.config.json (optional)
 

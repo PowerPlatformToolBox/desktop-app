@@ -3,12 +3,13 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
+import { resolveConnectionSlots } from "../../common/connectionSlots";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import type { ToolRegistryEntry } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
-import { formatRatingMarkup } from "../utils/rating";
 import { formatPackageSize } from "../utils/packageSize";
+import { formatRatingMarkup } from "../utils/rating";
 import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
@@ -54,6 +55,7 @@ function mapRegistryEntryToToolDetail(tool: ToolRegistryEntry): ToolDetail {
         website: tool.website,
         createdAt: tool.createdAt,
         minAPI: tool.minAPI,
+        features: tool.features,
         isSupported: tool.isSupported,
         npmPackageName: tool.npmPackageName,
         mcpHeadlessEnabled: tool.mcpHeadlessEnabled,
@@ -258,9 +260,7 @@ export async function loadMarketplace(): Promise<void> {
         `;
 
         document.getElementById("marketplace-suggest-tool-empty-btn")?.addEventListener("click", () => {
-            import("./toolIdeasModal")
-                .then(({ openToolIdeasModal }) => openToolIdeasModal())
-                .catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+            import("./toolIdeasModal").then(({ openToolIdeasModal }) => openToolIdeasModal()).catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
         });
 
         // Add event listener for clear filters link
@@ -580,6 +580,9 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     if (tool.version) metaBadges.push(`v${tool.version}`);
     if (tool.size !== undefined) metaBadges.push(formatPackageSize(tool.size));
     if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);
+    const connectionSlots = resolveConnectionSlots(tool.features);
+    const connectionSummary = connectionSlots.max === 0 ? "None" : connectionSlots.min === connectionSlots.max ? `${connectionSlots.min}` : `${connectionSlots.min}–${connectionSlots.max}`;
+    metaBadges.push(`Connections: ${connectionSummary}`);
     const categories = tool.categories?.length ? tool.categories.map((c) => escapeHtml(c)) : [];
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
