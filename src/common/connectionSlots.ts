@@ -6,6 +6,7 @@ export interface ConnectionSlotRange {
 }
 
 export type ConnectionTarget = "primary" | "secondary" | number;
+export type ConnectionIds = Array<string | null>;
 
 export function resolveConnectionSlots(features?: ToolFeatures | null): ConnectionSlotRange {
     if (!features) {
@@ -40,6 +41,10 @@ export function normalizeConnectionTarget(target: ConnectionTarget): number {
     if (target === "secondary") return 1;
     if (Number.isInteger(target) && target >= 0) return target;
     throw new RangeError(`Invalid connection target: ${String(target)}`);
+}
+
+export function legacyConnectionIds(primaryConnectionId: string | null | undefined, secondaryConnectionId?: string | null): ConnectionIds {
+    return [primaryConnectionId ?? null, secondaryConnectionId ?? null];
 }
 
 export function connectionTargetLabel(index: number): string {

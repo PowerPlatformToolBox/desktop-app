@@ -42,6 +42,10 @@ describe("connection target helpers", () => {
         expect(normalizeConnectionTarget(target)).toBe(expected);
     });
 
+    it.each([-1, 1.5])("rejects invalid numeric target %p", (target) => {
+        expect(() => normalizeConnectionTarget(target)).toThrow(RangeError);
+    });
+
     const labelCases: Array<[number, string]> = [
         [0, "Primary"],
         [1, "Secondary"],

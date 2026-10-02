@@ -175,6 +175,7 @@ export const test = base.extend<AppFixtures>({
             const toolDefinitions = [
                 { id: "e2e-required-connections", name: "E2E Required Connections", features: { connections: 2 } },
                 { id: "e2e-optional-connections", name: "E2E Optional Connections", features: { multiConnection: "optional" } },
+                { id: "e2e-four-connection-range", name: "E2E Four Connection Range", features: { connections: { min: 3, max: 4 } } },
                 { id: "e2e-single-connection", name: "E2E Single Connection" },
                 { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
             ];

@@ -17,6 +17,7 @@ import {
     MarketplaceSource,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
+    ToolFeatures,
     ToolIdea,
     ToolIdeaSubmission,
     ToolIdeaUpvoteResult,
@@ -47,6 +48,10 @@ interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users
+}
+
+interface SupabaseReleaseFeatureRow {
+    connections?: unknown;
 }
 
 function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
@@ -93,6 +98,7 @@ interface SupabaseTool {
     min_api?: string; // Minimum ToolBox API version required
     multi_connection?: string | null;
     connection_requirement?: string | null;
+    tool_release_features?: SupabaseReleaseFeatureRow | SupabaseReleaseFeatureRow[] | null;
     enabled_for_power_platform_api?: boolean | null;
     mcp_enabled?: boolean | null;
     maturity_status?: string | null;
@@ -123,6 +129,7 @@ const SUPABASE_CATALOG_COLUMNS = [
     "min_api",
     "multi_connection",
     "connection_requirement",
+    "tool_release_features(connections)",
     "enabled_for_power_platform_api",
     "mcp_enabled",
     "maturity_status",
@@ -135,14 +142,33 @@ function getTypedFeatureValue<T extends string>(value: unknown, allowed: readonl
     return typeof value === "string" && allowed.includes(value as T) ? (value as T) : undefined;
 }
 
+function getValidConnectionsFeature(value: unknown): ToolFeatures["connections"] | undefined {
+    if (typeof value === "number") {
+        return Number.isInteger(value) && value >= 0 && value <= 10 ? value : undefined;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const range = value as Record<string, unknown>;
+    if (Object.keys(range).some((key) => key !== "min" && key !== "max")) return undefined;
+    const min = range.min ?? 1;
+    const max = range.max ?? min;
+    if (!Number.isInteger(min) || !Number.isInteger(max) || (min as number) < 0 || (max as number) > 10 || (min as number) > (max as number)) return undefined;
+    return { min: min as number, max: max as number };
+}
+
 export function mapSupabaseToolRow(tool: SupabaseTool): ToolRegistryEntry {
     const categories = (tool.tool_categories || []).map((row) => row.categories?.name?.trim()).filter((name): name is string => !!name);
     const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((name): name is string => !!name);
     const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
     const minAPI = tool.min_api;
+    const releaseFeature = Array.isArray(tool.tool_release_features) ? tool.tool_release_features[0] : tool.tool_release_features;
+    const modernConnections = getValidConnectionsFeature(releaseFeature?.connections);
     const features: ToolRegistryEntry["features"] = {
-        multiConnection: getTypedFeatureValue(tool.multi_connection, ["required", "optional", "none"]),
-        connectionRequirement: getTypedFeatureValue(tool.connection_requirement, ["required", "optional"]),
+        ...(modernConnections !== undefined
+            ? { connections: modernConnections }
+            : {
+                  multiConnection: getTypedFeatureValue(tool.multi_connection, ["required", "optional", "none"]),
+                  connectionRequirement: getTypedFeatureValue(tool.connection_requirement, ["required", "optional"]),
+              }),
         minAPI,
         enabledForPowerPlatformAPI: typeof tool.enabled_for_power_platform_api === "boolean" ? tool.enabled_for_power_platform_api : undefined,
     };

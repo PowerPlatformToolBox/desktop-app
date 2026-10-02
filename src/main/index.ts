@@ -5,6 +5,8 @@ import { createWriteStream } from "fs";
 import * as http from "http";
 import * as https from "https";
 import * as path from "path";
+import type { ConnectionTarget } from "../common/connectionSlots";
+import { normalizeConnectionTarget } from "../common/connectionSlots";
 import {
     AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
@@ -405,6 +407,9 @@ class ToolBoxApp {
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION);
         ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION);
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.SET_TOOL_CONNECTION_SLOTS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_CONNECTION_SLOTS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION_SLOTS);
 
         // Recently used tools
         ipcMain.removeHandler(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL);
@@ -562,15 +567,14 @@ class ToolBoxApp {
     private async withDataverseRequest<T>(
         event: IpcMainInvokeEvent,
         operation: string,
-        connectionTarget: "primary" | "secondary" | undefined,
+        connectionTarget: ConnectionTarget | undefined,
         additionalHeaders: Record<string, string> | undefined,
         callback: (connectionId: string) => Promise<T>,
     ): Promise<T> {
         const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, operation, additionalHeaders);
-        const connectionId =
-            connectionTarget === "secondary" ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id) : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+        const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
         if (!connectionId) {
-            const target = connectionTarget === "secondary" ? "secondary connection" : "connection";
+            const target = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
             throw new Error(`No ${target} found for this tool instance. Please ensure the tool is connected to an environment.`);
         }
         return this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => callback(connectionId));
@@ -1420,6 +1424,12 @@ class ToolBoxApp {
             return this.settingsManager.getAllToolSecondaryConnections();
         });
 
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION_SLOTS, (_, toolId: string, connectionIds: Array<string | null>) => {
+            this.settingsManager.setToolConnectionSlots(toolId, connectionIds);
+        });
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_CONNECTION_SLOTS, (_, toolId: string) => this.settingsManager.getToolConnectionSlots(toolId));
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION_SLOTS, (_, toolId: string) => this.settingsManager.removeToolConnectionSlots(toolId));
+
         // Recently used tools
         ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, payload: LastUsedToolUpdate | string) => {
             if (typeof payload === "string") {
@@ -1676,14 +1686,21 @@ class ToolBoxApp {
                 return;
             }
 
-            if (connectionTarget !== undefined && connectionTarget !== "primary" && connectionTarget !== "secondary") {
+            let normalizedConnectionTarget: ConnectionTarget = "primary";
+            try {
+                if (connectionTarget !== undefined) {
+                    if (connectionTarget !== "primary" && connectionTarget !== "secondary" && typeof connectionTarget !== "number") {
+                        throw new RangeError("Invalid target type");
+                    }
+                    normalizedConnectionTarget = connectionTarget as ConnectionTarget;
+                    normalizeConnectionTarget(normalizedConnectionTarget);
+                }
+            } catch {
                 logWarn("Blocked openInConnectionBrowser call with invalid connectionTarget", { connectionTarget });
                 return;
             }
 
-            // Resolve the connection linked to the calling tool window
-            const isSecondary = connectionTarget === "secondary";
-            const connectionId = isSecondary ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id) : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+            const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, normalizedConnectionTarget);
 
             const connection = connectionId ? this.connectionsManager.getConnectionById(connectionId) : null;
 
@@ -1892,16 +1909,13 @@ class ToolBoxApp {
                 relativePath = "",
                 body?: unknown,
                 customHeaders?: Record<string, string>,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
             ) => {
                 try {
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
 
@@ -1915,11 +1929,11 @@ class ToolBoxApp {
         // Dataverse API handlers
         // All handlers automatically get the connectionId from the calling tool's WebContents
         // For multi-connection tools, an optional connectionTarget parameter can be passed to specify "primary" or "secondary"
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, async (_event, instanceId: string) => {
-            const connectionId = this.toolWindowManager?.getPrimaryConnectionIdByInstance(instanceId);
-            if (!connectionId) throw new Error("No connection found for this tool instance.");
-            const result = await this.dataverseManager.getSystemUsers(connectionId);
-            return result.value;
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, async (event, connectionTarget?: ConnectionTarget) => {
+            return this.withDataverseRequest(event, "Get system users", connectionTarget, undefined, async (connectionId) => {
+                const result = await this.dataverseManager.getSystemUsers(connectionId);
+                return result.value;
+            });
         });
         // Used by the connection-selection modals to populate the "Impersonate as..." picker before a tool instance exists.
         ipcMain.handle(DATAVERSE_CHANNELS.GET_SYSTEM_USERS_BY_CONNECTION, async (_event, connectionId: string) => {
@@ -1929,7 +1943,7 @@ class ToolBoxApp {
         ipcMain.handle(DATAVERSE_CHANNELS.SEARCH_SYSTEM_USERS_BY_CONNECTION, async (_event, connectionId: string, search?: string, nextLink?: string) => {
             return this.dataverseManager.searchSystemUsers(connectionId, search, nextLink);
         });
-        ipcMain.handle(DATAVERSE_CHANNELS.EXECUTE_BATCH, async (event, requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.EXECUTE_BATCH, async (event, requests: DataverseBatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const approved = await this.dataverseHeaderConsentManager.authorizeBatch(event.sender, "Execute batch", requests, false, additionalHeaders);
                 return await this.withDataverseRequest(event, "Execute batch", connectionTarget, undefined, (connectionId) =>
@@ -1940,34 +1954,28 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(
-            DATAVERSE_CHANNELS.EXECUTE_TRANSACTION,
-            async (event, requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
-                try {
-                    const approved = await this.dataverseHeaderConsentManager.authorizeBatch(event.sender, "Execute transaction", requests, true, additionalHeaders);
-                    return await this.withDataverseRequest(event, "Execute transaction", connectionTarget, undefined, (connectionId) =>
-                        this.dataverseManager.executeTransaction(connectionId, [...approved.requests], approved.additionalHeaders),
-                    );
-                } catch (error) {
-                    throw new Error(`Dataverse executeTransaction failed: ${(error as Error).message}`);
-                }
-            },
-        );
+        ipcMain.handle(DATAVERSE_CHANNELS.EXECUTE_TRANSACTION, async (event, requests: DataverseBatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
+            try {
+                const approved = await this.dataverseHeaderConsentManager.authorizeBatch(event.sender, "Execute transaction", requests, true, additionalHeaders);
+                return await this.withDataverseRequest(event, "Execute transaction", connectionTarget, undefined, (connectionId) =>
+                    this.dataverseManager.executeTransaction(connectionId, [...approved.requests], approved.additionalHeaders),
+                );
+            } catch (error) {
+                throw new Error(`Dataverse executeTransaction failed: ${(error as Error).message}`);
+            }
+        });
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.CREATE,
-            async (event, entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Create record", additionalHeaders);
                     // Get the connectionId based on connectionTarget (defaults to primary)
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -1981,17 +1989,14 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.RETRIEVE,
-            async (event, entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, entityLogicalName: string, id: string, columns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Retrieve record", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2005,17 +2010,14 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE,
-            async (event, entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update record", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2028,17 +2030,14 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (event, entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (event, entityLogicalName: string, id: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete record", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2050,17 +2049,14 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (event, fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Retrieve multiple records", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2082,19 +2078,16 @@ class ToolBoxApp {
                     operationType: "action" | "function";
                     parameters?: Record<string, unknown>;
                 },
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Execute operation", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2106,17 +2099,14 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (event, fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Run FetchXML query", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2129,23 +2119,13 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.GET_ENTITY_METADATA,
-            async (
-                event,
-                entityLogicalName: string,
-                searchByLogicalName: boolean,
-                selectColumns?: string[],
-                connectionTarget?: "primary" | "secondary",
-                additionalHeaders?: Record<string, string>,
-            ) => {
+            async (event, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Get entity metadata", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () =>
@@ -2157,26 +2137,20 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(
-            DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA,
-            async (event, selectColumns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
-                try {
-                    const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Get all entity metadata", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async (event, selectColumns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
+            try {
+                const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Get all entity metadata", additionalHeaders);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
-                    if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                    }
-                    return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.getAllEntitiesMetadata(connectionId, selectColumns));
-                } catch (error) {
-                    throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-            },
-        );
+                return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.getAllEntitiesMetadata(connectionId, selectColumns));
+            } catch (error) {
+                throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
+            }
+        });
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA,
@@ -2185,18 +2159,15 @@ class ToolBoxApp {
                 entityLogicalName: string,
                 relatedPath: EntityRelatedMetadataPath,
                 selectColumns?: string[],
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Get related entity metadata", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () =>
@@ -2208,16 +2179,13 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (event, selectColumns: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (event, selectColumns: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Get solutions", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.getSolutions(connectionId, selectColumns));
@@ -2226,17 +2194,14 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (event, odataQuery: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (event, odataQuery: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Query data", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2247,16 +2212,13 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, async (event, tableLogicalName?: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, async (event, tableLogicalName?: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Publish customizations", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
 
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.publishCustomizations(connectionId, tableLogicalName));
@@ -2268,16 +2230,13 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.CREATE_MULTIPLE,
-            async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Create multiple records", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2291,16 +2250,13 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_MULTIPLE,
-            async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update multiple records", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2329,18 +2285,15 @@ class ToolBoxApp {
                 relationshipName: string,
                 relatedEntityName: string,
                 relatedEntityId: string,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Associate records", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2362,18 +2315,15 @@ class ToolBoxApp {
                 primaryEntityId: string,
                 relationshipName: string,
                 relatedEntityId: string,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Disassociate records", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withImpersonation(callerObjectId, () =>
@@ -2399,17 +2349,14 @@ class ToolBoxApp {
                     skipProductUpdateDependencies?: boolean;
                     convertToManaged?: boolean;
                 },
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Deploy solution", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deploySolution(connectionId, base64SolutionContent, options));
@@ -2419,15 +2366,12 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, async (event, importJobId: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, async (event, importJobId: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Get import job status", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.getImportJobStatus(connectionId, importJobId));
@@ -2437,15 +2381,12 @@ class ToolBoxApp {
         });
 
         // Get CSDL document endpoint
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, async (event, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, async (event, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Get CSDL document", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.getCSDLDocument(connectionId));
@@ -2479,15 +2420,12 @@ class ToolBoxApp {
         // Entity (Table) Metadata CRUD Operations
         ipcMain.handle(
             DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION,
-            async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Create entity definition", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.createEntityDefinition(connectionId, entityDefinition, options));
@@ -2504,17 +2442,14 @@ class ToolBoxApp {
                 entityIdentifier: string,
                 entityDefinition: Record<string, unknown>,
                 options?: MetadataOperationOptions,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update entity definition", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.updateEntityDefinition(connectionId, entityIdentifier, entityDefinition, options));
@@ -2525,15 +2460,12 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, async (event, entityIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, async (event, entityIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete entity definition", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteEntityDefinition(connectionId, entityIdentifier));
@@ -2551,17 +2483,14 @@ class ToolBoxApp {
                 entityLogicalName: string,
                 attributeDefinition: Record<string, unknown>,
                 options?: MetadataOperationOptions,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Create attribute", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () =>
@@ -2581,17 +2510,14 @@ class ToolBoxApp {
                 attributeIdentifier: string,
                 attributeDefinition: Record<string, unknown>,
                 options?: MetadataOperationOptions,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update attribute", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () =>
@@ -2606,15 +2532,12 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.DELETE_ATTRIBUTE,
-            async (event, entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, entityLogicalName: string, attributeIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete attribute", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteAttribute(connectionId, entityLogicalName, attributeIdentifier));
@@ -2632,17 +2555,14 @@ class ToolBoxApp {
                 entityLogicalName: string,
                 attributeDefinition: Record<string, unknown>,
                 options?: MetadataOperationOptions,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Create polymorphic lookup", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () =>
@@ -2657,21 +2577,12 @@ class ToolBoxApp {
         // Relationship Metadata CRUD Operations
         ipcMain.handle(
             DATAVERSE_CHANNELS.CREATE_RELATIONSHIP,
-            async (
-                event,
-                relationshipDefinition: Record<string, unknown>,
-                options?: MetadataOperationOptions,
-                connectionTarget?: "primary" | "secondary",
-                additionalHeaders?: Record<string, string>,
-            ) => {
+            async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Create relationship", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.createRelationship(connectionId, relationshipDefinition, options));
@@ -2688,17 +2599,14 @@ class ToolBoxApp {
                 relationshipIdentifier: string,
                 relationshipDefinition: Record<string, unknown>,
                 options?: MetadataOperationOptions,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update relationship", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () =>
@@ -2711,39 +2619,30 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(
-            DATAVERSE_CHANNELS.DELETE_RELATIONSHIP,
-            async (event, relationshipIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
-                try {
-                    const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete relationship", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                    if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                    }
-                    await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteRelationship(connectionId, relationshipIdentifier));
-                    return { success: true };
-                } catch (error) {
-                    throw new Error(`Delete relationship failed: ${(error as Error).message}`);
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP, async (event, relationshipIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
+            try {
+                const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete relationship", additionalHeaders);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-            },
-        );
+                await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteRelationship(connectionId, relationshipIdentifier));
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete relationship failed: ${(error as Error).message}`);
+            }
+        });
 
         // Global Option Set (Choice) CRUD Operations
         ipcMain.handle(
             DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET,
-            async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+            async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Create global option set", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.createGlobalOptionSet(connectionId, optionSetDefinition, options));
@@ -2760,17 +2659,14 @@ class ToolBoxApp {
                 optionSetIdentifier: string,
                 optionSetDefinition: Record<string, unknown>,
                 options?: MetadataOperationOptions,
-                connectionTarget?: "primary" | "secondary",
+                connectionTarget?: ConnectionTarget,
                 additionalHeaders?: Record<string, string>,
             ) => {
                 try {
                     const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update global option set", this.getMetadataConsentHeaders(options, additionalHeaders));
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                     if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                     }
                     await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () =>
@@ -2783,97 +2679,70 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle(
-            DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET,
-            async (event, optionSetIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
-                try {
-                    const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete global option set", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                    if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                    }
-                    await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteGlobalOptionSet(connectionId, optionSetIdentifier));
-                    return { success: true };
-                } catch (error) {
-                    throw new Error(`Delete global option set failed: ${(error as Error).message}`);
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, async (event, optionSetIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
+            try {
+                const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete global option set", additionalHeaders);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-            },
-        );
+                await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteGlobalOptionSet(connectionId, optionSetIdentifier));
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete global option set failed: ${(error as Error).message}`);
+            }
+        });
 
         // Option Value Modification Actions
-        ipcMain.handle(
-            DATAVERSE_CHANNELS.INSERT_OPTION_VALUE,
-            async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
-                try {
-                    const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Insert option value", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                    if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                    }
-                    return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.insertOptionValue(connectionId, params));
-                } catch (error) {
-                    throw new Error(`Insert option value failed: ${(error as Error).message}`);
+        ipcMain.handle(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
+            try {
+                const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Insert option value", additionalHeaders);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-            },
-        );
+                return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.insertOptionValue(connectionId, params));
+            } catch (error) {
+                throw new Error(`Insert option value failed: ${(error as Error).message}`);
+            }
+        });
 
-        ipcMain.handle(
-            DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE,
-            async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
-                try {
-                    const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update option value", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                    if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                    }
-                    return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.updateOptionValue(connectionId, params));
-                } catch (error) {
-                    throw new Error(`Update option value failed: ${(error as Error).message}`);
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
+            try {
+                const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Update option value", additionalHeaders);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-            },
-        );
+                return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.updateOptionValue(connectionId, params));
+            } catch (error) {
+                throw new Error(`Update option value failed: ${(error as Error).message}`);
+            }
+        });
 
-        ipcMain.handle(
-            DATAVERSE_CHANNELS.DELETE_OPTION_VALUE,
-            async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
-                try {
-                    const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete option value", additionalHeaders);
-                    const connectionId =
-                        connectionTarget === "secondary"
-                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                    if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                    }
-                    return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteOptionValue(connectionId, params));
-                } catch (error) {
-                    throw new Error(`Delete option value failed: ${(error as Error).message}`);
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
+            try {
+                const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Delete option value", additionalHeaders);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
-            },
-        );
+                return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.deleteOptionValue(connectionId, params));
+            } catch (error) {
+                throw new Error(`Delete option value failed: ${(error as Error).message}`);
+            }
+        });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.ORDER_OPTION, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.ORDER_OPTION, async (event, params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => {
             try {
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Order option values", additionalHeaders);
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
                 if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
                 }
                 return await this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.orderOption(connectionId, params));

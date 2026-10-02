@@ -3,6 +3,7 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
+import type { ConnectionIds, ConnectionTarget } from "../../common/connectionSlots";
 import { resolveConnectionSlots } from "../../common/connectionSlots";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Connection } from "../../common/types/connection";
@@ -30,6 +31,7 @@ const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
 
 export interface LaunchToolOptions {
     source?: string;
+    connectionIds?: ConnectionIds;
     primaryConnectionId?: string | null;
     secondaryConnectionId?: string | null;
     /** Prefill data to pass to the tool on launch (inter-tool launch context). */
@@ -147,42 +149,33 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
     const requirePowerPlatformApi = targetTool.tool.features?.enabledForPowerPlatformAPI === true;
 
     try {
-        if (connectionSlots.max > 2) {
-            window.toolboxAPI.utils.showNotification({
-                title: "Connection Update Required",
-                body: `${targetTool.tool.name} supports up to ${connectionSlots.max} connections. Multi-connection runtime support is not available in this release yet.`,
-                type: "warning",
-            });
-        } else if (connectionSlots.max > 1) {
+        if (connectionSlots.max > 1) {
             const result = await openSelectMultiConnectionModal(
                 {
                     minConnections: connectionSlots.min,
                     maxConnections: connectionSlots.max,
                     toolName: targetTool.tool.name,
-                    initialConnectionIds: [targetTool.connectionId, targetTool.secondaryConnectionId],
+                    initialConnectionIds: targetTool.connectionIds ?? [targetTool.connectionId, targetTool.secondaryConnectionId],
                 },
                 requirePowerPlatformApi,
             );
-
-            await setToolConnection(instanceId, result.primaryConnectionId);
-            await setToolSecondaryConnection(instanceId, result.secondaryConnectionId);
-            await applyImpersonationSelection(instanceId, "primary", result.primaryImpersonationUser);
-            if (result.secondaryConnectionId) {
-                await applyImpersonationSelection(instanceId, "secondary", result.secondaryImpersonationUser);
+            await setToolConnectionSlots(instanceId, result.connectionIds);
+            for (const [index, user] of result.impersonationUsers.entries()) {
+                await applyImpersonationSelection(instanceId, index, user);
             }
 
             const connections = await window.toolboxAPI.connections.getAll();
-            const primaryConnection = connections.find((item: Connection) => item.id === result.primaryConnectionId);
-            const secondaryConnection = result.secondaryConnectionId ? connections.find((item: Connection) => item.id === result.secondaryConnectionId) : null;
-
-            const connectionDetails = secondaryConnection ? `${primaryConnection?.name || "Primary"} and ${secondaryConnection.name}` : primaryConnection?.name || "the selected connection";
-
+            const connectionDetails =
+                result.connectionIds
+                    .map((id) => connections.find((item: Connection) => item.id === id)?.name)
+                    .filter((name): name is string => Boolean(name))
+                    .join(", ") || "the selected connection";
             window.toolboxAPI.utils.showNotification({
                 title: "Connections Set",
                 body: `${targetTool.tool.name} is now connected to ${connectionDetails}.`,
                 type: "success",
             });
-        } else {
+        } else if (connectionSlots.max === 1) {
             const { connectionId: selectedConnectionId, impersonationUser } = await openSelectConnectionModal(targetTool.connectionId, targetTool.tool.name, requirePowerPlatformApi);
 
             if (!selectedConnectionId) {
@@ -415,30 +408,17 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             }
         };
 
-        let primaryConnectionId: string | null = options?.primaryConnectionId ?? null;
-        let secondaryConnectionId: string | null = options?.secondaryConnectionId ?? null;
-        let primaryImpersonationUser: DataverseUser | null = null;
-        let secondaryImpersonationUser: DataverseUser | null = null;
+        const requestedConnectionIds = options?.connectionIds ?? [options?.primaryConnectionId ?? null, options?.secondaryConnectionId ?? null];
+        let connectionIds: ConnectionIds = await Promise.all(requestedConnectionIds.map((connectionId) => resolveConnectionId(connectionId)));
+        while (connectionIds.length < connectionSlots.min) connectionIds.push(null);
+        let primaryConnectionId: string | null = connectionIds[0] ?? null;
+        let secondaryConnectionId: string | null = connectionIds[1] ?? null;
+        let impersonationUsers: Array<DataverseUser | null> = [];
 
-        if (primaryConnectionId) {
-            primaryConnectionId = await resolveConnectionId(primaryConnectionId);
-        }
-
-        if (secondaryConnectionId) {
-            secondaryConnectionId = await resolveConnectionId(secondaryConnectionId);
-        }
-
-        if (connectionSlots.max > 2) {
-            window.toolboxAPI.utils.showNotification({
-                title: "Tool Not Supported Yet",
-                body: `${tool.name} supports up to ${connectionSlots.max} connections. Multi-connection runtime support is not available in this release yet.`,
-                type: "warning",
-            });
-            return;
-        } else if (connectionSlots.max === 0 || connectionSlots.min === 0) {
+        if (connectionSlots.max === 0 || connectionSlots.min === 0) {
             logInfo("Tool does not require a connection to launch; skipping connection selection.", { toolId });
         } else if (connectionSlots.max > 1) {
-            const selectedIds = [primaryConnectionId, secondaryConnectionId];
+            const selectedIds = connectionIds.slice(0, connectionSlots.max);
             const requiredSelections = selectedIds.slice(0, connectionSlots.min).filter(Boolean).length;
             if (requiredSelections < connectionSlots.min) {
                 try {
@@ -451,13 +431,13 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                         },
                         tool.features?.enabledForPowerPlatformAPI === true,
                     );
-                    primaryConnectionId = result.connectionIds[0] ?? null;
-                    secondaryConnectionId = result.connectionIds[1] ?? null;
-                    primaryImpersonationUser = result.impersonationUsers[0] ?? null;
-                    secondaryImpersonationUser = result.impersonationUsers[1] ?? null;
-                    logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
+                    connectionIds = result.connectionIds.slice(0, connectionSlots.max);
+                    primaryConnectionId = connectionIds[0] ?? null;
+                    secondaryConnectionId = connectionIds[1] ?? null;
+                    impersonationUsers = result.impersonationUsers;
+                    logInfo("Tool connections selected", { toolId, connectionCount: connectionIds.filter(Boolean).length });
 
-                    if (result.connectionIds.slice(0, connectionSlots.min).filter(Boolean).length < connectionSlots.min) {
+                    if (connectionIds.slice(0, connectionSlots.min).filter(Boolean).length < connectionSlots.min) {
                         throw new Error(`At least ${connectionSlots.min} connections are required`);
                     }
                 } catch (error) {
@@ -479,7 +459,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
-                        primaryImpersonationUser = impersonationUser;
+                        impersonationUsers[0] = impersonationUser;
                     } else {
                         throw new Error("No connection was selected");
                     }
@@ -591,7 +571,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         if (options?.callerInstanceId) {
             // Intentionally fire-and-forget so the callee tool can open immediately while invocation result resolves later.
             void window.toolboxAPI
-                .launchToolWithContext(options.callerInstanceId, instanceId, tool, primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {})
+                .launchToolWithContext(options.callerInstanceId, instanceId, tool, primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {}, undefined, connectionIds)
                 .catch(async (error) => {
                     const errorMessage = error instanceof Error ? error.message : String(error);
                     logError("Inter-tool invocation launch failed", { instanceId, error: errorMessage });
@@ -607,7 +587,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     }
                 });
         } else {
-            const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
+            const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId, connectionIds);
             if (!launched) {
                 window.toolboxAPI.utils.showNotification({
                     title: "Tool Launch Failed",
@@ -630,7 +610,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             toolId: toolId,
             tool: tool,
             isPinned: false,
-            connectionIds: [primaryConnectionId, secondaryConnectionId],
+            connectionIds,
             connectionId: primaryConnectionId,
             secondaryConnectionId: secondaryConnectionId,
         });
@@ -639,11 +619,8 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         // Tab is appended synchronously; connection subtext is populated asynchronously
         createTab(instanceId, tool, instanceNumber);
 
-        if (primaryImpersonationUser) {
-            await applyImpersonationSelection(instanceId, "primary", primaryImpersonationUser);
-        }
-        if (secondaryImpersonationUser) {
-            await applyImpersonationSelection(instanceId, "secondary", secondaryImpersonationUser);
+        for (const [index, user] of impersonationUsers.entries()) {
+            if (user) await applyImpersonationSelection(instanceId, index, user);
         }
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
@@ -781,7 +758,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
  * Apply an impersonation selection made in a connection modal to a launched tool instance,
  * setting or clearing it depending on whether a user was picked.
  */
-async function applyImpersonationSelection(instanceId: string, connectionTarget: "primary" | "secondary", user: DataverseUser | null): Promise<void> {
+async function applyImpersonationSelection(instanceId: string, connectionTarget: ConnectionTarget, user: DataverseUser | null): Promise<void> {
     try {
         if (user) {
             await window.toolboxAPI.setToolImpersonation(instanceId, user, connectionTarget);
@@ -1383,33 +1360,25 @@ export async function restoreSession(): Promise<void> {
 export async function setToolConnection(instanceId: string, connectionId: string | null): Promise<void> {
     const tool = openTools.get(instanceId);
     if (!tool) return;
+    const connectionIds = [...(tool.connectionIds ?? [tool.connectionId, tool.secondaryConnectionId])];
+    connectionIds[0] = connectionId;
+    await setToolConnectionSlots(instanceId, connectionIds);
+    logInfo(`Tool instance ${instanceId} (toolId: ${tool.toolId}) connection set to:`, { connectionId });
+}
 
-    // Save to backend using toolId (not instanceId) for settings storage
-    const toolId = tool.toolId;
-    if (connectionId) {
-        await window.toolboxAPI.setToolConnection(toolId, connectionId);
-    } else {
-        await window.toolboxAPI.removeToolConnection(toolId);
-    }
+async function setToolConnectionSlots(instanceId: string, connectionIds: ConnectionIds): Promise<void> {
+    const tool = openTools.get(instanceId);
+    if (!tool) return;
+    const normalizedConnectionIds = [...connectionIds];
+    await window.toolboxAPI.setToolConnectionSlots(tool.toolId, normalizedConnectionIds);
+    await window.toolboxAPI.updateToolConnections(instanceId, normalizedConnectionIds);
 
-    // Update the tool instance's connection context
-    // Pass both primary and secondary to preserve secondary when updating primary
-    await window.toolboxAPI.updateToolConnection(instanceId, connectionId, tool.secondaryConnectionId);
-
-    // Update local state
-    tool.connectionId = connectionId;
-    tool.connectionIds = [connectionId, tool.secondaryConnectionId];
-
+    tool.connectionIds = normalizedConnectionIds;
+    tool.connectionId = normalizedConnectionIds[0] ?? null;
+    tool.secondaryConnectionId = normalizedConnectionIds[1] ?? null;
     await updateTabConnectionSubtext(instanceId);
-
     saveSession();
-
-    // Update sidebar and footer if this is the active tool
-    if (activeToolId === instanceId) {
-        await updateActiveToolConnectionStatus();
-    }
-
-    logInfo(`Tool instance ${instanceId} (toolId: ${toolId}) connection set to:`, { connectionId });
+    if (activeToolId === instanceId) await updateActiveToolConnectionStatus();
 }
 
 /**
@@ -1559,32 +1528,24 @@ function renderConnectionSlotSquares(container: HTMLElement, tool: OpenTool, con
         square.style.borderColor = presentation.environmentColor ?? `var(--env-badge-${presentation.environmentToken})`;
         square.style.color = presentation.environmentColor ?? `var(--env-badge-${presentation.environmentToken})`;
 
-        const impersonationIndicator =
-            slotIndex === 1
-                ? window.toolboxAPI
-                      .getToolImpersonation(tool.instanceId, "secondary")
-                      .then(({ user }) => {
-                          if (!user) return "";
-                          return `, impersonating ${user.fullname}`;
-                      })
-                      .catch(() => "")
-                : Promise.resolve("");
+        const impersonationIndicator = window.toolboxAPI
+            .getToolImpersonation(tool.instanceId, slotIndex)
+            .then(({ user }) => (user ? `, impersonating ${user.fullname}` : ""))
+            .catch(() => "");
         square.setAttribute("aria-label", presentation.ariaLabel);
         square.title = presentation.title;
 
-        if (slotIndex === 1) {
-            void impersonationIndicator.then((summary) => {
-                if (!summary) return;
-                square.setAttribute("aria-label", `${square.getAttribute("aria-label")}${summary}`);
-                square.title = `${square.title}${summary}`;
-                const icon = document.createElement("img");
-                icon.className = "connection-slot-square-impersonation";
-                icon.src = document.body.classList.contains("dark-theme") ? "icons/dark/impersonate.svg" : "icons/light/impersonate.svg";
-                icon.alt = "";
-                icon.setAttribute("aria-hidden", "true");
-                square.appendChild(icon);
-            });
-        }
+        void impersonationIndicator.then((summary) => {
+            if (!summary) return;
+            square.setAttribute("aria-label", `${square.getAttribute("aria-label")}${summary}`);
+            square.title = `${square.title}${summary}`;
+            const icon = document.createElement("img");
+            icon.className = "connection-slot-square-impersonation";
+            icon.src = document.body.classList.contains("dark-theme") ? "icons/dark/impersonate.svg" : "icons/light/impersonate.svg";
+            icon.alt = "";
+            icon.setAttribute("aria-hidden", "true");
+            square.appendChild(icon);
+        });
 
         square.addEventListener("click", () => void openConnectionSlotPicker(tool.instanceId, slotIndex));
         square.addEventListener("contextmenu", (event) => {
@@ -1610,24 +1571,21 @@ function renderConnectionSlotSquares(container: HTMLElement, tool: OpenTool, con
 
 async function openConnectionSlotPicker(instanceId: string, slotIndex: number): Promise<void> {
     const tool = openTools.get(instanceId);
-    if (!tool || slotIndex !== 1) {
-        window.toolboxAPI.utils.showNotification({
-            title: "Not Available Yet",
-            body: "Changing connections beyond the secondary slot will be available with N-connection runtime support.",
-            type: "info",
-        });
-        return;
-    }
+    if (!tool || slotIndex <= 0) return;
 
     try {
         const { openSelectConnectionModal } = await import("./connectionManagement");
-        const result = await openSelectConnectionModal(tool.secondaryConnectionId, tool.tool.name, tool.tool.features?.enabledForPowerPlatformAPI === true, Boolean(tool.secondaryConnectionId));
+        const connectionIds = [...(tool.connectionIds ?? [tool.connectionId, tool.secondaryConnectionId])];
+        const currentConnectionId = connectionIds[slotIndex] ?? null;
+        const result = await openSelectConnectionModal(currentConnectionId, tool.tool.name, tool.tool.features?.enabledForPowerPlatformAPI === true, Boolean(currentConnectionId));
         if (result.cleared) {
-            await setToolSecondaryConnection(instanceId, null);
-            await applyImpersonationSelection(instanceId, "secondary", null);
+            connectionIds[slotIndex] = null;
+            await setToolConnectionSlots(instanceId, connectionIds);
+            await applyImpersonationSelection(instanceId, slotIndex, null);
         } else if (result.connectionId) {
-            await setToolSecondaryConnection(instanceId, result.connectionId);
-            await applyImpersonationSelection(instanceId, "secondary", result.impersonationUser);
+            connectionIds[slotIndex] = result.connectionId;
+            await setToolConnectionSlots(instanceId, connectionIds);
+            await applyImpersonationSelection(instanceId, slotIndex, result.impersonationUser);
         }
     } catch (error) {
         logInfo("Connection slot picker cancelled", { instanceId, slotIndex, error: error instanceof Error ? error.message : String(error) });
@@ -1636,16 +1594,17 @@ async function openConnectionSlotPicker(instanceId: string, slotIndex: number): 
 
 async function showConnectionSlotContextMenu(instanceId: string, slotIndex: number, x: number, y: number): Promise<void> {
     const tool = openTools.get(instanceId);
-    if (!tool || slotIndex !== 1) return;
-    const impersonation = await window.toolboxAPI.getToolImpersonation(instanceId, "secondary").catch(() => ({ user: null }));
+    if (!tool || slotIndex <= 0) return;
+    const connectionIds = tool.connectionIds ?? [tool.connectionId, tool.secondaryConnectionId];
+    const impersonation = await window.toolboxAPI.getToolImpersonation(instanceId, slotIndex).catch(() => ({ user: null }));
     const action = await window.toolboxAPI.utils.showContextMenu({
         x,
         y,
         items: [
             { id: "change", label: "Change Connection" },
-            { id: "clear", label: "Clear Connection", enabled: Boolean(tool.secondaryConnectionId) },
+            { id: "clear", label: "Clear Connection", enabled: Boolean(connectionIds[slotIndex]) },
             { type: "separator" },
-            { id: "impersonate", label: impersonation.user ? "Change Impersonated User…" : "Impersonate…", enabled: Boolean(tool.secondaryConnectionId) },
+            { id: "impersonate", label: impersonation.user ? "Change Impersonated User…" : "Impersonate…", enabled: Boolean(connectionIds[slotIndex]) },
             { id: "reset-impersonation", label: "Stop Impersonating", enabled: Boolean(impersonation.user) },
         ],
     });
@@ -1653,14 +1612,16 @@ async function showConnectionSlotContextMenu(instanceId: string, slotIndex: numb
     if (action === "change") {
         await openConnectionSlotPicker(instanceId, slotIndex);
     } else if (action === "clear") {
-        await setToolSecondaryConnection(instanceId, null);
-        await applyImpersonationSelection(instanceId, "secondary", null);
-    } else if (action === "impersonate" && tool.secondaryConnectionId) {
+        const updatedConnectionIds = [...(tool.connectionIds ?? [tool.connectionId, tool.secondaryConnectionId])];
+        updatedConnectionIds[slotIndex] = null;
+        await setToolConnectionSlots(instanceId, updatedConnectionIds);
+        await applyImpersonationSelection(instanceId, slotIndex, null);
+    } else if (action === "impersonate" && connectionIds[slotIndex]) {
         const { openImpersonationUserPicker } = await import("./connectionManagement");
-        const user = await openImpersonationUserPicker(tool.secondaryConnectionId, "Connection 2");
-        if (user) await applyImpersonationSelection(instanceId, "secondary", user);
+        const user = await openImpersonationUserPicker(connectionIds[slotIndex]!, `Connection ${slotIndex + 1}`);
+        await applyImpersonationSelection(instanceId, slotIndex, user);
     } else if (action === "reset-impersonation") {
-        await applyImpersonationSelection(instanceId, "secondary", null);
+        await applyImpersonationSelection(instanceId, slotIndex, null);
     }
 }
 
@@ -1881,28 +1842,9 @@ export async function setToolSecondaryConnection(instanceId: string, connectionI
     const tool = openTools.get(instanceId);
     if (!tool) return;
 
-    if (connectionId) {
-        await window.toolboxAPI.setToolSecondaryConnection(tool.toolId, connectionId);
-    } else {
-        await window.toolboxAPI.removeToolSecondaryConnection(tool.toolId);
-    }
-
-    // Update the tool instance's connection context
-    // Pass both primary and secondary connections
-    await window.toolboxAPI.updateToolConnection(instanceId, tool.connectionId, connectionId);
-
-    // Update local state
-    tool.secondaryConnectionId = connectionId;
-    tool.connectionIds = [tool.connectionId, connectionId];
-
-    await updateTabConnectionSubtext(instanceId);
-
-    saveSession();
-
-    // Update sidebar and footer if this is the active tool
-    if (activeToolId === instanceId) {
-        await updateActiveToolConnectionStatus();
-    }
+    const connectionIds = [...(tool.connectionIds ?? [tool.connectionId, tool.secondaryConnectionId])];
+    connectionIds[1] = connectionId;
+    await setToolConnectionSlots(instanceId, connectionIds);
 
     logInfo(`Tool instance ${instanceId} secondary connection set to:`, { connectionId });
 }
@@ -2121,12 +2063,20 @@ export function initializeInvocationBanner(): void {
  * PROVIDE_INVOCATION_CONNECTIONS.
  */
 export function initializeInvocationConnectionsPrompt(): void {
-    window.toolboxAPI.onInvocationConnectionsPrompt(async ({ requestId, toolName, isSecondaryRequired, inheritedPrimaryConnectionId }) => {
+    window.toolboxAPI.onInvocationConnectionsPrompt(async ({ requestId, toolName, minConnections, maxConnections, inheritedConnectionIds }) => {
         try {
-            const result = await openSelectMultiConnectionModal(isSecondaryRequired, toolName);
+            const result = await openSelectMultiConnectionModal({
+                minConnections,
+                maxConnections,
+                toolName,
+                initialConnectionIds: inheritedConnectionIds,
+            });
+            const connectionIds = [...result.connectionIds];
+            if (!connectionIds[0] && inheritedConnectionIds[0]) connectionIds[0] = inheritedConnectionIds[0];
             await window.toolboxAPI.provideInvocationConnections(requestId, {
-                primaryConnectionId: result.primaryConnectionId ?? inheritedPrimaryConnectionId,
-                secondaryConnectionId: result.secondaryConnectionId,
+                connectionIds,
+                primaryConnectionId: connectionIds[0] ?? null,
+                secondaryConnectionId: connectionIds[1] ?? null,
             });
         } catch (err) {
             // User cancelled or modal failed – notify main process so it can reject the launch
@@ -2149,7 +2099,7 @@ export function initializeInvocationConnectionsPrompt(): void {
  *   back to the caller tool.
  */
 export function initializeCalleeToolListeners(): void {
-    window.toolboxAPI.onCalleeToolOpened(({ calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId }) => {
+    window.toolboxAPI.onCalleeToolOpened(({ calleeInstanceId, tool, connectionIds, primaryConnectionId, secondaryConnectionId }) => {
         // Ensure the tool panel is visible (it may already be open via the caller, but
         // guard against edge cases where the caller launched without the panel shown).
         hideHomePage();
@@ -2174,7 +2124,7 @@ export function initializeCalleeToolListeners(): void {
             toolId: tool.id,
             tool: tool,
             isPinned: false,
-            connectionIds: [primaryConnectionId, secondaryConnectionId],
+            connectionIds: connectionIds ?? [primaryConnectionId, secondaryConnectionId],
             connectionId: primaryConnectionId,
             secondaryConnectionId: secondaryConnectionId,
         });

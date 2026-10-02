@@ -6,6 +6,7 @@
  */
 
 declare namespace PowerPlatformAPI {
+    export type ConnectionTarget = "primary" | "secondary" | number;
     /**
      * Power Platform API category response type
      */
@@ -29,7 +30,7 @@ declare namespace PowerPlatformAPI {
          * @param connectionTarget Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @param headers Optional custom headers
          */
-        Get: (path?: string, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
+        Get: (path?: string, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
 
         /**
          * Make a POST request to the category endpoint
@@ -38,7 +39,7 @@ declare namespace PowerPlatformAPI {
          * @param connectionTarget Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @param headers Optional custom headers
          */
-        Post: (path?: string, body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
+        Post: (path?: string, body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
 
         /**
          * Make a PUT request to the category endpoint
@@ -47,7 +48,7 @@ declare namespace PowerPlatformAPI {
          * @param connectionTarget Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @param headers Optional custom headers
          */
-        Put: (path?: string, body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
+        Put: (path?: string, body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
 
         /**
          * Make a PATCH request to the category endpoint
@@ -56,7 +57,7 @@ declare namespace PowerPlatformAPI {
          * @param connectionTarget Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @param headers Optional custom headers
          */
-        Patch: (path?: string, body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
+        Patch: (path?: string, body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) => Promise<PowerPlatformResponse>;
 
         /**
          * Make a DELETE request to the category endpoint
@@ -65,7 +66,7 @@ declare namespace PowerPlatformAPI {
          * @param headers Optional custom headers
          * @param body Optional request body (for DELETE with payload)
          */
-        Delete: (path?: string, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>, body?: unknown) => Promise<PowerPlatformResponse>;
+        Delete: (path?: string, connectionTarget?: ConnectionTarget, headers?: Record<string, string>, body?: unknown) => Promise<PowerPlatformResponse>;
     }
 
     /**

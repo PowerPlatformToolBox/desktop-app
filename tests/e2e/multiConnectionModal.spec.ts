@@ -98,6 +98,19 @@ test.describe("Multi-connection selection modal", () => {
         await modal.locator("#cancel-select-multi-connection-btn").click();
     });
 
+    test("supports runtime slot arrays through the declared four-slot maximum", async ({ electronApp, window }) => {
+        const modal = await launchFixtureTool(window, electronApp, "e2e-four-connection-range");
+
+        await expect(modal.locator("[data-slot-row]")).toHaveCount(3);
+        await expect(modal.locator(".info-message")).toContainText("up to 4 slots");
+        await modal.locator("#add-connection-slot-btn").click();
+
+        await expect(modal.locator("[data-slot-row]")).toHaveCount(4);
+        await expect(modal.locator('[data-slot-row="3"]')).toBeVisible();
+        await expect(modal.locator("#add-connection-slot-btn")).toBeDisabled();
+        await modal.locator("#cancel-select-multi-connection-btn").click();
+    });
+
     test("keeps undeclared connection features on the single-connection picker", async ({ electronApp, window }) => {
         const modal = await launchSingleConnectionFixtureTool(window, electronApp);
 

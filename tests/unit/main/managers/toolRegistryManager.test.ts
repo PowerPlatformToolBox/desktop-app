@@ -113,8 +113,30 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         expect(catalogColumns).toContain("mcp_enabled");
         expect(catalogColumns).toContain("readme_url");
         expect(catalogColumns).toContain("maturity_status");
-        expect(catalogColumns).not.toMatch(/downloadurl|iconurl|readmeurl|features|tool_maturity|max_api/);
+        expect(catalogColumns).toContain("tool_release_features(connections)");
+        expect(catalogColumns).not.toMatch(/downloadurl|iconurl|readmeurl|tool_maturity|max_api/);
         expect(result[0]).toMatchObject({ maturity: "verified", downloadUrl: catalogRow.download });
+    });
+
+    it("prefers valid connection ranges from tool_release_features over legacy catalog fields", () => {
+        const mapped = mapSupabaseToolRow({
+            ...catalogRow,
+            tool_release_features: [{ connections: { min: 1, max: 5 } }],
+        });
+
+        expect(mapped.features).toMatchObject({ connections: { min: 1, max: 5 } });
+        expect(mapped.features).not.toHaveProperty("multiConnection");
+        expect(mapped.features).not.toHaveProperty("connectionRequirement");
+    });
+
+    it("falls back to legacy connection fields when release feature data is malformed", () => {
+        const mapped = mapSupabaseToolRow({
+            ...catalogRow,
+            tool_release_features: { connections: { min: 5, max: 2 } },
+        });
+
+        expect(mapped.features).toMatchObject({ multiConnection: "optional", connectionRequirement: "required" });
+        expect(mapped.features).not.toHaveProperty("connections");
     });
 
     it("fetches, submits, and upvotes tool ideas using the install identity", async () => {
@@ -128,9 +150,7 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         const from = jest.fn().mockReturnValue({ insert });
         (manager as unknown as { supabase: unknown }).supabase = { rpc, from };
 
-        await expect(manager.fetchToolIdeas()).resolves.toEqual([
-            { id: "idea-1", title: "Tool idea", description: "Details", upvotes: 4, createdAt: "2026-10-01", hasUpvoted: false },
-        ]);
+        await expect(manager.fetchToolIdeas()).resolves.toEqual([{ id: "idea-1", title: "Tool idea", description: "Details", upvotes: 4, createdAt: "2026-10-01", hasUpvoted: false }]);
         expect(rpc).toHaveBeenCalledWith("get_tool_ideas", { p_install_id: "install-123" });
 
         await manager.submitToolIdea({ title: "  Idea  ", description: "  Details  ", email: "  user@example.com  " });

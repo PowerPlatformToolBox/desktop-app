@@ -151,6 +151,8 @@ export interface ToolContext {
     connectionId?: string | null;
     secondaryConnectionUrl?: string | null;
     secondaryConnectionId?: string | null;
+    connectionIds?: Array<string | null>;
+    connectionUrls?: Array<string | null>;
 }
 
 /**
