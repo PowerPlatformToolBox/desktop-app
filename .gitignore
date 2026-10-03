@@ -161,3 +161,9 @@ buildScripts/*/latest-mac.yml
 
 # Test Results
 test-results/
+
+# Nix / direnv
+.direnv/
+result
+result-*
+flake.lock
