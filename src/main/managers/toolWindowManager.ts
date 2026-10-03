@@ -3,7 +3,7 @@ import * as path from "path";
 import { ConnectionIds, ConnectionTarget, legacyConnectionIds, normalizeConnectionTarget, resolveConnectionSlots } from "../../common/connectionSlots";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { addBreadcrumb, captureException } from "../../common/sentryHelper";
+import { addConnectionSlotsBreadcrumb, captureException } from "../../common/sentryHelper";
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import type { DataverseUser } from "../../common/types/dataverse";
 import { ToolBoxEvent } from "../../common/types/events";
@@ -398,11 +398,7 @@ export class ToolWindowManager {
             primaryConnectionId = resolvedConnectionIds[0] ?? null;
             secondaryConnectionId = resolvedConnectionIds[1] ?? null;
             const connectionSlots = resolveConnectionSlots(tool.features);
-            addBreadcrumb("Tool connection slots resolved", "tool.connections", "info", {
-                minConnections: connectionSlots.min,
-                maxConnections: connectionSlots.max,
-                filledConnectionCount: resolvedConnectionIds.filter(Boolean).length,
-            });
+            addConnectionSlotsBreadcrumb(connectionSlots.min, connectionSlots.max, resolvedConnectionIds.filter(Boolean).length);
             logInfo("[ToolWindowManager] Tool launch started", {
                 instanceId,
                 toolId: tool.id,
@@ -650,8 +646,9 @@ export class ToolWindowManager {
         const connectionSlots = resolveConnectionSlots(tool.features);
         while (effectiveConnectionIds.length < connectionSlots.min) effectiveConnectionIds.push(null);
         const missingRequiredSlots = effectiveConnectionIds.slice(0, connectionSlots.min).some((connectionId) => !connectionId);
+        const hasInheritedConnection = effectiveConnectionIds.slice(0, connectionSlots.max).some(Boolean);
 
-        if (connectionSlots.max > 0 && missingRequiredSlots) {
+        if (connectionSlots.max > 0 && (missingRequiredSlots || !hasInheritedConnection)) {
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
                 logInfo("[ToolWindowManager] Inter-tool invocation awaiting connection selection", invocationLogContext);

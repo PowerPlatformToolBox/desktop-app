@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import { initializeSentryHelper, logInfo, recordSentryTelemetryDisabled, resetSentryHelper, setSentryTelemetryConsent } from "../../../src/common/sentryHelper";
+import { addConnectionSlotsBreadcrumb, initializeSentryHelper, logInfo, recordSentryTelemetryDisabled, resetSentryHelper, setSentryTelemetryConsent } from "../../../src/common/sentryHelper";
 
 describe("Sentry helper telemetry consent", () => {
     const sentry = {
@@ -37,6 +37,26 @@ describe("Sentry helper telemetry consent", () => {
             release: "1.2.7",
             release_action: "update",
             previous_release: "1.2.6",
+        });
+    });
+
+    it("records only slot counts in the connection-launch breadcrumb payload", () => {
+        const addBreadcrumb = jest.fn();
+        initializeSentryHelper({ ...sentry, addBreadcrumb });
+
+        addConnectionSlotsBreadcrumb(0, 3, 2);
+
+        expect(addBreadcrumb).toHaveBeenCalledWith({
+            message: "Tool connection slots resolved",
+            category: "tool.connections",
+            level: "info",
+            data: {
+                minConnections: 0,
+                maxConnections: 3,
+                filledConnectionCount: 2,
+                machine_id: null,
+                timestamp: expect.any(String),
+            },
         });
     });
 });

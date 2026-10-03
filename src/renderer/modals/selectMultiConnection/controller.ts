@@ -599,6 +599,7 @@ function getConnectionSlotsModalControllerScript(
     let activeSlot = 0;
     let allConnections = [];
     const impersonateSlots = new Set();
+    const pendingConnectionIds = new Set();
     const DEFAULT_SORT_OPTION = "last-used";
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION;
@@ -685,9 +686,10 @@ ${sortingUtilities}
             const envClass = "connection-env-badge env-" + escapeHtml(String(connection.environment).toLowerCase());
             const category = connection.category ? '<span class="category-badge">' + escapeHtml(connection.category) + '</span>' : "";
             const ppApi = connection.enabledForPowerPlatformAPI ? '<span class="power-platform-api-badge">PP API</span>' : "";
+            const connecting = pendingConnectionIds.has(connection.id);
             const selectionControl = selected
                 ? '<span class="connection-selected-indicator" role="status" aria-label="Selected for Connection ' + (activeSlot + 1) + '" title="Selected for Connection ' + (activeSlot + 1) + '"><span class="connection-selected-check" aria-hidden="true">&#10003;</span><span>Selected</span></span>'
-                : '<button class="connect-button" data-connection-id="' + escapeHtml(connection.id) + '" type="button">Connect</button>';
+                : '<button class="connect-button fluent-button fluent-button-primary" data-connection-id="' + escapeHtml(connection.id) + '" type="button" ' + (connecting ? 'disabled aria-busy="true"' : "") + '>' + (connecting ? "Connecting…" : "Connect") + '</button>';
             return '<div class="connection-item ' + (selected ? "authenticated" : "") + '" data-connection-id="' + escapeHtml(connection.id) + '">' +
                 '<div class="connection-header"><div class="connection-name">' + escapeHtml(connection.name) + '</div><div class="connection-actions">' + selectionControl + '</div></div>' +
                 '<div class="connection-url">' + escapeHtml(connection.url) + '</div><div class="connection-item-footer"><div class="connection-item-meta-left"><span class="' + envClass + '">' + escapeHtml(connection.environment) + '</span><span class="auth-type-badge">' + escapeHtml(formatAuthType(connection.authenticationType)) + '</span>' + ppApi + category + '</div></div>' +
@@ -698,12 +700,18 @@ ${sortingUtilities}
             button.addEventListener("click", (event) => {
                 event.stopPropagation();
                 const connectionId = button.getAttribute("data-connection-id");
-                if (connectionId) modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
+                if (!connectionId || pendingConnectionIds.has(connectionId)) return;
+                pendingConnectionIds.add(connectionId);
+                renderConnections();
+                modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
             });
         });
         if (ENABLE_DOUBLE_CLICK_CONNECT) list.querySelectorAll(".connection-item").forEach((item) => item.addEventListener("dblclick", () => {
             const connectionId = item.getAttribute("data-connection-id");
-            if (connectionId) modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
+            if (!connectionId || pendingConnectionIds.has(connectionId)) return;
+            pendingConnectionIds.add(connectionId);
+            renderConnections();
+            modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
         }));
         list.querySelectorAll(".slot-impersonate-checkbox").forEach((checkbox) => checkbox.addEventListener("change", () => {
             if (checkbox.checked) impersonateSlots.add(activeSlot);
@@ -754,6 +762,7 @@ ${sortingUtilities}
         if (payload?.channel === CHANNELS.connectReady && payload.data?.success && payload.data?.connectionId) {
             const match = /^slot-(\\d+)$/.exec(payload.data.listType || "");
             if (!match) return;
+            pendingConnectionIds.delete(payload.data.connectionId);
             const slotIndex = Number(match[1]);
             slotIds[slotIndex] = payload.data.connectionId;
             connectedSlots.add(slotIndex);
@@ -763,8 +772,8 @@ ${sortingUtilities}
             updateState();
         }
         if (payload?.channel === CHANNELS.connectReady && payload.data?.success === false) {
-            const button = list?.querySelector('.connect-button[data-connection-id="' + payload.data.connectionId + '"]');
-            if (button) button.textContent = "Connect";
+            pendingConnectionIds.delete(payload.data.connectionId);
+            renderConnections();
         }
     });
     if (ENABLED_FOR_POWER_PLATFORM_API) {

@@ -68,6 +68,7 @@ import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 import { mergeDataverseHeaders } from "./utilities/dataverseBatch";
+import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -572,11 +573,7 @@ class ToolBoxApp {
         callback: (connectionId: string) => Promise<T>,
     ): Promise<T> {
         const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, operation, additionalHeaders);
-        const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
-        if (!connectionId) {
-            const target = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
-            throw new Error(`No ${target} found for this tool instance. Please ensure the tool is connected to an environment.`);
-        }
+        const connectionId = resolveToolConnectionForRequest(this.toolWindowManager, event.sender.id, connectionTarget);
         return this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => callback(connectionId));
     }
 
@@ -1912,12 +1909,7 @@ class ToolBoxApp {
                 connectionTarget?: ConnectionTarget,
             ) => {
                 try {
-                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
-
-                    if (!connectionId) {
-                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
-                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                    }
+                    const connectionId = resolveToolConnectionForRequest(this.toolWindowManager, event.sender.id, connectionTarget);
 
                     return await this.powerPlatformManager.request(connectionId, category, method, relativePath, body, customHeaders);
                 } catch (error) {
@@ -2053,12 +2045,7 @@ class ToolBoxApp {
             try {
                 const callerObjectId = this.toolWindowManager?.getImpersonatedUserByWebContents(event.sender.id, connectionTarget)?.azureactivedirectoryobjectid ?? null;
                 const approvedHeaders = await this.dataverseHeaderConsentManager.authorize(event.sender, "Retrieve multiple records", additionalHeaders);
-                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, connectionTarget);
-
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : typeof connectionTarget === "number" ? `connection slot ${connectionTarget + 1}` : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
-                }
+                const connectionId = resolveToolConnectionForRequest(this.toolWindowManager, event.sender.id, connectionTarget);
                 return await this.dataverseManager.withImpersonation(callerObjectId, () =>
                     this.dataverseManager.withAdditionalHeaders(approvedHeaders, () => this.dataverseManager.retrieveMultiple(connectionId, fetchXml)),
                 );

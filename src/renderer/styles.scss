@@ -2082,6 +2082,34 @@ body.dark-theme .consent-status.revoked {
     background: #d83b01;
 }
 
+.connection-slot-square.available {
+    border-style: dashed;
+    color: var(--text-color-secondary, var(--text-color));
+    background: transparent;
+    opacity: 0.65;
+}
+
+.connection-slot-square.available:hover,
+.connection-slot-square.available:focus-visible {
+    opacity: 1;
+}
+
+.connection-slot-square.cleared,
+.connection-slot-square:disabled {
+    border-style: dashed;
+    color: var(--text-color-secondary, var(--text-color));
+    background: transparent;
+    cursor: not-allowed;
+    opacity: 0.35;
+}
+
+.connection-slot-square.cleared:hover,
+.connection-slot-square.cleared:focus-visible,
+.connection-slot-square:disabled:hover,
+.connection-slot-square:disabled:focus-visible {
+    outline: none;
+}
+
 .connection-slot-square-impersonation {
     position: absolute;
     right: -4px;

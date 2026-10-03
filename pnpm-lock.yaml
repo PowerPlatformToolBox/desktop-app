@@ -121,8 +121,8 @@ importers:
   packages/types:
     dependencies:
       '@pptb/validate':
-        specifier: 1.0.3
-        version: 1.0.3
+        specifier: 1.0.4
+        version: 1.0.4
 
   packages/validation:
     dependencies:
@@ -892,8 +892,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@pptb/validate@1.0.3':
-    resolution: {integrity: sha512-tjF7nASpGbqBDhrvpIehh5f0CncKmieOEfYwPBY+hcnhYD6FemKW3eSaBd+QfQaXfcBJNj7Ory3L1WpJk+SUCw==}
+  '@pptb/validate@1.0.4':
+    resolution: {integrity: sha512-Xew21gUgwrdstVpu6EB8b8vDaWNE4OOiPqr1Xk61Ao2EKN4ioCVg/cG6uFRFBhLaLqSjublVYczJ01KAUbBsvw==}
     hasBin: true
 
   '@rollup/rollup-android-arm-eabi@4.63.3':
@@ -5015,7 +5015,7 @@ snapshots:
     dependencies:
       playwright: 1.60.0
 
-  '@pptb/validate@1.0.3':
+  '@pptb/validate@1.0.4':
     dependencies:
       tar: 7.5.21
 

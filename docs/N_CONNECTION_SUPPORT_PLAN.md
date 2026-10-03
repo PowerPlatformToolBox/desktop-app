@@ -133,39 +133,27 @@ in `packages/types/toolManifest.d.ts`, exported from `packages/types/index.d.ts`
 
 **E2E tests:** existing `tests/e2e/multiConnectionModal.spec.ts` checks the accessible square-toolbar container and zero-connection footer hiding. A fixture-backed secondary assignment is still needed to automate square change/clear, expiry, impersonation, and arrow-key interactions. Screen-reader speech remains a manual VoiceOver check.
 
-### [ ] PR 4 — Runtime support for more than two slots
+### [x] PR 4 — Runtime support for more than two slots
 
-**Status:** Runtime implementation is present in the working tree, but PR 4 remains open until the missing API-routing/privacy tests below are added and the Supabase schema prerequisite is confirmed. Do not mark complete based only on the modal-cap E2E.
+**Status:** Complete in the working tree; merge/deployment tracking is separate. The normalized feature schema and corrected RLS policies were deployed and manually verified by the user. A tool declaring `{ "min": 0, "max": 3 }` was manually exercised across connection-count combinations.
 
 - Generalize per-instance connection and impersonation state to arrays.
 - Add slot-array IPC and preload APIs while retaining all old primary/secondary APIs.
 - Route Dataverse operations by string or numeric target; report missing/out-of-range slots clearly.
 - Extend `packages/types/toolboxAPI.d.ts`, `dataverseAPI.d.ts`, and `powerplatformAPI.d.ts` with array
   APIs and numeric `ConnectionTarget`, preserving old fields and string aliases for backward compatibility.
-- Read the new `connections` field from `tool_release_features`; deploy the database column before releasing this PR. Validate registry values defensively and fall back to legacy values when malformed.
+- Read the top-level `connections` value exposed by `tools_catalog` from the normalized `tool_release_features.value`; validate it defensively and fall back to legacy values when malformed.
 - Add a Sentry breadcrumb with the resolved min/max and filled count only; never include connection identifiers.
 
-**Already implemented and verified in the working tree:** per-instance arrays, indexed connection/impersonation lookup, array context updates, numeric targets across the Dataverse and Power Platform IPC surfaces, tool-facing `getConnections()` / `getConnection(target)`, array-aware invocation inheritance, registry mapping with legacy fallback, and a breadcrumb containing only min/max/filled count. `tests/unit/common/connectionSlots.test.ts`, `tests/unit/main/managers/toolWindowManager.test.ts`, and `tests/unit/main/managers/toolRegistryManager.test.ts` cover target normalization, later-slot routing and impersonation, connection updates, invocation prompt inheritance, and registry mapping. `tests/e2e/multiConnectionModal.spec.ts` covers the four-slot selector cap and zero-connection launch.
+**Already implemented and verified in the working tree:** per-instance arrays, indexed connection/impersonation lookup, array context updates, numeric targets across the Dataverse and Power Platform IPC surfaces, tool-facing `getConnections()` / `getConnection(target)`, array-aware invocation inheritance, registry mapping with legacy fallback, and a breadcrumb containing only min/max/filled count. `tests/unit/common/connectionSlots.test.ts`, `tests/unit/main/managers/toolWindowManager.test.ts`, and `tests/unit/main/managers/toolRegistryManager.test.ts` cover target normalization, later-slot routing and impersonation, connection updates, invocation prompt inheritance, registry mapping, and install-manifest persistence of `features.connections`. `tests/e2e/multiConnectionModal.spec.ts` covers the exact-zero launch, optional 0–3 range, actionable footer placeholders, and the four-slot selector cap. The user also manually verified the normalized feature schema/RLS and 0–3 selection combinations.
 
-**Remaining unit tests required:**
+**Verified automated coverage:**
 
-- Add focused tests for the tool preload bridge: `connections.getConnections()` preserves null gaps and legacy two-field context; `connections.getConnection(3)` returns slot 4; negative/fractional targets reject.
-- Add main IPC routing tests proving a Dataverse operation applies impersonation from the selected slot, while `getSystemUsers` and Power Platform requests route to the selected later numeric slot. Include legacy `"secondary"` routing and clear errors for an unassigned/out-of-range slot.
-- Add no-connection API tests proving Dataverse and Power Platform requests reject with a useful missing-connection error when the tool has no assigned slot.
-- Add a Sentry breadcrumb test asserting its custom data contains `minConnections`, `maxConnections`, and `filledConnectionCount` only, with no connection IDs or URLs.
-- Extend invocation coverage through a successful prompt response: verify selected arrays reach the callee launch and `CALLEE_TOOL_OPENED`, while cancellation still rejects and releases the pending invocation state.
+- Unit tests cover numeric/legacy target resolution, later-slot connection and impersonation lookup, slot-array updates, preload `getConnections()` null-gap and legacy behavior, `getConnection(3)`, invalid targets, request target resolution and missing-slot errors, successful/cancelled invocation prompt handling, release-feature mapping and manifest persistence, and count-only breadcrumb data.
+- `tests/e2e/multiConnectionModal.spec.ts` covers exact-zero launch, optional 0–3 selection, available/cleared footer squares, four-slot cap, tool preload access to slot 4 with a null gap, legacy `"secondary"`, invalid target rejection, connectionless Dataverse and Power Platform errors, and successful inter-tool handoff with all four inherited connection names.
+- The user manually verified the deployed normalized feature schema/RLS and 0–3 behavior.
 
-**Remaining E2E tests required:** add `tests/e2e/nConnectionSupport.spec.ts` or extend the existing connection spec. Use a deterministic fixture and local/mock data; do not require live Supabase, real credentials, or external Dataverse calls.
-
-- Preserve the existing four-slot hard-cap and zero-connection-launch checks.
-- Assign at least four deterministic connection IDs without interactive authentication, then have the fixture tool call `toolboxAPI.connections.getConnection(3)` and a Dataverse/Power Platform API method with target `3`. Assert slot 4 is selected, not the primary or secondary connection.
-- Verify legacy `"secondary"` still selects slot 1 and negative/fractional plus unassigned high indexes fail clearly.
-- Call a Dataverse API from a connectionless fixture and assert the returned error explains that no connection is assigned.
-- Exercise inter-tool launch with inherited later slots: confirm the prompt shows the declared min/max, selected connection IDs are positionally preserved, and the callee receives the full array.
-
-**Database artifact required before release:** add or deploy the `connections` column on `tool_release_features` using the table's established JSON/JSONB convention, and confirm the Supabase relation query `tool_release_features(connections)` returns it. No migration for this column is currently present in this repository. Verify one valid range and one malformed value against the deployed shape; the client must use the legacy catalog fields when the modern value is malformed or unavailable.
-
-**Completion gate:** all remaining tests above pass; run focused and full unit suites, the new/updated E2E suite, `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`, and `git diff --check`. Record the schema deployment/verification separately from the code merge. Latest working-tree checks before the remaining tests were 352 unit tests passed, 5 connection-modal E2E tests passed, and build/lint passed; the lint and build emit existing toolchain/chunk warnings only.
+**Final checks:** `pnpm run test:unit` passed (374 tests); the PR4 connection/invocation E2E spec passed (9 tests); `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`, and `git diff --check` passed. Lint/build report existing TypeScript-estree compatibility and chunk-size warnings.
 
 ### [ ] PR 5 — Deletion, downgrade, restore, and auth edge cases
 

@@ -96,6 +96,11 @@ describe("connection modal double-click controller wiring", () => {
         expect(script).toContain("const MAX_CONNECTIONS = 4;");
         expect(script).toContain('listType: "slot-" + activeSlot');
         expect(script).toContain("const connectedSlots = new Set");
+        expect(script).toContain("const pendingConnectionIds = new Set();");
+        expect(script).toContain("Connecting…");
+        expect(script).toContain('disabled aria-busy="true"');
+        expect(script).toContain('class="connect-button fluent-button fluent-button-primary"');
+        expect(script).toContain("pendingConnectionIds.delete(payload.data.connectionId)");
         expect(script).toContain('class="connection-slot-connected-check"');
         expect(script).toContain("connectedSlots.add(slotIndex)");
         expect(script).not.toContain("const nextEmpty = slotIds.findIndex");
@@ -143,5 +148,6 @@ describe("connection modal double-click controller wiring", () => {
         expect(view.styles).toContain("#active-connection-slot-label { display: block; margin: 0 0 12px;");
         expect(view.styles).toContain(".slot-duplicate-warning { color: #9a6700; margin: 8px 0 14px;");
         expect(view.styles).toContain(".slot-duplicate-card-note { display: flex; align-items: center; gap: 6px;");
+        expect(view.styles).toContain(".connect-button { padding: 5px 10px;");
     });
 });

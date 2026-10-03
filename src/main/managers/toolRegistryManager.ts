@@ -24,6 +24,7 @@ import {
     ToolManifest,
     ToolRegistryEntry,
 } from "../../common/types";
+import { compareVersions } from "../../common/utils/version";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
@@ -48,10 +49,6 @@ interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users
-}
-
-interface SupabaseReleaseFeatureRow {
-    connections?: unknown;
 }
 
 function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
@@ -98,7 +95,7 @@ interface SupabaseTool {
     min_api?: string; // Minimum ToolBox API version required
     multi_connection?: string | null;
     connection_requirement?: string | null;
-    tool_release_features?: SupabaseReleaseFeatureRow | SupabaseReleaseFeatureRow[] | null;
+    connections?: string | null;
     enabled_for_power_platform_api?: boolean | null;
     mcp_enabled?: boolean | null;
     maturity_status?: string | null;
@@ -129,7 +126,7 @@ const SUPABASE_CATALOG_COLUMNS = [
     "min_api",
     "multi_connection",
     "connection_requirement",
-    "tool_release_features(connections)",
+    "connections",
     "enabled_for_power_platform_api",
     "mcp_enabled",
     "maturity_status",
@@ -143,6 +140,13 @@ function getTypedFeatureValue<T extends string>(value: unknown, allowed: readonl
 }
 
 function getValidConnectionsFeature(value: unknown): ToolFeatures["connections"] | undefined {
+    for (let parseDepth = 0; typeof value === "string" && parseDepth < 2; parseDepth++) {
+        try {
+            value = JSON.parse(value) as unknown;
+        } catch {
+            return undefined;
+        }
+    }
     if (typeof value === "number") {
         return Number.isInteger(value) && value >= 0 && value <= 10 ? value : undefined;
     }
@@ -160,8 +164,7 @@ export function mapSupabaseToolRow(tool: SupabaseTool): ToolRegistryEntry {
     const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((name): name is string => !!name);
     const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
     const minAPI = tool.min_api;
-    const releaseFeature = Array.isArray(tool.tool_release_features) ? tool.tool_release_features[0] : tool.tool_release_features;
-    const modernConnections = getValidConnectionsFeature(releaseFeature?.connections);
+    const modernConnections = getValidConnectionsFeature(tool.connections);
     const features: ToolRegistryEntry["features"] = {
         ...(modernConnections !== undefined
             ? { connections: modernConnections }
@@ -482,7 +485,14 @@ export class ToolRegistryManager extends EventEmitter {
             if (!this.supabase) {
                 throw new Error("Supabase client is not initialized");
             }
-            const { data: toolsData, error } = await this.supabase.from("tools_catalog").select(SUPABASE_CATALOG_COLUMNS).in("status", ["active", "deprecated"]).order("name", { ascending: true });
+            let { data: toolsData, error } = await this.supabase.from("tools_catalog").select(SUPABASE_CATALOG_COLUMNS).in("status", ["active", "deprecated"]).order("name", { ascending: true });
+
+            if (error) {
+                logWarn(`[ToolRegistry] Catalog relation query failed; retrying with view columns only: ${error.message}`);
+                const fallbackResult = await this.supabase.from("tools_catalog").select("*").in("status", ["active", "deprecated"]).order("name", { ascending: true });
+                toolsData = fallbackResult.data;
+                error = fallbackResult.error;
+            }
 
             if (error) {
                 throw new Error(`Supabase registry query failed: ${error.message}`);
@@ -1172,7 +1182,7 @@ export class ToolRegistryManager extends EventEmitter {
             return { hasUpdate: false };
         }
 
-        const hasUpdate = registryTool.version !== installed.version;
+        const hasUpdate = compareVersions(registryTool.version, installed.version) > 0;
         return {
             hasUpdate,
             latestVersion: registryTool.version,

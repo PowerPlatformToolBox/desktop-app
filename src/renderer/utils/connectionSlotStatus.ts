@@ -9,6 +9,25 @@ export interface ConnectionSlotSquarePresentation {
     environmentColor: string | null;
 }
 
+export interface EmptyConnectionSlotPresentation {
+    label: string;
+    ariaLabel: string;
+    title: string;
+    className: string;
+    disabled: boolean;
+}
+
+export function getEmptyConnectionSlotPresentation(slotIndex: number, isCleared: boolean): EmptyConnectionSlotPresentation {
+    const slotNumber = slotIndex + 1;
+    return {
+        label: String(slotNumber),
+        ariaLabel: isCleared ? `Connection ${slotNumber} is cleared` : `Add connection ${slotNumber}`,
+        title: isCleared ? `Connection ${slotNumber} was cleared` : `Add connection ${slotNumber}`,
+        className: `connection-slot-square ${isCleared ? "cleared" : "available"}`,
+        disabled: isCleared,
+    };
+}
+
 export function getConnectionSlotSquarePresentation(slotIndex: number, connection: Connection, isExpired: boolean, impersonatedUserName?: string): ConnectionSlotSquarePresentation {
     const slotNumber = slotIndex + 1;
     const environmentToken = connection.environment.toLowerCase() === "production" ? "prod" : connection.environment.toLowerCase();

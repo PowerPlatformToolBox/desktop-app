@@ -136,6 +136,14 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
     });
 }
 
+export function addConnectionSlotsBreadcrumb(minConnections: number, maxConnections: number, filledConnectionCount: number): void {
+    addBreadcrumb("Tool connection slots resolved", "tool.connections", "info", {
+        minConnections,
+        maxConnections,
+        filledConnectionCount,
+    });
+}
+
 /**
  * Start a new Sentry span for performance monitoring
  * Use this for important operations like tool loading, connection testing, etc.

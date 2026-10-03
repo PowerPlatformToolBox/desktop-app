@@ -175,6 +175,10 @@ export const test = base.extend<AppFixtures>({
             const toolDefinitions = [
                 { id: "e2e-required-connections", name: "E2E Required Connections", features: { connections: 2 } },
                 { id: "e2e-optional-connections", name: "E2E Optional Connections", features: { multiConnection: "optional" } },
+                { id: "e2e-optional-zero-to-three", name: "E2E Optional Zero To Three", features: { connections: { min: 0, max: 3 } } },
+                { id: "e2e-api-four-connections", name: "E2E API Four Connections", features: { connections: { min: 0, max: 4 } } },
+                { id: "e2e-invocation-caller", name: "E2E Invocation Caller", features: { connections: { min: 0, max: 4 } } },
+                { id: "e2e-invocation-callee", name: "E2E Invocation Callee", features: { connections: { min: 1, max: 4 } } },
                 { id: "e2e-four-connection-range", name: "E2E Four Connection Range", features: { connections: { min: 3, max: 4 } } },
                 { id: "e2e-single-connection", name: "E2E Single Connection" },
                 { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
@@ -183,7 +187,7 @@ export const test = base.extend<AppFixtures>({
                 const installPath = path.join(toolsDirectory, tool.id);
                 fs.mkdirSync(path.join(installPath, "dist"), { recursive: true });
                 fs.writeFileSync(path.join(installPath, "package.json"), JSON.stringify({ name: tool.id, version: "1.0.0", ...(tool.features ? { features: tool.features } : {}) }, null, 2));
-                fs.writeFileSync(path.join(installPath, "dist", "index.html"), "<!doctype html><html><body><main>Connection picker E2E fixture</main></body></html>");
+                fs.writeFileSync(path.join(installPath, "dist", "index.html"), `<!doctype html><html><body><main>${tool.id} E2E fixture</main></body></html>`);
                 return {
                     ...tool,
                     description: "Static tool fixture for multi-connection E2E tests.",
@@ -214,6 +218,22 @@ export const test = base.extend<AppFixtures>({
                                 name: "E2E Test",
                                 url: "https://test.crm.dynamics.com",
                                 environment: "Test",
+                                authenticationType: "interactive",
+                                createdAt: "2026-10-01T00:00:00.000Z",
+                            },
+                            {
+                                id: "e2e-uat-connection",
+                                name: "E2E UAT",
+                                url: "https://uat.crm.dynamics.com",
+                                environment: "UAT",
+                                authenticationType: "interactive",
+                                createdAt: "2026-10-01T00:00:00.000Z",
+                            },
+                            {
+                                id: "e2e-production-connection",
+                                name: "E2E Production",
+                                url: "https://prod.crm.dynamics.com",
+                                environment: "Production",
                                 authenticationType: "interactive",
                                 createdAt: "2026-10-01T00:00:00.000Z",
                             },

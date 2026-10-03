@@ -13,6 +13,7 @@ export interface OpenTool {
     tool: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     isPinned: boolean;
     connectionIds?: Array<string | null>;
+    clearedConnectionSlots?: number[];
     connectionId: string | null; // Primary connection
     secondaryConnectionId: string | null; // Secondary connection (for multi-connection tools)
     isDetailTab?: boolean; // True for tool detail view tabs (not real tool instances)

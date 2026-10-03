@@ -1,6 +1,6 @@
 {
   "name": "@pptb/types",
-  "version": "1.2.7-beta.1",
+  "version": "1.2.7-beta.4",
   "description": "Type definitions for Power Platform ToolBox APIs and validity checks for tool packages",
   "main": "index.d.ts",
   "types": "index.d.ts",
@@ -24,7 +24,7 @@
     "pptb-validate": "./bin/pptb-validate.js"
   },
   "dependencies": {
-    "@pptb/validate": "1.0.3"
+    "@pptb/validate": "1.0.4"
   },
   "files": [
     "index.d.ts",

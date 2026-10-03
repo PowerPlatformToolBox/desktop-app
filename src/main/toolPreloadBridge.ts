@@ -506,10 +506,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             const inheritedConnectionIds: ConnectionIds = Array.isArray(toolContext?.connectionIds)
                 ? (toolContext.connectionIds as ConnectionIds)
                 : [typeof toolContext?.connectionId === "string" ? toolContext.connectionId : null, typeof toolContext?.secondaryConnectionId === "string" ? toolContext.secondaryConnectionId : null];
-            const connectionIds = options?.connectionIds ?? [
-                options?.primaryConnectionId !== undefined ? options.primaryConnectionId : (inheritedConnectionIds[0] ?? null),
-                options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : (inheritedConnectionIds[1] ?? null),
-            ];
+            const connectionIds = options?.connectionIds ? [...options.connectionIds] : [...inheritedConnectionIds];
+            while (connectionIds.length < 2) connectionIds.push(null);
+            if (options?.primaryConnectionId !== undefined) connectionIds[0] = options.primaryConnectionId;
+            if (options?.secondaryConnectionId !== undefined) connectionIds[1] = options.secondaryConnectionId;
             const primaryConnectionId = connectionIds[0] ?? null;
             const secondaryConnectionId = connectionIds[1] ?? null;
             const noReturn = options?.noReturn ?? false;

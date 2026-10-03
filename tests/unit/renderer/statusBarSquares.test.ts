@@ -1,5 +1,5 @@
 import type { Connection } from "../../../src/common/types/connection";
-import { getConnectionSlotSquarePresentation } from "../../../src/renderer/utils/connectionSlotStatus";
+import { getConnectionSlotSquarePresentation, getEmptyConnectionSlotPresentation } from "../../../src/renderer/utils/connectionSlotStatus";
 
 const baseConnection: Connection = {
     id: "connection-1",
@@ -11,6 +11,26 @@ const baseConnection: Connection = {
 };
 
 describe("connection status square presentation", () => {
+    it("marks unused optional capacity as an actionable placeholder", () => {
+        expect(getEmptyConnectionSlotPresentation(2, false)).toEqual({
+            label: "3",
+            ariaLabel: "Add connection 3",
+            title: "Add connection 3",
+            className: "connection-slot-square available",
+            disabled: false,
+        });
+    });
+
+    it("keeps explicitly cleared slots visible but disabled", () => {
+        expect(getEmptyConnectionSlotPresentation(2, true)).toEqual({
+            label: "3",
+            ariaLabel: "Connection 3 is cleared",
+            title: "Connection 3 was cleared",
+            className: "connection-slot-square cleared",
+            disabled: true,
+        });
+    });
+
     it("uses one-based slot labels and accessible environment context", () => {
         const presentation = getConnectionSlotSquarePresentation(1, baseConnection, false);
 

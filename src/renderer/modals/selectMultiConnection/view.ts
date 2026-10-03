@@ -260,6 +260,8 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
     .connection-slot-clear { width: 30px; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 18px; }
     .connection-slot-add { min-height: 38px; border: 1px dashed ${isDarkTheme ? "#666" : "#999"}; background: transparent; color: inherit; cursor: pointer; }
     .connection-slot-add:disabled { opacity: .45; cursor: default; }
+    .connect-button { padding: 5px 10px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
+    .connect-button:disabled { opacity: .65; cursor: wait; }
     .slot-connections-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
     #active-connection-slot-label { display: block; margin: 0 0 12px; line-height: 1.35; }
     .slot-connections-pane .connection-list { flex: 1; min-height: 180px; overflow-y: auto; }

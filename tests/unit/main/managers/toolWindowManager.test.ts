@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 
-import { BrowserView, BrowserWindow, dialog } from "electron";
+import { BrowserView, BrowserWindow, dialog, ipcMain } from "electron";
+import { TOOL_WINDOW_CHANNELS } from "../../../../src/common/ipc/channels";
 import { ToolWindowManager } from "../../../../src/main/managers/toolWindowManager";
 
 function createManager() {
@@ -82,8 +83,50 @@ describe("ToolWindowManager connection slot routing", () => {
         });
 
         const requestId = promptCall?.[1].requestId;
-        (manager as any).pendingConnectionPrompts.get(requestId).reject(new Error("test cancellation"));
-        await expect(launch).rejects.toThrow("Connection selection cancelled: test cancellation");
+        const responseHandler = (ipcMain.handle as jest.Mock).mock.calls.filter(([channel]) => channel === TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS).at(-1)?.[1];
+        expect(responseHandler).toBeDefined();
+        await responseHandler({}, requestId, null);
+        await expect(launch).rejects.toThrow("Connection selection cancelled: Connection selection cancelled");
+        expect((manager as any).pendingConnectionPrompts.has(requestId)).toBe(false);
+    });
+
+    it("passes prompted slot arrays to the callee launch and opened event", async () => {
+        const { manager, mainWindow } = createManager();
+        (manager as any).toolConnectionInfo.set("caller", {
+            connectionIds: ["source-id", null, "third-id", null],
+            impersonatedUsers: [null, null, null, null],
+        });
+        const launchTool = jest.spyOn(manager, "launchTool").mockResolvedValue(true);
+        const tool = { id: "callee-tool", name: "Callee Tool", version: "1.0.0", features: { connections: { min: 5, max: 5 } } };
+        const launch = manager.launchToolWithContext("caller", "callee", tool as any, null, null, {});
+        const promptCall = (mainWindow.webContents.send as jest.Mock).mock.calls.find(([channel]) => channel === "tool-window:invocation-prompt-connections");
+        const selectedConnectionIds = ["source-id", "target-id", "third-id", "fourth-id", "fifth-id"];
+
+        (manager as any).pendingConnectionPrompts.get(promptCall[1].requestId).resolve(selectedConnectionIds);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(launchTool).toHaveBeenCalledWith("callee", tool, "source-id", "target-id", {}, selectedConnectionIds);
+        expect(mainWindow.webContents.send).toHaveBeenCalledWith("tool-window:callee-tool-opened", expect.objectContaining({ calleeInstanceId: "callee", connectionIds: selectedConnectionIds }));
+
+        manager.resolveInvocation("callee", { completed: true });
+        await expect(launch).resolves.toEqual({ completed: true });
+    });
+
+    it("prompts for optional inter-tool slots when no connections are inherited", async () => {
+        const { manager, mainWindow } = createManager();
+        (manager as any).toolConnectionInfo.set("caller", { connectionIds: [null, null, null], impersonatedUsers: [null, null, null] });
+        jest.spyOn(manager, "launchTool").mockResolvedValue(true);
+        const tool = { id: "optional-callee", name: "Optional Callee", version: "1.0.0", features: { connections: { min: 0, max: 3 } } };
+
+        const launch = manager.launchToolWithContext("caller", "optional-callee-instance", tool as any, null, null, {});
+        const promptCall = (mainWindow.webContents.send as jest.Mock).mock.calls.find(([channel]) => channel === "tool-window:invocation-prompt-connections");
+        expect(promptCall?.[1]).toMatchObject({ minConnections: 0, maxConnections: 3 });
+        (manager as any).pendingConnectionPrompts.get(promptCall[1].requestId).resolve([null, null, null]);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(manager.launchTool).toHaveBeenCalledWith("optional-callee-instance", tool, null, null, {}, [null, null, null]);
+        manager.resolveInvocation("optional-callee-instance", null);
+        await expect(launch).resolves.toBeNull();
     });
 });
 

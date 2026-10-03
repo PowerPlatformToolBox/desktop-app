@@ -18,7 +18,7 @@ import {
     MIN_COLOR_BORDER_THICKNESS,
 } from "../constants";
 import type { OpenTool, SessionData } from "../types/index";
-import { getConnectionSlotSquarePresentation } from "../utils/connectionSlotStatus";
+import { getConnectionSlotSquarePresentation, getEmptyConnectionSlotPresentation } from "../utils/connectionSlotStatus";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
@@ -415,12 +415,12 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         let secondaryConnectionId: string | null = connectionIds[1] ?? null;
         let impersonationUsers: Array<DataverseUser | null> = [];
 
-        if (connectionSlots.max === 0 || connectionSlots.min === 0) {
+        if (connectionSlots.max === 0) {
             logInfo("Tool does not require a connection to launch; skipping connection selection.", { toolId });
         } else if (connectionSlots.max > 1) {
             const selectedIds = connectionIds.slice(0, connectionSlots.max);
             const requiredSelections = selectedIds.slice(0, connectionSlots.min).filter(Boolean).length;
-            if (requiredSelections < connectionSlots.min) {
+            if (requiredSelections < connectionSlots.min || selectedIds.every((connectionId) => !connectionId)) {
                 try {
                     const result = await openSelectMultiConnectionModal(
                         {
@@ -1370,10 +1370,21 @@ async function setToolConnectionSlots(instanceId: string, connectionIds: Connect
     const tool = openTools.get(instanceId);
     if (!tool) return;
     const normalizedConnectionIds = [...connectionIds];
+    const previousConnectionIds = tool.connectionIds ?? [tool.connectionId, tool.secondaryConnectionId];
+    const clearedSlots = new Set(tool.clearedConnectionSlots ?? []);
+    const maxConnections = resolveConnectionSlots(tool.tool.features).max;
+    for (let slotIndex = 1; slotIndex < maxConnections; slotIndex++) {
+        if (normalizedConnectionIds[slotIndex]) {
+            clearedSlots.delete(slotIndex);
+        } else if (previousConnectionIds[slotIndex]) {
+            clearedSlots.add(slotIndex);
+        }
+    }
     await window.toolboxAPI.setToolConnectionSlots(tool.toolId, normalizedConnectionIds);
     await window.toolboxAPI.updateToolConnections(instanceId, normalizedConnectionIds);
 
     tool.connectionIds = normalizedConnectionIds;
+    tool.clearedConnectionSlots = Array.from(clearedSlots);
     tool.connectionId = normalizedConnectionIds[0] ?? null;
     tool.secondaryConnectionId = normalizedConnectionIds[1] ?? null;
     await updateTabConnectionSubtext(instanceId);
@@ -1510,12 +1521,39 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
 
 function renderConnectionSlotSquares(container: HTMLElement, tool: OpenTool, connectionIds: Array<string | null>, connections: Connection[]): void {
     container.replaceChildren();
-    const nonPrimarySlots = connectionIds.slice(1);
-    for (const [offset, connectionId] of nonPrimarySlots.entries()) {
-        if (!connectionId) continue;
-        const slotIndex = offset + 1;
+    const maxConnections = resolveConnectionSlots(tool.tool.features).max;
+    const clearedSlots = new Set(tool.clearedConnectionSlots ?? []);
+    for (let slotIndex = 1; slotIndex < maxConnections; slotIndex++) {
+        const connectionId = connectionIds[slotIndex] ?? null;
+        if (!connectionId) {
+            const presentation = getEmptyConnectionSlotPresentation(slotIndex, clearedSlots.has(slotIndex));
+            const square = document.createElement("button");
+            square.type = "button";
+            square.className = presentation.className;
+            square.dataset.slotIndex = String(slotIndex);
+            square.textContent = presentation.label;
+            square.setAttribute("aria-label", presentation.ariaLabel);
+            square.title = presentation.title;
+            square.disabled = presentation.disabled;
+            if (!square.disabled) square.addEventListener("click", () => void openConnectionSlotPicker(tool.instanceId, slotIndex));
+            container.appendChild(square);
+            continue;
+        }
+
         const connection = connections.find((candidate) => candidate.id === connectionId);
-        if (!connection) continue;
+        if (!connection) {
+            const presentation = getEmptyConnectionSlotPresentation(slotIndex, true);
+            const square = document.createElement("button");
+            square.type = "button";
+            square.className = presentation.className;
+            square.dataset.slotIndex = String(slotIndex);
+            square.textContent = presentation.label;
+            square.setAttribute("aria-label", presentation.ariaLabel);
+            square.title = presentation.title;
+            square.disabled = true;
+            container.appendChild(square);
+            continue;
+        }
 
         const isExpired = isTokenExpired(connection.tokenExpiry);
         const presentation = getConnectionSlotSquarePresentation(slotIndex, connection, isExpired);
