@@ -183,12 +183,22 @@ in `packages/types/toolManifest.d.ts`, exported from `packages/types/index.d.ts`
 
 **Final verification:** full unit suite passed (384 tests); full Playwright suite passed (64 tests, including 6 PR5 edge cases and 9 PR4 connection/invocation cases); typecheck/build, lint, and `git diff --check` passed. Existing toolchain compatibility and build chunk warnings remain. No additional manual tests are required for this phase.
 
-### [ ] PR 6 — MCP multi-connection invocation
+### [x] PR 6 — MCP multi-connection invocation
+
+**Status:** Complete in the working tree; merge/deployment tracking is separate.
 
 - Add `connectionNames?: string[]`, mapped positionally to slots. Keep singular `connectionName` as the slot-0 compatibility alias.
 - Return explicit errors for unknown names, too few required connections, and names supplied to a zero-connection tool. Headless invocation does not prompt.
 
-**Unit/integration tests:** extend MCP server and headless invocation manager tests. Use protocol integration/manual verification unless the existing Playwright harness can start an MCP client.
+**Implemented contract:** MCP callers supply names under `arguments.__pptb.connectionNames`. Names are trimmed and matched case-insensitively; unknown/ambiguous names and arrays above the declared maximum are rejected before launch. The array is authoritative, including an empty array; when the singular alias is also supplied it must match the first array entry. Headless calls reject too few required names without opening a picker or initiating fresh interactive sign-in; windowed calls can prompt for missing slots. Authenticate interactive connections in PPTB before headless execution; cached/silent credentials and noninteractive credential flows remain supported.
+
+**Headless runtime:** context carries aligned slot ID/name/URL arrays and callback token arrays. `getConnections()` and `getConnection(target)` support positional lookup and preserve null gaps; Dataverse and Power Platform APIs accept numeric targets alongside legacy string aliases, without falling back to primary for a missing later slot. Public connection metadata and `getToolContext()` remain token-free. Caller `authToken` overrides only the primary token in the explicit `invokeHeadless` callback context; global APIs use independently authenticated saved credentials.
+
+**Unit/integration tests:** `tests/unit/main/mcp/mcpServer.test.ts` tests metadata parsing, positional name resolution, limits, aliases/conflicts, ambiguous/unknown names, token provenance, and headless authentication rules. `tests/unit/main/mcp/headlessToolRuntime.test.ts` tests actual headless API routing, null gaps, invalid/missing targets, legacy fallback, zero slots, and metadata privacy. `tests/unit/main/mcp/mcpConnections.integration.test.ts` uses a real MCP SDK client over local HTTP to exercise discovery, headless/windowed array handoff, early validation errors, singular compatibility, connectionless execution, and one-way response privacy. Temporary manifests, credentials and execution callbacks are deterministic stubs; no live registry or authentication is required.
+
+**Documentation:** the invocation envelope and connection-array example are documented in `docs/MCP_IMPLEMENTATION.md`; broader author migration/release documentation remains PR 7.
+
+**Final verification:** full unit suite passed (426 tests, including 44 focused MCP tests with 11 SDK-over-HTTP integration cases); full Electron Playwright suite passed (64 tests); build/typecheck, lint, and `git diff --check` passed. Existing TypeScript-estree compatibility and Vite import/chunk-size warnings remain.
 
 ### [ ] PR 7 — Tool-author and release documentation
 
