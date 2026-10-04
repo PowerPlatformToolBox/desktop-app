@@ -25,6 +25,39 @@ function createManager() {
 }
 
 describe("ToolWindowManager connection slot routing", () => {
+    it("releases connection blockers as soon as a tool closes", async () => {
+        const { manager, terminalManager } = createManager();
+        const view = new BrowserView();
+        (manager as any).toolViews.set("closing-tool", view);
+        (manager as any).toolInstanceNames.set("closing-tool", "Closing Tool");
+        (manager as any).toolConnectionInfo.set("closing-tool", {
+            connectionIds: ["primary-id", null, "third-id"],
+            impersonatedUsers: [null, null, null],
+        });
+        terminalManager.closeToolInstanceTerminals.mockImplementation(() => {
+            expect(manager.getConnectionDeletionBlocker("third-id")).toBeNull();
+        });
+
+        expect(manager.getConnectionDeletionBlocker("third-id")).toContain("Closing Tool");
+        await expect(manager.closeTool("closing-tool")).resolves.toBe(true);
+        expect(manager.getConnectionDeletionBlocker("third-id")).toBeNull();
+    });
+
+    it("blocks deletion only while an open tool instance currently uses the connection", () => {
+        const { manager } = createManager();
+        (manager as any).toolInstanceNames.set("open-tool", "Open Tool");
+        (manager as any).toolConnectionInfo.set("open-tool", {
+            connectionIds: ["primary-id", null, "third-id"],
+            impersonatedUsers: [null, null, null],
+        });
+
+        expect(manager.getConnectionDeletionBlocker("third-id")).toContain("Open Tool");
+        expect(manager.getConnectionDeletionBlocker("unused-id")).toBeNull();
+
+        (manager as any).toolConnectionInfo.delete("open-tool");
+        expect(manager.getConnectionDeletionBlocker("third-id")).toBeNull();
+    });
+
     it("routes legacy aliases and arbitrary numeric targets to stable array indexes", () => {
         const { manager } = createManager();
         const view = new BrowserView();

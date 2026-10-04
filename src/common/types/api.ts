@@ -20,6 +20,7 @@ export interface ConnectionsAPI {
     add: (connection: Connection) => Promise<void>;
     update: (id: string, updates: Partial<Connection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
+    getDeleteBlocker: (id: string) => Promise<string | null>;
     getAll: () => Promise<Connection[]>;
     getById: (connectionId: string) => Promise<Connection | null>;
     test: (connection: Connection) => Promise<{ success: boolean; error?: string }>;

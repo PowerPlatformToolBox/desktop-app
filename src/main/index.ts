@@ -6,7 +6,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import type { ConnectionTarget } from "../common/connectionSlots";
-import { normalizeConnectionTarget } from "../common/connectionSlots";
+import { normalizeConnectionTarget, resolveConnectionSlots } from "../common/connectionSlots";
 import {
     AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
@@ -151,6 +151,7 @@ class ToolBoxApp {
             });
 
             this.connectionsManager = new ConnectionsManager();
+            this.settingsManager.reconcileToolConnectionSlots(new Set(this.connectionsManager.getConnections().map((connection) => connection.id)));
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials and Azure Blob base URL from environment variables
             const testToolsDirectory = process.env.PPTB_TEST_MODE === "1" ? process.env.PPTB_TEST_TOOLS_DIRECTORY : undefined;
@@ -760,8 +761,15 @@ class ToolBoxApp {
             this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
         });
 
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_DELETE_BLOCKER, (_, id) => {
+            return this.toolWindowManager?.getConnectionDeletionBlocker(id) ?? null;
+        });
+
         ipcMain.handle(CONNECTION_CHANNELS.DELETE_CONNECTION, (_, id) => {
+            const deletionBlocker = this.toolWindowManager?.getConnectionDeletionBlocker(id) ?? null;
+            if (deletionBlocker) throw new Error(deletionBlocker);
             this.connectionsManager.deleteConnection(id);
+            this.settingsManager.removeConnectionFromToolSlots(id);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
         });
 
@@ -1198,7 +1206,16 @@ class ToolBoxApp {
 
         // Update a tool to the latest version
         ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (_, toolId) => {
-            return await this.toolManager.updateTool(toolId);
+            const manifest = await this.toolManager.updateTool(toolId);
+            const maxConnections = resolveConnectionSlots(manifest.features).max;
+            if (this.settingsManager.limitToolConnectionSlots(toolId, maxConnections)) {
+                this.api.showNotification({
+                    title: "Connection Assignments Updated",
+                    body: `${manifest.name} now supports at most ${maxConnections} connections. Assignments above that limit were removed.`,
+                    type: "warning",
+                });
+            }
+            return manifest;
         });
 
         // Check if a tool is currently updating

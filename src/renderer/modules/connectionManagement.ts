@@ -1424,10 +1424,41 @@ async function setEditConnectionTestFeedback(message?: string, type: "success" |
  */
 export async function deleteConnection(id: string): Promise<void> {
     logInfo("deleteConnection called with id:", { connectionId: id });
-    if (!confirm("Are you sure you want to delete this connection?")) {
-        return;
+    if (await confirmAndDeleteConnection(id, "Are you sure you want to delete this connection?")) {
+        await loadConnections();
     }
+}
 
+async function confirmAndDeleteConnection(id: string, confirmationMessage: string): Promise<boolean> {
+    const blocker = await window.toolboxAPI.connections.getDeleteBlocker(id);
+    if (blocker) {
+        await showConnectionDeletionBlockedPopup(blocker);
+        return false;
+    }
+    if (!confirm(confirmationMessage)) return false;
+    return deleteConnectionWithFeedback(id);
+}
+
+async function showConnectionDeletionBlockedPopup(message: string): Promise<void> {
+    const escapeHtml = (value: string): string => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    await window.toolboxAPI.utils.showModalWindow({
+        id: "connection-delete-blocked-modal",
+        width: 460,
+        height: 230,
+        html: `
+            <main style="font-family:Segoe UI,sans-serif;padding:24px;color:var(--text-color,#242424)">
+                <h2 style="font-size:18px;margin:0 0 12px">Connection in use</h2>
+                <p style="font-size:14px;line-height:1.5;margin:0 0 24px">${escapeHtml(message)}</p>
+                <div style="display:flex;justify-content:flex-end">
+                    <button id="connection-delete-blocked-close" type="button" style="border:0;border-radius:4px;padding:8px 20px;background:#0f6cbd;color:white;font:600 14px Segoe UI,sans-serif;cursor:pointer">OK</button>
+                </div>
+            </main>
+            <script>document.getElementById("connection-delete-blocked-close").addEventListener("click", () => window.modalBridge.close());</script>
+        `,
+    });
+}
+
+async function deleteConnectionWithFeedback(id: string): Promise<boolean> {
     try {
         logInfo("Calling window.toolboxAPI.deleteConnection");
         await window.toolboxAPI.connections.delete(id);
@@ -1437,15 +1468,20 @@ export async function deleteConnection(id: string): Promise<void> {
             body: "The connection has been deleted.",
             type: "success",
         });
-
-        await loadConnections();
+        return true;
     } catch (error) {
         logError("Error deleting connection", error);
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("Cannot delete this connection because it is assigned to")) {
+            await showConnectionDeletionBlockedPopup(message);
+            return false;
+        }
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Delete Connection",
-            body: (error as Error).message,
+            body: message,
             type: "error",
         });
+        return false;
     }
 }
 
@@ -2126,10 +2162,9 @@ function showConnectionContextMenu(conn: Connection, anchor: HTMLElement): void 
             } else if (action === "export") {
                 await exportConnections([conn.id]);
             } else if (action === "delete") {
-                if (confirm(`Are you sure you want to delete the connection "${conn.name}"?`)) {
-                    await window.toolboxAPI.connections.delete(conn.id);
-                    loadSidebarConnections();
-                    // Import and call updateActiveToolConnectionStatus from toolManagement
+                const deleted = await confirmAndDeleteConnection(conn.id, `Are you sure you want to delete the connection "${conn.name}"?`);
+                if (deleted) {
+                    await loadSidebarConnections();
                     const { updateActiveToolConnectionStatus } = await import("./toolManagement");
                     await updateActiveToolConnectionStatus();
                 }
@@ -2466,10 +2501,9 @@ export async function loadSidebarConnections(): Promise<void> {
                 const connectionId = target.getAttribute("data-connection-id");
 
                 if (action === "delete" && connectionId) {
-                    if (confirm("Are you sure you want to delete this connection?")) {
-                        await window.toolboxAPI.connections.delete(connectionId);
-                        loadSidebarConnections();
-                        // Import and call updateActiveToolConnectionStatus from toolManagement
+                    const deleted = await confirmAndDeleteConnection(connectionId, "Are you sure you want to delete this connection?");
+                    if (deleted) {
+                        await loadSidebarConnections();
                         const { updateActiveToolConnectionStatus } = await import("./toolManagement");
                         await updateActiveToolConnectionStatus();
                     }

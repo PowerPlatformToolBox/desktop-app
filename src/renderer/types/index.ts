@@ -81,6 +81,7 @@ export interface SessionData {
         instanceId: string;
         toolId: string;
         isPinned: boolean;
+        connectionIds?: Array<string | null>;
         connectionId: string | null;
         secondaryConnectionId: string | null;
     }>;

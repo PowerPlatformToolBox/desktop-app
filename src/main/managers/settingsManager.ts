@@ -512,6 +512,43 @@ export class SettingsManager {
         return migratedSlots;
     }
 
+    getToolsUsingConnection(connectionId: string): string[] {
+        const allSlots = this.store.get("toolConnectionSlots") || {};
+        const primaryConnections = this.getAllToolConnections();
+        const secondaryConnections = this.getAllToolSecondaryConnections();
+        const toolIds = new Set([...Object.keys(allSlots), ...Object.keys(primaryConnections), ...Object.keys(secondaryConnections)]);
+
+        return Array.from(toolIds).filter((toolId) => this.getToolConnectionSlots(toolId).includes(connectionId));
+    }
+
+    removeConnectionFromToolSlots(connectionId: string): void {
+        for (const toolId of this.getToolsUsingConnection(connectionId)) {
+            const connectionIds = this.getToolConnectionSlots(toolId);
+            this.setToolConnectionSlots(
+                toolId,
+                connectionIds.map((assignedConnectionId) => (assignedConnectionId === connectionId ? null : assignedConnectionId)),
+            );
+        }
+    }
+
+    reconcileToolConnectionSlots(validConnectionIds: ReadonlySet<string>): void {
+        const allSlots = this.store.get("toolConnectionSlots") || {};
+        const toolIds = new Set([...Object.keys(allSlots), ...Object.keys(this.getAllToolConnections()), ...Object.keys(this.getAllToolSecondaryConnections())]);
+        for (const toolId of toolIds) {
+            const slots = this.getToolConnectionSlots(toolId);
+            const reconciled = slots.map((id) => (id && !validConnectionIds.has(id) ? null : id));
+            if (reconciled.some((id, index) => id !== slots[index])) this.setToolConnectionSlots(toolId, reconciled);
+        }
+    }
+
+    limitToolConnectionSlots(toolId: string, maxConnections: number): boolean {
+        const slots = this.getToolConnectionSlots(toolId);
+        if (slots.length <= maxConnections) return false;
+        const removedAssignments = slots.slice(maxConnections).some(Boolean);
+        this.setToolConnectionSlots(toolId, slots.slice(0, maxConnections));
+        return removedAssignments;
+    }
+
     removeToolConnectionSlots(toolId: string): void {
         const allSlots = this.store.get("toolConnectionSlots") || {};
         delete allSlots[toolId];

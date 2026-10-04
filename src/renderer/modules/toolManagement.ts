@@ -19,6 +19,7 @@ import {
 } from "../constants";
 import type { OpenTool, SessionData } from "../types/index";
 import { getConnectionSlotSquarePresentation, getEmptyConnectionSlotPresentation } from "../utils/connectionSlotStatus";
+import { authenticateRestoredSlots, copyConnectionSlots } from "../utils/sessionConnectionSlots";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
@@ -132,6 +133,7 @@ async function duplicateToolTab(instanceId: string, promptForNewConnection: bool
     const launchOptions: LaunchToolOptions | undefined = promptForNewConnection
         ? undefined
         : {
+              connectionIds: copyConnectionSlots(openTool),
               primaryConnectionId: openTool.connectionId,
               secondaryConnectionId: openTool.secondaryConnectionId,
           };
@@ -409,7 +411,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         };
 
         const requestedConnectionIds = options?.connectionIds ?? [options?.primaryConnectionId ?? null, options?.secondaryConnectionId ?? null];
-        let connectionIds: ConnectionIds = await Promise.all(requestedConnectionIds.map((connectionId) => resolveConnectionId(connectionId)));
+        let connectionIds: ConnectionIds = await Promise.all(requestedConnectionIds.slice(0, connectionSlots.max).map((connectionId) => resolveConnectionId(connectionId)));
         while (connectionIds.length < connectionSlots.min) connectionIds.push(null);
         let primaryConnectionId: string | null = connectionIds[0] ?? null;
         let secondaryConnectionId: string | null = connectionIds[1] ?? null;
@@ -1147,6 +1149,7 @@ export async function closeTool(instanceId: string): Promise<void> {
             }
             activeToolId = null;
             void updateImpersonationBanner(null);
+            await updateActiveToolConnectionStatus();
         }
     }
 }
@@ -1281,6 +1284,7 @@ export function saveSession(): void {
                 instanceId,
                 toolId: tool.toolId,
                 isPinned: tool.isPinned,
+                connectionIds: copyConnectionSlots(tool),
                 connectionId: tool.connectionId,
                 secondaryConnectionId: tool.secondaryConnectionId,
             })),
@@ -1317,34 +1321,22 @@ export async function restoreSession(): Promise<void> {
                 // If silent auth fails (e.g. MSAL in-memory cache cleared after
                 // restart and token expired), pass null so launchTool shows the
                 // appropriate connection modal (single or multi, with tool name).
-                let primaryConnectionId: string | null = toolInfo.connectionId ?? null;
-                let secondaryConnectionId: string | null = toolInfo.secondaryConnectionId ?? null;
-
-                if (primaryConnectionId) {
-                    try {
-                        await window.toolboxAPI.connections.authenticate(primaryConnectionId);
-                    } catch (authError) {
-                        logWarn(`Silent auth failed for primary connection ${primaryConnectionId} on session restore – connection modal will be shown`, {
+                const connectionIds = await authenticateRestoredSlots(
+                    copyConnectionSlots(toolInfo),
+                    (connectionId) => window.toolboxAPI.connections.authenticate(connectionId),
+                    (slotIndex, authError) => {
+                        logWarn("Connection authentication failed on session restore", {
+                            toolId: toolInfo.toolId,
+                            slotIndex,
                             error: authError instanceof Error ? authError.message : String(authError),
                         });
-                        primaryConnectionId = null;
-                    }
-                }
-
-                if (secondaryConnectionId) {
-                    try {
-                        await window.toolboxAPI.connections.authenticate(secondaryConnectionId);
-                    } catch (authError) {
-                        logWarn(`Silent auth failed for secondary connection ${secondaryConnectionId} on session restore – connection modal will be shown`, {
-                            error: authError instanceof Error ? authError.message : String(authError),
-                        });
-                        secondaryConnectionId = null;
-                    }
-                }
+                    },
+                );
 
                 await launchTool(toolInfo.toolId, {
-                    primaryConnectionId,
-                    secondaryConnectionId,
+                    connectionIds,
+                    primaryConnectionId: connectionIds[0] ?? null,
+                    secondaryConnectionId: connectionIds[1] ?? null,
                 });
             }
             // Note: activeToolId won't match since we have new instanceIds

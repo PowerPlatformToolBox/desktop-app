@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         add: (connection: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.ADD_CONNECTION, connection),
         update: (id: string, updates: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.UPDATE_CONNECTION, id, updates),
         delete: (id: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.DELETE_CONNECTION, id),
+        getDeleteBlocker: (id: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CONNECTION_DELETE_BLOCKER, id),
         getAll: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CONNECTIONS),
         getById: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, connectionId),
         test: (connection: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.TEST_CONNECTION, connection),

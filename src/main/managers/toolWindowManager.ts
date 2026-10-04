@@ -393,11 +393,10 @@ export class ToolWindowManager {
         connectionIds?: ConnectionIds,
     ): Promise<boolean> {
         try {
-            const resolvedConnectionIds = connectionIds ? [...connectionIds] : legacyConnectionIds(primaryConnectionId, secondaryConnectionId);
-            while (resolvedConnectionIds.length < 2) resolvedConnectionIds.push(null);
+            const connectionSlots = resolveConnectionSlots(tool.features);
+            const resolvedConnectionIds = (connectionIds ?? legacyConnectionIds(primaryConnectionId, secondaryConnectionId)).slice(0, connectionSlots.max);
             primaryConnectionId = resolvedConnectionIds[0] ?? null;
             secondaryConnectionId = resolvedConnectionIds[1] ?? null;
-            const connectionSlots = resolveConnectionSlots(tool.features);
             addConnectionSlotsBreadcrumb(connectionSlots.min, connectionSlots.max, resolvedConnectionIds.filter(Boolean).length);
             logInfo("[ToolWindowManager] Tool launch started", {
                 instanceId,
@@ -989,6 +988,15 @@ export class ToolWindowManager {
             }
         }
         return null;
+    }
+
+    getConnectionDeletionBlocker(connectionId: string): string | null {
+        const usingToolNames = Array.from(this.toolConnectionInfo.entries())
+            .filter(([, connectionInfo]) => connectionInfo.connectionIds.includes(connectionId))
+            .map(([instanceId]) => this.toolInstanceNames.get(instanceId) ?? instanceId);
+        const uniqueToolNames = Array.from(new Set(usingToolNames));
+        if (uniqueToolNames.length === 0) return null;
+        return `Cannot delete this connection because it is assigned to open tools: ${uniqueToolNames.join(", ")}. Close those tools or remove the connection from them first.`;
     }
 
     getImpersonatedUserByWebContents(webContentsId: number, connectionTarget: ConnectionTarget = "primary"): DataverseUser | null {

@@ -155,16 +155,33 @@ in `packages/types/toolManifest.d.ts`, exported from `packages/types/index.d.ts`
 
 **Final checks:** `pnpm run test:unit` passed (374 tests); the PR4 connection/invocation E2E spec passed (9 tests); `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`, and `git diff --check` passed. Lint/build report existing TypeScript-estree compatibility and chunk-size warnings.
 
-### [ ] PR 5 — Deletion, downgrade, restore, and auth edge cases
+### [x] PR 5 — Deletion, downgrade, restore, and auth edge cases
 
-- On connection deletion, null references across all tools without shifting indices; reconcile missing references at startup.
+**Status:** Complete in the working tree; merge/deployment tracking is separate. Connection deletion is blocked only while an open tool instance is actively using that connection; saved assignments for closed tools do not trigger a blocker. Once deletion is allowed, all persisted references to that connection are replaced with null in place, preserving later slot indexes.
+
+- Block connection deletion while any open tool instance references it; show a popup naming the blocking tools before asking for deletion confirmation.
+- On successful deletion, clear that ID from all persisted tool slots without shifting indexes; reconcile any other missing references at startup.
 - On tool update, truncate assignments beyond the new max and warn; leave missing required slots empty so launch prompts.
 - Generalize session restore and duplicate-tab behavior to the full slot array.
 - Bound silent-auth concurrency during restore.
 
-**Unit tests:** extend connection/settings/tools manager tests and add restore/concurrency coverage.
+**Duplicate/restore fix:** normal duplicate launches now copy the entire `connectionIds` array, preserving null gaps. New session saves include that array alongside legacy primary/secondary aliases; restore authenticates every assigned slot with at most two concurrent requests and nulls only failed slots. Legacy sessions without arrays still restore their two saved aliases. "Duplicate with New Connection" retains its existing picker flow. A third slot already omitted from an old saved session cannot be recovered from that session alone.
 
-**E2E tests:** add `tests/e2e/connectionEdgeCases.spec.ts` for visible slot gaps, downgrade, restart, and duplicate-tab behavior.
+**Implemented tests:** `tests/unit/main/managers/settingsManager.test.ts` covers references in later slots, unmigrated legacy maps, clearing deleted IDs without slot compaction, startup reconciliation, and maximum reduction (including zero and increased limits). `tests/unit/main/managers/toolWindowManager.test.ts` verifies only currently open instances block deletion and that close releases connection references before terminal cleanup. The connection UI preflights before confirmation and opens an app modal for active blockers.
+
+**Additional unit coverage:** `tests/unit/renderer/sessionConnectionSlots.test.ts` covers full-array copying/serialization, null gaps, legacy and empty sessions, later-slot authentication, position-preserving authentication failure, and the two-request concurrency limit.
+
+**Manual verification passed:** after removing a saved connection outside the app, startup/session restore did not crash and opened the multi-connection selector for a tool requiring all three slots, allowing the missing required connection to be replaced. The user confirmed this restore-flow result as a pass. Updating a tool from a 0–3 range to exactly 3 connections also correctly required three assignments on launch.
+
+**Additional manual confirmations:** the user confirmed persisted startup cleanup, reduced-maximum update behavior, and deletion protection. Automated tests now cover those paths as well.
+
+**Close cleanup fix:** closing the last tool previously cleared the runtime connection map but did not refresh the renderer footer. The close path now immediately resets the footer status and removes all slot squares, without waiting for an unrelated connection event.
+
+**Startup/update enforcement:** startup repairs missing IDs in canonical and legacy settings before the renderer restores tools. Successful tool updates truncate saved assignments above the new maximum and warn when assigned connections were removed. Renderer and main-process launches clamp incoming arrays to the declared maximum so stale session data cannot restore excess assignments.
+
+**E2E tests:** all 6 cases in `tests/e2e/connectionEdgeCases.spec.ts` pass: persisted startup repair, real duplicate-tab action with three connections, duplicate/restore with a cleared middle slot, cold Electron process restart, deletion preflight/guard/popup plus immediate final-close cleanup, and an actual four-to-two package update with warning and stale-array launch enforcement. Authentication and native duplicate-menu choice are stubbed; the UI, storage, lifecycle and deletion IPC handlers are real. The update package is served locally without live registry dependencies.
+
+**Final verification:** full unit suite passed (384 tests); full Playwright suite passed (64 tests, including 6 PR5 edge cases and 9 PR4 connection/invocation cases); typecheck/build, lint, and `git diff --check` passed. Existing toolchain compatibility and build chunk warnings remain. No additional manual tests are required for this phase.
 
 ### [ ] PR 6 — MCP multi-connection invocation
 

@@ -1,5 +1,7 @@
 import { test as base, expect } from "@playwright/test";
+import { execFileSync } from "child_process";
 import fs from "fs";
+import { createServer, type Server } from "http";
 import os from "os";
 import path from "path";
 import type { ElectronApplication, Page } from "playwright";
@@ -17,6 +19,7 @@ interface AppFixtures {
     window: Page;
     maturityData: boolean;
     multiConnectionData: boolean;
+    connectionEdgeData: boolean;
 }
 
 async function dismissTelemetryConsentModalIfPresent(electronApp: ElectronApplication): Promise<void> {
@@ -131,13 +134,15 @@ async function waitForRendererInitialization(window: Page): Promise<void> {
 export const test = base.extend<AppFixtures>({
     maturityData: [false, { option: true }],
     multiConnectionData: [false, { option: true }],
+    connectionEdgeData: [false, { option: true }],
 
     // Playwright fixtures require object destructuring for the first argument.
-    electronApp: async ({ maturityData, multiConnectionData }, use) => {
+    electronApp: async ({ maturityData, multiConnectionData, connectionEdgeData }, use) => {
         const mainEntry = path.resolve(__dirname, "../../dist/main/index.js");
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), maturityData ? "pptb-maturity-e2e-" : multiConnectionData ? "pptb-multiconnection-e2e-" : "pptb-e2e-"));
         const userDataDirectory = path.join(tempRoot, "user-data");
         let maturityEnvironment: Record<string, string> = {};
+        let releaseServer: Server | undefined;
 
         fs.mkdirSync(userDataDirectory, { recursive: true });
         fs.writeFileSync(path.join(userDataDirectory, "user-settings.json"), JSON.stringify({ sentryTelemetryConsent: "no" }, null, 2));
@@ -252,6 +257,50 @@ export const test = base.extend<AppFixtures>({
             };
         }
 
+        if (multiConnectionData) {
+            const registryPath = path.join(tempRoot, "registry.json");
+            fs.writeFileSync(registryPath, JSON.stringify({ tools: [] }));
+            maturityEnvironment.PPTB_TEST_REGISTRY_PATH = registryPath;
+            if (connectionEdgeData) {
+                fs.writeFileSync(
+                    path.join(userDataDirectory, "user-settings.json"),
+                    JSON.stringify({
+                        sentryTelemetryConsent: "no",
+                        toolConnectionSlots: {
+                            "e2e-api-four-connections": ["e2e-dev-connection", "removed-connection", "e2e-uat-connection", "e2e-production-connection"],
+                        },
+                        toolSecondaryConnections: { "e2e-api-four-connections": "removed-connection" },
+                    }),
+                );
+                const packageDirectory = path.join(tempRoot, "update-package");
+                fs.mkdirSync(path.join(packageDirectory, "dist"), { recursive: true });
+                fs.writeFileSync(path.join(packageDirectory, "package.json"), JSON.stringify({ name: "e2e-api-four-connections", version: "2.0.0", features: { connections: { min: 1, max: 2 } } }));
+                fs.writeFileSync(path.join(packageDirectory, "dist", "index.html"), "<!doctype html><html><body>Updated connection fixture</body></html>");
+                const archivePath = path.join(tempRoot, "update.tar.gz");
+                execFileSync("tar", ["-czf", archivePath, "-C", packageDirectory, "."]);
+                releaseServer = createServer((_request, response) => fs.createReadStream(archivePath).pipe(response));
+                await new Promise<void>((resolve) => releaseServer!.listen(0, "127.0.0.1", resolve));
+                const address = releaseServer.address();
+                if (!address || typeof address === "string") throw new Error("Release server did not bind a port");
+                fs.writeFileSync(
+                    registryPath,
+                    JSON.stringify({
+                        tools: [
+                            {
+                                id: "e2e-api-four-connections",
+                                name: "E2E API Four Connections",
+                                version: "2.0.0",
+                                description: "Local update fixture",
+                                status: "active",
+                                features: { connections: { min: 1, max: 2 } },
+                                downloadUrl: `http://127.0.0.1:${address.port}/update.tar.gz`,
+                            },
+                        ],
+                    }),
+                );
+            }
+        }
+
         const app = await electron.launch({
             args: [mainEntry, `--user-data-dir=${userDataDirectory}`],
             env: {
@@ -264,10 +313,12 @@ export const test = base.extend<AppFixtures>({
             },
         });
 
+        const appProcess = app.process();
         try {
             await use(app);
         } finally {
-            await app.close();
+            if (appProcess.exitCode === null) await app.close();
+            if (releaseServer) await new Promise<void>((resolve, reject) => releaseServer!.close((error) => (error ? reject(error) : resolve())));
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
     },

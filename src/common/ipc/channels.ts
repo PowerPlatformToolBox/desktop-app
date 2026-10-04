@@ -48,6 +48,7 @@ export const CONNECTION_CHANNELS = {
     ADD_CONNECTION: "add-connection",
     UPDATE_CONNECTION: "update-connection",
     DELETE_CONNECTION: "delete-connection",
+    GET_CONNECTION_DELETE_BLOCKER: "get-connection-delete-blocker",
     GET_CONNECTIONS: "get-connections",
     GET_CONNECTION_BY_ID: "get-connection-by-id",
     GET_CATEGORIES: "get-connection-categories",
