@@ -117,6 +117,9 @@ importers:
       vite-plugin-electron-renderer:
         specifier: ^0.14.6
         version: 0.14.6
+      vscode-jsonrpc:
+        specifier: 8.2.1
+        version: 8.2.1
 
   packages/types:
     dependencies:
@@ -4005,6 +4008,10 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  vscode-jsonrpc@8.2.1:
+    resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
+    engines: {node: '>=14.0.0'}
 
   walker@1.0.8:
     resolution: {integrity: sha512-ts/8E8l5b7kY0vlWLewOkDXMmPdLcVV4GmOQLyxuSswIJsweeFZtAsMF7k1Nszz+TYBQrlYRmzOnr398y1JemQ==}
@@ -8530,6 +8537,8 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.7.0
       sass: 1.97.2
+
+  vscode-jsonrpc@8.2.1: {}
 
   walker@1.0.8:
     dependencies:
