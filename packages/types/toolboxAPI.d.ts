@@ -179,7 +179,7 @@ declare namespace ToolBoxAPI {
         getActiveConnection: () => Promise<Connection | null>;
 
         /**
-         * @deprecated Use `getConnection("secondary")` or `getConnections()[1]` for slot-aware connection access.
+         * @deprecated Use `getConnection("secondary")` or `(await getConnections())[1]` for slot-aware connection access.
          */
         getSecondaryConnection: () => Promise<Connection | null>;
 

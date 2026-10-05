@@ -256,6 +256,18 @@ The ToolBox API provides organized namespaces for different functionality:
 
 ### Connections
 
+Declare an exact count or range with `features.connections`, for example `3`, `{ "min": 0, "max": 3 }`, or `{ "min": 1, "max": 4 }`. Exact `0` means no connections. Counts are bounded to 0–10; object defaults are min 1 and max equal to the resolved min. Remove the deprecated `multiConnection` and `connectionRequirement` fields when migrating; existing legacy-only tools remain supported.
+
+```typescript
+const slots = await toolboxAPI.connections.getConnections();
+const third = await toolboxAPI.connections.getConnection(2);
+if (third) {
+    const records = await dataverseAPI.queryData("accounts?$select=name&$top=5", 2);
+}
+```
+
+Targets are zero-based; `"primary"` and `"secondary"` alias 0 and 1. Null slots retain their positions, so never filter the array before routing requests. `getSecondaryConnection()` is deprecated but supported; use `getConnection(1)` or `(await getConnections())[1]`. See the [connection-slot author guide](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/N_CONNECTION_TOOL_AUTHOR_GUIDE.md) for migration and lifecycle examples.
+
 ```typescript
 // Get the active Dataverse connection
 const connection = await toolboxAPI.connections.getActiveConnection();
@@ -690,6 +702,13 @@ Core platform features organized into namespaces:
 
 #### Connections
 
+- **getConnections()**: Promise<Array<Connection | null>>
+    - Returns configured slots, preserving null gaps; not necessarily padded to the declared maximum.
+- **getConnection(target: "primary" | "secondary" | number)**: Promise<Connection | null>
+    - Gets one slot by zero-based index or legacy alias. Unassigned slots return null; negative/fractional targets reject.
+- **getSecondaryConnection()**: Promise<Connection | null>
+    - Deprecated compatibility adapter; prefer `getConnection("secondary")`.
+
 - **getActiveConnection()**: Promise<Connection | null>
     - Returns the currently active connection or null if none is active
     - Includes `enabledForPowerPlatformAPI` so tools can decide whether to use Power Platform API
@@ -784,7 +803,7 @@ Core platform features organized into namespaces:
 - **launchTool(targetToolId, prefillData?, options?)**: Promise\<unknown\>
     - Launches the specified tool, optionally with prefill data
     - Returns a Promise that resolves with the data returned by the callee, or `null` if it closes without returning or the user clicks the "Return to Caller" banner
-    - The callee automatically inherits the caller's FXS connection; pass `options.primaryConnectionId` to override
+    - The callee inherits the caller's full positional connection array, bounded by its declared maximum; `options.connectionIds` replaces the array and legacy overrides affect only slots 0/1
     - Only one active callee per caller is allowed; throws `"A callee invocation is already in progress"` if a callee is already open
     - Pass `options.noReturn: true` for one-way "Send To" flows; the banner is suppressed entirely for the callee
 
@@ -835,13 +854,13 @@ Complete HTTP client for interacting with Microsoft Dataverse:
     - Supports both bound and unbound operations
 - **publishCustomizations(tableLogicalName?: string)**: Promise<void>
     - Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
-- **deploySolution(base64SolutionContent: string | ArrayBuffer | ArrayBufferView, options?: DeploySolutionOptions, connectionTarget?: "primary" | "secondary")**: Promise<{ImportJobId: string}>
+- **deploySolution(base64SolutionContent: string | ArrayBuffer | ArrayBufferView, options?: DeploySolutionOptions, connectionTarget?: "primary" | "secondary" | number)**: Promise<{ImportJobId: string}>
     - Deploys (imports) a solution to the Dataverse environment
     - Accepts either a base64-encoded solution zip string or raw binary data (Buffer, ArrayBuffer, Uint8Array)
     - Always supplies `PublishWorkflows` and `OverwriteUnmanagedCustomizations` booleans to Dataverse, defaulting to `false` when you omit them
     - Supports optional parameters for customizing the import (publishWorkflows, overwriteUnmanagedCustomizations, skipProductUpdateDependencies, convertToManaged)
     - Returns an ImportJobId for tracking the import progress
-- **getImportJobStatus(importJobId: string, connectionTarget?: "primary" | "secondary")**: Promise<Record<string, unknown>>
+- **getImportJobStatus(importJobId: string, connectionTarget?: "primary" | "secondary" | number)**: Promise<Record<string, unknown>>
     - Gets the status of a solution import job
     - Returns import job details including progress, completion status, and error information
     - Use to track the progress of a solution deployment initiated with deploySolution
@@ -851,6 +870,8 @@ Complete HTTP client for interacting with Microsoft Dataverse:
 Generic HTTP client for Power Platform Admin APIs covering all categories:
 
 #### Category Methods
+
+`connectionTarget` accepts zero-based numeric slots plus `"primary"` / `"secondary"`. For example, `powerplatformAPI.PowerApps.Get("apps", 2)` routes to slot 3. Calling an API with an unassigned slot returns a missing-connection error.
 
 Each category (Analytics, AppManagement, Authorization, Connectivity, CopilotStudio, Dynamics, EnvironmentManagement, Governance, Licensing, PowerApps, PowerAutomate, PowerPages, ResourceQuery, UserManagement, WorkflowAgents) exposes:
 

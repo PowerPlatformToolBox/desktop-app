@@ -200,12 +200,16 @@ in `packages/types/toolManifest.d.ts`, exported from `packages/types/index.d.ts`
 
 **Final verification:** full unit suite passed (426 tests, including 44 focused MCP tests with 11 SDK-over-HTTP integration cases); full Electron Playwright suite passed (64 tests); build/typecheck, lint, and `git diff --check` passed. Existing TypeScript-estree compatibility and Vite import/chunk-size warnings remain.
 
-### [ ] PR 7 — Tool-author and release documentation
+### [x] PR 7 — Tool-author and release documentation
 
 - Update the tool type README, inter-tool invocation docs, logging guidance, and changelog/release notes.
 - Add a focused author guide with examples for exact counts, optional connections, and ranges.
 
 **Tests:** no new runtime tests; validate documentation examples with the PR 1 validator fixtures and run the full regression suites.
+
+**Implemented:** added `docs/N_CONNECTION_TOOL_AUTHOR_GUIDE.md` covering exact counts, optional ranges, zero slots, zero-based routing, null gaps, legacy migration, invocation inheritance, MCP dense name arrays, authentication boundaries, and lifecycle behavior. Updated the published type README/JSDoc, inter-tool invocation guide, logging privacy guidance, changelog, and Unreleased release notes without changing historical release metadata.
+
+**Verification:** the author guide's five JSON blocks parse and its four manifest examples pass both validators through the PR 1 fixture. Full unit suite passed (427 tests), full Electron Playwright suite passed (64 tests), and build/typecheck and lint passed. Existing TypeScript-estree compatibility and Vite import/chunk-size warnings remain. Completion records working-tree implementation, not merged PRs or a published release; Insider promotion remains a release gate.
 
 ## Verification Gate for Every PR
 
