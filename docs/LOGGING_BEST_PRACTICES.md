@@ -2,6 +2,16 @@
 
 This document outlines the logging and telemetry practices for the Power Platform ToolBox application.
 
+## Connection Slot Privacy
+
+Use `addConnectionSlotsBreadcrumb(minConnections, maxConnections, filledConnectionCount)` for launch cardinality telemetry. Its custom data contains only those three counts; the shared helper supplies standard install/timestamp metadata. Do not attach slot IDs, connection names, environment URLs, access tokens, or token arrays to this breadcrumb or copy complete tool/headless contexts into logs. Public connection metadata is token-free; tokens in explicit headless callback contexts must never be logged.
+
+```typescript
+import { addConnectionSlotsBreadcrumb } from "../../common/sentryHelper";
+
+addConnectionSlotsBreadcrumb(0, 3, 2);
+```
+
 ## Overview
 
 The application uses a hybrid logging approach:

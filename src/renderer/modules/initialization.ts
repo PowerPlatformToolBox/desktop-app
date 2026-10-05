@@ -17,7 +17,6 @@ import {
 import { markRendererInitialized } from "../utils/initializationState";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
-import { initializeDataverseHeaderConsentModal } from "./dataverseHeaderConsentModal";
 import {
     clearConnectionDropdownFilters,
     exportConnections,
@@ -29,6 +28,7 @@ import {
     updateFooterConnection,
 } from "./connectionManagement";
 import { openConsentReviewTab } from "./consentReviewManagement";
+import { initializeDataverseHeaderConsentModal } from "./dataverseHeaderConsentModal";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -37,13 +37,14 @@ import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
 import { openReportConcernModal } from "./reportConcernModal";
-import { openToolIdeasModal } from "./toolIdeasModal";
 import { openSentryConsentModal } from "./sentryConsentModal";
 import { applyRendererSentryConsent } from "./sentryRuntime";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { initializeTitlebar } from "./titlebarManagement";
+import { openToolIdeasModal } from "./toolIdeasModal";
 import {
     applyAppearanceSettings,
     closeAllTools,
@@ -58,7 +59,6 @@ import {
     showHomePage,
 } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
-import { initializeTitlebar } from "./titlebarManagement";
 
 /**
  * Initialize the application
@@ -395,16 +395,6 @@ function setupSidebarButtons(): void {
             // Import the function dynamically to avoid circular dependencies
             const { openToolConnectionModal } = await import("./toolManagement");
             await openToolConnectionModal();
-        });
-    }
-
-    // Secondary footer connection status - click to open connection selector for secondary connection
-    const secondaryConnectionStatus = document.getElementById("secondary-connection-status");
-    if (secondaryConnectionStatus) {
-        secondaryConnectionStatus.addEventListener("click", async () => {
-            // Import the function dynamically to avoid circular dependencies
-            const { openToolSecondaryConnectionModal } = await import("./toolManagement");
-            await openToolSecondaryConnectionModal();
         });
     }
 }

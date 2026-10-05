@@ -50,6 +50,32 @@ test.describe("Tool maturity", () => {
         await expect(window.locator("#marketplace-tools-list")).toContainText("No matching tools");
     });
 
+    test("Tool Details displays the modern connection range", async ({ window }) => {
+        await window.locator('[data-sidebar="marketplace"]').click();
+
+        await window.locator('#marketplace-tools-list .marketplace-item-pptb[data-tool-id="bravo-verified"]').click();
+        const details = window.locator("#tool-detail-content-panel");
+        await expect(details).toContainText("Connections: 1–5");
+    });
+
+    test("Tool Details preserves legacy connection range behavior", async ({ window }) => {
+        await window.locator('[data-sidebar="marketplace"]').click();
+        await window.locator('#marketplace-tools-list .marketplace-item-pptb[data-tool-id="alpha-unverified"]').click();
+        await expect(window.locator("#tool-detail-content-panel")).toContainText("Connections: 1–2");
+    });
+
+    test("Tool Details displays tools that never need a connection", async ({ window }) => {
+        await window.locator('[data-sidebar="marketplace"]').click();
+        await window.locator('#marketplace-tools-list .marketplace-item-pptb[data-tool-id="zulu-verified"]').click();
+        await expect(window.locator("#tool-detail-content-panel")).toContainText("Connections: None");
+    });
+
+    test("Tool Details defaults undeclared connections to one required connection", async ({ window }) => {
+        await window.locator('[data-sidebar="marketplace"]').click();
+        await window.locator('#marketplace-tools-list .marketplace-item-pptb[data-tool-id="community-recommended"]').click();
+        await expect(window.locator("#tool-detail-content-panel")).toContainText("Connections: 1");
+    });
+
     test("Installed view badges, filters, and sorts by maturity", async ({ window }) => {
         const rows = window.locator("#sidebar-tools-list .tool-item-pptb");
         await expect(rows).toHaveCount(2);

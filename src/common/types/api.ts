@@ -3,10 +3,11 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
+import type { ConnectionIds, ConnectionTarget } from "../connectionSlots";
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
-import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseUser, DataverseUserPage, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "./dataverse";
+import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, DataverseUser, DataverseUserPage } from "./dataverse";
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
@@ -19,6 +20,7 @@ export interface ConnectionsAPI {
     add: (connection: Connection) => Promise<void>;
     update: (id: string, updates: Partial<Connection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
+    getDeleteBlocker: (id: string) => Promise<string | null>;
     getAll: () => Promise<Connection[]>;
     getById: (connectionId: string) => Promise<Connection | null>;
     test: (connection: Connection) => Promise<{ success: boolean; error?: string }>;
@@ -299,7 +301,7 @@ export interface ToolboxAPI {
     getToolWebviewUrl: (toolId: string) => Promise<string>;
 
     // Tool Window Management
-    launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
+    launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null, connectionIds?: ConnectionIds) => Promise<boolean>;
     launchToolWithContext: (
         callerInstanceId: string,
         calleeInstanceId: string,
@@ -308,6 +310,7 @@ export interface ToolboxAPI {
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
         noReturn?: boolean,
+        connectionIds?: ConnectionIds,
     ) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
@@ -315,9 +318,10 @@ export interface ToolboxAPI {
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
-    getToolImpersonation: (instanceId: string, connectionTarget?: "primary" | "secondary") => Promise<{ user: DataverseUser | null }>;
-    setToolImpersonation: (instanceId: string, user: DataverseUser, connectionTarget?: "primary" | "secondary") => Promise<void>;
-    resetToolImpersonation: (instanceId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+    updateToolConnections: (instanceId: string, connectionIds: ConnectionIds) => Promise<void>;
+    getToolImpersonation: (instanceId: string, connectionTarget?: ConnectionTarget) => Promise<{ user: DataverseUser | null }>;
+    setToolImpersonation: (instanceId: string, user: DataverseUser, connectionTarget?: ConnectionTarget) => Promise<void>;
+    resetToolImpersonation: (instanceId: string, connectionTarget?: ConnectionTarget) => Promise<void>;
     /** Find installed tools that declare a given capability tag in their pptb.config.json. */
     findToolsByCapability: (tag: string) => Promise<Tool[]>;
     /** Returns the list of known capability tags from the registry (Supabase-backed, with built-in fallback). */
@@ -327,15 +331,22 @@ export interface ToolboxAPI {
     /** Subscribe to invocation banner state changes (main → renderer push). */
     onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => void;
     /** Subscribe to multi-connection prompts triggered when an invoked callee requires a secondary connection. */
-    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => void;
+    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; minConnections: number; maxConnections: number; inheritedConnectionIds: ConnectionIds }) => void) => void;
     /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
-    provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => Promise<void>;
+    provideInvocationConnections: (requestId: string, result: { connectionIds: ConnectionIds; primaryConnectionId?: string | null; secondaryConnectionId?: string | null } | null) => Promise<void>;
     /**
      * Subscribe to callee-tool-opened events. Fired once the callee BrowserView is ready
      * so the renderer can create a dedicated tab for the callee instance.
      */
     onCalleeToolOpened: (
-        callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void,
+        callback: (data: {
+            calleeInstanceId: string;
+            callerInstanceId: string;
+            tool: Tool;
+            connectionIds: ConnectionIds;
+            primaryConnectionId: string | null;
+            secondaryConnectionId: string | null;
+        }) => void,
     ) => void;
     /**
      * Subscribe to callee-tool-closed events. Fired after the callee is auto-closed by
@@ -361,6 +372,9 @@ export interface ToolboxAPI {
     getToolSecondaryConnection: (toolId: string) => Promise<string | null>;
     removeToolSecondaryConnection: (toolId: string) => Promise<void>;
     getAllToolSecondaryConnections: () => Promise<Record<string, string>>;
+    setToolConnectionSlots: (toolId: string, connectionIds: ConnectionIds) => Promise<void>;
+    getToolConnectionSlots: (toolId: string) => Promise<ConnectionIds>;
+    removeToolConnectionSlots: (toolId: string) => Promise<void>;
 
     // Recently used tools
     addLastUsedTool: (entry: LastUsedToolUpdate) => Promise<void>;

@@ -11,6 +11,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
+import type { ConnectionIds, ConnectionTarget } from "../common/connectionSlots";
+import { normalizeConnectionTarget } from "../common/connectionSlots";
 import {
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
@@ -151,15 +153,15 @@ const POWER_PLATFORM_CATEGORIES: PowerPlatformCategory[] = [
 ];
 
 const buildPowerPlatformCategoryClient = (category: PowerPlatformCategory) => ({
-    Get: (path = "", connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+    Get: (path = "", connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
         ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "GET" as PowerPlatformMethod, path, undefined, headers, connectionTarget),
-    Post: (path = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+    Post: (path = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
         ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "POST" as PowerPlatformMethod, path, body, headers, connectionTarget),
-    Put: (path = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+    Put: (path = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
         ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "PUT" as PowerPlatformMethod, path, body, headers, connectionTarget),
-    Patch: (path = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+    Patch: (path = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
         ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "PATCH" as PowerPlatformMethod, path, body, headers, connectionTarget),
-    Delete: (path = "", connectionTarget?: "primary" | "secondary", headers?: Record<string, string>, body?: unknown) =>
+    Delete: (path = "", connectionTarget?: ConnectionTarget, headers?: Record<string, string>, body?: unknown) =>
         ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "DELETE" as PowerPlatformMethod, path, body, headers, connectionTarget),
 });
 
@@ -234,53 +236,71 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         // Get tool's primary connection from context
         getActiveConnection: async () => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            if (!toolContext || typeof toolContext.connectionId !== "string") {
-                return null;
-            }
-            const connection = await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
+            const connectionId = Array.isArray(toolContext?.connectionIds) ? toolContext.connectionIds[0] : toolContext?.connectionId;
+            if (typeof connectionId !== "string") return null;
+            const connection = await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, connectionId);
             return toToolSafeConnection(connection);
         },
         // Secondary connection methods for multi-connection tools
         getSecondaryConnection: async () => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            if (!toolContext || typeof toolContext.secondaryConnectionId !== "string") {
-                return null;
-            }
-            const connection = await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.secondaryConnectionId);
+            const connectionId = Array.isArray(toolContext?.connectionIds) ? toolContext.connectionIds[1] : toolContext?.secondaryConnectionId;
+            if (typeof connectionId !== "string") return null;
+            const connection = await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, connectionId);
             return toToolSafeConnection(connection);
+        },
+        getConnections: async () => {
+            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
+            const connectionIds: ConnectionIds = Array.isArray(toolContext?.connectionIds)
+                ? (toolContext.connectionIds as ConnectionIds)
+                : [typeof toolContext?.connectionId === "string" ? toolContext.connectionId : null, typeof toolContext?.secondaryConnectionId === "string" ? toolContext.secondaryConnectionId : null];
+            return Promise.all(
+                connectionIds.map(async (connectionId) => {
+                    if (!connectionId) return null;
+                    return toToolSafeConnection(await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, connectionId));
+                }),
+            );
+        },
+        getConnection: async (target: ConnectionTarget) => {
+            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
+            const connectionIds: ConnectionIds = Array.isArray(toolContext?.connectionIds)
+                ? (toolContext.connectionIds as ConnectionIds)
+                : [typeof toolContext?.connectionId === "string" ? toolContext.connectionId : null, typeof toolContext?.secondaryConnectionId === "string" ? toolContext.secondaryConnectionId : null];
+            const connectionId = connectionIds[normalizeConnectionTarget(target)] ?? null;
+            if (!connectionId) return null;
+            return toToolSafeConnection(await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, connectionId));
         },
     },
 
     // Dataverse API
     dataverse: {
-        getSystemUsers: (connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, connectionTarget),
-        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
-            ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
-        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") =>
+        getSystemUsers: (connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, connectionTarget),
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget),
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget),
-        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
-        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
-        execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
-        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+        delete: (entityLogicalName: string, id: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
+        retrieveMultiple: (fetchXml: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
+        execute: (request: Record<string, unknown>, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
-        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
-        getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(entityLogicalName: string, relatedPath: P, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
+        getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(entityLogicalName: string, relatedPath: P, selectColumns?: string[], connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget) as Promise<EntityRelatedMetadataResponse<P>>,
-        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
-        getCSDLDocument: (connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, connectionTarget),
-        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
-        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget),
-        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
+        getSolutions: (selectColumns: string[], connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
+        getCSDLDocument: (connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, connectionTarget),
+        queryData: (odataQuery: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
+        publishCustomizations: (tableLogicalName?: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget),
+        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
-        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
+        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
         getEntitySetName: (entityLogicalName: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
-        associate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+        associate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.ASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget),
-        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
         deploySolution: (
             base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
@@ -291,56 +311,55 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
                 skipProductUpdateDependencies?: boolean;
                 convertToManaged?: boolean;
             },
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
         ) => ipcInvoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget),
-        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, importJobId, connectionTarget),
+        getImportJobStatus: (importJobId: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, importJobId, connectionTarget),
         // Metadata helper utilities
         buildLabel: (text: string, languageCode?: number) => ipcInvoke(DATAVERSE_CHANNELS.BUILD_LABEL, text, languageCode),
         getAttributeODataType: (attributeType: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ATTRIBUTE_ODATA_TYPE, attributeType),
         // Entity (Table) metadata operations
-        createEntityDefinition: (entityDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        createEntityDefinition: (entityDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION, entityDefinition, options, connectionTarget),
-        updateEntityDefinition: (entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        updateEntityDefinition: (entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION, entityIdentifier, entityDefinition, options, connectionTarget),
-        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, entityIdentifier, connectionTarget),
+        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, entityIdentifier, connectionTarget),
         // Attribute (Column) metadata operations
-        createAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        createAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_ATTRIBUTE, entityLogicalName, attributeDefinition, options, connectionTarget),
         updateAttribute: (
             entityLogicalName: string,
             attributeIdentifier: string,
             attributeDefinition: Record<string, unknown>,
             options?: Record<string, unknown>,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
         ) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE, entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget),
-        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") =>
+        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE, entityLogicalName, attributeIdentifier, connectionTarget),
-        createPolymorphicLookupAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        createPolymorphicLookupAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE, entityLogicalName, attributeDefinition, options, connectionTarget),
         // Relationship metadata operations
-        createRelationship: (relationshipDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        createRelationship: (relationshipDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP, relationshipDefinition, options, connectionTarget),
-        updateRelationship: (relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        updateRelationship: (relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP, relationshipIdentifier, relationshipDefinition, options, connectionTarget),
-        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP, relationshipIdentifier, connectionTarget),
+        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP, relationshipIdentifier, connectionTarget),
         // Global option set (choice) metadata operations
-        createGlobalOptionSet: (optionSetDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        createGlobalOptionSet: (optionSetDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, optionSetDefinition, options, connectionTarget),
-        updateGlobalOptionSet: (optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+        updateGlobalOptionSet: (optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget) =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET, optionSetIdentifier, optionSetDefinition, options, connectionTarget),
-        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") =>
-            ipcInvoke(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, optionSetIdentifier, connectionTarget),
+        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, optionSetIdentifier, connectionTarget),
         // Option value modification actions
-        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE, params, connectionTarget),
-        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, params, connectionTarget),
-        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, params, connectionTarget),
-        orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.ORDER_OPTION, params, connectionTarget),
+        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE, params, connectionTarget),
+        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, params, connectionTarget),
+        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, params, connectionTarget),
+        orderOption: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget) => ipcInvoke(DATAVERSE_CHANNELS.ORDER_OPTION, params, connectionTarget),
     },
 
     // Utils API
     utils: {
         showNotification: (options: Record<string, unknown>) => ipcInvoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
-        openInConnectionBrowser: (url: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER, url, connectionTarget),
+        openInConnectionBrowser: (url: string, connectionTarget?: ConnectionTarget) => ipcInvoke(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER, url, connectionTarget),
         copyToClipboard: (text: string) => ipcInvoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         getCurrentTheme: () => ipcInvoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
@@ -468,7 +487,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         launchTool: async (
             targetToolId: string,
             prefillData: Record<string, unknown> = {},
-            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean },
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; connectionIds?: ConnectionIds; noReturn?: boolean },
         ): Promise<unknown> => {
             const { instanceId: callerInstanceId } = await getToolIdentifiers();
             if (!callerInstanceId) {
@@ -484,11 +503,18 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             // Generate a unique instanceId for the callee (mirrors the pattern used in the renderer)
             const calleeInstanceId = `${tool.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-            const primaryConnectionId = options?.primaryConnectionId !== undefined ? options.primaryConnectionId : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
-            const secondaryConnectionId = options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : null;
+            const inheritedConnectionIds: ConnectionIds = Array.isArray(toolContext?.connectionIds)
+                ? (toolContext.connectionIds as ConnectionIds)
+                : [typeof toolContext?.connectionId === "string" ? toolContext.connectionId : null, typeof toolContext?.secondaryConnectionId === "string" ? toolContext.secondaryConnectionId : null];
+            const connectionIds = options?.connectionIds ? [...options.connectionIds] : [...inheritedConnectionIds];
+            while (connectionIds.length < 2) connectionIds.push(null);
+            if (options?.primaryConnectionId !== undefined) connectionIds[0] = options.primaryConnectionId;
+            if (options?.secondaryConnectionId !== undefined) connectionIds[1] = options.secondaryConnectionId;
+            const primaryConnectionId = connectionIds[0] ?? null;
+            const secondaryConnectionId = connectionIds[1] ?? null;
             const noReturn = options?.noReturn ?? false;
 
-            return ipcInvoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn);
+            return ipcInvoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn, connectionIds);
         },
 
         /**
@@ -518,45 +544,45 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
 // Dataverse is intentionally exposed only as a standalone API.
 contextBridge.exposeInMainWorld("dataverseAPI", {
-    create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget, additionalHeaders),
-    retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget, additionalHeaders),
-    update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget, additionalHeaders),
-    delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    delete: (entityLogicalName: string, id: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget, additionalHeaders),
-    retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    retrieveMultiple: (fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget, additionalHeaders),
-    execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    execute: (request: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget, additionalHeaders),
-    fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    fetchXmlQuery: (fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget, additionalHeaders),
-    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget, additionalHeaders),
-    getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget, additionalHeaders),
     getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(
         entityLogicalName: string,
         relatedPath: P,
         selectColumns?: string[],
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget, additionalHeaders) as Promise<EntityRelatedMetadataResponse<P>>,
-    getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    getSolutions: (selectColumns: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget, additionalHeaders),
-    getCSDLDocument: (connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => ipcInvoke(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, connectionTarget, additionalHeaders),
-    queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    getCSDLDocument: (connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => ipcInvoke(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, connectionTarget, additionalHeaders),
+    queryData: (odataQuery: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget, additionalHeaders),
-    publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    publishCustomizations: (tableLogicalName?: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget, additionalHeaders),
-    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget, additionalHeaders),
-    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget, additionalHeaders),
-    executeBatch: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    executeBatch: (requests: DataverseBatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.EXECUTE_BATCH, requests, connectionTarget, additionalHeaders),
-    executeTransaction: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    executeTransaction: (requests: DataverseBatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.EXECUTE_TRANSACTION, requests, connectionTarget, additionalHeaders),
     getEntitySetName: (entityLogicalName: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
     associate: (
@@ -565,7 +591,7 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         relationshipName: string,
         relatedEntityName: string,
         relatedEntityId: string,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.ASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget, additionalHeaders),
     disassociate: (
@@ -573,7 +599,7 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         primaryEntityId: string,
         relationshipName: string,
         relatedEntityId: string,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget, additionalHeaders),
     deploySolution: (
@@ -585,32 +611,32 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
             skipProductUpdateDependencies?: boolean;
             convertToManaged?: boolean;
         },
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget, additionalHeaders),
-    getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    getImportJobStatus: (importJobId: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, importJobId, connectionTarget, additionalHeaders),
     // Metadata helper utilities
     buildLabel: (text: string, languageCode?: number) => ipcInvoke(DATAVERSE_CHANNELS.BUILD_LABEL, text, languageCode),
     getAttributeODataType: (attributeType: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ATTRIBUTE_ODATA_TYPE, attributeType),
     // Entity (Table) metadata operations
-    createEntityDefinition: (entityDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    createEntityDefinition: (entityDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION, entityDefinition, options, connectionTarget, additionalHeaders),
     updateEntityDefinition: (
         entityIdentifier: string,
         entityDefinition: Record<string, unknown>,
         options?: Record<string, unknown>,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION, entityIdentifier, entityDefinition, options, connectionTarget, additionalHeaders),
-    deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, entityIdentifier, connectionTarget, additionalHeaders),
     // Attribute (Column) metadata operations
     createAttribute: (
         entityLogicalName: string,
         attributeDefinition: Record<string, unknown>,
         options?: Record<string, unknown>,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.CREATE_ATTRIBUTE, entityLogicalName, attributeDefinition, options, connectionTarget, additionalHeaders),
     updateAttribute: (
@@ -618,50 +644,50 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         attributeIdentifier: string,
         attributeDefinition: Record<string, unknown>,
         options?: Record<string, unknown>,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE, entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget, additionalHeaders),
-    deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE, entityLogicalName, attributeIdentifier, connectionTarget, additionalHeaders),
     createPolymorphicLookupAttribute: (
         entityLogicalName: string,
         attributeDefinition: Record<string, unknown>,
         options?: Record<string, unknown>,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE, entityLogicalName, attributeDefinition, options, connectionTarget, additionalHeaders),
     // Relationship metadata operations
-    createRelationship: (relationshipDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    createRelationship: (relationshipDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP, relationshipDefinition, options, connectionTarget, additionalHeaders),
     updateRelationship: (
         relationshipIdentifier: string,
         relationshipDefinition: Record<string, unknown>,
         options?: Record<string, unknown>,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP, relationshipIdentifier, relationshipDefinition, options, connectionTarget, additionalHeaders),
-    deleteRelationship: (relationshipIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    deleteRelationship: (relationshipIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP, relationshipIdentifier, connectionTarget, additionalHeaders),
     // Global option set (choice) metadata operations
-    createGlobalOptionSet: (optionSetDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    createGlobalOptionSet: (optionSetDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, optionSetDefinition, options, connectionTarget, additionalHeaders),
     updateGlobalOptionSet: (
         optionSetIdentifier: string,
         optionSetDefinition: Record<string, unknown>,
         options?: Record<string, unknown>,
-        connectionTarget?: "primary" | "secondary",
+        connectionTarget?: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET, optionSetIdentifier, optionSetDefinition, options, connectionTarget, additionalHeaders),
-    deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, optionSetIdentifier, connectionTarget, additionalHeaders),
     // Option value modification actions
-    insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    insertOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE, params, connectionTarget, additionalHeaders),
-    updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    updateOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, params, connectionTarget, additionalHeaders),
-    deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, params, connectionTarget, additionalHeaders),
-    orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) =>
+    orderOption: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) =>
         ipcInvoke(DATAVERSE_CHANNELS.ORDER_OPTION, params, connectionTarget, additionalHeaders),
 });
 

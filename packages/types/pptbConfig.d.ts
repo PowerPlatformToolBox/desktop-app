@@ -32,7 +32,10 @@
  *     "invokable": true,
  *     "modes": ["one-way", "two-way"],
  *     "defaultMode": "two-way",
- *     "timeoutMS": 12000
+ *     "timeoutMS": 12000,
+ *     "executionModes": ["windowed", "headless"],
+ *     "defaultExecutionMode": "headless",
+ *     "headlessEntry": "dist/headless.js"
  *   }
  * }
  * ```
@@ -103,6 +106,7 @@ export interface JsonSchemaObject {
  *   when it finishes.
  */
 export type AgentInvocationMode = "one-way" | "two-way";
+export type AgentExecutionMode = "windowed" | "headless";
 
 /**
  * Agent-specific launch contract for external automation callers.
@@ -113,6 +117,9 @@ export type AgentInvocationMode = "one-way" | "two-way";
  * - `modes`: supported MCP invocation modes for this tool.
  * - `defaultMode`: fallback mode when the caller does not specify one.
  * - `timeoutMS`: optional timeout hint, in milliseconds, for two-way calls.
+ * - `executionModes`: supported execution modes for this tool.
+ * - `defaultExecutionMode`: fallback execution mode when the caller does not specify one.
+ * - `headlessEntry`: path to the compiled automated runtime entry point.
  */
 export interface AgentsConfig {
     /** Semantic version of this agent contract. */
@@ -127,6 +134,12 @@ export interface AgentsConfig {
     defaultMode?: AgentInvocationMode;
     /** Optional timeout hint, in milliseconds, for agent-driven two-way calls. */
     timeoutMS?: number;
+    /** Execution modes supported by the tool. */
+    executionModes?: AgentExecutionMode[];
+    /** Default execution mode when an agent does not request one explicitly. */
+    defaultExecutionMode?: AgentExecutionMode;
+    /** Path to the compiled automated runtime entry point. */
+    headlessEntry?: string;
 }
 
 export interface InvocationConfig {

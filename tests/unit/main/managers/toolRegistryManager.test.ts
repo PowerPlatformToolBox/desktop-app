@@ -17,6 +17,7 @@ const catalogRow = {
     min_api: "1.2.0",
     multi_connection: "optional",
     connection_requirement: "required",
+    connections: null,
     enabled_for_power_platform_api: false,
     mcp_enabled: true,
     maturity_status: "verified",
@@ -70,6 +71,19 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         fs.rmSync(toolsDirectory, { recursive: true, force: true });
     });
 
+    it.each([
+        ["1.0.0", false],
+        ["1.1.3", false],
+        ["1.2.0", true],
+        ["1.7.0", true],
+    ])("only reports a strictly newer registry version (%s) as an update", async (registryVersion, expectedHasUpdate) => {
+        const manager = new ToolRegistryManager(toolsDirectory);
+        jest.spyOn(manager, "getInstalledManifest").mockResolvedValue({ version: "1.1.3" } as any);
+        jest.spyOn(manager, "fetchRegistry").mockResolvedValue([{ id: "versioned-tool", version: registryVersion } as any]);
+
+        await expect(manager.checkForUpdates("versioned-tool")).resolves.toEqual({ hasUpdate: expectedHasUpdate, latestVersion: registryVersion });
+    });
+
     it("normalizes a legacy manifest readme key to readmeUrl", async () => {
         fs.writeFileSync(
             path.join(toolsDirectory, "manifest.json"),
@@ -109,12 +123,77 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
 
         const result = await (manager as any).fetchRegistryFromSupabase();
 
-        const catalogColumns = catalogSelect.mock.calls[0][0] as string;
+        const catalogColumns = catalogSelect.mock.calls[catalogSelect.mock.calls.length - 1][0] as string;
         expect(catalogColumns).toContain("mcp_enabled");
         expect(catalogColumns).toContain("readme_url");
         expect(catalogColumns).toContain("maturity_status");
-        expect(catalogColumns).not.toMatch(/downloadurl|iconurl|readmeurl|features|tool_maturity|max_api/);
-        expect(result[0]).toMatchObject({ maturity: "verified", downloadUrl: catalogRow.download });
+        expect(catalogColumns).toContain("connections");
+        expect(catalogColumns).not.toContain("tool_release_features(");
+        expect(catalogColumns).not.toMatch(/downloadurl|iconurl|readmeurl|tool_maturity|max_api/);
+        expect(result[0]).toMatchObject({ maturity: "verified", downloadUrl: catalogRow.download, version: catalogRow.version });
+    });
+
+    it("retries the catalog view without embedded relations when the relation query fails", async () => {
+        const catalogSelect = jest.fn().mockReturnThis();
+        const order = jest
+            .fn()
+            .mockResolvedValueOnce({ data: null, error: { message: "Could not find a relationship" } })
+            .mockResolvedValueOnce({
+                data: [
+                    {
+                        ...catalogRow,
+                        connections: '{"max":3,"min":0}',
+                    },
+                ],
+                error: null,
+            });
+        const catalogQuery = {
+            select: catalogSelect,
+            in: jest.fn().mockReturnThis(),
+            order,
+        };
+        const manager = new ToolRegistryManager(toolsDirectory, "https://supabase.example", "anon-key");
+        const from = jest.fn().mockReturnValue(catalogQuery);
+        (manager as unknown as { supabase: unknown }).supabase = { from };
+
+        const [tool] = await (manager as any).fetchRegistryFromSupabase();
+
+        const selectedColumns = catalogSelect.mock.calls.map(([columns]) => columns as string);
+        expect(selectedColumns[0]).toContain("tool_categories(");
+        expect(selectedColumns[1]).toBe("*");
+        expect(tool.version).toBe(catalogRow.version);
+        expect(tool.features.connections).toEqual({ min: 0, max: 3 });
+    });
+
+    it("maps the normalized view's serialized connections value and preserves the release version", () => {
+        const mapped = mapSupabaseToolRow({
+            ...catalogRow,
+            connections: '{"max":3,"min":0}',
+        });
+
+        expect(mapped.version).toBe("2.3.0");
+        expect(mapped.features).toMatchObject({ connections: { min: 0, max: 3 } });
+        expect(mapped.features).not.toHaveProperty("multiConnection");
+        expect(mapped.features).not.toHaveProperty("connectionRequirement");
+    });
+
+    it("parses a double-encoded connections feature value from the normalized view", () => {
+        const mapped = mapSupabaseToolRow({
+            ...catalogRow,
+            connections: JSON.stringify('{"max":3,"min":0}'),
+        });
+
+        expect(mapped.features?.connections).toEqual({ min: 0, max: 3 });
+    });
+
+    it("falls back to legacy connection fields when the serialized connections value is malformed", () => {
+        const mapped = mapSupabaseToolRow({
+            ...catalogRow,
+            connections: '{"min":5,"max":2}',
+        });
+
+        expect(mapped.features).toMatchObject({ multiConnection: "optional", connectionRequirement: "required" });
+        expect(mapped.features).not.toHaveProperty("connections");
     });
 
     it("fetches, submits, and upvotes tool ideas using the install identity", async () => {
@@ -128,9 +207,7 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         const from = jest.fn().mockReturnValue({ insert });
         (manager as unknown as { supabase: unknown }).supabase = { rpc, from };
 
-        await expect(manager.fetchToolIdeas()).resolves.toEqual([
-            { id: "idea-1", title: "Tool idea", description: "Details", upvotes: 4, createdAt: "2026-10-01", hasUpvoted: false },
-        ]);
+        await expect(manager.fetchToolIdeas()).resolves.toEqual([{ id: "idea-1", title: "Tool idea", description: "Details", upvotes: 4, createdAt: "2026-10-01", hasUpvoted: false }]);
         expect(rpc).toHaveBeenCalledWith("get_tool_ideas", { p_install_id: "install-123" });
 
         await manager.submitToolIdea({ title: "  Idea  ", description: "  Details  ", email: "  user@example.com  " });
@@ -152,7 +229,7 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         fs.mkdirSync(extractedPath, { recursive: true });
         fs.writeFileSync(path.join(extractedPath, "package.json"), JSON.stringify({ name: "@contoso/catalog-tool", version: "2.3.0" }));
 
-        const release = mapSupabaseToolRow(catalogRow);
+        const release = mapSupabaseToolRow({ ...catalogRow, connections: '{"max":3,"min":0}' });
         const manager = new ToolRegistryManager(toolsDirectory, "https://supabase.example", "anon-key");
         jest.spyOn(manager, "fetchRegistry").mockResolvedValue([release]);
         jest.spyOn(manager, "downloadTool").mockResolvedValue(extractedPath);
@@ -170,6 +247,7 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         });
         const persistedManifest = JSON.parse(fs.readFileSync(path.join(toolsDirectory, "manifest.json"), "utf-8")).tools[0];
         expect(persistedManifest.readmeUrl).toBe(catalogRow.readme_url);
+        expect(persistedManifest.features.connections).toEqual({ min: 0, max: 3 });
         expect(persistedManifest).not.toHaveProperty("readme");
 
         const appManager = new ToolManager(toolsDirectory);
