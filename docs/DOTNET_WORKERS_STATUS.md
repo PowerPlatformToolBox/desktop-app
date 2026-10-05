@@ -1,28 +1,29 @@
 # .NET Worker Delivery Tracker
 
 This is the implementation tracker for issue #493. PR numbers below identify
-planned delivery slices, not opened GitHub pull requests. Only PR0 is implemented.
-No production worker API or native execution permission is enabled by PR0.
+planned delivery slices, not opened GitHub pull requests. PR0 and PR1, including
+the approved platform and transport contract revision, are implemented and verified.
+No production worker API or native execution permission is enabled by these slices.
 
 ## Status
 
-| Slice | Status                    | Dependencies       | Deliverable and completion gate                                                                                                                                                                                                              |
-| ----- | ------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PR0   | Completed (bounded probe) | None               | Real SQL 4 CDS DLL, reverse callback, concurrent requests, cancellation, progress, errors and EOF exit tested. See the [probe](DOTNET_WORKERS_PR0.md) for compatibility limits.                                                              |
-| PR1   | Not started               | PR0                | Worker declaration schema including target framework, minimum runtime and four-value roll-forward policy; public manifest types, registry/npm/local loading and persisted metadata; fail-closed validation and backward-compatibility tests. |
-| PR2   | Not started               | PR1                | Installed SDK/runtime discovery with deterministic .NET 10 SDK selection and declared runtime policy resolution; missing SDK, runtime-only, all four policies and incompatible architecture/config tests.                                    |
-| PR3   | Not started               | PR1, PR2           | Pinned NuGet preparation, controlled source/manifest, atomic cache and rollback; concurrency, version/command verification and offline tests.                                                                                                |
-| PR4   | Not started               | PR0, PR1           | Internal process/transport manager; framing, backpressure, bounded queues, early messages, malformed input and shutdown tests. No public launch path.                                                                                        |
-| PR5   | Not started               | PR1                | Trusted native-execution consent and review/revoke UI; deny, fingerprint changes, duplicate prompts and self-approval rejection tests.                                                                                                       |
-| PR6   | Not started               | PR2, PR3, PR4, PR5 | Internal broker, sender-derived ownership, targeted events and full lifecycle; foreign-handle, denial, close/crash/revoke/update/uninstall/quit tests.                                                                                       |
-| PR7   | Not started               | PR6                | Public preload API, browser-compatible RPC adapter and author example; Electron callback flow, disposal, SDK guidance and public-type tests.                                                                                                 |
-| PR8   | Not started               | PR7                | .NET 10 and declared platform qualification, packaged-app checks, migration docs and coordinated release of app/types/validator.                                                                                                             |
+| Slice | Status                    | Dependencies       | Deliverable and completion gate                                                                                                                                                                           |
+| ----- | ------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR0   | Completed (bounded probe) | None               | Real SQL 4 CDS DLL, reverse callback, concurrent requests, cancellation, progress, errors and EOF exit tested. See the [probe](DOTNET_WORKERS_PR0.md) for compatibility limits.                           |
+| PR1   | Completed                 | PR0                | Platform aliases/all and implicit transport verified. Public manifest types, registry/npm/local loading and persisted metadata remain metadata-only, with strict validation and canonical Major default.  |
+| PR2   | Not started               | PR1                | Installed SDK/runtime discovery with deterministic .NET 10 SDK selection and declared runtime policy resolution; missing SDK, runtime-only, all four policies and incompatible architecture/config tests. |
+| PR3   | Not started               | PR1, PR2           | Pinned NuGet preparation, controlled source/manifest, atomic cache and rollback; concurrency, version/command verification and offline tests.                                                             |
+| PR4   | Not started               | PR0, PR1           | Internal process/transport manager; framing, backpressure, bounded queues, early messages, malformed input and shutdown tests. No public launch path.                                                     |
+| PR5   | Not started               | PR1                | Trusted native-execution consent and review/revoke UI; deny, fingerprint changes, duplicate prompts and self-approval rejection tests.                                                                    |
+| PR6   | Not started               | PR2, PR3, PR4, PR5 | Internal broker, sender-derived ownership, targeted events and full lifecycle; foreign-handle, denial, close/crash/revoke/update/uninstall/quit tests.                                                    |
+| PR7   | Not started               | PR6                | Public preload API, browser-compatible RPC adapter and author example; Electron callback flow, disposal, SDK guidance and public-type tests.                                                              |
+| PR8   | Not started               | PR7                | .NET 10 and declared platform qualification, packaged-app checks, migration docs and coordinated release of app/types/validator.                                                                          |
 
 ## Runtime Declaration Decision (2026-10-05)
 
 Each worker declares its executable target framework, minimum runtime version and
-one of four PPTB roll-forward values. These are planned PR1 fields, not a currently
-implemented API:
+one of four PPTB roll-forward values. PR1 implements declaration metadata only,
+not a worker execution API:
 
 ```json
 {
@@ -37,12 +38,21 @@ implemented API:
                 "minimumRuntimeVersion": "8.0.0",
                 "rollForward": "Major"
             },
-            "platforms": ["win-x64", "osx-arm64"],
-            "transport": "jsonrpc-stdio-v1"
+            "platforms": ["windows-x64", "macos-arm64"]
         }
     }
 }
 ```
+
+The approved PR1 amendment accepts required, non-empty, unique platform arrays
+containing `all`, `windows-x64`, `windows-arm64`, `macos-x64`, `macos-arm64`,
+`linux-x64` or `linux-arm64`. `all` must appear alone and stays `["all"]` in
+canonical metadata. It denotes the versioned officially supported PPTB platform
+matrix; future expansion requires qualification before enabling existing packages.
+Old `win-*`/`osx-*` RIDs and unknown values are rejected. Author declarations and
+normalized metadata have no `transport` field; an explicit field is rejected as
+an unknown key. PPTB still defines `jsonrpc-stdio-v1` internally for the future
+startup handshake. No platform resolver or PR2 implementation is added.
 
 | PPTB value | Runtime selection                                                                                                                                                                                                             | Native .NET mapping |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
@@ -135,9 +145,56 @@ Production launch policy is still unimplemented; PR0's net8.0 fixture is unchang
 - SDK acquisition, runtime discovery, user consent and production IPC are not part
   of PR0. The probe is explicitly developer-invoked, not shipped as an API.
 
+## PR1 Evidence
+
+### Original Baseline (2026-10-05)
+
+The following dated results apply to the original contract, before the platform
+and transport amendment. They are retained as historical evidence, not proof
+that the revised contract passes validation.
+
+- Date: 2026-10-05, macOS workspace. See the [declaration contract](DOTNET_WORKER_DECLARATIONS.md)
+  and [execution log](../.github/plans/plan-dotnet-workers-pr1.md).
+- Canonical worker declarations validate package/version/command, console TFM,
+  minimum runtime, platform list and transport. Omitted rollForward becomes Major.
+- Registry/npm/local loading and restart metadata are covered. Rejected development
+  reloads invalidate stale metadata; uninstall respects source ownership. Registry
+  updates stage and validate before replacing files, with rollback tests.
+- Focused Jest checks: 150 tests passed through VS Code's test runner. Full unit
+  suite after final formatting: 531 tests passed; the opt-in PR0 suite remains skipped.
+- Validator package build, desktop typecheck, lint and production build passed.
+  Existing TypeScript/parser and Vite chunk/import warnings remain.
+- Touched TypeScript files formatted with repository Prettier settings; diagnostics
+  and git diff --check are clean. Follow-up read-only review found no blockers.
+- No native worker launch, SDK discovery, NuGet restore, consent or execution API
+  is implemented. Accepting a TFM/RID in declarations is not platform qualification.
+- No commit, branch creation, package publication or guessed API release version.
+
+### Contract Amendment (2026-10-05)
+
+- User approved the PR1-only platform aliases/`all` contract and removal of
+  author-facing transport. Validator/public types and canonical metadata updated;
+  registry/npm/local readers continue to use the authoritative validator.
+- Regression coverage added for every alias, literal `all`, `all` combinations
+  in either order, old/unknown RIDs, duplicates, forbidden explicit transport,
+  canonical data and registry/npm/local manifest/restart roundtrips. Persisted
+  transport and legacy platform metadata are rejected rather than migrated.
+- Focused VS Code `get_errors` diagnostics found no errors in changed TypeScript
+  files or the shared metadata boundary. This is diagnostic evidence only.
+- Main-agent verification: 143 focused declaration/metadata tests passed; after
+  formatting, the full unit suite passed 569 tests. Ordinary unit discovery still
+  skips the opt-in PR0 process probe.
+- Validator package build, lint and production build (including desktop typecheck
+  and CLI compilation) passed. Existing parser/Vite warnings remain. The four
+  touched TypeScript files were formatted with repository Prettier settings.
+- PR0 wire protocol/fixture and runtime policy remain unchanged. No SDK acquisition,
+  runtime/platform resolver, worker API/execution, publication, commit or branch.
+
 ## Next Checkpoint
 
-PR1 can begin with the bounded protocol result above, but must not claim a complete
-Dataverse proxy or cross-platform compatibility. Retain the organization-locale
+The amended PR1 acceptance gates passed. PR2 remains not started and is ready
+for its own checkpoint; PR4 and PR5 remain independently available after PR1.
+Do not claim a complete Dataverse proxy or cross-platform compatibility from these
+metadata changes. Retain the organization-locale
 fixture as the cheap full-duplex regression test. Carry the remaining real-query
 adapter and platform checks into the author example and PR8 qualification gates.

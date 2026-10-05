@@ -12,13 +12,14 @@ import {
     Tool,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
+    ToolFeatures,
     ToolIdea,
     ToolIdeaSubmission,
     ToolIdeaUpvoteResult,
-    ToolFeatures,
     ToolManifest,
     ToolRegistryEntry,
 } from "../../common/types";
+import { readWorkerMetadata } from "../utilities/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
@@ -106,11 +107,14 @@ export class ToolManager extends EventEmitter {
             isSupported: VersionManager.isToolSupported(manifest.minAPI),
             mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
+            workers: manifest.workers,
             marketplaceSourceId: manifest.marketplaceSourceId,
             marketplaceSourceLabel: manifest.marketplaceSourceLabel,
             marketplaceSourceType: manifest.marketplaceSourceType,
             maturity: manifest.maturity,
         };
+        if (manifest.source === "local") tool.localPath = manifest.installPath;
+        if (manifest.source === "npm" || manifest.source === "local") tool.npmPackageName = manifest.packageName;
 
         const cached = this.analyticsCache.get(tool.id);
         if (cached) {
@@ -141,6 +145,11 @@ export class ToolManager extends EventEmitter {
             const manifest = await this.registryManager.getInstalledManifest(toolId);
             if (!manifest) {
                 throw new Error(`Tool ${toolId} not found in registry`);
+            }
+            if (manifest.source === "local") return this.loadLocalTool(manifest.installPath);
+            if (manifest.source === "npm") {
+                if (!manifest.packageName) throw new Error(`Npm tool ${toolId} is missing its package name`);
+                return this.loadNpmTool(manifest.packageName);
             }
             const tool = this.loadToolFromManifest(manifest);
 
@@ -408,20 +417,23 @@ export class ToolManager extends EventEmitter {
      */
     async uninstallTool(toolId: string): Promise<void> {
         const tool = this.tools.get(toolId);
+        const manifest = this.registryManager.getInstalledManifestSync(toolId);
 
         if (tool) {
             this.tools.delete(toolId);
             this.emit("tool:unloaded", tool);
         }
 
-        if (tool?.npmPackageName) {
-            const packageDir = this.resolvePackageDirectoryName(tool.npmPackageName);
-            const toolPath = path.join(this.toolsDirectory, "node_modules", packageDir);
-            if (fs.existsSync(toolPath)) {
+        const source = manifest?.source ?? (tool?.localPath ? "local" : tool?.npmPackageName ? "npm" : "registry");
+        if (source === "local") {
+            await this.registryManager.removeInstalledManifest(toolId);
+        } else if (source === "npm") {
+            const packageName = manifest?.packageName ?? tool?.npmPackageName;
+            const toolPath = manifest?.installPath ?? (packageName ? path.join(this.toolsDirectory, "node_modules", this.resolvePackageDirectoryName(packageName)) : undefined);
+            if (toolPath && fs.existsSync(toolPath)) {
                 fs.rmSync(toolPath, { recursive: true, force: true });
             }
-        } else if (tool?.localPath) {
-            // Do not delete local development tools, just unload them
+            await this.registryManager.removeInstalledManifest(toolId);
         } else {
             await this.registryManager.uninstallTool(toolId);
         }
@@ -691,6 +703,36 @@ export class ToolManager extends EventEmitter {
      * @param packageName - npm package name (may include a version/tag specifier like "@beta" or "@1.0.0")
      */
     async loadNpmTool(packageName: string): Promise<Tool> {
+        const toolPath = path.join(this.toolsDirectory, "node_modules", this.resolvePackageDirectoryName(packageName));
+        try {
+            return await this.loadNpmToolMetadata(packageName);
+        } catch (error) {
+            await this.removeRejectedWorkerMetadata(toolPath, "npm");
+            throw error;
+        }
+    }
+
+    private async removeRejectedWorkerMetadata(toolPath: string, source: "npm" | "local"): Promise<void> {
+        const rejectedIds = new Set<string>();
+        for (const manifest of this.registryManager.getInstalledToolsSync()) {
+            if (manifest.source === source && manifest.workers && path.resolve(manifest.installPath) === path.resolve(toolPath)) rejectedIds.add(manifest.id);
+        }
+        for (const tool of this.tools.values()) {
+            const cachedPath =
+                source === "local"
+                    ? tool.localPath
+                    : !tool.localPath && tool.npmPackageName
+                      ? path.join(this.toolsDirectory, "node_modules", this.resolvePackageDirectoryName(tool.npmPackageName))
+                      : undefined;
+            if (tool.workers && cachedPath && path.resolve(cachedPath) === path.resolve(toolPath)) rejectedIds.add(tool.id);
+        }
+        for (const toolId of rejectedIds) {
+            this.tools.delete(toolId);
+            await this.registryManager.removeInstalledManifest(toolId);
+        }
+    }
+
+    private async loadNpmToolMetadata(packageName: string): Promise<Tool> {
         logInfo(`[ToolManager] [DEBUG] Loading npm tool: ${packageName}`);
 
         // Resolve the actual directory name in node_modules — strip any version/tag specifier.
@@ -739,6 +781,7 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with npm path metadata
         const toolId = `npm-${sanitizedToolId}`;
+        const workers = readWorkerMetadata(toolPath, packageJson);
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
@@ -782,6 +825,9 @@ export class ToolManager extends EventEmitter {
             name: packageJson.displayName || packageJson.name,
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Tool installed from npm",
+            workers,
+            minAPI: packageJson.features?.minAPI,
+            isSupported: VersionManager.isToolSupported(packageJson.features?.minAPI),
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
             icon: packageJson.icon,
             npmPackageName: packageJson.name, // Store the canonical npm package name for loading and invocation lookup
@@ -794,6 +840,7 @@ export class ToolManager extends EventEmitter {
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
+        if (workers || this.registryManager.getInstalledManifestSync(toolId)?.source === "npm") await this.registryManager.saveDevelopmentTool(tool, toolPath, "npm");
         this.tools.set(toolId, tool);
         this.emit("tool:loaded", tool);
 
@@ -914,6 +961,15 @@ export class ToolManager extends EventEmitter {
      * @param localPath - Absolute path to the tool directory
      */
     async loadLocalTool(localPath: string): Promise<Tool> {
+        try {
+            return await this.loadLocalToolMetadata(localPath);
+        } catch (error) {
+            await this.removeRejectedWorkerMetadata(localPath, "local");
+            throw error;
+        }
+    }
+
+    private async loadLocalToolMetadata(localPath: string): Promise<Tool> {
         logInfo(`[ToolManager] [DEBUG] Loading local tool from: ${localPath}`);
 
         // Validate path safety
@@ -967,6 +1023,7 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with local path metadata
         const toolId = `local-${sanitizedToolId}`;
+        const workers = readWorkerMetadata(localPath, packageJson);
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
@@ -1010,6 +1067,9 @@ export class ToolManager extends EventEmitter {
             name: packageJson.displayName || packageJson.name,
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Local development tool",
+            workers,
+            minAPI: packageJson.features?.minAPI,
+            isSupported: VersionManager.isToolSupported(packageJson.features?.minAPI),
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
             icon: packageJson.icon,
             localPath: localPath, // Store the local path for loading
@@ -1023,6 +1083,7 @@ export class ToolManager extends EventEmitter {
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
+        if (workers || this.registryManager.getInstalledManifestSync(toolId)?.source === "local") await this.registryManager.saveDevelopmentTool(tool, localPath, "local");
         this.tools.set(toolId, tool);
         this.emit("tool:loaded", tool);
 
