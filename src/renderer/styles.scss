@@ -3258,6 +3258,13 @@ body.dark-theme .settings-vscode-item:hover {
     color: var(--text-secondary);
 }
 
+.tool-detail-tab-meta-list .tool-detail-rating-star {
+    display: inline-block;
+    position: relative;
+    top: -1px;
+    line-height: 1;
+}
+
 .tool-detail-tab-actions {
     display: flex;
     gap: 12px;

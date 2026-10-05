@@ -594,7 +594,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const categoryTagsMarkup = categories.length ? categories.map((tag) => `<span>${tag}</span>`).join("") : "";
     const tagsMarkup = `${mcpTagMarkup}${categoryTagsMarkup}`;
     const badgeMarkup = metaBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
-    const ratingsHtml = formatRatingMarkup(tool.rating, { suffix: " ⭐" });
+    const ratingsHtml = formatRatingMarkup(tool.rating, { suffix: ' <span class="tool-detail-rating-star" aria-hidden="true">⭐</span>' });
     const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
 
     const iconHtml = buildToolIconHtml(tool);
@@ -667,7 +667,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                 if (!aggregate) return;
                 const metaList = panel.querySelector<HTMLElement>("#tool-detail-tab-meta-list");
                 if (metaList) {
-                    const updatedRatingsHtml = formatRatingMarkup(aggregate.rating, { suffix: " ⭐" });
+                    const updatedRatingsHtml = formatRatingMarkup(aggregate.rating, { suffix: ' <span class="tool-detail-rating-star" aria-hidden="true">⭐</span>' });
                     metaList.innerHTML = `${badgeMarkup}${updatedRatingsHtml}`;
                 }
                 void loadMarketplace();
