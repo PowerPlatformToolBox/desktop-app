@@ -2,7 +2,7 @@
 
 This is the implementation tracker for issue #493. PR numbers below identify
 planned delivery slices, not opened GitHub pull requests. PR0 and PR1, including
-the approved platform and transport contract revision, are implemented and verified.
+the approved platform and transport contract revision, and PR2 are implemented and verified.
 No production worker API or native execution permission is enabled by these slices.
 
 ## Status
@@ -11,7 +11,7 @@ No production worker API or native execution permission is enabled by these slic
 | ----- | ------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | PR0   | Completed (bounded probe) | None               | Real SQL 4 CDS DLL, reverse callback, concurrent requests, cancellation, progress, errors and EOF exit tested. See the [probe](DOTNET_WORKERS_PR0.md) for compatibility limits.                           |
 | PR1   | Completed                 | PR0                | Platform aliases/all and implicit transport verified. Public manifest types, registry/npm/local loading and persisted metadata remain metadata-only, with strict validation and canonical Major default.  |
-| PR2   | Not started               | PR1                | Installed SDK/runtime discovery with deterministic .NET 10 SDK selection and declared runtime policy resolution; missing SDK, runtime-only, all four policies and incompatible architecture/config tests. |
+| PR2   | Completed                 | PR1                | Installed SDK/runtime discovery with deterministic .NET 10 SDK selection and declared runtime policy resolution; missing SDK, runtime-only, all four policies and incompatible architecture/config tests. |
 | PR3   | Not started               | PR1, PR2           | Pinned NuGet preparation, controlled source/manifest, atomic cache and rollback; concurrency, version/command verification and offline tests.                                                             |
 | PR4   | Not started               | PR0, PR1           | Internal process/transport manager; framing, backpressure, bounded queues, early messages, malformed input and shutdown tests. No public launch path.                                                     |
 | PR5   | Not started               | PR1                | Trusted native-execution consent and review/revoke UI; deny, fingerprint changes, duplicate prompts and self-approval rejection tests.                                                                    |
@@ -52,7 +52,8 @@ matrix; future expansion requires qualification before enabling existing package
 Old `win-*`/`osx-*` RIDs and unknown values are rejected. Author declarations and
 normalized metadata have no `transport` field; an explicit field is rejected as
 an unknown key. PPTB still defines `jsonrpc-stdio-v1` internally for the future
-startup handshake. No platform resolver or PR2 implementation is added.
+startup handshake. PR1 added no resolver; internal PR2 discovery is described in
+the declaration document and remains disconnected from production execution.
 
 | PPTB value | Runtime selection                                                                                                                                                                                                             | Native .NET mapping |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
@@ -190,10 +191,44 @@ that the revised contract passes validation.
 - PR0 wire protocol/fixture and runtime policy remain unchanged. No SDK acquisition,
   runtime/platform resolver, worker API/execution, publication, commit or branch.
 
+## PR2 Evidence
+
+- Date: 2026-10-05; explicit Go checkpoint selected. See the
+  [execution log](../.github/plans/plan-dotnet-workers-pr2.md) and
+  [discovery decisions/PR3 handoff](DOTNET_WORKER_DECLARATIONS.md#internal-discovery-pr2).
+- Added internal typed discovery results, pure platform/listing/version/policy
+  helpers and an injectable main-process discovery manager. No startup wiring,
+  worker process, API, IPC/preload, consent, NuGet, download or global.json writes.
+- Tests in `tests/unit/dotnetDiscovery.test.ts` cover all four runtime policies,
+  stable .NET 10 SDK selection, SDK CLI runtime config, platform/RID matrix,
+  native architecture, host isolation, candidate fallback, bounded probes,
+  malformed output/arguments and conflicting ambient SDK/global.json information.
+  They have no real SDK/network prerequisite and do not touch the PR0 fixture.
+- Focused `get_errors` checks report no errors in all four new TypeScript files.
+  One IDE-reported test fixture failure (undefined activating a default RID) was
+  repaired and the same focused diagnostics rerun clear. This is IDE diagnostic
+  evidence only, not a claimed complete Jest run or command acceptance gate.
+- Main-agent focused Jest: 138 tests passed. Full unit suite after formatting
+  and repairs: 707 passed. Tests do not require an installed SDK or network.
+- Desktop typecheck, lint and production build (including CLI compilation) passed.
+  Initial lint control-character regex errors were fixed without weakening path
+  validation. Existing TypeScript/parser and Vite warnings remain.
+- Real macOS arm64 discovery returned SDK_NOT_FOUND for the approved native host,
+  consistent with only SDKs 8/9 being installed. The alternate x64 host diagnostic
+  timed out within the configured bound; it did not change the native-host error.
+  No .NET 10 was acquired, so successful SDK 10 selection is fixture-tested only.
+- Review identified that --info can exit nonzero when an ambient SDK cannot start.
+  Bounded native stdout is now retained for ordinary numeric exit failures, then
+  validated normally. Missing SDK CLI runtimes receive the structured error.
+  Follow-up review found no blockers. Files formatted and git diff --check passed.
+- Native platform and package
+  qualification remain PR8; alternate host roots/system drives and musl are not
+  promised. Diagnostic discovery does not establish worker execution permission.
+
 ## Next Checkpoint
 
-The amended PR1 acceptance gates passed. PR2 remains not started and is ready
-for its own checkpoint; PR4 and PR5 remain independently available after PR1.
+PR1 and PR2 acceptance gates passed. PR3 is ready for its own checkpoint;
+PR4 and PR5 remain independently available after PR1.
 Do not claim a complete Dataverse proxy or cross-platform compatibility from these
 metadata changes. Retain the organization-locale
 fixture as the cheap full-duplex regression test. Carry the remaining real-query

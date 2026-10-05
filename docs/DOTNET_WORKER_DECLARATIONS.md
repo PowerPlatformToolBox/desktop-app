@@ -53,8 +53,8 @@ need author documentation. `"platforms": ["all"]` means the versioned officially
 supported PPTB platform matrix, not every conceivable OS/architecture or every
 syntactically accepted alias. Future matrix expansion requires qualification
 before enabling existing packages on additional platforms. PR1 retains `all`
-literally; matrix versioning, platform resolution and runtime discovery are not
-implemented here and must not be inferred from this declaration change.
+literally. PR2 adds the internal matrix-v1 resolver and discovery described below;
+neither platform qualification nor worker execution follows from declaration validation.
 
 `transport` is not an author-facing field, even when set to `jsonrpc-stdio-v1`.
 Explicit declarations fail strict unknown-key validation; normalized metadata
@@ -95,3 +95,97 @@ to the coordinated release gate; generated validator output must be rebuilt
 before testing or publishing its CLI.
 
 NuGet grammar reference: [NuGet package versioning](https://learn.microsoft.com/nuget/concepts/package-versioning#where-nugetversion-diverges-from-semantic-versioning).
+
+## Internal Discovery (PR2)
+
+`DotNetDiscoveryManager` is not registered in production startup or exposed through
+IPC/preload/public APIs. It returns typed data, not an execution permission. PR1
+author types and canonical metadata remain unchanged, including literal `all`
+and absent transport. PR0 fixtures and the terminal `dotnet` block are untouched.
+
+Matrix v1 resolves the six accepted concrete aliases: `windows-*` to `win-*`,
+`macos-*` to `osx-*`, and `linux-*` unchanged, for native x64/arm64 only. `all`
+uses this explicit matrix without mutating declarations. Resolution is admission
+to discovery, not qualification of a package, binary, distribution or platform;
+actual qualification remains PR8. Linux portable glibc SDK RIDs are admitted;
+musl and distribution-specific SDK RIDs are conservatively rejected in this slice.
+
+Host candidates are fixed and visited in this order:
+
+- Windows: `C:\Program Files\dotnet\dotnet.exe`, then its `x64` subdirectory.
+- macOS: `/usr/local/share/dotnet/dotnet`, then its `x64` subdirectory.
+- Linux: `/usr/share/dotnet/dotnet`, `/usr/lib/dotnet/dotnet`,
+  `/usr/lib64/dotnet/dotnet`, `/usr/local/share/dotnet/dotnet`.
+
+Only executable regular files whose absolute real paths remain in these candidate
+sets are admitted; duplicate real paths are skipped. There is no PATH lookup or
+renderer-configurable executable path. No existing main-host-path configuration
+abstraction was found. Alternate Windows system drives, user-local/custom SDK
+roots and symlinks outside these locations intentionally require a future trusted
+main-process configuration design. Folder names are not architecture evidence:
+`--info`'s Host architecture must match detected native OS architecture. Windows
+uses Node's native machine identity, and Apple CPU identity prevents Rosetta's
+x64 machine name from promising emulated x64 support on arm64. These rules still
+need actual Windows/macOS/Linux qualification, not just injected tests.
+
+Each candidate permits only `--info`, `--list-sdks`, `--list-runtimes`, as direct
+argument arrays with `shell: false`, a 3-second timeout with forced termination,
+256 KiB output bounds and an explicit credential-free environment. Diagnostics
+use the OS volume root as cwd, not a tool/repository directory. The environment
+omits inherited PATH, home, authentication, SDK resolver and startup-hook settings;
+it disables telemetry/workload update notification and requests English output.
+At most two hosts on Windows/macOS or four on Linux are probed, sequentially.
+No stdout/stderr or exception contents are logged or returned. Failures return
+sanitized typed codes and bounded candidate attempts. Filesystem failures are
+also sanitized; this is not an OS sandbox or a filesystem race guarantee.
+
+Unqualified listings describe the invoked host's architecture; no `--arch` option
+is used. Entries outside that host's SDK/shared-framework directories cannot be
+combined with it. The ambient SDK version/base path/global.json reported by
+`--info` does not select the SDK. Its Host architecture (and SDK RID if present)
+is used for native validation, even if an ambient global.json suppresses SDK info.
+Strict listing parsers exclude prereleases and reject malformed output.
+
+SDK selection is the highest stable installed `10.0.*` version at least
+`10.0.100`, within the selected host. SDK 11 is never silently substituted.
+This conservative policy does not try an older SDK within the same host when
+the selected SDK is broken; it tries the next approved host instead. The selected
+SDK's installed `dotnet.runtimeconfig.json` must have a bounded (64 KiB), exact
+real path, `net10.0`/`Microsoft.NETCore.App` stable 10.0 requirement and default,
+`Minor` or `LatestPatch` policy with patching enabled. Its minimum patch must be
+satisfied by an installed 10.0 runtime on the same host. SDK presence alone is
+not CLI runtime availability. Unsupported SDK configs fail closed.
+
+Worker runtime selection is independent from that SDK runtime. `Disable` requires
+the exact patch; `Latest` selects the highest eligible version and maps to native
+`LatestMajor`; `Minor`/`Major` prefer the requested line's latest eligible patch.
+`Minor` then tries the next minor in the same major; `Major` additionally tries
+the lowest higher major, its lowest minor and latest patch. Minimum patch bounds
+apply only to the requested line, and no policy selects below the minimum.
+Runtime 8/9/10 or higher is eligible only as the worker policy permits.
+
+`HOST_NOT_FOUND`, `INVALID_HOST`, `SDK_NOT_FOUND`, `SDK_CONFIG_INVALID`,
+`SDK_RUNTIME_NOT_FOUND`, `RUNTIME_NOT_FOUND`, invalid/unsupported platform/runtime,
+architecture mismatch, timeout, probe failure and malformed output are distinct.
+For failed candidates the top-level error prefers SDK/worker compatibility
+evidence over missing later hosts; every attempted failure remains available.
+
+## PR3 Handoff
+
+Discovery returns the absolute host/root, native RID/architecture, matrix version,
+selected SDK, SDK runtime/config path, worker runtime, effective native policy and
+an exact `sdkPin`: version, `rollForward: "disable"`, `allowPrerelease: false`,
+`paths: ["$host$"]`. It writes no global.json or other preparation artifacts.
+
+PR3 must create the pin only in a PPTB-controlled trusted workspace, invoke the
+returned absolute host from that workspace, and verify the SDK actually used.
+Revalidate host/config/runtime identity before preparation and later execution;
+discovery is a snapshot, not a persistent authorization or binary trust proof.
+Use a controlled NuGet source/config and local tool manifest, exact locked package
+identity, atomic cache/rollback and offline/concurrency gates. Verify restored
+command, executable TFM, shared framework, minimum version and native roll-forward
+against the declaration; do not broaden a stricter binary policy. Package config
+inspection, source setup, restore and execution are deliberately absent from PR2.
+
+References: [.NET CLI diagnostics and runtime roll-forward](https://learn.microsoft.com/dotnet/core/tools/dotnet),
+[SDK selection and host-scoped paths](https://learn.microsoft.com/dotnet/core/tools/global-json).
