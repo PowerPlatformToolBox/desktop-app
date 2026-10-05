@@ -12,10 +12,10 @@ import {
     Tool,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
+    ToolFeatures,
     ToolIdea,
     ToolIdeaSubmission,
     ToolIdeaUpvoteResult,
-    ToolFeatures,
     ToolManifest,
     ToolRegistryEntry,
 } from "../../common/types";
@@ -439,6 +439,10 @@ export class ToolManager extends EventEmitter {
      * This should be called when a tool is launched/opened
      */
     async trackToolUsage(toolId: string): Promise<void> {
+        if (toolId.startsWith("local-") || toolId.startsWith("npm-")) {
+            return;
+        }
+
         await this.registryManager.trackToolUsage(toolId);
     }
 
