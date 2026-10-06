@@ -2,15 +2,23 @@
   description = "Power Platform ToolBox desktop app";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.pnpm2nix.url = "github:mnixry/pnpm2nix-pure";
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      pnpm2nix,
+    }:
     let
-      systems = [
-        "x86_64-linux"
+      systems = [ "x86_64-linux" ];
+      devSystems = systems ++ [
         "aarch64-linux"
+        "aarch64-darwin"
+        "x86_64-darwin"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems f;
+      forAllDevSystems = f: nixpkgs.lib.genAttrs devSystems f;
       packageJson = builtins.fromJSON (builtins.readFile ./package.json);
       majorOf = spec: builtins.head (builtins.match "[^0-9]*([0-9]+).*" spec);
       electronAttr = "electron_${majorOf packageJson.devDependencies.electron}";
@@ -21,6 +29,7 @@
         system:
         import nixpkgs {
           inherit system;
+          overlays = [ pnpm2nix.overlays.default ];
           config.permittedInsecurePackages = [
             "electron-${nixpkgs.legacyPackages.${system}.${electronAttr}.version}"
           ];
@@ -32,23 +41,39 @@
         let
           pkgs = pkgsFor system;
           electron = pkgs.${electronAttr};
-          pnpm = pkgs.${pnpmAttr};
-          power-platform-toolbox = pkgs.stdenv.mkDerivation (finalAttrs: {
-            pname = "power-platform-toolbox";
+          nodejs = pkgs.nodejs;
+          pnpm = pnpm2nix.inputs.nixpkgs.legacyPackages.${system}.pnpm;
+          pname = "power-platform-toolbox";
+          workspaceSources = [
+            {
+              name = "pnpm-workspace.yaml";
+              value = ./pnpm-workspace.yaml;
+            }
+            {
+              name = "packages";
+              value = ./packages;
+            }
+          ];
+          installEnv = {
+            ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
+            pnpm_config_strict_dep_builds = "false";
+          };
+          nodeModulesArgs = {
+            src = self;
+            inherit nodejs pnpm installEnv;
+            extraNodeModuleSources = workspaceSources;
+          };
+          nodeModules = pkgs.mkPnpmNodeModules nodeModulesArgs;
+          prodNodeModules = pkgs.mkPnpmNodeModules (nodeModulesArgs // { noDevDependencies = true; });
+          power-platform-toolbox = pkgs.mkPnpmPackage {
+            inherit pname;
             inherit (packageJson) version;
             src = self;
-
-            pnpmDeps = pkgs.fetchPnpmDeps {
-              inherit (finalAttrs) pname version src;
-              inherit pnpm;
-              fetcherVersion = 4;
-              hash = "sha256-A0H0wXGWui18tm/DUuMZxT93g1HO4AAse6zdw3eg9/4=";
-            };
+            inherit nodejs pnpm nodeModules;
 
             nativeBuildInputs = [
-              pkgs.nodejs
+              nodejs
               pnpm
-              pkgs.pnpmConfigHook
               pkgs.makeWrapper
             ];
 
@@ -60,20 +85,22 @@
             buildPhase = ''
               runHook preBuild
               pnpm run build
-              pnpm prune --prod --ignore-scripts
               runHook postBuild
             '';
 
             installPhase = ''
               runHook preInstall
-              app=$out/share/${finalAttrs.pname}
+              app=$out/share/${pname}
               mkdir -p $app
-              cp -r dist icons node_modules package.json $app/
+              cp -r dist icons package.json $app/
+              cp -r ${prodNodeModules}/node_modules $app/node_modules
+              chmod -R u+w $app/node_modules
               find $app/node_modules -xtype l -delete
-              install -Dm444 icons/icon.png $out/share/icons/hicolor/512x512/apps/${finalAttrs.pname}.png
-              makeWrapper ${electron}/bin/electron $out/bin/${finalAttrs.pname} \
+              install -Dm444 icons/icon.png $out/share/icons/hicolor/512x512/apps/${pname}.png
+              makeWrapper ${electron}/bin/electron $out/bin/${pname} \
                 --add-flags $app \
-                --set ELECTRON_OZONE_PLATFORM_HINT x11
+                --set ELECTRON_OZONE_PLATFORM_HINT x11 \
+                --set PPTB_ENABLE_PROTOCOL 1
               runHook postInstall
             '';
 
@@ -84,7 +111,7 @@
               mainProgram = "power-platform-toolbox";
               platforms = systems;
             };
-          });
+          };
         in
         {
           inherit power-platform-toolbox;
@@ -92,7 +119,7 @@
         }
       );
 
-      devShells = forAllSystems (
+      devShells = forAllDevSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
