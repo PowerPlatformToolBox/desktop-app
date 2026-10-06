@@ -6,7 +6,8 @@
 
 declare namespace DataverseAPI {
     export type AdditionalHeaders = Record<string, string>;
-    export type ConnectionTarget = "primary" | "secondary";
+    /** Legacy aliases remain supported; numeric targets are zero-based slot indexes. */
+    export type ConnectionTarget = "primary" | "secondary" | number;
     export type BatchMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
     export interface BatchRequest {

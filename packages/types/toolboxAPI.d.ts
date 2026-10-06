@@ -5,6 +5,9 @@
  */
 
 declare namespace ToolBoxAPI {
+    /** Legacy string aliases remain supported; numeric targets are zero-based slot indexes. */
+    export type ConnectionTarget = "primary" | "secondary" | number;
+
     /**
      * Tool context containing connection information
      * NOTE: accessToken is NOT included for security - tools must use dataverseAPI
@@ -16,6 +19,10 @@ declare namespace ToolBoxAPI {
         connectionId?: string | null;
         secondaryConnectionUrl?: string | null;
         secondaryConnectionId?: string | null;
+        /** All connection slots; index 0 is primary and index 1 is secondary. */
+        connectionIds?: Array<string | null>;
+        /** URLs for connection slots, aligned with `connectionIds`. */
+        connectionUrls?: Array<string | null>;
         /**
          * Invocation metadata injected by PPTB when the tool is launched by another
          * tool or by the MCP server. Tools should treat this as optional and
@@ -172,9 +179,15 @@ declare namespace ToolBoxAPI {
         getActiveConnection: () => Promise<Connection | null>;
 
         /**
-         * Get the secondary connection for multi-connection tools
+         * @deprecated Use `getConnection("secondary")` or `(await getConnections())[1]` for slot-aware connection access.
          */
         getSecondaryConnection: () => Promise<Connection | null>;
+
+        /** Get every configured connection slot, preserving null/unassigned slots. */
+        getConnections: () => Promise<Array<Connection | null>>;
+
+        /** Get one connection by its zero-based slot or legacy name. */
+        getConnection: (target: ConnectionTarget) => Promise<Connection | null>;
     }
 
     /**
@@ -225,7 +238,7 @@ declare namespace ToolBoxAPI {
          *   Defaults to `"primary"`. Pass `"secondary"` for multi-connection tools that
          *   want to open the URL in the secondary connection's browser context.
          */
-        openInConnectionBrowser: (url: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        openInConnectionBrowser: (url: string, connectionTarget?: ConnectionTarget) => Promise<void>;
     }
 
     /**
@@ -531,7 +544,7 @@ declare namespace ToolBoxAPI {
         launchTool: (
             targetToolId: string,
             prefillData?: Record<string, unknown>,
-            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean },
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; connectionIds?: Array<string | null>; noReturn?: boolean },
         ) => Promise<unknown>;
 
         /**

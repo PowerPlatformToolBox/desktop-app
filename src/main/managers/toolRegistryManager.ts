@@ -17,12 +17,14 @@ import {
     MarketplaceSource,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
+    ToolFeatures,
     ToolIdea,
     ToolIdeaSubmission,
     ToolIdeaUpvoteResult,
     ToolManifest,
     ToolRegistryEntry,
 } from "../../common/types";
+import { compareVersions } from "../../common/utils/version";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
@@ -93,6 +95,7 @@ interface SupabaseTool {
     min_api?: string; // Minimum ToolBox API version required
     multi_connection?: string | null;
     connection_requirement?: string | null;
+    connections?: string | null;
     enabled_for_power_platform_api?: boolean | null;
     mcp_enabled?: boolean | null;
     maturity_status?: string | null;
@@ -123,6 +126,7 @@ const SUPABASE_CATALOG_COLUMNS = [
     "min_api",
     "multi_connection",
     "connection_requirement",
+    "connections",
     "enabled_for_power_platform_api",
     "mcp_enabled",
     "maturity_status",
@@ -135,14 +139,39 @@ function getTypedFeatureValue<T extends string>(value: unknown, allowed: readonl
     return typeof value === "string" && allowed.includes(value as T) ? (value as T) : undefined;
 }
 
+function getValidConnectionsFeature(value: unknown): ToolFeatures["connections"] | undefined {
+    for (let parseDepth = 0; typeof value === "string" && parseDepth < 2; parseDepth++) {
+        try {
+            value = JSON.parse(value) as unknown;
+        } catch {
+            return undefined;
+        }
+    }
+    if (typeof value === "number") {
+        return Number.isInteger(value) && value >= 0 && value <= 10 ? value : undefined;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const range = value as Record<string, unknown>;
+    if (Object.keys(range).some((key) => key !== "min" && key !== "max")) return undefined;
+    const min = range.min ?? 1;
+    const max = range.max ?? min;
+    if (!Number.isInteger(min) || !Number.isInteger(max) || (min as number) < 0 || (max as number) > 10 || (min as number) > (max as number)) return undefined;
+    return { min: min as number, max: max as number };
+}
+
 export function mapSupabaseToolRow(tool: SupabaseTool): ToolRegistryEntry {
     const categories = (tool.tool_categories || []).map((row) => row.categories?.name?.trim()).filter((name): name is string => !!name);
     const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((name): name is string => !!name);
     const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
     const minAPI = tool.min_api;
+    const modernConnections = getValidConnectionsFeature(tool.connections);
     const features: ToolRegistryEntry["features"] = {
-        multiConnection: getTypedFeatureValue(tool.multi_connection, ["required", "optional", "none"]),
-        connectionRequirement: getTypedFeatureValue(tool.connection_requirement, ["required", "optional"]),
+        ...(modernConnections !== undefined
+            ? { connections: modernConnections }
+            : {
+                  multiConnection: getTypedFeatureValue(tool.multi_connection, ["required", "optional", "none"]),
+                  connectionRequirement: getTypedFeatureValue(tool.connection_requirement, ["required", "optional"]),
+              }),
         minAPI,
         enabledForPowerPlatformAPI: typeof tool.enabled_for_power_platform_api === "boolean" ? tool.enabled_for_power_platform_api : undefined,
     };
@@ -456,7 +485,14 @@ export class ToolRegistryManager extends EventEmitter {
             if (!this.supabase) {
                 throw new Error("Supabase client is not initialized");
             }
-            const { data: toolsData, error } = await this.supabase.from("tools_catalog").select(SUPABASE_CATALOG_COLUMNS).in("status", ["active", "deprecated"]).order("name", { ascending: true });
+            let { data: toolsData, error } = await this.supabase.from("tools_catalog").select(SUPABASE_CATALOG_COLUMNS).in("status", ["active", "deprecated"]).order("name", { ascending: true });
+
+            if (error) {
+                logWarn(`[ToolRegistry] Catalog relation query failed; retrying with view columns only: ${error.message}`);
+                const fallbackResult = await this.supabase.from("tools_catalog").select("*").in("status", ["active", "deprecated"]).order("name", { ascending: true });
+                toolsData = fallbackResult.data;
+                error = fallbackResult.error;
+            }
 
             if (error) {
                 throw new Error(`Supabase registry query failed: ${error.message}`);
@@ -1146,7 +1182,7 @@ export class ToolRegistryManager extends EventEmitter {
             return { hasUpdate: false };
         }
 
-        const hasUpdate = registryTool.version !== installed.version;
+        const hasUpdate = compareVersions(registryTool.version, installed.version) > 0;
         return {
             hasUpdate,
             latestVersion: registryTool.version,

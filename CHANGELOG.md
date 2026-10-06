@@ -4,9 +4,18 @@
 
 ### Added
 
+- Tools can declare exact counts or ranges of 0–10 connection slots with `features.connections`; numeric API targets and slot-aware connection access preserve stable indexes.
+- Connection selection and footer slot squares support optional capacity, per-slot changes, and authentication feedback.
+- MCP accepts positional `__pptb.connectionNames` arrays with range/name validation and indexed headless Dataverse/Power Platform routing.
 - Added Dataverse Web API batch and transactional operations with per-operation status, headers, and response bodies.
 - Added user-consented additional headers across the standalone `dataverseAPI`.
 - Redesigned Consent Review with separate CSP Exceptions and Dataverse Headers views, compact expandable rows, and retained revocation history.
+
+### Changed
+
+- Duplicate tabs and session restore retain complete connection arrays and null gaps; restore authentication runs with bounded concurrency.
+- Deleting a connection used by an open tool shows a blocker popup before confirmation; successful deletion and startup reconciliation null saved missing references without shifting slots.
+- Tool updates trim assignments above reduced slot limits and warn. Legacy connection declarations and string API targets remain supported; `getSecondaryConnection()` is deprecated but not removed.
 
 ### Security
 

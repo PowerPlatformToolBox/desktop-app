@@ -22,17 +22,21 @@ export interface CapabilityTagEntry {
  * Tool features configuration
  */
 export interface ToolFeatures {
+    /** Exact count or permitted range of connections used by this tool. */
+    connections?: number | { min?: number; max?: number };
     /**
      * Multi-connection support configuration
      * - "required": Both primary and secondary connections are required
      * - "optional": Primary connection is required, secondary is optional
      * - "none": Single connection only (default behavior)
+     * @deprecated Use `connections` instead.
      */
     multiConnection?: "required" | "optional" | "none";
     /**
      * Whether a connection is mandatory before the tool can be opened
      * - "required": A connection (per `multiConnection`) must be selected before launch (default behavior)
      * - "optional": The tool opens immediately with no connection; the user can attach one later via "Change Connection"
+     * @deprecated Use `connections` instead.
      */
     connectionRequirement?: "required" | "optional";
     /**
@@ -147,6 +151,8 @@ export interface ToolContext {
     connectionId?: string | null;
     secondaryConnectionUrl?: string | null;
     secondaryConnectionId?: string | null;
+    connectionIds?: Array<string | null>;
+    connectionUrls?: Array<string | null>;
 }
 
 /**

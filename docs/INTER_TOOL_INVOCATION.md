@@ -76,7 +76,7 @@ Key properties of the feature:
 - **Promise-based**: `invocation.launchTool()` returns a `Promise` that resolves when the callee calls `returnData()`, or resolves to `null` if the callee closes without returning data.
 - **Isolated windows**: the callee opens in its own BrowserView, just like a normally launched tool.
 - **Auto-close callee**: after the callee calls `returnData()`, PPTB **automatically closes the callee window** — the callee does not need to close itself.
-- **Connection auto-inheritance**: the callee automatically inherits the caller's active FXS connection (can be overridden via `options`).
+- **Connection auto-inheritance**: the callee inherits the caller's complete slot array, including null gaps, bounded by the callee's declared maximum (can be overridden via `options`).
 - **One-at-a-time**: only one active callee per caller is supported in this phase. A second `launchTool` call while a callee is active rejects with `"A callee invocation is already in progress"`.
 - **Optional contract**: the callee declares the shape of its prefill data and return value in `pptb.config.json`; this is validated by `pptb-validate` but is not enforced at runtime.
 - **Tag-based capability discovery**: callee tools declare capability tags; caller tools can discover matching installed tools by tag.
@@ -264,6 +264,7 @@ launchTool(
     targetToolId: string,
     prefillData?: Record<string, unknown>,
     options?: {
+        connectionIds?: Array<string | null>;
         primaryConnectionId?: string | null;
         secondaryConnectionId?: string | null;
         noReturn?: boolean;
@@ -275,8 +276,9 @@ launchTool(
 | ------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `targetToolId`                  | `string`                  | The npm package name of the tool to launch (e.g. `"@my-org/entity-picker"`). Must be installed.                                                                                                                                                                         |
 | `prefillData`                   | `Record<string, unknown>` | Optional data to pre-populate the callee's state. Shape should match the callee's `invocation.prefill` schema.                                                                                                                                                          |
-| `options.primaryConnectionId`   | `string \| null`          | Override the primary Dataverse connection for the callee. Omit to auto-inherit the caller's active FXS connection.                                                                                                                                                      |
-| `options.secondaryConnectionId` | `string \| null`          | Override the secondary Dataverse connection for the callee. Omit to let PPTB prompt for it when the callee is a multi-connection tool.                                                                                                                                  |
+| `options.primaryConnectionId`   | `string \| null`          | Legacy override for slot 0. Omitted or null values inherit that slot from the caller.                                                                                                                                                                                   |
+| `options.secondaryConnectionId` | `string \| null`          | Legacy override for slot 1. Omitted or null values inherit that slot from the caller.                                                                                                                                                                                   |
+| `options.connectionIds`         | `Array<string \| null>`   | Explicit positional slot array; overrides full-array inheritance. Preserve null gaps. Legacy overrides apply only to slots 0/1.                                                                                                                                         |
 | `options.noReturn`              | `boolean`                 | When `true`, signals that the caller does not expect the callee to return data. The "Return to [Caller]" banner is suppressed entirely for the callee. The invocation lifecycle is otherwise identical — the Promise still resolves with `null` when the callee closes. |
 
 **Return value:** A `Promise` that resolves with the `Record<string, unknown>` passed to `returnData()` by the callee, or `null` if:
@@ -288,7 +290,7 @@ launchTool(
 
 > **Important:** The target tool must be **installed** in PPTB. If the tool is not found, `launchTool` throws an error.
 
-> **Multi-connection auto-prompt:** If the callee tool declares `features.multiConnection: "required"` or `"optional"` in its manifest and no `options.secondaryConnectionId` is provided, PPTB automatically opens the multi-connection selector before launching the callee. If the user cancels the selector, `launchTool` throws `"Connection selection cancelled"`.
+> **Connection selection:** The callee's `features.connections` range (or legacy equivalent) controls required slots. PPTB prompts when required assignments are missing, or optional capacity exists but no connection is inherited. Exact zero skips selection. Cancelling selection rejects the invocation.
 
 ---
 
@@ -315,7 +317,7 @@ Always check for `null` before using the result. The `Promise` resolves to `null
 
 ### 2.3 Connection auto-inheritance and overrides
 
-By default, the callee **automatically inherits the caller's active FXS connection**. No additional configuration is needed:
+By default, the callee inherits the caller's full connection array. Index 0 is primary, index 1 secondary, and 2+ are additional slots. Its declared maximum bounds the launch array; missing required slots prompt for selection.
 
 ```typescript
 // Callee receives the same primary connection as this tool automatically
@@ -328,11 +330,20 @@ To override with a specific connection, pass `options.primaryConnectionId`:
 const result = await toolboxAPI.invocation.launchTool("@my-org/solution-importer", { solutionName: "MySolution" }, { primaryConnectionId: specificConnectionId });
 ```
 
-Pass `null` to launch the callee with no connection:
+To provide a complete alternate array, pass `connectionIds`:
 
 ```typescript
-const result = await toolboxAPI.invocation.launchTool("@my-org/entity-picker", {}, { primaryConnectionId: null });
+const slots = await toolboxAPI.connections.getConnections();
+const result = await toolboxAPI.invocation.launchTool(
+    "@my-org/entity-picker",
+    {},
+    {
+        connectionIds: slots.map((connection) => connection?.id ?? null),
+    },
+);
 ```
+
+Never compact null entries: `[sourceId, null, thirdId]` keeps the third environment at index 2. Do not rely on the legacy `primaryConnectionId: null` override to force a connectionless launch; primary auto-inheritance can still apply. Use a target declaring `connections: 0` for guaranteed connectionless execution. See [Connection Slots for Tool Authors](N_CONNECTION_TOOL_AUTHOR_GUIDE.md) and [MCP invocation metadata](MCP_IMPLEMENTATION.md#mcp-invocation-envelope).
 
 ---
 
@@ -536,10 +547,10 @@ Both DRB and DMS include the following in their `pptb.config.json`:
 }
 ```
 
-> DMS's multi-connection requirement is declared in the standard tool manifest (`pptb.package.json`):
+> DMS's connection requirement is declared in its `package.json` tool manifest:
 >
 > ```json
-> { "features": { "multiConnection": "required" } }
+> { "features": { "connections": 2 } }
 > ```
 >
 > PPTB detects this at launch time and automatically prompts the user to select a secondary connection when none is available from the caller.
@@ -579,8 +590,8 @@ async function sendCurrentQueryToTool(targetToolId: string) {
             targetToolId,
             { fetchXml: currentFetchXml },
             {
-                // primaryConnectionId omitted → FXS's active connection is inherited by DMS
-                // secondaryConnectionId omitted → PPTB shows multi-connection selector if DMS requires it
+                // Inherit all FXS slots, bounded by DMS's maximum of two.
+                // Missing required slots open the connection selector.
                 noReturn: true,
             },
         );
@@ -600,7 +611,7 @@ async function sendCurrentQueryToTool(targetToolId: string) {
 **What PPTB does behind the scenes:**
 
 1. Looks up the DMS tool manifest.
-2. Detects that DMS has `features.multiConnection: "required"` and no secondary connection was provided → opens the **multi-connection selector modal** in the PPTB shell. The user selects the target environment connection.
+2. Detects that DMS requires two connections. If the inherited second slot is missing, PPTB opens the **multi-connection selector modal** so the user can select the target environment.
 3. Launches DMS with FXS's primary connection and the user-selected secondary connection.
 4. Pre-populates DMS with `{ fetchXml: "…" }`.
 5. Because `noReturn: true` was set, **no "Return to FXS" banner is shown** in the DMS window.

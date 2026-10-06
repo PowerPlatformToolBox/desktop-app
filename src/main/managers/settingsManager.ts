@@ -51,6 +51,7 @@ export class SettingsManager {
                 dataverseHeaderConsents: {}, // Track Dataverse additional-header consent for each tool
                 toolConnections: {}, // Map of toolId to connectionId
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
+                toolConnectionSlots: {}, // Canonical per-tool connection slot assignments
                 connectionsSort: "last-used",
                 restoreSessionOnStartup: true, // Reopen previously open tools on app start
                 enableConnectionDoubleClickConnect: false, // Require explicit opt-in for double-click connect behavior
@@ -442,26 +443,25 @@ export class SettingsManager {
      * Set connection for a specific tool
      */
     setToolConnection(toolId: string, connectionId: string): void {
-        const toolConnections = this.store.get("toolConnections") || {};
-        toolConnections[toolId] = connectionId;
-        this.store.set("toolConnections", toolConnections);
+        const connectionIds = this.getToolConnectionSlots(toolId);
+        connectionIds[0] = connectionId;
+        this.setToolConnectionSlots(toolId, connectionIds);
     }
 
     /**
      * Get connection for a specific tool
      */
     getToolConnection(toolId: string): string | null {
-        const toolConnections = this.store.get("toolConnections") || {};
-        return toolConnections[toolId] || null;
+        return this.getToolConnectionSlots(toolId)[0] ?? null;
     }
 
     /**
      * Remove connection association for a specific tool
      */
     removeToolConnection(toolId: string): void {
-        const toolConnections = this.store.get("toolConnections") || {};
-        delete toolConnections[toolId];
-        this.store.set("toolConnections", toolConnections);
+        const connectionIds = this.getToolConnectionSlots(toolId);
+        connectionIds[0] = null;
+        this.setToolConnectionSlots(toolId, connectionIds);
     }
 
     /**
@@ -471,30 +471,122 @@ export class SettingsManager {
         return this.store.get("toolConnections") || {};
     }
 
+    setToolConnectionSlots(toolId: string, connectionIds: Array<string | null>): void {
+        const allSlots = this.store.get("toolConnectionSlots") || {};
+        allSlots[toolId] = [...connectionIds];
+        this.store.set("toolConnectionSlots", allSlots);
+
+        const toolConnections = this.store.get("toolConnections") || {};
+        const secondaryConnections = this.store.get("toolSecondaryConnections") || {};
+        if (connectionIds[0]) {
+            toolConnections[toolId] = connectionIds[0];
+        } else {
+            delete toolConnections[toolId];
+        }
+        if (connectionIds[1]) {
+            secondaryConnections[toolId] = connectionIds[1];
+        } else {
+            delete secondaryConnections[toolId];
+        }
+        this.store.set("toolConnections", toolConnections);
+        this.store.set("toolSecondaryConnections", secondaryConnections);
+    }
+
+    getToolConnectionSlots(toolId: string): Array<string | null> {
+        const allSlots = this.store.get("toolConnectionSlots") || {};
+        const storedSlots = allSlots[toolId];
+        if (Array.isArray(storedSlots)) {
+            return [...storedSlots];
+        }
+
+        const primaryConnectionId = this.getAllToolConnections()[toolId] ?? null;
+        const secondaryConnectionId = this.getAllToolSecondaryConnections()[toolId] ?? null;
+        const migratedSlots: Array<string | null> = [primaryConnectionId, secondaryConnectionId];
+        while (migratedSlots.length > 0 && migratedSlots[migratedSlots.length - 1] === null) {
+            migratedSlots.pop();
+        }
+        if (primaryConnectionId || secondaryConnectionId) {
+            allSlots[toolId] = migratedSlots;
+            this.store.set("toolConnectionSlots", allSlots);
+        }
+        return migratedSlots;
+    }
+
+    getToolsUsingConnection(connectionId: string): string[] {
+        const allSlots = this.store.get("toolConnectionSlots") || {};
+        const primaryConnections = this.getAllToolConnections();
+        const secondaryConnections = this.getAllToolSecondaryConnections();
+        const toolIds = new Set([...Object.keys(allSlots), ...Object.keys(primaryConnections), ...Object.keys(secondaryConnections)]);
+
+        return Array.from(toolIds).filter((toolId) => this.getToolConnectionSlots(toolId).includes(connectionId));
+    }
+
+    removeConnectionFromToolSlots(connectionId: string): void {
+        for (const toolId of this.getToolsUsingConnection(connectionId)) {
+            const connectionIds = this.getToolConnectionSlots(toolId);
+            this.setToolConnectionSlots(
+                toolId,
+                connectionIds.map((assignedConnectionId) => (assignedConnectionId === connectionId ? null : assignedConnectionId)),
+            );
+        }
+    }
+
+    reconcileToolConnectionSlots(validConnectionIds: ReadonlySet<string>): void {
+        const allSlots = this.store.get("toolConnectionSlots") || {};
+        const toolIds = new Set([...Object.keys(allSlots), ...Object.keys(this.getAllToolConnections()), ...Object.keys(this.getAllToolSecondaryConnections())]);
+        for (const toolId of toolIds) {
+            const slots = this.getToolConnectionSlots(toolId);
+            const reconciled = slots.map((id) => (id && !validConnectionIds.has(id) ? null : id));
+            if (reconciled.some((id, index) => id !== slots[index])) this.setToolConnectionSlots(toolId, reconciled);
+        }
+    }
+
+    limitToolConnectionSlots(toolId: string, maxConnections: number): boolean {
+        const slots = this.getToolConnectionSlots(toolId);
+        if (slots.length <= maxConnections) return false;
+        const removedAssignments = slots.slice(maxConnections).some(Boolean);
+        this.setToolConnectionSlots(toolId, slots.slice(0, maxConnections));
+        return removedAssignments;
+    }
+
+    removeToolConnectionSlots(toolId: string): void {
+        const allSlots = this.store.get("toolConnectionSlots") || {};
+        delete allSlots[toolId];
+        this.store.set("toolConnectionSlots", allSlots);
+
+        const toolConnections = this.store.get("toolConnections") || {};
+        const secondaryConnections = this.store.get("toolSecondaryConnections") || {};
+        delete toolConnections[toolId];
+        delete secondaryConnections[toolId];
+        this.store.set("toolConnections", toolConnections);
+        this.store.set("toolSecondaryConnections", secondaryConnections);
+    }
+
     /**
      * Set a tool's secondary connection (for multi-connection tools)
      */
     setToolSecondaryConnection(toolId: string, connectionId: string): void {
-        const secondaryConnections = this.store.get("toolSecondaryConnections") || {};
-        secondaryConnections[toolId] = connectionId;
-        this.store.set("toolSecondaryConnections", secondaryConnections);
+        const connectionIds = this.getToolConnectionSlots(toolId);
+        connectionIds[1] = connectionId;
+        this.setToolConnectionSlots(toolId, connectionIds);
     }
 
     /**
      * Get a tool's secondary connection ID (for multi-connection tools)
      */
     getToolSecondaryConnection(toolId: string): string | null {
-        const secondaryConnections = this.store.get("toolSecondaryConnections") || {};
-        return secondaryConnections[toolId] || null;
+        return this.getToolConnectionSlots(toolId)[1] ?? null;
     }
 
     /**
      * Remove a tool's secondary connection (for multi-connection tools)
      */
     removeToolSecondaryConnection(toolId: string): void {
-        const secondaryConnections = this.store.get("toolSecondaryConnections") || {};
-        delete secondaryConnections[toolId];
-        this.store.set("toolSecondaryConnections", secondaryConnections);
+        const connectionIds = this.getToolConnectionSlots(toolId);
+        if (connectionIds.length > 1) {
+            connectionIds[1] = null;
+        }
+        this.setToolConnectionSlots(toolId, connectionIds);
     }
 
     /**
@@ -515,8 +607,9 @@ export class SettingsManager {
 
         const normalizedEntry: LastUsedToolEntry = {
             toolId: entry.toolId,
-            primaryConnection: this.normalizeConnectionInfo(entry.primaryConnection) ?? undefined,
-            secondaryConnection: this.normalizeConnectionInfo(entry.secondaryConnection) ?? undefined,
+            connections: entry.connections?.map((connection) => this.normalizeConnectionInfo(connection) ?? null),
+            primaryConnection: this.normalizeConnectionInfo(entry.connections?.[0] ?? entry.primaryConnection) ?? undefined,
+            secondaryConnection: this.normalizeConnectionInfo(entry.connections?.[1] ?? entry.secondaryConnection) ?? undefined,
             lastUsedAt: entry.lastUsedAt || new Date().toISOString(),
         };
 
@@ -575,6 +668,7 @@ export class SettingsManager {
             return {
                 toolId: typedEntry.toolId,
                 lastUsedAt: typedEntry.lastUsedAt || new Date().toISOString(),
+                connections: typedEntry.connections?.map((connection) => this.normalizeConnectionInfo(connection) ?? null),
                 primaryConnection: this.normalizeConnectionInfo(typedEntry.primaryConnection) ?? undefined,
                 secondaryConnection: this.normalizeConnectionInfo(typedEntry.secondaryConnection) ?? undefined,
             };
@@ -597,8 +691,8 @@ export class SettingsManager {
     }
 
     private isSameUsage(a: LastUsedToolEntry, b: LastUsedToolEntry): boolean {
-        const primaryMatch = (a.primaryConnection?.id ?? null) === (b.primaryConnection?.id ?? null);
-        const secondaryMatch = (a.secondaryConnection?.id ?? null) === (b.secondaryConnection?.id ?? null);
-        return a.toolId === b.toolId && primaryMatch && secondaryMatch;
+        const aConnections = a.connections ?? [a.primaryConnection ?? null, a.secondaryConnection ?? null];
+        const bConnections = b.connections ?? [b.primaryConnection ?? null, b.secondaryConnection ?? null];
+        return a.toolId === b.toolId && aConnections.length === bConnections.length && aConnections.every((connection, index) => (connection?.id ?? null) === (bConnections[index]?.id ?? null));
     }
 }

@@ -6,8 +6,9 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import { isDeepStrictEqual } from "util";
+import { resolveConnectionSlots } from "../../common/connectionSlots";
 import { logError, logInfo } from "../../common/logger";
-import { Connection, McpClientConfigStatus, ToolManifest } from "../../common/types";
+import { Connection, McpClientConfigStatus, ToolManifest, ToolMetadata } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
@@ -44,6 +45,7 @@ interface InvocationMeta {
     executionMode?: AgentExecutionMode;
     authToken?: string;
     connectionName?: string;
+    connectionNames?: string[];
 }
 
 interface ResolvedHeadlessAuthContext {
@@ -52,6 +54,10 @@ interface ResolvedHeadlessAuthContext {
     connectionName?: string;
     connectionId?: string;
     connectionUrl?: string;
+    connectionIds?: Array<string | null>;
+    connectionNames?: string[];
+    connectionUrls?: Array<string | null>;
+    authTokens?: Array<string | undefined>;
 }
 
 type InvocationLogParams = Parameters<typeof logInvocation>[0] & {
@@ -77,7 +83,7 @@ function hasObjectProperties(schema: unknown): boolean {
     return Object.keys(schema.properties).length > 0;
 }
 
-function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
+export function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
     const raw = args[MCP_INVOCATION_META_KEY];
     if (!isRecord(raw)) {
         return {};
@@ -88,6 +94,16 @@ function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
     const timeoutMs = typeof raw.timeoutMs === "number" && Number.isFinite(raw.timeoutMs) && raw.timeoutMs > 0 ? Math.floor(raw.timeoutMs) : undefined;
     const authToken = typeof raw.authToken === "string" && raw.authToken.trim().length > 0 ? raw.authToken.trim() : undefined;
     const connectionName = typeof raw.connectionName === "string" && raw.connectionName.trim().length > 0 ? raw.connectionName.trim() : undefined;
+    let connectionNames: string[] | undefined;
+    if (raw.connectionNames !== undefined) {
+        if (!Array.isArray(raw.connectionNames) || raw.connectionNames.some((name) => typeof name !== "string" || !name.trim())) {
+            throw new Error("connectionNames must be an array of non-empty saved connection names.");
+        }
+        connectionNames = raw.connectionNames.map((name: string) => name.trim());
+        if (connectionName && connectionNames[0]?.toLowerCase() !== connectionName.toLowerCase()) {
+            throw new Error("connectionName must match connectionNames[0] when both are supplied.");
+        }
+    }
 
     return {
         ...(mode ? { mode } : {}),
@@ -95,6 +111,7 @@ function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
         ...(timeoutMs ? { timeoutMs } : {}),
         ...(authToken ? { authToken } : {}),
         ...(connectionName ? { connectionName } : {}),
+        ...(connectionNames !== undefined ? { connectionNames } : {}),
     };
 }
 
@@ -613,7 +630,44 @@ export class McpServerManager {
         return undefined;
     }
 
-    private async resolveHeadlessAuthContext(invocationMeta: InvocationMeta): Promise<ResolvedHeadlessAuthContext> {
+    private async resolveInvocationConnections(invocationMeta: InvocationMeta, manifest: ToolMetadata, headless: boolean): Promise<ResolvedHeadlessAuthContext> {
+        const names = invocationMeta.connectionNames ?? (invocationMeta.connectionName ? [invocationMeta.connectionName] : []);
+        const range = resolveConnectionSlots(manifest.features);
+        if (names.length > range.max) {
+            throw new Error(range.max === 0 ? `Tool '${manifest.name}' does not accept connections.` : `Tool '${manifest.name}' accepts at most ${range.max} connections; received ${names.length}.`);
+        }
+        if (headless && names.length < range.min) {
+            throw new Error(`Tool '${manifest.name}' requires at least ${range.min} named connections; received ${names.length}. Supply connectionNames in slot order.`);
+        }
+        if (names.length > 0 && !this.connectionsManager) throw new Error("Connection manager is not configured for named connections.");
+        const savedConnections = this.connectionsManager?.getConnections() ?? [];
+        const connections = names.map((name) => {
+            const matches = savedConnections.filter((connection) => connection.name.trim().toLowerCase() === name.trim().toLowerCase());
+            if (matches.length === 0) throw new Error(`No saved connection found with name '${name}'.`);
+            if (matches.length > 1) throw new Error(`Multiple connections found with name '${name}'. Please make names unique.`);
+            return matches[0];
+        });
+        const authContexts: ResolvedHeadlessAuthContext[] = [];
+        if (headless) {
+            for (const [index, connection] of connections.entries()) {
+                const resolved = await this.resolveHeadlessAuthContext({ connectionName: connection.name }, false);
+                authContexts.push(index === 0 && invocationMeta.authToken ? { ...resolved, authToken: invocationMeta.authToken } : resolved);
+            }
+        }
+        return {
+            source: invocationMeta.authToken ? "provided-token" : connections.length ? "connection-name" : "none",
+            connectionId: connections[0]?.id,
+            connectionName: connections[0]?.name,
+            connectionUrl: connections[0]?.url,
+            authToken: invocationMeta.authToken ?? authContexts[0]?.authToken,
+            connectionIds: connections.map((connection) => connection.id),
+            connectionNames: connections.map((connection) => connection.name),
+            connectionUrls: connections.map((connection) => connection.url),
+            authTokens: authContexts.map((resolved) => resolved.authToken),
+        };
+    }
+
+    private async resolveHeadlessAuthContext(invocationMeta: InvocationMeta, allowInteractive = true): Promise<ResolvedHeadlessAuthContext> {
         if (invocationMeta.authToken) {
             return {
                 authToken: invocationMeta.authToken,
@@ -676,8 +730,7 @@ export class McpServerManager {
                 } else if (connection.refreshToken) {
                     authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
                 } else {
-                    // An agent-specified connection name should be able to trigger a fresh interactive sign-in
-                    // when there is no reusable session saved for that headless invocation.
+                    if (!allowInteractive) throw new Error(`Connection '${connection.name}' requires interactive sign-in. Authenticate it in PPTB before headless invocation.`);
                     authResult = await this.authManager.authenticateInteractive(connection);
                 }
                 break;
@@ -806,7 +859,13 @@ export class McpServerManager {
                                 },
                                 connectionName: {
                                     type: "string",
-                                    description: "Optional saved PPTB connection name. Used to resolve an auth token server-side when authToken is omitted.",
+                                    description: "Legacy alias for connectionNames[0]. Must match the first name when both are supplied.",
+                                },
+                                connectionNames: {
+                                    type: "array",
+                                    items: { type: "string" },
+                                    maxItems: 10,
+                                    description: "Saved PPTB connection names in slot order: index 0 is primary, index 1 secondary, and later indexes address additional slots.",
                                 },
                             },
                         },
@@ -819,7 +878,12 @@ export class McpServerManager {
         server.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
             const toolIdFromName = resolveToolId(request.params.name);
             const toolArgs = isRecord(request.params.arguments) ? request.params.arguments : {};
-            const invocationMeta = parseInvocationMeta(toolArgs);
+            let invocationMeta: InvocationMeta;
+            try {
+                invocationMeta = parseInvocationMeta(toolArgs);
+            } catch (error) {
+                return createInvocationError(error instanceof Error ? error.message : String(error));
+            }
             let prefillData = stripInvocationMeta(toolArgs);
 
             const agentTools = await this.getAgentTools();
@@ -945,7 +1009,7 @@ export class McpServerManager {
                     }
 
                     try {
-                        resolvedAuthContext = await this.resolveHeadlessAuthContext(invocationMeta);
+                        resolvedAuthContext = await this.resolveInvocationConnections(invocationMeta, executionManifest, true);
                     } catch (error) {
                         const errorText = error instanceof Error ? error.message : String(error);
                         logInvocationWithMeta({
@@ -984,6 +1048,10 @@ export class McpServerManager {
                                         connectionId: resolvedAuthContext.connectionId,
                                         connectionUrl: resolvedAuthContext.connectionUrl,
                                         connectionName: resolvedAuthContext.connectionName,
+                                        connectionIds: resolvedAuthContext.connectionIds,
+                                        connectionNames: resolvedAuthContext.connectionNames,
+                                        connectionUrls: resolvedAuthContext.connectionUrls,
+                                        authTokens: resolvedAuthContext.authTokens,
                                         updateProgress: (percent, message) => {
                                             this.headlessInvocationManager.updateProgress(jobId, percent, message);
                                         },
@@ -1122,8 +1190,14 @@ export class McpServerManager {
                     const correlationId = `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
                     const callerInstanceId = `mcp-caller-${correlationId}`;
                     const calleeInstanceId = `${matchedTool.toolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-                    const primaryConnectionId: string | null = null;
-                    const secondaryConnectionId: string | null = null;
+                    let resolvedConnections: ResolvedHeadlessAuthContext;
+                    try {
+                        resolvedConnections = await this.resolveInvocationConnections(invocationMeta, this.resolveExecutionManifest(toolId) ?? toolRecord, false);
+                    } catch (error) {
+                        return createInvocationError(error instanceof Error ? error.message : String(error));
+                    }
+                    const primaryConnectionId = resolvedConnections.connectionId ?? null;
+                    const secondaryConnectionId = resolvedConnections.connectionIds?.[1] ?? null;
                     const noReturn = invocationMode === "one-way";
 
                     try {
@@ -1142,6 +1216,7 @@ export class McpServerManager {
                                 timeoutMs: invocationMeta.timeoutMs,
                                 expectsResponse: invocationMode === "two-way",
                             },
+                            resolvedConnections.connectionIds,
                         );
 
                         if (invocationMode === "one-way") {

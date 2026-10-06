@@ -1,3 +1,16 @@
+# Unreleased: Connection Slots
+
+- Tools can use up to ten environments, declaring exact counts or ranges with `features.connections`.
+- Optional slots stay discoverable in the footer; Connect buttons show pending authentication feedback.
+- Duplicate tabs, session restore, deleted-connection cleanup and reduced-limit updates preserve positional connection assignments.
+- Connections in use by open tools cannot be deleted; an explanatory popup appears before confirmation.
+- MCP calls support ordered `connectionNames` arrays. Headless calls require enough saved names and do not initiate fresh interactive sign-in.
+- Existing tools and primary/secondary targets remain supported without manifest changes. New declarations cannot be mixed with legacy connection fields; `getSecondaryConnection()` remains available but is deprecated.
+
+Tool authors: see [Connection Slots for Tool Authors](docs/N_CONNECTION_TOOL_AUTHOR_GUIDE.md). New session saves retain all slots; an extra slot omitted by an old session cannot be recovered automatically. Authenticate interactive saved connections before headless invocation.
+
+The notes below describe the previous published release; this Unreleased section does not assign a new release version or installer name.
+
 # Power Platform ToolBox 1.2.6
 
 ## Highlights

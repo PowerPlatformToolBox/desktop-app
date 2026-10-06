@@ -20,4 +20,12 @@ describe("impersonation user picker", () => {
         expect(script).toContain("email.textContent = user.internalemailaddress");
         expect(script).toContain("Search all users or load more.");
     });
+
+    it("resolves a selected user, Skip, and Close through the selection channel", () => {
+        const script = getSelectImpersonationUserModalControllerScript({ selectUser: "select", searchUsers: "search", usersReady: "ready" });
+
+        expect(script).toContain('row.addEventListener("click", () => modalBridge.send(CHANNELS.selectUser, { index: Number(row.dataset.index) }))');
+        expect(script).toContain('skip-select-impersonation-user-btn")?.addEventListener("click", () => modalBridge.send(CHANNELS.selectUser, { index: null }))');
+        expect(script).toContain('close-select-impersonation-user-modal")?.addEventListener("click", () => modalBridge.send(CHANNELS.selectUser, { index: null }))');
+    });
 });

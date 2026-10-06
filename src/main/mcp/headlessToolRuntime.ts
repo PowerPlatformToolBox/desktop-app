@@ -2,6 +2,7 @@ import { clipboard, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
+import { normalizeConnectionTarget, type ConnectionTarget } from "../../common/connectionSlots";
 import { logError, logInfo } from "../../common/logger";
 import type { Connection, DataverseBatchRequest, DataverseBatchResult, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, MetadataOperationOptions, ToolSettings } from "../../common/types";
 import { ToolManifest } from "../../common/types";
@@ -28,6 +29,10 @@ export interface HeadlessInvokeContext {
     connectionId?: string;
     connectionUrl?: string;
     connectionName?: string;
+    connectionIds?: Array<string | null>;
+    connectionNames?: string[];
+    connectionUrls?: Array<string | null>;
+    authTokens?: Array<string | undefined>;
     updateProgress: (percent: number, message?: string) => void;
     logger: {
         debug: (message: string) => void;
@@ -47,40 +52,42 @@ export interface HeadlessRuntimeServices {
 interface HeadlessToolboxAPI {
     getToolContext: () => Promise<Record<string, unknown> | null>;
     connections: {
+        getConnections: () => Promise<Array<Record<string, unknown> | null>>;
+        getConnection: (target: ConnectionTarget) => Promise<Record<string, unknown> | null>;
         getActiveConnection: () => Promise<Record<string, unknown> | null>;
         getSecondaryConnection: () => Promise<Record<string, unknown> | null>;
     };
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        delete: (entityLogicalName: string, id: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        retrieveMultiple: (fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        execute: (request: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
         getEntityMetadata: (
             entityLogicalName: string,
             searchByLogicalName: boolean,
             selectColumns?: string[],
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
         getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(
             entityLogicalName: string,
             relatedPath: P,
             selectColumns?: string[],
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<EntityRelatedMetadataResponse<P>>;
-        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        getCSDLDocument: (connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        executeBatch: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
-        executeTransaction: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
+        getSolutions: (selectColumns: string[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        getCSDLDocument: (connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        queryData: (odataQuery: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        publishCustomizations: (tableLogicalName?: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        executeBatch: (requests: DataverseBatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
+        executeTransaction: (requests: DataverseBatchRequest[], connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
         getEntitySetName: (entityLogicalName: string) => Promise<unknown>;
         associate: (
             primaryEntityName: string,
@@ -88,7 +95,7 @@ interface HeadlessToolboxAPI {
             relationshipName: string,
             relatedEntityName: string,
             relatedEntityId: string,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
         disassociate: (
@@ -96,7 +103,7 @@ interface HeadlessToolboxAPI {
             primaryEntityId: string,
             relationshipName: string,
             relatedEntityId: string,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
         deploySolution: (
@@ -108,31 +115,31 @@ interface HeadlessToolboxAPI {
                 skipProductUpdateDependencies?: boolean;
                 convertToManaged?: boolean;
             },
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        getImportJobStatus: (importJobId: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
         buildLabel: (text: string, languageCode?: number) => unknown;
         getAttributeODataType: (attributeType: string) => string;
         createEntityDefinition: (
             entityDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
         updateEntityDefinition: (
             entityIdentifier: string,
             entityDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
         createAttribute: (
             entityLogicalName: string,
             attributeDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
         updateAttribute: (
@@ -140,49 +147,49 @@ interface HeadlessToolboxAPI {
             attributeIdentifier: string,
             attributeDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
         createPolymorphicLookupAttribute: (
             entityLogicalName: string,
             attributeDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
         createRelationship: (
             relationshipDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
         updateRelationship: (
             relationshipIdentifier: string,
             relationshipDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
         createGlobalOptionSet: (
             optionSetDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
         updateGlobalOptionSet: (
             optionSetIdentifier: string,
             optionSetDefinition: Record<string, unknown>,
             options?: HeadlessMetadataOperationOptions,
-            connectionTarget?: "primary" | "secondary",
+            connectionTarget?: ConnectionTarget,
             additionalHeaders?: Record<string, string>,
         ) => Promise<unknown>;
-        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
-        orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
+        orderOption: (params: Record<string, unknown>, connectionTarget?: ConnectionTarget, additionalHeaders?: Record<string, string>) => Promise<unknown>;
     };
     utils: {
         showNotification: (options: Record<string, unknown>) => Promise<void>;
@@ -306,18 +313,37 @@ function normalizeConnectionName(connectionName?: string): string | undefined {
     return trimmed ? trimmed.toLowerCase() : undefined;
 }
 
-function resolveConnection(manifest: ToolManifest, context: HeadlessInvokeContext, services: HeadlessRuntimeServices, connectionTarget: "primary" | "secondary" = "primary"): Connection | null {
+function hasConnectionArrays(context: HeadlessInvokeContext): boolean {
+    return context.connectionIds !== undefined || context.connectionNames !== undefined || context.connectionUrls !== undefined || context.authTokens !== undefined;
+}
+
+function getConnectionSlotCount(context: HeadlessInvokeContext): number {
+    if (context.connectionIds !== undefined) {
+        return context.connectionIds.length;
+    }
+    if (hasConnectionArrays(context)) {
+        return Math.max(context.connectionNames?.length ?? 0, context.connectionUrls?.length ?? 0, context.authTokens?.length ?? 0);
+    }
+    return context.connectionId || context.connectionName || context.connectionUrl || context.authToken ? 1 : 0;
+}
+
+function resolveConnection(manifest: ToolManifest, context: HeadlessInvokeContext, services: HeadlessRuntimeServices, connectionTarget: ConnectionTarget = "primary"): Connection | null {
+    const index = normalizeConnectionTarget(connectionTarget);
     const connectionsManager = services.connectionsManager;
-    if (!connectionsManager) {
+    if (!connectionsManager || index >= getConnectionSlotCount(context)) {
         return null;
     }
 
-    const connectionId = connectionTarget === "secondary" ? undefined : context.connectionId;
-    if (connectionId) {
-        return connectionsManager.getConnectionById(connectionId);
+    if (context.connectionIds !== undefined) {
+        const connectionId = context.connectionIds[index];
+        return connectionId ? connectionsManager.getConnectionById(connectionId) : null;
     }
 
-    const connectionName = connectionTarget === "secondary" ? undefined : normalizeConnectionName(context.connectionName);
+    if (!hasConnectionArrays(context) && context.connectionId) {
+        return connectionsManager.getConnectionById(context.connectionId);
+    }
+
+    const connectionName = normalizeConnectionName(hasConnectionArrays(context) ? context.connectionNames?.[index] : context.connectionName);
     if (connectionName) {
         return connectionsManager.getConnections().find((connection) => normalizeConnectionName(connection.name) === connectionName) ?? null;
     }
@@ -326,10 +352,11 @@ function resolveConnection(manifest: ToolManifest, context: HeadlessInvokeContex
     return null;
 }
 
-function requireResolvedConnection(manifest: ToolManifest, context: HeadlessInvokeContext, services: HeadlessRuntimeServices, connectionTarget: "primary" | "secondary" = "primary"): Connection {
+function requireResolvedConnection(manifest: ToolManifest, context: HeadlessInvokeContext, services: HeadlessRuntimeServices, connectionTarget: ConnectionTarget = "primary"): Connection {
     const connection = resolveConnection(manifest, context, services, connectionTarget);
     if (!connection) {
-        throw new Error(`No ${connectionTarget} connection is available for headless tool '${manifest.id}'. Provide a saved connectionName when invoking headless mode.`);
+        const index = normalizeConnectionTarget(connectionTarget);
+        throw new Error(`No connection is available at slot ${index} (${connectionTarget}) for headless tool '${manifest.id}'. Provide a saved connection for this slot when invoking headless mode.`);
     }
 
     return connection;
@@ -343,8 +370,12 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
         }
         return services.dataverseManager;
     };
-    const resolvePrimaryConnection = () => resolveConnection(manifest, context, services, "primary");
-    const resolveSecondaryConnection = () => resolveConnection(manifest, context, services, "secondary");
+    const slotCount = getConnectionSlotCount(context);
+    const usesArrays = hasConnectionArrays(context);
+    const connectionIds = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionIds?.[index] ?? null) : (context.connectionId ?? null)));
+    const connectionNames = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionNames?.[index] ?? "") : (context.connectionName ?? "")));
+    const connectionUrls = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionUrls?.[index] ?? null) : (context.connectionUrl ?? null)));
+    const getConnection = async (target: ConnectionTarget) => toToolSafeConnection(resolveConnection(manifest, context, services, target));
 
     const requireHeaderConsent = (...headerSets: ReadonlyArray<Readonly<Record<string, string>>>) => {
         const hasAdditionalHeaders = headerSets.some((headers) => Object.keys(headers).length > 0);
@@ -354,7 +385,7 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
     };
 
     const runDataverse = async <T>(
-        connectionTarget: "primary" | "secondary",
+        connectionTarget: ConnectionTarget,
         additionalHeaders: Record<string, string> | undefined,
         operation: (manager: DataverseManager, connection: Connection) => Promise<T>,
         metadataCustomHeaders?: Record<string, string>,
@@ -369,7 +400,7 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
     const runDataverseBatch = async (
         requests: DataverseBatchRequest[],
         transaction: boolean,
-        connectionTarget: "primary" | "secondary",
+        connectionTarget: ConnectionTarget,
         additionalHeaders?: Record<string, string>,
     ): Promise<DataverseBatchResult[]> => {
         const headers = validateAndSnapshotHeaders(additionalHeaders);
@@ -389,9 +420,12 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
         getToolContext: async () => ({
             toolId: context.toolId,
             toolName: context.toolName,
-            connectionId: context.connectionId ?? null,
-            connectionUrl: context.connectionUrl ?? null,
-            connectionName: context.connectionName ?? null,
+            connectionIds: [...connectionIds],
+            connectionNames: [...connectionNames],
+            connectionUrls: [...connectionUrls],
+            connectionId: connectionIds[0] ?? null,
+            connectionUrl: connectionUrls[0] ?? null,
+            connectionName: connectionNames[0] || null,
             invocationContext: {
                 source: "mcp",
                 mode: context.invocationMode,
@@ -399,8 +433,10 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
             },
         }),
         connections: {
-            getActiveConnection: async () => toToolSafeConnection(resolvePrimaryConnection()),
-            getSecondaryConnection: async () => toToolSafeConnection(resolveSecondaryConnection()),
+            getConnections: async () => Promise.all(Array.from({ length: slotCount }, (_, index) => getConnection(index))),
+            getConnection,
+            getActiveConnection: () => getConnection("primary"),
+            getSecondaryConnection: () => getConnection("secondary"),
         },
         dataverse: {
             create: (entityLogicalName, record, connectionTarget = "primary", additionalHeaders) =>
@@ -425,7 +461,7 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
                 entityLogicalName: string,
                 relatedPath: P,
                 selectColumns?: string[],
-                connectionTarget: "primary" | "secondary" = "primary",
+                connectionTarget: ConnectionTarget = "primary",
                 additionalHeaders?: Record<string, string>,
             ) => {
                 return runDataverse(connectionTarget, additionalHeaders, (manager, connection) =>
@@ -640,15 +676,15 @@ function buildPowerPlatformCategoryClient(
     category: Parameters<NonNullable<PowerPlatformManager["request"]>>[1],
 ) {
     return {
-        Get: (relativePath = "", connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        Get: (relativePath = "", connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
             requestPowerPlatform(manifest, context, services, category, "GET", relativePath, undefined, headers, connectionTarget),
-        Post: (relativePath = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        Post: (relativePath = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
             requestPowerPlatform(manifest, context, services, category, "POST", relativePath, body, headers, connectionTarget),
-        Put: (relativePath = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        Put: (relativePath = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
             requestPowerPlatform(manifest, context, services, category, "PUT", relativePath, body, headers, connectionTarget),
-        Patch: (relativePath = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        Patch: (relativePath = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
             requestPowerPlatform(manifest, context, services, category, "PATCH", relativePath, body, headers, connectionTarget),
-        Delete: (relativePath = "", connectionTarget?: "primary" | "secondary", headers?: Record<string, string>, body?: unknown) =>
+        Delete: (relativePath = "", connectionTarget?: ConnectionTarget, headers?: Record<string, string>, body?: unknown) =>
             requestPowerPlatform(manifest, context, services, category, "DELETE", relativePath, body, headers, connectionTarget),
     };
 }
@@ -662,7 +698,7 @@ async function requestPowerPlatform(
     relativePath = "",
     body?: unknown,
     headers?: Record<string, string>,
-    connectionTarget: "primary" | "secondary" = "primary",
+    connectionTarget: ConnectionTarget = "primary",
 ) {
     if (!services.powerPlatformManager) {
         throw new Error(`toolboxAPI.powerplatform.${category}.${method} is not available in headless mode.`);

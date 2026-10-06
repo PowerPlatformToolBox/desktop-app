@@ -8,7 +8,9 @@ export default defineConfig({
     // Global timeout per test
     timeout: 60_000,
 
-    // Run tests in parallel (one worker per test file keeps Electron instances isolated)
+    fullyParallel: true,
+
+    // Keep one Electron instance active per runner; CI shards run on separate runners.
     workers: 1,
 
     // Retry on CI
