@@ -67,8 +67,16 @@ class FakeChild extends EventEmitter implements WorkerChild {
     readonly stdout = new PassThrough();
     readonly stderr = new PassThrough();
 
-    exit(code: number | null = 0, signal: NodeJS.Signals | null = null): void {
+    exit(code: number | null = 0, signal: NodeJS.Signals | null = null, closeOutputs = true): void {
         this.emit("exit", code, signal);
+        if (closeOutputs) this.closeOutputs();
+    }
+
+    closeOutputs(): void {
+        this.stdout.destroy();
+        this.stderr.destroy();
+        this.stdout.emit("close");
+        this.stderr.emit("close");
     }
 }
 
@@ -109,13 +117,33 @@ beforeEach(() => {
 });
 afterEach(async () => {
     const cleanup = managers.splice(0).flatMap((manager) => [manager.disposeOwner(owner), manager.disposeOwner(stranger), manager.disposeOwner({ toolId: "tool-b", instanceId: "instance-a" })]);
+    const settled = Promise.allSettled(cleanup);
     await jest.advanceTimersByTimeAsync(300);
-    await Promise.all(cleanup);
+    await settled;
     jest.restoreAllMocks();
     jest.useRealTimers();
 });
 
 describe("worker launch and startup", () => {
+    it("can defer protocol timeout until consent and preparation finish without changing legacy defaults", async () => {
+        let finish!: (value: WorkerLaunchDescriptor) => void;
+        const setup = harness({
+            deferStartupTimeoutUntilLaunch: true,
+            prepare: () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        });
+        const started = setup.manager.start(owner, "engine");
+        await jest.advanceTimersByTimeAsync(1000);
+        expect(setup.manager.snapshot(owner, started.handle).state).toBe("starting");
+        expect(setup.launch).not.toHaveBeenCalled();
+        finish(descriptor);
+        await flush();
+        await jest.advanceTimersByTimeAsync(101);
+        await expect(started.ready).rejects.toThrow("STARTUP_TIMEOUT");
+    });
+
     it("launches only the injected prepared descriptor with frozen minimal options", async () => {
         const setup = harness();
         const started = await initialize(setup);
@@ -802,7 +830,7 @@ describe("serialized backpressure and bounded stopping", () => {
         expect(setup.manager.snapshot(owner, started.handle).state).toBe("exited");
     });
 
-    it("allows a replacement only after an observed exit", async () => {
+    it("quarantines a failed tree kill even after parent exit and pipe closure", async () => {
         const setup = harness({
             killTree: async () => {
                 throw new Error("kill failed");
@@ -815,7 +843,126 @@ describe("serialized backpressure and bounded stopping", () => {
         expect(setup.manager.snapshot(owner, started.handle).failure).toBe("TREE_KILL_FAILED");
         expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
         setup.child.exit(0);
+        await expect(setup.manager.stopAndVerify(owner, started.handle)).rejects.toThrow("STOP_UNVERIFIED");
+        await expect(setup.manager.disposeOwner(owner)).rejects.toThrow("STOP_UNVERIFIED");
+        expect(setup.manager.snapshot(owner, started.handle).state).toBe("failed");
+        expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
+    });
+
+    it("quarantines spontaneous parent exit with inherited pipes and never signals the old PID", async () => {
+        const setup = harness({ limits: { maxRecords: 1 } });
+        const started = await initialize(setup);
+        setup.child.exit(0, null, false);
+        const rejected = expect(setup.manager.stopAndVerify(owner, started.handle)).rejects.toThrow("STOP_UNVERIFIED");
+        await jest.advanceTimersByTimeAsync(20);
+        await rejected;
+        await expect(setup.manager.disposeOwner(owner)).rejects.toThrow("STOP_UNVERIFIED");
+        expect(setup.killTree).not.toHaveBeenCalled();
+        expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
+        expect(() => setup.manager.start(stranger, "engine")).toThrow("WORKER_LIMIT");
+        setup.child.stdout.destroy();
+        await flush();
+        await expect(setup.manager.stopAndVerify(owner, started.handle)).rejects.toThrow("STOP_UNVERIFIED");
+        setup.child.stderr.destroy();
+        await flush();
+        await expect(setup.manager.stopAndVerify(owner, started.handle)).resolves.toBeUndefined();
+        expect(setup.killTree).not.toHaveBeenCalled();
         expect(() => setup.manager.start(owner, "engine")).not.toThrow();
+    });
+
+    it("accepts spontaneous exit only after both output EOFs without a tree signal", async () => {
+        const setup = harness();
+        const started = await initialize(setup);
+        setup.child.exit(0, null, false);
+        setup.child.stdout.end();
+        setup.child.stderr.end();
+        await flush();
+        await expect(setup.manager.stopAndVerify(owner, started.handle)).resolves.toBeUndefined();
+        expect(setup.killTree).not.toHaveBeenCalled();
+    });
+
+    it("waits for a live-dispatched tree kill result after exit and pipe closure", async () => {
+        let finish!: () => void;
+        const killTree = jest.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        const setup = harness({ killTree });
+        const started = await initialize(setup);
+        const stopped = setup.manager.stopAndVerify(owner, started.handle);
+        const settled = jest.fn();
+        void stopped.then(settled);
+        await jest.advanceTimersByTimeAsync(20);
+        expect(killTree).toHaveBeenCalledTimes(1);
+        setup.child.exit(null, "SIGKILL");
+        await flush();
+        expect(settled).not.toHaveBeenCalled();
+        expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
+        finish();
+        await expect(stopped).resolves.toBeUndefined();
+        expect(killTree).toHaveBeenCalledTimes(1);
+        expect(() => setup.manager.start(owner, "engine")).not.toThrow();
+    });
+
+    it("does not accept successful tree dispatch without observed parent exit", async () => {
+        const setup = harness({ killTree: async () => undefined });
+        const started = await initialize(setup);
+        const rejected = expect(setup.manager.stopAndVerify(owner, started.handle)).rejects.toThrow("EXIT_NOT_OBSERVED");
+        await jest.advanceTimersByTimeAsync(40);
+        await rejected;
+        expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
+        setup.child.exit(null, "SIGKILL");
+        await expect(setup.manager.stopAndVerify(owner, started.handle)).resolves.toBeUndefined();
+    });
+
+    it("waits boundedly for exit arriving after a successful live tree-kill promise", async () => {
+        const setup = harness({ killTree: async () => undefined });
+        const started = await initialize(setup);
+        const stopped = setup.manager.stopAndVerify(owner, started.handle);
+        const settled = jest.fn();
+        void stopped.then(settled);
+        await jest.advanceTimersByTimeAsync(20);
+        expect(settled).not.toHaveBeenCalled();
+        setup.child.exit(null, "SIGKILL");
+        await expect(stopped).resolves.toBeUndefined();
+        expect(() => setup.manager.start(owner, "engine")).not.toThrow();
+    });
+
+    it.each(["WORKSPACE_INVALID", "RESTORE_STOP_UNVERIFIED"] as const)("verifies canceled preparation only after settlement and retains cleanup failures: %s", async (code) => {
+        let rejectPreparation!: (error: Error) => void;
+        const setup = harness({
+            prepare: (_owner, _workerId, signal) =>
+                new Promise((_resolve, reject) => {
+                    rejectPreparation = reject;
+                    signal.addEventListener("abort", () => expect(signal.aborted).toBe(true), { once: true });
+                }),
+        });
+        const started = setup.manager.start(owner, "engine");
+        const disposed = setup.manager.disposeOwner(owner);
+        const rejected = expect(disposed).rejects.toThrow(code);
+        await flush();
+        expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
+        rejectPreparation(Object.assign(new Error(code), { code }));
+        await rejected;
+        await expect(started.ready).rejects.toThrow("WORKER_STOPPED");
+        expect(setup.launch).not.toHaveBeenCalled();
+        expect(setup.manager.snapshot(owner, started.handle)).toBeDefined();
+        expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
+    });
+
+    it("scopes terminal subscriptions to the owning handle and tolerates disposal", async () => {
+        const setup = harness();
+        const started = await initialize(setup);
+        const terminal = jest.fn();
+        expect(() => setup.manager.onTerminal(stranger, started.handle, terminal)).toThrow("NOT_AUTHORIZED");
+        const unsubscribe = setup.manager.onTerminal(owner, started.handle, terminal);
+        setup.child.exit(0);
+        await flush();
+        expect(terminal).toHaveBeenCalledTimes(1);
+        await setup.manager.disposeOwner(owner);
+        expect(() => unsubscribe()).not.toThrow();
     });
 
     it("bounds a never-completing tree killer", async () => {

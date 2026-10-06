@@ -19,6 +19,7 @@ import {
 export type DotNetDiagnostic = "--list-sdks" | "--list-runtimes" | "--info";
 
 export interface DotNetProbeOptions {
+    signal?: AbortSignal;
     cwd: string;
     env: NodeJS.ProcessEnv;
     encoding: "utf8";
@@ -122,7 +123,12 @@ function hasControlCharacters(value: string): boolean {
 export class DotNetDiscoveryManager {
     constructor(private readonly adapter: DotNetDiscoveryAdapter = defaultAdapter) {}
 
-    async discover(requirement: WorkerDeclaration["dotnet"], platforms: unknown): Promise<DotNetDiscoveryResult> {
+    async discover(requirement: WorkerDeclaration["dotnet"], platforms: unknown, control?: { signal: AbortSignal; assertCurrent(): void }): Promise<DotNetDiscoveryResult> {
+        const check = (): void => {
+            control?.signal.throwIfAborted();
+            control?.assertCurrent();
+        };
+        check();
         const attempts: DotNetHostAttempt[] = [];
         const runtimeRequirement = validateRuntimeRequirement(requirement);
         if (!runtimeRequirement.ok) return { ...runtimeRequirement, attempts };
@@ -140,6 +146,7 @@ export class DotNetDiscoveryManager {
         const approved = new Set(candidates.map(normalize));
         const visited = new Set<string>();
         for (const candidate of candidates) {
+            check();
             let hostPath: string;
             try {
                 hostPath = await this.adapter.realpath(candidate);
@@ -163,8 +170,10 @@ export class DotNetDiscoveryManager {
             const outputs: Partial<Record<DotNetDiagnostic, string>> = {};
             let failure: DotNetDiscoveryFailure | undefined;
             for (const diagnostic of ["--info", "--list-sdks", "--list-runtimes"] as const) {
+                check();
                 try {
-                    const output = await this.adapter.probe(hostPath, [diagnostic], { ...options, env: { ...options.env } });
+                    const output = await this.adapter.probe(hostPath, [diagnostic], { ...options, env: { ...options.env }, ...(control ? { signal: control.signal } : {}) });
+                    check();
                     if (typeof output !== "string" || Buffer.byteLength(output, "utf8") > options.maxBuffer || output.includes("\0")) {
                         failure = { code: "PROBE_OUTPUT_INVALID", message: "Invalid or oversized diagnostic output" };
                         break;

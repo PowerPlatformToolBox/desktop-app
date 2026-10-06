@@ -32,6 +32,7 @@ export interface DotNetPreparedTool {
 }
 
 export type DotNetToolPreparationErrorCode =
+    | "CANCELLED"
     | "APPROVAL_DENIED"
     | "INVALID_REQUEST"
     | "DISCOVERY_CHANGED"
@@ -39,5 +40,6 @@ export type DotNetToolPreparationErrorCode =
     | "WORKSPACE_INVALID"
     | "PREPARATION_BUSY"
     | "RESTORE_FAILED"
+    | "RESTORE_STOP_UNVERIFIED"
     | "ARTIFACT_INVALID"
     | "CACHE_INVALID";

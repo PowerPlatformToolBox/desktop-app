@@ -1,7 +1,7 @@
 # Internal Worker Process Transport (PR4)
 
-PR4 supplies a main-process-only managed stdio transport. Nothing constructs it
-in application startup, exports it from the common type barrel, or exposes it
+PR4 supplies a main-process-only managed stdio transport. PR6 now constructs it
+through [the internal broker](WORKER_BROKER.md). Nothing exports it from the common type barrel or exposes it
 through IPC, preload, renderer, public tool API or terminal execution. PR0 and
 the parallel PR3/PR5 implementation files are unchanged. This is not permission
 to execute native code, a sandbox, a package resolver or a Dataverse adapter.
@@ -115,7 +115,8 @@ There are no extra readiness fields in v1. An error, incompatible result,
 duplicate matching response, reserved inbound platform method or timeout
 fail-stops the worker. Unrelated valid traffic is bounded and queued during
 startup, not treated as readiness. Ten seconds covers preparation, launch and
-initialize. Factory rejection, process error or exit during startup rejects
+initialize by default. PR6 defers this protocol deadline until launch, leaving
+consent/discovery/restore independently bounded. Factory rejection, process error or exit during startup rejects
 `ready`; stopping also rejects an unsettled `ready`. No domain request is sent
 by the manager before or after initialization.
 
@@ -171,7 +172,8 @@ resolved send means bytes were written, not that a worker method completed.
 Requests, responses, notifications and `$/cancelRequest` retain their envelopes
 and IDs. Only the startup request is correlated by the host. There is no domain
 query replay, cancellation synthesis, SQL interpretation, capability bridge or
-global message broadcast. Future PR6 owns domain/reverse-request correlation.
+global message broadcast. PR7's browser-compatible adapter will own
+domain/reverse-request correlation; PR6 only supplies targeted routing.
 
 Messages received before subscription are queued with byte/count bounds. Once
 running, the first active subscriber set drains early messages in arrival order;

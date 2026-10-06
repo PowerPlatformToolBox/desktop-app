@@ -1,11 +1,157 @@
+import { execFile, type ChildProcess } from "child_process";
 import { createHash } from "crypto";
+import { EventEmitter } from "events";
 import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import { dirname, join, relative, sep } from "path";
+import { PassThrough } from "stream";
 import type { DotNetToolPreparationRequest } from "../../../../src/common/types/dotnetTool";
 import type { DotNetDiscoverySelection } from "../../../../src/common/types/dotnetWorker";
-import { DotNetToolManager, type DotNetToolExecOptions, type DotNetToolPreparationDependencies } from "../../../../src/main/managers/dotnetToolManager";
+import { defaultExec, DotNetToolManager, type DotNetToolExecOptions, type DotNetToolPreparationDependencies } from "../../../../src/main/managers/dotnetToolManager";
 import { dotNetHash, dotNetStableJson, normalizeDotNetNuGetVersion, parseDotNetPackageXml } from "../../../../src/main/utilities/dotnetToolPreparation";
+
+jest.mock("child_process", () => ({ execFile: jest.fn() }));
+
+class RestoreChild extends EventEmitter {
+    readonly stdin = new PassThrough();
+    readonly stdout = new PassThrough();
+    readonly stderr = new PassThrough();
+    readonly kill = jest.fn(() => true);
+    close(): void {
+        this.stdout.destroy();
+        this.stderr.destroy();
+        this.emit("close", null, "SIGKILL");
+    }
+}
+
+type RestoreCallback = (error: NodeJS.ErrnoException | null, stdout: string, stderr: string) => void;
+
+describe("DotNet default exec close barrier", () => {
+    let child: RestoreChild;
+    let callback: RestoreCallback;
+    let options: DotNetToolExecOptions;
+    let abort: AbortController;
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+        child = new RestoreChild();
+        abort = new AbortController();
+        options = {
+            signal: abort.signal,
+            cwd: "/cache/stage",
+            env: {},
+            encoding: "utf8",
+            shell: false,
+            timeout: 100,
+            terminationTimeoutMs: 20,
+            killSignal: "SIGKILL",
+            maxBuffer: 1024,
+            windowsHide: true,
+        };
+        jest.mocked(execFile).mockReset();
+        jest.mocked(execFile).mockImplementation(((_host: string, _args: string[], _options: unknown, complete: RestoreCallback) => {
+            callback = complete;
+            return child as unknown as ChildProcess;
+        }) as typeof execFile);
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+        child.stdin.destroy();
+        child.stdout.destroy();
+        child.stderr.destroy();
+    });
+
+    test("abort kills with configured SIGKILL but early AbortError callback cannot settle before close", async () => {
+        const result = defaultExec("/dotnet/dotnet", ["tool", "restore"], options);
+        let settled = false;
+        const observed = result.then(
+            () => {
+                settled = true;
+            },
+            () => {
+                settled = true;
+            },
+        );
+        const rejected = expect(result).rejects.toMatchObject({ code: "RESTORE_FAILED" });
+        abort.abort();
+        callback(Object.assign(new Error("aborted"), { name: "AbortError" }), "", "private diagnostics");
+        child.emit("exit", null, "SIGKILL");
+        await Promise.resolve();
+        expect(settled).toBe(false);
+        expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+        const passedOptions = jest.mocked(execFile).mock.calls[0][2];
+        expect(passedOptions).not.toHaveProperty("signal");
+        expect(passedOptions).not.toHaveProperty("timeout");
+        expect(passedOptions).not.toHaveProperty("terminationTimeoutMs");
+        child.close();
+        await rejected;
+        await observed;
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test("already aborted control never starts a child", async () => {
+        abort.abort();
+        await expect(defaultExec("/dotnet/dotnet", [], options)).rejects.toMatchObject({ code: "CANCELLED" });
+        expect(execFile).not.toHaveBeenCalled();
+    });
+
+    test("abort during execFile return is caught after listener installation", async () => {
+        jest.mocked(execFile).mockImplementation(((_host: string, _args: string[], _options: unknown, complete: RestoreCallback) => {
+            callback = complete;
+            abort.abort();
+            return child as unknown as ChildProcess;
+        }) as typeof execFile);
+        const result = defaultExec("/dotnet/dotnet", [], options);
+        const rejected = expect(result).rejects.toMatchObject({ code: "RESTORE_FAILED" });
+        expect(child.kill).toHaveBeenCalledTimes(1);
+        callback(new Error("aborted"), "", "");
+        child.close();
+        await rejected;
+    });
+
+    test.each(["abort", "timeout", "max-buffer"])("%s without close yields bounded redacted unverified failure", async (cause) => {
+        const result = defaultExec("/dotnet/dotnet", [], options);
+        const rejected = expect(result).rejects.toMatchObject({ code: "RESTORE_STOP_UNVERIFIED", message: "DotNet preparation failed: RESTORE_STOP_UNVERIFIED" });
+        if (cause === "abort") abort.abort();
+        if (cause === "timeout") jest.advanceTimersByTime(options.timeout);
+        callback(new Error(cause), "", "secret stderr");
+        jest.advanceTimersByTime(20);
+        await rejected;
+        expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+        expect(child.listenerCount("close")).toBe(0);
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test.each(["timeout", "max-buffer"])("%s waits for close even after an error callback", async (cause) => {
+        const result = defaultExec("/dotnet/dotnet", [], options);
+        const rejected = expect(result).rejects.toMatchObject({ code: "RESTORE_FAILED" });
+        if (cause === "timeout") jest.advanceTimersByTime(options.timeout);
+        callback(new Error(cause), "", "");
+        expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+        child.close();
+        await rejected;
+    });
+
+    test.each(["callback-first", "close-first"])("normal result requires both callback and close (%s)", async (order) => {
+        const result = defaultExec("/dotnet/dotnet", [], options);
+        let settled = false;
+        const observed = result.then(() => {
+            settled = true;
+        });
+        if (order === "callback-first") callback(null, "10.0.100", "");
+        else child.close();
+        await Promise.resolve();
+        expect(settled).toBe(false);
+        if (order === "callback-first") child.close();
+        else callback(null, "10.0.100", "");
+        await expect(result).resolves.toBe("10.0.100");
+        await observed;
+        abort.abort();
+        expect(child.kill).not.toHaveBeenCalled();
+        expect(jest.getTimerCount()).toBe(0);
+    });
+});
 
 function selection(): DotNetDiscoverySelection {
     const installation = (version: string, directory: string) => {
@@ -149,6 +295,107 @@ describe("DotNet pinned preparation", () => {
         expect(dependencies.rediscover).not.toHaveBeenCalled();
         expect(executor).not.toHaveBeenCalled();
         expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    test("revoked approval after rediscovery prevents preparation filesystem access", async () => {
+        const abort = new AbortController();
+        const lstat = jest.fn(async () => {
+            throw new Error("filesystem must not be touched");
+        });
+        dependencies.rediscover = jest.fn(async () => {
+            abort.abort();
+            return { ok: true as const, value: input.selection };
+        });
+        manager = new DotNetToolManager(root, { ...dependencies, fs: { ...fs, lstat } });
+        await expect(manager.prepare(input, { signal: abort.signal, assertCurrent: () => undefined })).rejects.toMatchObject({ code: "CANCELLED" });
+        expect(lstat).not.toHaveBeenCalled();
+        expect(executor).not.toHaveBeenCalled();
+    });
+
+    test("revocation during SDK check prevents the next restore command and rolls back", async () => {
+        const abort = new AbortController();
+        executor.mockImplementation(async (_host, _args, options) => {
+            expect(options.signal).toBe(abort.signal);
+            abort.abort();
+            return "10.0.100";
+        });
+        await expect(manager.prepare(input, { signal: abort.signal, assertCurrent: () => undefined })).rejects.toMatchObject({ code: "CANCELLED" });
+        expect(executor).toHaveBeenCalledTimes(1);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    test("active restore receives cancellation and cannot publish a descriptor", async () => {
+        const abort = new AbortController();
+        executor.mockImplementation(async (_host, args, options) => {
+            if (args[0] === "--version") return "10.0.100";
+            expect(options.signal).toBe(abort.signal);
+            abort.abort();
+            throw new Error("aborted execFile");
+        });
+        await expect(manager.prepare(input, { signal: abort.signal, assertCurrent: () => undefined })).rejects.toMatchObject({ code: "CANCELLED" });
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    test.each([false, true])("default adapter retains staging until observed close (unverified=%s)", async (unverified) => {
+        const abort = new AbortController();
+        const child = new RestoreChild();
+        let callback!: RestoreCallback;
+        let entered!: () => void;
+        const restoring = new Promise<void>((complete) => {
+            entered = complete;
+        });
+        jest.mocked(execFile).mockReset();
+        jest.mocked(execFile).mockImplementation(((_host: string, args: string[], _options: unknown, complete: RestoreCallback) => {
+            if (args[0] === "--version") {
+                const sdk = new RestoreChild();
+                void Promise.resolve().then(() => {
+                    complete(null, "10.0.100", "");
+                    sdk.close();
+                });
+                return sdk as unknown as ChildProcess;
+            }
+            callback = complete;
+            entered();
+            return child as unknown as ChildProcess;
+        }) as typeof execFile);
+        const { exec: discarded, ...defaultDependencies } = dependencies;
+        void discarded;
+        manager = new DotNetToolManager(root, defaultDependencies);
+        jest.useFakeTimers();
+        const preparation = manager.prepare(input, { signal: abort.signal, assertCurrent: () => undefined });
+        const rejected = expect(preparation).rejects.toMatchObject({ code: unverified ? "RESTORE_STOP_UNVERIFIED" : "CANCELLED" });
+        let settled = false;
+        const observed = preparation.then(
+            () => {
+                settled = true;
+            },
+            () => {
+                settled = true;
+            },
+        );
+        try {
+            await restoring;
+            abort.abort();
+            callback(Object.assign(new Error("aborted"), { name: "AbortError" }), "", "");
+            await Promise.resolve();
+            expect(settled).toBe(false);
+            expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+            const retained = await fs.readdir(root);
+            expect(retained.filter((name) => name.includes(".stage-"))).toHaveLength(1);
+            expect(retained.filter((name) => name.endsWith(".lock"))).toHaveLength(1);
+            if (unverified) jest.advanceTimersByTime(5000);
+            else child.close();
+        } finally {
+            jest.useRealTimers();
+        }
+        await rejected;
+        await observed;
+        if (unverified) {
+            expect(await fs.readdir(root)).toHaveLength(2);
+            await expect(new DotNetToolManager(root, defaultDependencies).prepare(input)).rejects.toMatchObject({ code: "PREPARATION_BUSY" });
+            child.close();
+            expect(await fs.readdir(root)).toHaveLength(2);
+        } else expect(await fs.readdir(root)).toEqual([]);
     });
 
     test("restores a normalized exact version with isolated direct commands and root manifest", async () => {

@@ -24,6 +24,7 @@ interface Owner {
     resolve: (value: NativeWorkerConsentRecord) => void;
     reject: (error: Error) => void;
     closed: () => void;
+    signal?: AbortSignal;
 }
 
 interface Pending {
@@ -128,7 +129,21 @@ export class NativeWorkerConsentManager extends EventEmitter {
         return this.readRecords();
     }
 
-    async authorize(sender: WebContents, workerId: string): Promise<NativeWorkerConsentRecord> {
+    async authorizeLease(sender: WebContents, workerId: string, signal?: AbortSignal): Promise<{ readonly approval: NativeWorkerConsentRecord; readonly assertCurrent: () => void }> {
+        const fingerprint = nativeWorkerConsentFingerprint(this.snapshot(sender, workerId));
+        const revision = this.revisions.get(fingerprint) ?? 0;
+        const approval = await this.authorize(sender, workerId, signal);
+        const assertCurrent = (): void => {
+            signal?.throwIfAborted();
+            if ((this.revisions.get(fingerprint) ?? 0) !== revision || approval.fingerprint !== fingerprint || nativeWorkerConsentFingerprint(this.snapshot(sender, workerId)) !== fingerprint)
+                throw new Error("Native worker consent revoked or source changed");
+        };
+        assertCurrent();
+        return Object.freeze({ approval, assertCurrent });
+    }
+
+    async authorize(sender: WebContents, workerId: string, signal?: AbortSignal): Promise<NativeWorkerConsentRecord> {
+        signal?.throwIfAborted();
         const snapshot = this.snapshot(sender, workerId);
         const fingerprint = nativeWorkerConsentFingerprint(snapshot);
         const revision = this.revisions.get(fingerprint) ?? 0;
@@ -147,17 +162,21 @@ export class NativeWorkerConsentManager extends EventEmitter {
                   }
                   const owner: Owner = {
                       sender,
+                      signal,
                       resolve,
                       reject,
                       closed: () => {
                           pending.owners.delete(owner);
                           sender.removeListener("destroyed", owner.closed);
+                          signal?.removeEventListener("abort", owner.closed);
                           reject(new Error("Native worker consent caller closed"));
                           if (!pending.owners.size) this.finish(fingerprint, new Error("Native worker consent caller closed"));
                       },
                   };
                   pending.owners.add(owner);
                   sender.once("destroyed", owner.closed);
+                  signal?.addEventListener("abort", owner.closed, { once: true });
+                  if (signal?.aborted) owner.closed();
                   this.showNext();
               });
         if ((this.revisions.get(fingerprint) ?? 0) !== revision || nativeWorkerConsentFingerprint(this.snapshot(sender, workerId)) !== fingerprint)
@@ -176,6 +195,7 @@ export class NativeWorkerConsentManager extends EventEmitter {
             } catch (error) {
                 pending.owners.delete(owner);
                 owner.sender.removeListener("destroyed", owner.closed);
+                owner.signal?.removeEventListener("abort", owner.closed);
                 owner.reject(error instanceof Error ? error : new Error("Native worker consent source changed"));
             }
         }
@@ -250,6 +270,7 @@ export class NativeWorkerConsentManager extends EventEmitter {
         }
         for (const owner of pending.owners) {
             owner.sender.removeListener("destroyed", owner.closed);
+            owner.signal?.removeEventListener("abort", owner.closed);
             if (error || !record) owner.reject(error ?? new Error("Native worker consent cancelled"));
             else owner.resolve(record);
         }

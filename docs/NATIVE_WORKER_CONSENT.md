@@ -34,7 +34,9 @@ the resolver rereads package.json and pptb.config.json; it fails closed if packa
 version no longer matches the loaded tool or the declaration is unavailable.
 Neither tool identity nor a declaration is accepted as renderer authority.
 
-PR6 can call this method from its broker once it exists. No call is wired in PR5.
+PR6 now consumes this boundary through an internal live `authorizeLease` with
+optional cancellation. See [the broker](WORKER_BROKER.md); no public launch API
+is wired. The PR5 evidence below remains historical.
 The returned approval is a frozen snapshot, not a process handle. PR6 must bind
 the subsequent launch to this exact snapshot, check that the installed source is
 still current at launch, and honor revocation throughout asynchronous launch work.
@@ -108,8 +110,8 @@ authorization rechecks again after its asynchronous continuation, including cach
 approvals. Invalid/stale responses do not grant consent.
 
 Revocation deletes only the targeted fingerprint and cancels its pending prompt.
-An internal `revoked` event carries `{ fingerprint }`; future PR6 should subscribe
-and stop/cancel matching worker instances and launches. PR5 stops no processes
+An internal `revoked` event carries `{ fingerprint }`; the PR6 broker subscribes
+and stops/cancels matching worker instances and launches. PR5 stopped no processes
 because none exist in this PR. A revoke after prompt settlement but before the
 authorization continuation rejects that authorization. Already-returned approvals
 cannot be retrospectively unreturned: the future broker must honor the event and

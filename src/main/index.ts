@@ -51,6 +51,7 @@ import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManage
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseHeaderConsentManager } from "./managers/dataverseHeaderConsentManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { DotNetDiscoveryManager } from "./managers/dotnetDiscoveryManager";
 import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NativeWorkerConsentManager } from "./managers/nativeWorkerConsentManager";
@@ -66,13 +67,16 @@ import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { WorkerBrokerManager } from "./managers/workerBrokerManager";
 import { clearLogEntries, readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 import { mergeDataverseHeaders } from "./utilities/dataverseBatch";
 import { authorizeFilesystemCaller } from "./utilities/filesystemAuthorization";
-import { resolveNativeWorkerIdentity } from "./utilities/nativeWorkerIdentity";
+import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utilities/nativeWorkerIdentity";
+import { WorkerQuitCoordinator } from "./utilities/workerQuit";
+import { ToolInstallationCoordinator } from "./utilities/appWorkerLifecycle";
 import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
 
 // Constants
@@ -117,6 +121,7 @@ class ToolBoxApp {
     private dataverseManager: DataverseManager;
     private dataverseHeaderConsentManager: DataverseHeaderConsentManager;
     private nativeWorkerConsentManager: NativeWorkerConsentManager;
+    private workerBrokerManager: WorkerBrokerManager;
     private powerPlatformManager: PowerPlatformManager;
     private toolFilesystemAccessManager: ToolFileSystemAccessManager;
     private mcpServerManager: McpServerManager;
@@ -125,6 +130,7 @@ class ToolBoxApp {
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
     private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
     private hasConfirmedPreventCloseForQuit = false;
+    private quitCoordinator: WorkerQuitCoordinator | null = null;
     private shouldFocusAfterWindowCreation = false; // Tracks a relaunch request before main window exists
     private mcpAutoStartInProgress = false;
 
@@ -174,6 +180,8 @@ class ToolBoxApp {
                 this.settingsManager,
                 () => this.mainWindow?.webContents ?? null,
                 (sender, workerId) => {
+                    const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(sender.id);
+                    if (!instanceId || sender === this.mainWindow?.webContents || this.toolWindowManager?.getToolViews().get(instanceId)?.webContents !== sender) return null;
                     const identity = this.toolWindowManager?.getLoadedToolIdentityByWebContents(sender.id);
                     if (!identity) return null;
                     const tool = this.toolManager.getTool(identity.toolId);
@@ -182,6 +190,23 @@ class ToolBoxApp {
                     return resolveNativeWorkerIdentity(identity, tool, toolPath, workerId);
                 },
             );
+            this.workerBrokerManager = new WorkerBrokerManager({
+                consent: this.nativeWorkerConsentManager,
+                discovery: new DotNetDiscoveryManager(),
+                preparationRoot: path.join(app.getPath("userData"), "native-workers"),
+                resolve: (sender, workerId) => {
+                    const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(sender.id);
+                    if (!instanceId || sender === this.mainWindow?.webContents || this.toolWindowManager?.getToolViews().get(instanceId)?.webContents !== sender) return null;
+                    const loaded = this.toolWindowManager?.getLoadedToolIdentityByWebContents(sender.id);
+                    if (!loaded) return null;
+                    const tool = this.toolManager.getTool(loaded.toolId);
+                    const manifest = this.toolManager.getInstalledManifestSync(loaded.toolId);
+                    const identity = resolveNativeWorkerIdentity(loaded, tool, tool?.localPath ?? manifest?.installPath, workerId);
+                    if (!identity) return null;
+                    return { owner: { toolId: loaded.toolId, instanceId }, identity, sourceFingerprint: nativeWorkerSourceFingerprint(loaded) };
+                },
+                onError: (error) => logError("Native worker cleanup failed", error),
+            });
             this.protocolHandlerManager = new ProtocolHandlerManager();
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
@@ -1190,11 +1215,23 @@ class ToolBoxApp {
         });
 
         // Registry-based tool installation (new primary method)
-        ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, async (_, toolId) => {
-            const manifest = await this.toolManager.installToolFromRegistry(toolId);
-            const tool = await this.toolManager.loadTool(toolId);
-            this.settingsManager.addInstalledTool(toolId);
-            return { manifest, tool };
+        const installations = new ToolInstallationCoordinator({
+            mainSender: () => this.mainWindow?.webContents,
+            installed: () =>
+                this.toolManager.getAllTools().map((tool) => ({
+                    id: tool.id,
+                    npmPackageName: tool.npmPackageName ?? this.toolManager.getInstalledManifestSync(tool.id)?.packageName,
+                })),
+            registry: () => this.toolManager.fetchAvailableTools(),
+            mutate: (toolId, action) => this.workerBrokerManager.withToolMutation(toolId, action),
+        });
+        ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, async (event, toolId) => {
+            return installations.install(event.sender, toolId, "registry", async (canonicalId) => {
+                const manifest = await this.toolManager.installToolFromRegistry(canonicalId);
+                const tool = await this.toolManager.loadTool(manifest.id);
+                this.settingsManager.addInstalledTool(manifest.id);
+                return { manifest, tool };
+            });
         });
 
         // Fetch available tools from registry
@@ -1226,8 +1263,9 @@ class ToolBoxApp {
         });
 
         // Update a tool to the latest version
-        ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (_, toolId) => {
-            const manifest = await this.toolManager.updateTool(toolId);
+        ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (event, toolId) => {
+            if (event.sender !== this.mainWindow?.webContents || event.sender.isDestroyed()) throw new Error("Tool mutation requires the trusted main window");
+            const manifest = await this.workerBrokerManager.withToolMutation(toolId, () => this.toolManager.updateTool(toolId));
             const maxConnections = resolveConnectionSlots(manifest.features).max;
             if (this.settingsManager.limitToolConnectionSlots(toolId, maxConnections)) {
                 this.api.showNotification({
@@ -1250,10 +1288,12 @@ class ToolBoxApp {
         });
 
         // Install the beta (pre-release) npm package for a registry tool
-        ipcMain.handle(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, async (_, npmPackageName: string) => {
-            const tool = await this.toolManager.installPrereleaseToolFromNpm(npmPackageName);
-            this.settingsManager.addInstalledTool(tool.id);
-            return tool;
+        ipcMain.handle(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, async (event, npmPackageName: string) => {
+            return installations.install(event.sender, npmPackageName, "npm", async (canonicalPackage) => {
+                const tool = await this.toolManager.installPrereleaseToolFromNpm(canonicalPackage);
+                this.settingsManager.addInstalledTool(tool.id);
+                return tool;
+            });
         });
 
         // Submit (or update) this install's star rating/comment for a tool
@@ -1314,18 +1354,25 @@ class ToolBoxApp {
         });
 
         // Debug mode only - npm-based installation for tool developers
-        ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL, async (_, packageName) => {
-            await this.toolManager.installToolForDebug(packageName);
-            // Load the npm tool after installation
-            const tool = await this.toolManager.loadNpmTool(packageName);
-            this.settingsManager.addInstalledTool(packageName);
-            return tool;
+        ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL, async (event, packageName) => {
+            return installations.install(event.sender, packageName, "npm", async (canonicalPackage) => {
+                await this.toolManager.installToolForDebug(packageName);
+                const tool = await this.toolManager.loadNpmTool(canonicalPackage);
+                this.settingsManager.addInstalledTool(tool.id);
+                return tool;
+            });
         });
 
-        ipcMain.handle(TOOL_CHANNELS.UNINSTALL_TOOL, async (_, packageName, toolId) => {
-            this.toolManager.unloadTool(toolId);
-            await this.toolManager.uninstallTool(packageName);
-            this.settingsManager.removeInstalledTool(packageName);
+        ipcMain.handle(TOOL_CHANNELS.UNINSTALL_TOOL, async (event, packageName) => {
+            if (event.sender !== this.mainWindow?.webContents || event.sender.isDestroyed()) throw new Error("Tool mutation requires the trusted main window");
+            const tool = this.toolManager.resolveInvocationTarget(packageName);
+            if (!tool) throw new Error("Tool uninstall target was not found");
+            const targetId = tool.id;
+            await this.workerBrokerManager.withToolMutation(targetId, async () => {
+                await this.toolManager.uninstallTool(targetId);
+                this.settingsManager.removeInstalledTool(packageName);
+                if (targetId !== packageName) this.settingsManager.removeInstalledTool(targetId);
+            });
         });
 
         // Local tool development - load tool from local directory
@@ -1558,9 +1605,8 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(UTIL_CHANNELS.RESTART_APP, () => {
-            this.isQuitting = true;
-            app.relaunch();
-            app.quit();
+            if (!this.quitCoordinator) throw new Error("Application shutdown is not ready");
+            this.quitCoordinator.restart(() => app.relaunch());
         });
 
         // Clipboard handler
@@ -1896,7 +1942,8 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(UPDATE_CHANNELS.QUIT_AND_INSTALL, () => {
-            this.autoUpdateManager.quitAndInstall();
+            if (!this.quitCoordinator) throw new Error("Application shutdown is not ready");
+            this.quitCoordinator.installUpdate(() => this.autoUpdateManager.quitAndInstall());
         });
 
         ipcMain.handle(UPDATE_CHANNELS.GET_APP_VERSION, () => {
@@ -3394,6 +3441,7 @@ class ToolBoxApp {
         );
 
         this.mcpServerManager.setToolWindowManager(this.toolWindowManager);
+        this.toolWindowManager.setOnOwnerDisposing((owner) => this.workerBrokerManager.disposeOwner(owner));
 
         // Initialize SplitLayoutManager — depends on the shared toolViews map from ToolWindowManager
         this.splitLayoutManager = new SplitLayoutManager(this.mainWindow, this.settingsManager, this.toolWindowManager.getToolViews());
@@ -3451,7 +3499,8 @@ class ToolBoxApp {
                 if (hasPreventCloseTools) {
                     this.hasConfirmedPreventCloseForQuit = true;
                 }
-                this.isQuitting = true;
+                event.preventDefault();
+                app.quit();
                 return;
             }
 
@@ -4030,34 +4079,32 @@ class ToolBoxApp {
                 }
             });
 
-            app.on("before-quit", async (event) => {
-                const hasConfirmedPreventCloseForQuit = this.hasConfirmedPreventCloseForQuit;
-                // Consume this one-time confirmation token so any future quit attempt
-                // in this app session requires a fresh confirmation.
-                this.hasConfirmedPreventCloseForQuit = false;
-
-                if (this.toolWindowManager?.hasPreventCloseTools() && !hasConfirmedPreventCloseForQuit) {
-                    if (!this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
-                        event.preventDefault();
-                        this.isQuitting = false;
-                        return;
-                    }
-                }
-                this.isQuitting = true;
-                logCheckpoint("Application shutting down");
-                // Clean up tray icon before quitting
-                this.trayManager?.destroy();
-                // Clean up MCP server
-                await this.mcpServerManager.stop();
-                // Clean up update checks
-                this.autoUpdateManager.disableAutoUpdateChecks();
-                // Clean up token expiry checks
-                this.stopTokenExpiryChecks();
-                // Clean up MSAL instances
-                this.authManager.cleanup();
-                // Clean up connection tokens
-                this.connectionsManager.clearAllConnectionTokens();
+            this.quitCoordinator = new WorkerQuitCoordinator({
+                confirm: () => {
+                    const alreadyConfirmed = this.hasConfirmedPreventCloseForQuit;
+                    this.hasConfirmedPreventCloseForQuit = false;
+                    if (!alreadyConfirmed && this.toolWindowManager?.hasPreventCloseTools() && !this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) return false;
+                    return true;
+                },
+                stopWorkers: () => this.workerBrokerManager.shutdown(),
+                cleanup: async () => {
+                    this.isQuitting = true;
+                    logCheckpoint("Application shutting down");
+                    await this.mcpServerManager.stop();
+                    this.autoUpdateManager.disableAutoUpdateChecks();
+                    this.stopTokenExpiryChecks();
+                    await this.authManager.cleanup();
+                    this.connectionsManager.clearAllConnectionTokens();
+                    this.trayManager?.destroy();
+                },
+                quit: () => app.quit(),
+                cancelled: () => {
+                    this.isQuitting = false;
+                    this.hasConfirmedPreventCloseForQuit = false;
+                },
+                failed: (error) => logError("Application worker shutdown failed", error),
             });
+            app.on("before-quit", (event) => this.quitCoordinator!.handle(event));
 
             logCheckpoint("Application initialization completed successfully");
         } catch (error) {

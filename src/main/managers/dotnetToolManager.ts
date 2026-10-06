@@ -18,11 +18,13 @@ import {
 import { DotNetDiscoveryManager, dotNetProbeOptions } from "./dotnetDiscoveryManager";
 
 export interface DotNetToolExecOptions {
+    signal?: AbortSignal;
     cwd: string;
     env: NodeJS.ProcessEnv;
     encoding: "utf8";
     shell: false;
     timeout: number;
+    terminationTimeoutMs?: number;
     killSignal: "SIGKILL";
     maxBuffer: number;
     windowsHide: true;
@@ -45,6 +47,20 @@ export interface DotNetToolPreparationDependencies {
     inventory?(resolverPath: string, contents: string): Promise<DotNetToolResolverEntry[]>;
 }
 
+export interface DotNetPreparationControl {
+    readonly signal: AbortSignal;
+    assertCurrent(): void;
+}
+
+function checkPreparation(control?: DotNetPreparationControl): void {
+    try {
+        control?.signal.throwIfAborted();
+        control?.assertCurrent();
+    } catch {
+        throw new DotNetToolPreparationError("CANCELLED");
+    }
+}
+
 export class DotNetToolPreparationError extends Error {
     constructor(readonly code: DotNetToolPreparationErrorCode) {
         super(`DotNet preparation failed: ${code}`);
@@ -62,9 +78,66 @@ function authoritySelection(selection: DotNetDiscoverySelection): Omit<DotNetDis
     return authority;
 }
 
-function defaultExec(host: string, args: readonly string[], options: DotNetToolExecOptions): Promise<string> {
+export function defaultExec(host: string, args: readonly string[], options: DotNetToolExecOptions): Promise<string> {
     return new Promise((complete, reject) => {
-        execFile(host, [...args], options, (error, stdout) => (error ? reject(new DotNetToolPreparationError("RESTORE_FAILED")) : complete(stdout)));
+        const { signal, timeout, terminationTimeoutMs = 5000, ...execOptions } = options;
+        if (signal?.aborted) {
+            reject(new DotNetToolPreparationError("CANCELLED"));
+            return;
+        }
+        let closed = false;
+        let callbackReceived = false;
+        let failed = false;
+        let stopped = false;
+        let settled = false;
+        let output = "";
+        let closeDeadline: ReturnType<typeof setTimeout> | undefined;
+        const finish = (): void => {
+            if (settled || !closed || !callbackReceived) return;
+            settled = true;
+            clearTimeout(deadline);
+            clearTimeout(closeDeadline);
+            signal?.removeEventListener("abort", stop);
+            if (failed || stopped) reject(new DotNetToolPreparationError("RESTORE_FAILED"));
+            else complete(output);
+        };
+        const awaitClose = (): void => {
+            if (closed || settled || closeDeadline) return;
+            closeDeadline = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(deadline);
+                signal?.removeEventListener("abort", stop);
+                child.removeListener("close", onClose);
+                reject(new DotNetToolPreparationError("RESTORE_STOP_UNVERIFIED"));
+            }, terminationTimeoutMs);
+        };
+        const stop = (): void => {
+            if (closed || settled || stopped) return;
+            stopped = true;
+            awaitClose();
+            try {
+                child.kill(options.killSignal);
+            } catch {
+                failed = true;
+            }
+        };
+        const onClose = (): void => {
+            closed = true;
+            finish();
+        };
+        const child = execFile(host, [...args], execOptions, (error, stdout) => {
+            callbackReceived = true;
+            failed = Boolean(error);
+            output = stdout;
+            if (error) stop();
+            awaitClose();
+            finish();
+        });
+        child.once("close", onClose);
+        signal?.addEventListener("abort", stop, { once: true });
+        const deadline = setTimeout(stop, timeout);
+        if (signal?.aborted) stop();
     });
 }
 
@@ -79,7 +152,8 @@ export class DotNetToolManager {
         this.fs = dependencies.fs ?? filesystem;
     }
 
-    async prepare(input: DotNetToolPreparationRequest): Promise<DotNetPreparedTool> {
+    async prepare(input: DotNetToolPreparationRequest, control?: DotNetPreparationControl): Promise<DotNetPreparedTool> {
+        checkPreparation(control);
         let request: DotNetToolPreparationRequest;
         try {
             request = JSON.parse(JSON.stringify(input)) as DotNetToolPreparationRequest;
@@ -93,6 +167,7 @@ export class DotNetToolManager {
             throw new DotNetToolPreparationError("APPROVAL_DENIED");
         }
         if (approved !== true) throw new DotNetToolPreparationError("APPROVAL_DENIED");
+        checkPreparation(control);
         try {
             const identity = request.identity;
             if (
@@ -131,10 +206,10 @@ export class DotNetToolManager {
         }
         const authority = { schema: 1, identity: request.identity, declaration: request.declaration, selection: authoritySelection(request.selection) };
         const fingerprint = dotNetHash(dotNetStableJson(authority));
-        const pending = this.inflight.get(fingerprint);
+        const pending = control ? undefined : this.inflight.get(fingerprint);
         if (pending) return pending;
-        const preparation = this.prepareApproved(request, authority, fingerprint);
-        this.inflight.set(fingerprint, preparation);
+        const preparation = this.prepareApproved(request, authority, fingerprint, control);
+        if (!control) this.inflight.set(fingerprint, preparation);
         try {
             return await preparation;
         } finally {
@@ -253,14 +328,20 @@ export class DotNetToolManager {
         };
     }
 
-    private async command(workspace: string, request: DotNetToolPreparationRequest, args: readonly string[], restore: boolean): Promise<string> {
+    private async command(workspace: string, request: DotNetToolPreparationRequest, args: readonly string[], restore: boolean, control?: DotNetPreparationControl): Promise<string> {
+        checkPreparation(control);
         await this.validateConfiguration(workspace, request);
+        checkPreparation(control);
         try {
             const options = this.options(workspace, request.selection, restore);
+            if (control) options.signal = control.signal;
             const output = await (this.dependencies.exec ?? defaultExec)(request.selection.hostPath, args, options);
+            checkPreparation(control);
             if (typeof output !== "string" || Buffer.byteLength(output) > options.maxBuffer || output.includes("\0")) throw new Error("Invalid output");
             return output;
-        } catch {
+        } catch (error) {
+            if (error instanceof DotNetToolPreparationError && error.code === "RESTORE_STOP_UNVERIFIED") throw error;
+            checkPreparation(control);
             throw new DotNetToolPreparationError("RESTORE_FAILED");
         }
     }
@@ -384,15 +465,18 @@ export class DotNetToolManager {
         return hashes;
     }
 
-    private async prepareApproved(request: DotNetToolPreparationRequest, authority: unknown, fingerprint: string): Promise<DotNetPreparedTool> {
+    private async prepareApproved(request: DotNetToolPreparationRequest, authority: unknown, fingerprint: string, control?: DotNetPreparationControl): Promise<DotNetPreparedTool> {
+        checkPreparation(control);
         let discovered: DotNetDiscoveryResult;
         try {
             discovered = await (this.dependencies.rediscover
                 ? this.dependencies.rediscover(JSON.parse(JSON.stringify(request)) as DotNetToolPreparationRequest)
-                : new DotNetDiscoveryManager().discover(request.declaration.dotnet, request.declaration.platforms));
+                : new DotNetDiscoveryManager().discover(request.declaration.dotnet, request.declaration.platforms, control));
         } catch {
+            checkPreparation(control);
             throw new DotNetToolPreparationError("DISCOVERY_CHANGED");
         }
+        checkPreparation(control);
         if (!discovered.ok || dotNetStableJson(authoritySelection(discovered.value)) !== dotNetStableJson(authoritySelection(request.selection)))
             throw new DotNetToolPreparationError("DISCOVERY_CHANGED");
         let lockOwned = false;
@@ -400,11 +484,13 @@ export class DotNetToolManager {
         let stage: string | undefined;
         let published = false;
         let finished = false;
+        let quarantined = false;
         const workspace = join(this.root, `${fingerprint}-${request.selection.nativeRid}`);
         const lock = `${workspace}.lock`;
         const token = randomUUID();
         const operation = async (): Promise<DotNetPreparedTool> => {
             try {
+                checkPreparation(control);
                 if (!isAbsolute(this.root) || resolve(this.root) !== this.root) throw new DotNetToolPreparationError("WORKSPACE_INVALID");
                 if (!(await this.exists(this.root))) {
                     await this.safePath(dirname(this.root), true);
@@ -446,9 +532,11 @@ export class DotNetToolManager {
                         )
                             throw new Error("Cache changed");
                         const result = await descriptor(true, integrityHash);
+                        checkPreparation(control);
                         finished = true;
                         return result;
                     } catch {
+                        checkPreparation(control);
                         throw new DotNetToolPreparationError("CACHE_INVALID");
                     }
                 }
@@ -457,7 +545,7 @@ export class DotNetToolManager {
                 await this.fs.writeFile(join(stage, "global.json"), dotNetStableJson(request.selection.sdkPin), { flag: "wx", mode: 0o600 });
                 await this.fs.writeFile(join(stage, "NuGet.Config"), nuGetConfig, { flag: "wx", mode: 0o600 });
                 await this.fs.writeFile(join(stage, ".config", "dotnet-tools.json"), dotNetStableJson(this.manifest(request)), { flag: "wx", mode: 0o600 });
-                const sdkVersion = await this.command(stage, request, ["--version"], false);
+                const sdkVersion = await this.command(stage, request, ["--version"], false, control);
                 if (sdkVersion.trim() !== request.selection.sdk.version) throw new DotNetToolPreparationError("SDK_MISMATCH");
                 await this.command(
                     stage,
@@ -475,6 +563,7 @@ export class DotNetToolManager {
                         "minimal",
                     ],
                     true,
+                    control,
                 );
                 let artifacts: Awaited<ReturnType<DotNetToolManager["verifyArtifacts"]>>;
                 try {
@@ -490,6 +579,7 @@ export class DotNetToolManager {
                 await this.safePath(stage, true);
                 await this.safePath(lock, true);
                 if (await this.exists(workspace)) throw new DotNetToolPreparationError("PREPARATION_BUSY");
+                checkPreparation(control);
                 await this.fs.rename(stage, workspace);
                 published = true;
                 stage = undefined;
@@ -498,15 +588,19 @@ export class DotNetToolManager {
                 const result = await descriptor(false, integrityHash);
                 const marker = dotNetStableJson({ authority, files, integrityHash });
                 if (Buffer.byteLength(marker) > 2 * 1024 * 1024) throw new DotNetToolPreparationError("ARTIFACT_INVALID");
+                checkPreparation(control);
                 await this.fs.writeFile(join(workspace, markerName), marker, { flag: "wx", mode: 0o600 });
+                checkPreparation(control);
                 finished = true;
                 return result;
             } catch (error) {
+                if (error instanceof DotNetToolPreparationError && error.code === "RESTORE_STOP_UNVERIFIED") quarantined = true;
                 if (error instanceof DotNetToolPreparationError) throw error;
                 throw new DotNetToolPreparationError("WORKSPACE_INVALID");
             }
         };
         const cleanup = async (): Promise<void> => {
+            if (quarantined) return;
             try {
                 if (stage) await this.fs.rm(stage, { recursive: true, force: true });
                 if (published && !finished) await this.fs.rm(workspace, { recursive: true, force: true });
@@ -528,6 +622,7 @@ export class DotNetToolManager {
         return operation().then(
             async (result) => {
                 await cleanup();
+                checkPreparation(control);
                 return result;
             },
             async (error: unknown) => {

@@ -6,7 +6,7 @@ import * as path from "path";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../../../src/common/ipc/channels";
 import type { NativeWorkerConsentRecord, NativeWorkerConsentRequest, Tool, WorkerDeclaration } from "../../../../src/common/types";
 import { NativeWorkerConsentManager } from "../../../../src/main/managers/nativeWorkerConsentManager";
-import { resolveNativeWorkerIdentity, type LoadedToolIdentity } from "../../../../src/main/utilities/nativeWorkerIdentity";
+import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity, type LoadedToolIdentity } from "../../../../src/main/utilities/nativeWorkerIdentity";
 
 class Sender extends EventEmitter {
     readonly send = jest.fn();
@@ -90,6 +90,18 @@ describe("native worker launch-bound identity", () => {
         writePackage("2.0.0");
         await expect(authorize()).rejects.toThrow("untrusted");
         expect(main.send).not.toHaveBeenCalled();
+    });
+
+    it("binds preparation source authority to actual source and both manifest files at unchanged version", () => {
+        const original = nativeWorkerSourceFingerprint(loaded);
+        expect(original).toMatch(/^[a-f0-9]{64}$/);
+        expect(nativeWorkerSourceFingerprint(loaded)).toBe(original);
+        fs.appendFileSync(path.join(root, "pptb.config.json"), "\n");
+        expect(nativeWorkerSourceFingerprint(loaded)).not.toBe(original);
+        writePackage();
+        fs.appendFileSync(path.join(root, "package.json"), "\n");
+        expect(nativeWorkerSourceFingerprint(loaded)).not.toBe(original);
+        expect(() => nativeWorkerSourceFingerprint({ ...loaded, sourcePath: null })).toThrow("Missing");
     });
 
     it("rejects a current source path change rather than rebinding the live sender", () => {

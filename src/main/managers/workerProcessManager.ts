@@ -35,6 +35,9 @@ export interface WorkerLaunchOptions {
 
 export interface WorkerProcessDependencies {
     prepare(owner: WorkerOwner, workerId: string, signal: AbortSignal): Promise<WorkerLaunchDescriptor>;
+    beforeLaunch?(owner: WorkerOwner, workerId: string): void;
+    deferStartupTimeoutUntilLaunch?: boolean;
+    preserveStartupErrorCodes?: boolean;
     launch?(descriptor: WorkerLaunchDescriptor, options: WorkerLaunchOptions): WorkerChild;
     killTree?(pid: number, platform: NodeJS.Platform): Promise<void>;
     platform?: NodeJS.Platform;
@@ -74,12 +77,20 @@ interface WorkerRecord {
     reader?: BoundedWorkerReader;
     writer?: StreamMessageWriter;
     exitSeen: boolean;
+    outputClosed: Set<"stdout" | "stderr">;
+    preparation?: Promise<void>;
+    preparationSettled: boolean;
+    preparationFailure?: Error;
+    treeKillDispatched: boolean;
+    treeKillSucceeded: boolean;
+    verificationWaiters: Set<() => void>;
     writes: PendingWrite[];
     active?: PendingWrite;
     pendingBytes: number;
     early: { message: WorkerRpcMessage; bytes: number }[];
     earlyBytes: number;
     subscribers: Map<symbol, (message: WorkerRpcMessage) => void>;
+    terminalSubscribers: Map<symbol, () => void>;
     delivering: boolean;
     stderrBytes: number;
     stderrTruncated: boolean;
@@ -231,11 +242,17 @@ export class WorkerProcessManager {
             rejectReady,
             startupId: `pptb:initialize:${randomUUID()}`,
             exitSeen: false,
+            outputClosed: new Set(),
+            preparationSettled: false,
+            treeKillDispatched: false,
+            treeKillSucceeded: false,
+            verificationWaiters: new Set(),
             writes: [],
             pendingBytes: 0,
             early: [],
             earlyBytes: 0,
             subscribers: new Map(),
+            terminalSubscribers: new Map(),
             delivering: false,
             stderrBytes: 0,
             stderrTruncated: false,
@@ -245,8 +262,8 @@ export class WorkerProcessManager {
         };
         this.records.set(handle, record);
         this.slots.set(slot, handle);
-        record.startupTimer = setTimeout(() => this.fail(record, "STARTUP_TIMEOUT"), this.limits.startupTimeoutMs);
-        void this.prepare(record);
+        if (!this.dependencies.deferStartupTimeoutUntilLaunch) record.startupTimer = setTimeout(() => this.fail(record, "STARTUP_TIMEOUT"), this.limits.startupTimeoutMs);
+        record.preparation = this.prepare(record);
         return Object.freeze({ handle, ready });
     }
 
@@ -263,11 +280,22 @@ export class WorkerProcessManager {
                 windowsHide: true,
                 detached: this.platform !== "win32",
             });
+            this.dependencies.beforeLaunch?.(record.owner, record.workerId);
+            if (this.dependencies.deferStartupTimeoutUntilLaunch) record.startupTimer = setTimeout(() => this.fail(record, "STARTUP_TIMEOUT"), this.limits.startupTimeoutMs);
             const child = (this.dependencies.launch ?? defaultLaunch)(descriptor, options);
             record.child = child;
             record.pid = child.pid;
             child.on("error", () => this.fail(record, "PROCESS_ERROR"));
             child.on("exit", (code, signal) => this.exited(record, code, signal));
+            for (const stream of ["stdout", "stderr"] as const) {
+                const closed = (): void => {
+                    record.outputClosed.add(stream);
+                    this.cleanup(record);
+                };
+                child[stream].once("end", closed);
+                child[stream].once("close", closed);
+                if (child[stream].destroyed || child[stream].readableEnded) closed();
+            }
             child.stdin.on("error", () => this.fail(record, "WRITE_FAILED"));
             child.stdin.on("close", () => {
                 if (record.state === "starting" || record.state === "running") this.fail(record, "WRITE_CLOSED");
@@ -294,8 +322,13 @@ export class WorkerProcessManager {
             );
             if (child.stdout.destroyed || child.stdout.readableEnded || child.stdin.destroyed || child.stdin.writableEnded) return this.fail(record, "STDIO_CLOSED");
             await this.enqueue(record, { jsonrpc: "2.0", id: record.startupId, method: "platform/initialize", params: { protocol: "jsonrpc-stdio-v1", protocolVersion: 1 } });
-        } catch {
-            if (record.state === "starting" || record.state === "running") this.fail(record, "STARTUP_FAILED");
+        } catch (error) {
+            if (error instanceof Error && "code" in error && (error.code === "WORKSPACE_INVALID" || error.code === "RESTORE_STOP_UNVERIFIED")) record.preparationFailure = error;
+            if (record.state === "starting" || record.state === "running")
+                this.fail(record, this.dependencies.preserveStartupErrorCodes && error instanceof WorkerProcessError ? error.code : "STARTUP_FAILED");
+        } finally {
+            record.preparationSettled = true;
+            this.cleanup(record);
         }
     }
 
@@ -334,10 +367,31 @@ export class WorkerProcessManager {
         const key = Symbol();
         record.subscribers.set(key, callback);
         this.deliver(record);
-        const subscriptionOwner = record.owner;
         return () => {
-            this.authorize(subscriptionOwner, handle).subscribers.delete(key);
+            record.subscribers.delete(key);
         };
+    }
+
+    onTerminal(owner: WorkerOwner, handle: WorkerProcessHandle, callback: () => void): () => void {
+        const record = this.authorize(owner, handle);
+        if (typeof callback !== "function") throw new WorkerProcessError("INVALID_SUBSCRIBER");
+        if (record.terminalSubscribers.size >= this.limits.maxEarlyMessages) throw new WorkerProcessError("SUBSCRIBER_LIMIT");
+        const key = Symbol();
+        record.terminalSubscribers.set(key, callback);
+        if (record.state === "failed" || record.state === "exited") this.notifyTerminal(record);
+        return () => record.terminalSubscribers.delete(key);
+    }
+
+    private notifyTerminal(record: WorkerRecord): void {
+        const callbacks = [...record.terminalSubscribers.values()];
+        record.terminalSubscribers.clear();
+        for (const callback of callbacks) {
+            try {
+                callback();
+            } catch {
+                continue;
+            }
+        }
     }
 
     private receive(record: WorkerRecord, message: WorkerRpcMessage, bytes: number): void {
@@ -445,8 +499,28 @@ export class WorkerProcessManager {
         const record = this.authorize(owner, handle);
         if (record.cleaned) return Promise.resolve();
         if (record.stopPromise) return record.stopPromise;
-        record.state = "stopping";
+        if (record.state === "starting" || record.state === "running") record.state = "stopping";
         return this.beginStop(record, true);
+    }
+
+    async stopAndVerify(owner: WorkerOwner, handle: WorkerProcessHandle): Promise<void> {
+        const record = this.authorize(owner, handle);
+        await this.stop(owner, handle);
+        await limited(record.preparation ?? Promise.resolve(), this.limits.startupTimeoutMs);
+        if (record.preparationFailure) throw record.preparationFailure;
+        if (record.treeKillSucceeded && !record.cleaned) {
+            await new Promise<void>((resolve) => {
+                const settled = (): void => {
+                    clearTimeout(timer);
+                    record.verificationWaiters.delete(settled);
+                    resolve();
+                };
+                const timer = setTimeout(settled, this.limits.killTimeoutMs);
+                record.verificationWaiters.add(settled);
+            });
+        }
+        if (record.pid && !record.exitSeen) throw new WorkerProcessError("EXIT_NOT_OBSERVED");
+        if (!record.cleaned) throw new WorkerProcessError("STOP_UNVERIFIED");
     }
 
     private beginStop(record: WorkerRecord, graceful: boolean): Promise<void> {
@@ -462,12 +536,17 @@ export class WorkerProcessManager {
         record.early.length = 0;
         record.earlyBytes = 0;
         record.reader?.dispose();
-        if (!record.child || record.exitSeen) this.cleanup(record);
-        else {
+        if (!record.child) {
+            this.cleanup(record);
+            record.resolveStop?.();
+        } else {
             record.stopTimer = setTimeout(() => {
                 void this.force(record);
             }, this.limits.stopTimeoutMs);
-            this.closeInput(record, graceful);
+            record.child.stdout.resume();
+            record.child.stderr.resume();
+            if (!record.exitSeen) this.closeInput(record, graceful);
+            this.cleanup(record);
         }
         return record.stopPromise;
     }
@@ -498,14 +577,12 @@ export class WorkerProcessManager {
         record.failure = code;
         record.rejectReady(new WorkerProcessError(code));
         void this.beginStop(record, false);
+        this.notifyTerminal(record);
     }
 
     private exited(record: WorkerRecord, code: number | null, signal: NodeJS.Signals | null): void {
         record.exitSeen = true;
-        if (record.cleaned) {
-            if (this.slots.get(record.slot) === record.handle) this.slots.delete(record.slot);
-            return;
-        }
+        if (record.cleaned) return;
         if (record.state === "starting") {
             record.state = "failed";
             record.failure = "STARTUP_EXIT";
@@ -516,21 +593,29 @@ export class WorkerProcessManager {
         record.rejectReady(new WorkerProcessError(record.failure ?? "WORKER_EXITED"));
         void this.beginStop(record, false);
         this.cleanup(record);
+        this.notifyTerminal(record);
     }
 
     private async force(record: WorkerRecord): Promise<void> {
-        if (record.cleaned || record.forcing || record.exitSeen) return;
+        if (record.cleaned || record.forcing) return;
+        if (record.exitSeen) {
+            this.cleanup(record);
+            record.resolveStop?.();
+            return;
+        }
         record.forcing = true;
         try {
             if (!Number.isSafeInteger(record.pid) || !record.pid || record.pid <= 0 || record.pid === process.pid) throw new WorkerProcessError("INVALID_PID");
             await limited(
                 Promise.resolve().then(() => {
                     if (record.exitSeen || record.cleaned) return;
+                    record.treeKillDispatched = true;
                     return (this.dependencies.killTree ?? defaultKillTree)(record.pid!, this.platform);
                 }),
                 this.limits.killTimeoutMs,
             );
-            if (!record.cleaned) {
+            record.treeKillSucceeded = record.treeKillDispatched;
+            if (!record.cleaned && record.treeKillDispatched) {
                 record.state = "failed";
                 record.failure ??= "FORCED_STOP";
             }
@@ -540,12 +625,16 @@ export class WorkerProcessManager {
                 record.failure ??= "TREE_KILL_FAILED";
             }
         } finally {
+            record.forcing = false;
             this.cleanup(record);
+            record.resolveStop?.();
+            if (record.state === "failed") this.notifyTerminal(record);
         }
     }
 
     private cleanup(record: WorkerRecord): void {
-        if (record.cleaned) return;
+        if (record.cleaned || !record.stopPromise || !record.preparationSettled || record.preparationFailure || record.forcing) return;
+        if (record.child && (!record.exitSeen || record.outputClosed.size !== 2 || (record.treeKillDispatched && !record.treeKillSucceeded))) return;
         record.cleaned = true;
         clearTimeout(record.startupTimer);
         clearTimeout(record.stopTimer);
@@ -559,21 +648,20 @@ export class WorkerProcessManager {
         record.early.length = 0;
         record.earlyBytes = 0;
         if (record.state === "stopping") record.state = "exited";
-        const hadChild = Boolean(record.child);
         if (record.child) {
-            record.child.stdout.resume();
-            record.child.stderr.resume();
             record.child.stdin.destroy();
         }
         record.child = undefined;
-        if (!hadChild || record.exitSeen) this.slots.delete(record.slot);
+        if (this.slots.get(record.slot) === record.handle) this.slots.delete(record.slot);
         record.resolveStop?.();
+        for (const settled of [...record.verificationWaiters]) settled();
+        this.notifyTerminal(record);
     }
 
     async disposeOwner(owner: WorkerOwner): Promise<void> {
         const validated = validateOwner(owner);
         const records = [...this.records.values()].filter((record) => record.owner.toolId === validated.toolId && record.owner.instanceId === validated.instanceId);
-        await Promise.all(records.map((record) => this.stop(validated, record.handle)));
+        await Promise.all(records.map((record) => this.stopAndVerify(validated, record.handle)));
         for (const record of records) this.records.delete(record.handle);
     }
 }

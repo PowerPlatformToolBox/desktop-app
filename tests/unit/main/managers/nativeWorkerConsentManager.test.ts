@@ -95,6 +95,26 @@ describe("NativeWorkerConsentManager", () => {
         expect(main.send).not.toHaveBeenCalled();
     });
 
+    it("keeps an allow-once lease current without storage and invalidates it on revoke", async () => {
+        const pending = manager.authorizeLease(webContents(sender), "worker");
+        respond("allow-once");
+        const lease = await pending;
+        expect(records()).toEqual([]);
+        expect(() => lease.assertCurrent()).not.toThrow();
+        manager.revoke(webContents(main), lease.approval.fingerprint);
+        expect(() => lease.assertCurrent()).toThrow("revoked");
+    });
+
+    it("cancels only the aborted owner of a shared prompt", async () => {
+        const abort = new AbortController();
+        const firstLease = manager.authorizeLease(webContents(sender), "worker", abort.signal);
+        const secondLease = manager.authorizeLease(webContents(second), "worker");
+        abort.abort();
+        await expect(firstLease).rejects.toThrow("closed");
+        respond("allow-once");
+        await expect(secondLease).resolves.toHaveProperty("approval");
+    });
+
     it("guards every controller method, including a spoofed object with the same main id", () => {
         const spoofed = new FakeWebContents(main.id);
         for (const attacker of [sender, spoofed]) {

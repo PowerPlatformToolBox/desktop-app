@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { createHash } from "crypto";
 import * as path from "path";
 import type { Tool } from "../../common/types";
 import type { NativeWorkerIdentity } from "../managers/nativeWorkerConsentManager";
@@ -9,6 +10,24 @@ export interface LoadedToolIdentity {
     readonly toolName: string;
     readonly toolVersion: string;
     readonly sourcePath: string | null;
+}
+
+export function nativeWorkerSourceFingerprint(loaded: LoadedToolIdentity): string {
+    if (!loaded.sourcePath) throw new Error("Missing native worker source");
+    return createHash("sha256")
+        .update(
+            JSON.stringify({
+                path: loaded.sourcePath,
+                realPath: fs.realpathSync(loaded.sourcePath),
+                package: createHash("sha256")
+                    .update(fs.readFileSync(path.join(loaded.sourcePath, "package.json")))
+                    .digest("hex"),
+                config: createHash("sha256")
+                    .update(fs.readFileSync(path.join(loaded.sourcePath, "pptb.config.json")))
+                    .digest("hex"),
+            }),
+        )
+        .digest("hex");
 }
 
 export function resolveNativeWorkerIdentity(loaded: LoadedToolIdentity | null, tool: Tool | undefined, currentSourcePath: string | undefined, workerId: string): NativeWorkerIdentity | null {

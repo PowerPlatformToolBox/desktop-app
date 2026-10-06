@@ -1,7 +1,8 @@
 # Internal DotNet Tool Preparation (PR3)
 
-PR3 provides `DotNetToolManager.prepare` only. There is no startup registration,
-IPC/preload/public API, consent UI, worker launch or production caller. The default
+PR3 provides `DotNetToolManager.prepare`. PR6 now consumes it through
+[the internal broker](WORKER_BROKER.md) with live consent and optional cancellation;
+there is still no renderer launch IPC/preload/public API. The default
 executor can perform a NuGet restore when an internal caller explicitly calls
 `prepare` and its injected approval callback returns exactly `true`. It never
 runs the restored command. PR1 declaration validation and PR2 installed-host
@@ -68,6 +69,28 @@ bound; both have 256-KiB output limits and forced termination. Exceptions/stdout
 are not logged or returned. Generated configuration is re-read and validated
 before each command, including immediately before downloading.
 
+The adapter retains the actual `ChildProcess` returned by `execFile`. Preparation
+controls retain an internal `AbortSignal`, but the adapter removes that signal
+and the command timeout from Node's options and owns both termination triggers.
+Cancellation, command timeout and callback failures explicitly request the
+configured `SIGKILL`; no graceful restore shutdown is attempted. A callback,
+`AbortError`, dispatched kill or parent `exit` is not sufficient: the command
+result settles only after observed child `close`, including output-pipe closure.
+Termination/early-callback close verification has an additional 5-second bound.
+Diagnostics remain bounded and redacted; raw callback errors/output are not exposed.
+
+If close is not observed within that bound, `RESTORE_STOP_UNVERIFIED` takes
+precedence over cancellation. Preparation retains its owned staging directory
+and lock rather than deleting files a command may still be using. The existing
+lock blocks future preparation of that exact workspace, including after app
+restart. There is no automatic late-close recovery or stale-lock deletion.
+Restart alone is not proof that a surviving child has stopped: trusted manual
+resolution must first establish termination and pipe closure before removing
+the retained partial workspace/lock. Injected executors must provide the same
+close-before-settlement contract; an indefinitely pending injected executor
+can only be quarantined by the broker's bounded cleanup timeout, not safely
+forced into successful cleanup.
+
 Restore is `tool restore` with explicit local manifest and configfile, no-cache,
 disabled parallel restore and minimal verbosity. No author-controlled source,
 flag, config, cwd, executable path or environment is exposed. There is no global
@@ -106,7 +129,8 @@ Traversal, symlinks and hardlink escapes are rejected throughout the workspace.
 Preparation stages in a unique sibling directory. It verifies restore artifacts,
 relocates only the verified resolver entrypoint to its final path, atomically
 renames the directory, verifies again and writes `complete.json` last. Errors
-remove owned partial staging/publication; an existing incomplete or modified
+remove owned partial staging/publication only after verified command closure;
+`RESTORE_STOP_UNVERIFIED` retains staging and its lock. An existing incomplete or modified
 cache fails closed rather than being silently overwritten. An interrupted run
 may leave an incomplete directory or lock that requires trusted offline recovery.
 

@@ -120,6 +120,30 @@ export class ToolWindowManager {
     private rendererInitializedListener: () => void;
     private onActiveToolChanged: ((activeToolId: string | null) => void) | null = null;
     private onToolLaunched: ((instanceId: string, tool: Tool) => void | Promise<void>) | null = null;
+    private onOwnerDisposing: ((owner: { toolId: string; instanceId: string }) => Promise<void>) | null = null;
+    private ownerDisposals = new Map<string, Promise<void>>();
+
+    setOnOwnerDisposing(callback: (owner: { toolId: string; instanceId: string }) => Promise<void>): void {
+        this.onOwnerDisposing = callback;
+    }
+
+    private async disposeToolOwner(instanceId: string): Promise<void> {
+        const pending = this.ownerDisposals.get(instanceId);
+        if (pending) return pending;
+        const identity = this.loadedToolIdentities.get(instanceId);
+        if (!identity) return;
+        const disposal = Promise.resolve(this.onOwnerDisposing?.({ toolId: identity.toolId, instanceId }));
+        this.ownerDisposals.set(instanceId, disposal);
+        try {
+            await disposal;
+        } finally {
+            this.ownerDisposals.delete(instanceId);
+        }
+    }
+
+    private async drainToolOwners(): Promise<void> {
+        await Promise.all([...this.loadedToolIdentities.keys()].map((instanceId) => this.disposeToolOwner(instanceId)));
+    }
 
     constructor(
         mainWindow: BrowserWindow,
@@ -178,7 +202,11 @@ export class ToolWindowManager {
         };
         this.rendererInitializedListener = () => {
             logInfo("[ToolWindowManager] Renderer initialized signal received – cleaning up stale tool views.");
-            this.closeAllToolViews();
+            if (this.onOwnerDisposing)
+                void this.drainToolOwners()
+                    .then(() => this.closeAllToolViews())
+                    .catch((error) => logError("[ToolWindowManager] Worker cleanup failed", error));
+            else this.closeAllToolViews();
         };
         this.setupIpcHandlers();
     }
@@ -450,14 +478,45 @@ export class ToolWindowManager {
                 connectionIds: resolvedConnectionIds,
                 impersonatedUsers: resolvedConnectionIds.map(() => null),
             });
-            toolView.webContents.on("destroyed", () => {
+            toolView.webContents.on("destroyed", async () => {
                 if (this.toolViews.get(instanceId) !== toolView) return;
-                this.toolViews.delete(instanceId);
+                const cleanup = this.disposeToolOwner(instanceId);
+                this.finalizeToolClose(instanceId, toolView);
+                try {
+                    await cleanup;
+                } catch (error) {
+                    logError("[ToolWindowManager] Worker cleanup failed", error);
+                }
+            });
+
+            toolView.webContents.on("render-process-gone", async () => {
+                await this.closeTool(instanceId, { force: true });
+            });
+            let initialNavigationStarted = false;
+            toolView.webContents.on("did-start-navigation", async (_event, _url, isInPlace, isMainFrame) => {
+                if (isInPlace || !isMainFrame) return;
+                if (!initialNavigationStarted) {
+                    initialNavigationStarted = true;
+                    return;
+                }
+                const cleanup = this.disposeToolOwner(instanceId);
                 this.loadedToolIdentities.delete(instanceId);
-                this.toolInstanceNames.delete(instanceId);
-                this.toolConnectionInfo.delete(instanceId);
-                this.preventCloseTools.delete(instanceId);
-                this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
+                try {
+                    await cleanup;
+                } catch (error) {
+                    logError("[ToolWindowManager] Worker navigation cleanup failed", error);
+                }
+            });
+            toolView.webContents.on("will-redirect", async (event, _url, _isInPlace, isMainFrame) => {
+                if (!isMainFrame || !this.onOwnerDisposing) return;
+                event.preventDefault();
+                const cleanup = this.disposeToolOwner(instanceId);
+                this.loadedToolIdentities.delete(instanceId);
+                try {
+                    await cleanup;
+                } catch (error) {
+                    logError("[ToolWindowManager] Worker redirect cleanup failed", error);
+                }
             });
 
             // Get tool URL from custom protocol using the base toolId
@@ -478,6 +537,14 @@ export class ToolWindowManager {
                     } else {
                         logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId });
                     }
+                } else if (this.onOwnerDisposing) {
+                    event.preventDefault();
+                    void this.disposeToolOwner(instanceId)
+                        .then(async () => {
+                            this.loadedToolIdentities.delete(instanceId);
+                            if (!toolView.webContents.isDestroyed()) await toolView.webContents.loadURL(url);
+                        })
+                        .catch((error) => logError("[ToolWindowManager] Worker navigation cleanup failed", error));
                 }
             });
 
@@ -932,68 +999,63 @@ export class ToolWindowManager {
                 }
             }
 
-            // If this is the active tool instance, clear it from window
-            if (this.activeToolId === instanceId) {
-                this.mainWindow.setBrowserView(null);
-                this.activeToolId = null;
-                this.invokeActiveToolChangedCallback();
-            }
-
-            // Destroy the BrowserView's web contents
-            if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                // @ts-expect-error - destroy method exists but might not be in types
-                toolView.webContents.destroy();
-            }
-
-            // Remove from maps - also clean up connection info
-            this.toolViews.delete(instanceId);
-            this.loadedToolIdentities.delete(instanceId);
-            this.toolConnectionInfo.delete(instanceId);
-            this.toolInstanceNames.delete(instanceId);
-            this.preventCloseTools.delete(instanceId);
-
-            // If the tool was launched by another tool (inter-tool invocation) and it closes
-            // without calling returnData, resolve the caller's Promise with null so the caller
-            // doesn't hang indefinitely.
-            // Guard: skip resolve if resolveInvocation already handled it (auto-close path).
-            const pending = this.pendingInvocations.get(instanceId);
-            if (pending) {
-                this.pendingInvocations.delete(instanceId);
-                this.activeCallees.delete(pending.callerInstanceId);
-                if (!pending.resolved) {
-                    // Notify the caller view (if still alive)
-                    const callerView = this.toolViews.get(pending.callerInstanceId);
-                    if (callerView && !callerView.webContents.isDestroyed()) {
-                        callerView.webContents.send("toolbox:invocation-result", {
-                            calleeInstanceId: instanceId,
-                            returnData: null,
-                        });
-                    }
-                    pending.resolve(null);
-                }
-            }
-
-            // If this was the active tool, hide the banner in the renderer
-            if (this.activeToolId === null) {
-                this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
-            }
-
-            // Dispose any terminals created by this tool instance
-            this.terminalManager.closeToolInstanceTerminals(instanceId);
-
-            // Revoke filesystem access for this specific tool instance
-            this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
-
-            // Notify split layout manager so it can deactivate split if a pane tool closed
-            this.splitLayoutManager?.handleToolClosed(instanceId);
-
-            logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
+            await this.disposeToolOwner(instanceId);
+            this.finalizeToolClose(instanceId, toolView);
             return true;
         } catch (error) {
             logError(`[ToolWindowManager] Error closing tool instance ${instanceId}`, error);
 
             return false;
         }
+    }
+
+    private finalizeToolClose(instanceId: string, toolView: BrowserView): void {
+        if (this.toolViews.get(instanceId) !== toolView) return;
+        this.toolViews.delete(instanceId);
+        this.loadedToolIdentities.delete(instanceId);
+        this.toolConnectionInfo.delete(instanceId);
+        this.toolInstanceNames.delete(instanceId);
+        this.preventCloseTools.delete(instanceId);
+        const runCleanup = (action: () => void): void => {
+            try {
+                action();
+            } catch (error) {
+                logError(`[ToolWindowManager] Tool closure cleanup failed: ${instanceId}`, error);
+            }
+        };
+        if (this.activeToolId === instanceId) {
+            this.activeToolId = null;
+            runCleanup(() => this.mainWindow.setBrowserView(null));
+            runCleanup(() => this.invokeActiveToolChangedCallback());
+        }
+        runCleanup(() => this.mainWindow.removeBrowserView(toolView));
+        for (const [calleeInstanceId, pending] of this.pendingInvocations) {
+            if (calleeInstanceId !== instanceId && pending.callerInstanceId !== instanceId) continue;
+            this.pendingInvocations.delete(calleeInstanceId);
+            this.activeCallees.delete(pending.callerInstanceId);
+            if (!pending.resolved) {
+                pending.resolved = true;
+                pending.resolve(null);
+                const callerView = this.toolViews.get(pending.callerInstanceId);
+                if (callerView && !callerView.webContents.isDestroyed()) {
+                    runCleanup(() => callerView.webContents.send("toolbox:invocation-result", { calleeInstanceId, returnData: null }));
+                }
+            }
+        }
+        this.activeCallees.delete(instanceId);
+        if (this.activeToolId === null) {
+            runCleanup(() => this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false }));
+        }
+        runCleanup(() => this.terminalManager.closeToolInstanceTerminals(instanceId));
+        runCleanup(() => this.toolFilesystemAccessManager.revokeAllAccess(instanceId));
+        runCleanup(() => this.splitLayoutManager?.handleToolClosed(instanceId));
+        if (!toolView.webContents.isDestroyed()) {
+            runCleanup(() => {
+                // @ts-expect-error - destroy method exists but might not be in types
+                toolView.webContents.destroy();
+            });
+        }
+        logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
     }
 
     /**
@@ -1273,28 +1335,7 @@ export class ToolWindowManager {
         this.invokeActiveToolChangedCallback();
 
         for (const [instanceId, toolView] of this.toolViews) {
-            try {
-                if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                    // @ts-expect-error - destroy method exists but might not be in types
-                    toolView.webContents.destroy();
-                }
-            } catch (error) {
-                logError(`[ToolWindowManager] Error destroying tool view ${instanceId} during closeAllToolViews`, error);
-            }
-
-            // Dispose any terminals created by this tool instance
-            try {
-                this.terminalManager.closeToolInstanceTerminals(instanceId);
-            } catch (error) {
-                logError(`[ToolWindowManager] Error closing terminals for instance ${instanceId} during closeAllToolViews`, error);
-            }
-
-            // Revoke filesystem access for this specific tool instance
-            try {
-                this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
-            } catch (error) {
-                logError(`[ToolWindowManager] Error revoking filesystem access for instance ${instanceId} during closeAllToolViews`, error);
-            }
+            this.finalizeToolClose(instanceId, toolView);
         }
 
         this.toolViews.clear();
@@ -1432,7 +1473,11 @@ export class ToolWindowManager {
             this.mainWindow.removeListener("show", this.showListener);
         }
 
-        this.closeAllToolViews();
+        if (this.onOwnerDisposing)
+            void this.drainToolOwners()
+                .then(() => this.closeAllToolViews())
+                .catch((error) => logError("[ToolWindowManager] Worker cleanup failed", error));
+        else this.closeAllToolViews();
     }
 
     hasPreventCloseTools(): boolean {
@@ -1458,12 +1503,7 @@ export class ToolWindowManager {
             noLink: true,
         });
 
-        if (response === 1) {
-            this.preventCloseTools.clear();
-            return true;
-        }
-
-        return false;
+        return response === 1;
     }
 
     /**
