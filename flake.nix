@@ -78,6 +78,20 @@
               nodejs
               pnpm
               pkgs.makeWrapper
+              pkgs.copyDesktopItems
+            ];
+
+            desktopItems = [
+              (pkgs.makeDesktopItem {
+                name = pname;
+                desktopName = "Power Platform ToolBox";
+                comment = "Manage Microsoft Power Platform resources";
+                exec = "${pname} %U";
+                icon = pname;
+                categories = [ "Development" ];
+                mimeTypes = [ "x-scheme-handler/pptb" ];
+                startupWMClass = "powerplatform-toolbox";
+              })
             ];
 
             env = {
