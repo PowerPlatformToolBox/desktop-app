@@ -53,6 +53,9 @@ importers:
       uuid:
         specifier: ^14.0.2
         version: 14.0.2
+      vscode-jsonrpc:
+        specifier: 8.2.1
+        version: 8.2.1
     devDependencies:
       '@electron/notarize':
         specifier: ^3.1.0
@@ -117,9 +120,6 @@ importers:
       vite-plugin-electron-renderer:
         specifier: ^0.14.6
         version: 0.14.6
-      vscode-jsonrpc:
-        specifier: 8.2.1
-        version: 8.2.1
 
   packages/types:
     dependencies:

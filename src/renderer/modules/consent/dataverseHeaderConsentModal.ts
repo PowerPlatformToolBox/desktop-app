@@ -1,6 +1,6 @@
-import type { DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
-import { getModalStyles } from "../modals/sharedStyles";
-import { closeBrowserWindowModal, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import type { DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../../common/types";
+import { getModalStyles } from "../../modals/sharedStyles";
+import { closeBrowserWindowModal, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "../browserWindowModals";
 
 const MODAL_ID = "dataverse-header-consent-browser-modal";
 const DECISION_CHANNEL = "dataverse-header-consent:decision";

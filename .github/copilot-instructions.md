@@ -268,7 +268,12 @@ src/
     │   ├── notifications.ts             # Notification UI
     │   ├── autoUpdateManagement.ts      # Auto-update UI
     │   ├── sidebarManagement.ts         # Sidebar navigation
-    │   └── cspExceptionModal.ts         # CSP exception UI
+    │   └── consent/                     # Consent prompts and review UI
+    │       ├── cspExceptionModal.ts
+    │       ├── dataverseHeaderConsentModal.ts
+    │       ├── nativeWorkerConsentModal.ts
+    │       ├── sentryConsentModal.ts
+    │       └── consentReviewManagement.ts
     ├── styles/                          # Modular SCSS stylesheets
     │   ├── _variables.scss              # Sass variables
     │   ├── _mixins.scss                 # Sass mixins

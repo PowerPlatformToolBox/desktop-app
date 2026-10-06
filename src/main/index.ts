@@ -16,6 +16,7 @@ import {
     FILESYSTEM_CHANNELS,
     MCP_SERVER_CHANNELS,
     MODAL_WINDOW_CHANNELS,
+    NATIVE_WORKER_CONSENT_CHANNELS,
     POWERPLATFORM_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
@@ -37,6 +38,7 @@ import {
     ModalWindowMessagePayload,
     ModalWindowOptions,
     NativeContextMenuRequest,
+    NativeWorkerConsentDecision,
     TelemetryConsentChoice,
     ToolBoxEvent,
     ToolConcernReportSubmission,
@@ -51,6 +53,7 @@ import { DataverseHeaderConsentManager } from "./managers/dataverseHeaderConsent
 import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
+import { NativeWorkerConsentManager } from "./managers/nativeWorkerConsentManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
@@ -68,6 +71,8 @@ import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 import { mergeDataverseHeaders } from "./utilities/dataverseBatch";
+import { authorizeFilesystemCaller } from "./utilities/filesystemAuthorization";
+import { resolveNativeWorkerIdentity } from "./utilities/nativeWorkerIdentity";
 import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
 
 // Constants
@@ -111,6 +116,7 @@ class ToolBoxApp {
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
     private dataverseHeaderConsentManager: DataverseHeaderConsentManager;
+    private nativeWorkerConsentManager: NativeWorkerConsentManager;
     private powerPlatformManager: PowerPlatformManager;
     private toolFilesystemAccessManager: ToolFileSystemAccessManager;
     private mcpServerManager: McpServerManager;
@@ -164,6 +170,18 @@ class ToolBoxApp {
                 this.settingsManager,
             );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
+            this.nativeWorkerConsentManager = new NativeWorkerConsentManager(
+                this.settingsManager,
+                () => this.mainWindow?.webContents ?? null,
+                (sender, workerId) => {
+                    const identity = this.toolWindowManager?.getLoadedToolIdentityByWebContents(sender.id);
+                    if (!identity) return null;
+                    const tool = this.toolManager.getTool(identity.toolId);
+                    const manifest = this.toolManager.getInstalledManifestSync(identity.toolId);
+                    const toolPath = tool?.localPath ?? manifest?.installPath;
+                    return resolveNativeWorkerIdentity(identity, tool, toolPath, workerId);
+                },
+            );
             this.protocolHandlerManager = new ProtocolHandlerManager();
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
@@ -521,6 +539,9 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_HEADER_CONSENT_CHANNELS.RESPOND);
         ipcMain.removeHandler(DATAVERSE_HEADER_CONSENT_CHANNELS.GET_ALL);
         ipcMain.removeHandler(DATAVERSE_HEADER_CONSENT_CHANNELS.REVOKE);
+        ipcMain.removeHandler(NATIVE_WORKER_CONSENT_CHANNELS.GET_ALL);
+        ipcMain.removeHandler(NATIVE_WORKER_CONSENT_CHANNELS.REVOKE);
+        ipcMain.removeHandler(NATIVE_WORKER_CONSENT_CHANNELS.RESPOND);
 
         // Power Platform handlers
         ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
@@ -1394,6 +1415,19 @@ class ToolBoxApp {
             return this.settingsManager.getDataverseHeaderConsents();
         });
 
+        ipcMain.handle(NATIVE_WORKER_CONSENT_CHANNELS.GET_ALL, (event) => {
+            if (event.sender !== this.mainWindow?.webContents) throw new Error("Native worker consent is restricted to the main application");
+            return this.nativeWorkerConsentManager.getAll(event.sender);
+        });
+        ipcMain.handle(NATIVE_WORKER_CONSENT_CHANNELS.REVOKE, (event, fingerprint: string) => {
+            if (event.sender !== this.mainWindow?.webContents) throw new Error("Native worker consent is restricted to the main application");
+            this.nativeWorkerConsentManager.revoke(event.sender, fingerprint);
+        });
+        ipcMain.handle(NATIVE_WORKER_CONSENT_CHANNELS.RESPOND, (event, requestId: string, decision: NativeWorkerConsentDecision) => {
+            if (event.sender !== this.mainWindow?.webContents) throw new Error("Native worker consent is restricted to the main application");
+            return this.nativeWorkerConsentManager.respond(event.sender, requestId, decision);
+        });
+
         ipcMain.handle(DATAVERSE_HEADER_CONSENT_CHANNELS.REVOKE, (event, toolId: string) => {
             if (event.sender.id !== this.mainWindow?.webContents.id) throw new Error("Dataverse consent revocation is restricted to the main application");
             this.settingsManager.revokeDataverseHeaderConsent(toolId);
@@ -1728,89 +1762,64 @@ class ToolBoxApp {
 
         // Filesystem handlers with access control
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (event, filePath: string) => {
-            // Validate access if caller is a tool (null instanceId means main window - allow all)
-            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
-            if (instanceId) {
-                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
-            }
+            authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
             const { readText } = await import("./utilities/filesystem.js");
             return await readText(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (event, filePath: string) => {
-            // Validate access if caller is a tool
-            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
-            if (instanceId) {
-                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
-            }
+            authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
             const { readBinary } = await import("./utilities/filesystem.js");
             return await readBinary(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (event, filePath: string) => {
-            // Validate access if caller is a tool
-            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
-            if (instanceId) {
-                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
-            }
+            authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
             const { exists } = await import("./utilities/filesystem.js");
             return await exists(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (event, filePath: string) => {
-            // Validate access if caller is a tool
-            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
-            if (instanceId) {
-                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
-            }
+            authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
             const { stat } = await import("./utilities/filesystem.js");
             return await stat(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (event, dirPath: string) => {
-            // Validate access if caller is a tool
-            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
-            if (instanceId) {
-                this.toolFilesystemAccessManager.validateAccess(instanceId, dirPath);
-            }
+            authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, dirPath);
 
             const { readDirectory } = await import("./utilities/filesystem.js");
             return await readDirectory(dirPath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (event, filePath: string, content: string) => {
-            // Validate access if caller is a tool
-            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
-            if (instanceId) {
-                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
-            }
+            authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
             const { writeText } = await import("./utilities/filesystem.js");
             return await writeText(filePath, content);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (event, dirPath: string) => {
-            // Validate access if caller is a tool
-            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
-            if (instanceId) {
-                this.toolFilesystemAccessManager.validateAccess(instanceId, dirPath);
-            }
+            authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, dirPath);
 
             const { createDirectory } = await import("./utilities/filesystem.js");
             return await createDirectory(dirPath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (event, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
+            const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
             const { saveFile } = await import("./utilities/filesystem.js");
             const selectedPath = await saveFile(defaultPath, content, filters);
 
             // Grant access to the selected path if a tool called this and user selected a file
             if (selectedPath) {
-                const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+                if (authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager) !== instanceId) {
+                    throw new Error("Filesystem caller changed while selecting a path");
+                }
                 if (instanceId) {
                     this.toolFilesystemAccessManager.grantAccess(instanceId, selectedPath);
                 }
@@ -1820,12 +1829,15 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (event, options) => {
+            const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
             const { selectPath } = await import("./utilities/filesystem.js");
             const selectedPath = await selectPath(options);
 
             // Grant access to the selected path if a tool called this and user selected something
             if (selectedPath) {
-                const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+                if (authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager) !== instanceId) {
+                    throw new Error("Filesystem caller changed while selecting a path");
+                }
                 if (instanceId) {
                     this.toolFilesystemAccessManager.grantAccess(instanceId, selectedPath);
                 }
@@ -3449,6 +3461,7 @@ class ToolBoxApp {
 
         this.mainWindow.on("closed", () => {
             this.dataverseHeaderConsentManager.dispose();
+            this.nativeWorkerConsentManager.dispose();
             this.toolWindowManager?.destroy();
             this.toolWindowManager = null;
             this.notificationWindowManager = null;

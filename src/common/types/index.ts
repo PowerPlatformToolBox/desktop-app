@@ -7,6 +7,7 @@
 export * from "./common";
 
 // Tool-related types
+export * from "./nativeWorkerConsent";
 export * from "./tool";
 
 // Connection-related types

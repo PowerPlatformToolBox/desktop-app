@@ -7,6 +7,7 @@ import { addConnectionSlotsBreadcrumb, captureException } from "../../common/sen
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import type { DataverseUser } from "../../common/types/dataverse";
 import { ToolBoxEvent } from "../../common/types/events";
+import type { LoadedToolIdentity } from "../utilities/nativeWorkerIdentity";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
@@ -61,6 +62,7 @@ export class ToolWindowManager {
     private toolConnectionInfo: Map<string, { connectionIds: ConnectionIds; impersonatedUsers: Array<DataverseUser | null> }> = new Map();
     /** Maps instanceId → tool display name (used for the "Return to [CallerToolName]" banner). */
     private toolInstanceNames: Map<string, string> = new Map();
+    private loadedToolIdentities = new Map<string, LoadedToolIdentity>();
     /**
      * Pending invocation contexts – created when one tool launches another with prefill data.
      * The entry is keyed by the *callee* instanceId and holds:
@@ -392,6 +394,7 @@ export class ToolWindowManager {
         prefillData?: Record<string, unknown>,
         connectionIds?: ConnectionIds,
     ): Promise<boolean> {
+        let launchingView: BrowserView | null = null;
         try {
             const connectionSlots = resolveConnectionSlots(tool.features);
             const resolvedConnectionIds = (connectionIds ?? legacyConnectionIds(primaryConnectionId, secondaryConnectionId)).slice(0, connectionSlots.max);
@@ -415,6 +418,14 @@ export class ToolWindowManager {
                 return true;
             }
 
+            const sourcePath = this.browserviewProtocolManager.getToolBaseDirectory(tool);
+            const loadedIdentity: LoadedToolIdentity = Object.freeze({
+                toolId: tool.id,
+                toolName: tool.name,
+                toolVersion: tool.version,
+                sourcePath: sourcePath ? path.resolve(sourcePath) : null,
+            });
+
             // Create BrowserView for the tool
             const toolView = new BrowserView({
                 webPreferences: {
@@ -430,6 +441,23 @@ export class ToolWindowManager {
                     // Allow tools to load external resources
                     allowRunningInsecureContent: false,
                 },
+            });
+            launchingView = toolView;
+            this.toolViews.set(instanceId, toolView);
+            this.loadedToolIdentities.set(instanceId, loadedIdentity);
+            this.toolInstanceNames.set(instanceId, tool.name);
+            this.toolConnectionInfo.set(instanceId, {
+                connectionIds: resolvedConnectionIds,
+                impersonatedUsers: resolvedConnectionIds.map(() => null),
+            });
+            toolView.webContents.on("destroyed", () => {
+                if (this.toolViews.get(instanceId) !== toolView) return;
+                this.toolViews.delete(instanceId);
+                this.loadedToolIdentities.delete(instanceId);
+                this.toolInstanceNames.delete(instanceId);
+                this.toolConnectionInfo.delete(instanceId);
+                this.preventCloseTools.delete(instanceId);
+                this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
             });
 
             // Get tool URL from custom protocol using the base toolId
@@ -469,14 +497,12 @@ export class ToolWindowManager {
 
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
+            if (toolView.webContents.isDestroyed() || this.toolViews.get(instanceId) !== toolView) {
+                throw new Error("Tool instance closed while loading");
+            }
 
             // Apply current zoom level so the new tool matches the main window zoom
             toolView.webContents.setZoomLevel(this.mainWindow.webContents.getZoomLevel());
-
-            // Store the view with instanceId as key
-            this.toolViews.set(instanceId, toolView);
-            // Store the tool display name for the "Return to [CallerToolName]" banner
-            this.toolInstanceNames.set(instanceId, tool.name);
 
             // Get connection information for this tool instance
             // Connections are passed from frontend (per-instance), not retrieved from settings
@@ -530,12 +556,6 @@ export class ToolWindowManager {
             toolView.webContents.send("toolbox:context", toolContext);
             logInfo(`[ToolWindowManager] Sent tool context for ${instanceId} with connection: ${connectionUrl ? "yes" : "no"}, secondary: ${secondaryConnectionUrl ? "yes" : "no"}`);
 
-            // Store connection info for this instance so IPC handlers can use it
-            this.toolConnectionInfo.set(instanceId, {
-                connectionIds: resolvedConnectionIds,
-                impersonatedUsers: resolvedConnectionIds.map(() => null),
-            });
-
             // Show this tool instance
             await this.switchToTool(instanceId);
 
@@ -561,6 +581,9 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
+            if (launchingView && this.toolViews.get(instanceId) === launchingView) {
+                await this.closeTool(instanceId, { force: true });
+            }
             logError(`[ToolWindowManager] Error launching tool instance ${instanceId}`, error);
             captureException(error instanceof Error ? error : new Error(String(error)), {
                 tags: {
@@ -924,6 +947,7 @@ export class ToolWindowManager {
 
             // Remove from maps - also clean up connection info
             this.toolViews.delete(instanceId);
+            this.loadedToolIdentities.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
             this.toolInstanceNames.delete(instanceId);
             this.preventCloseTools.delete(instanceId);
@@ -1045,16 +1069,15 @@ export class ToolWindowManager {
      * Get the instanceId for a tool instance by its WebContents
      * This is used for per-instance operations like filesystem access control
      * @param webContentsId The ID of the WebContents making the request
-     * @returns The instanceId or null if not found (null means it's from main window, not a tool)
+     * @returns The instanceId or null if no live tool owns the sender
      */
     getInstanceIdByWebContents(webContentsId: number): string | null {
         // Find the instance that owns this WebContents
         for (const [instanceId, toolView] of this.toolViews.entries()) {
-            if (toolView.webContents.id === webContentsId) {
+            if (toolView.webContents.id === webContentsId && !toolView.webContents.isDestroyed()) {
                 return instanceId;
             }
         }
-        // Not a tool window - likely the main window
         return null;
     }
 
@@ -1080,6 +1103,12 @@ export class ToolWindowManager {
             toolId: instanceId.split("-").slice(0, -2).join("-"),
             toolName: this.toolInstanceNames.get(instanceId) ?? "Unknown tool",
         };
+    }
+
+    getLoadedToolIdentityByWebContents(webContentsId: number): LoadedToolIdentity | null {
+        const instanceId = this.getInstanceIdByWebContents(webContentsId);
+        if (!instanceId || this.toolViews.get(instanceId)?.webContents.isDestroyed()) return null;
+        return this.loadedToolIdentities.get(instanceId) ?? null;
     }
 
     /**
@@ -1269,6 +1298,7 @@ export class ToolWindowManager {
         }
 
         this.toolViews.clear();
+        this.loadedToolIdentities.clear();
         this.toolConnectionInfo.clear();
         this.preventCloseTools.clear();
         logInfo("[ToolWindowManager] All stale tool views closed and state reset.");

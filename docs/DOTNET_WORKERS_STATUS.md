@@ -2,8 +2,9 @@
 
 This is the implementation tracker for issue #493. PR numbers below identify
 planned delivery slices, not opened GitHub pull requests. PR0 and PR1, including
-the approved platform and transport contract revision, and PR2 are implemented and verified.
-No production worker API or native execution permission is enabled by these slices.
+the approved platform and transport contract revision, and PR2 through PR5 are implemented and verified.
+No public worker launch API or production worker startup path is enabled. Native
+consent administration is main-window-only; broker integration remains PR6.
 
 ## Status
 
@@ -12,9 +13,9 @@ No production worker API or native execution permission is enabled by these slic
 | PR0   | Completed (bounded probe) | None               | Real SQL 4 CDS DLL, reverse callback, concurrent requests, cancellation, progress, errors and EOF exit tested. See the [probe](DOTNET_WORKERS_PR0.md) for compatibility limits.                           |
 | PR1   | Completed                 | PR0                | Platform aliases/all and implicit transport verified. Public manifest types, registry/npm/local loading and persisted metadata remain metadata-only, with strict validation and canonical Major default.  |
 | PR2   | Completed                 | PR1                | Installed SDK/runtime discovery with deterministic .NET 10 SDK selection and declared runtime policy resolution; missing SDK, runtime-only, all four policies and incompatible architecture/config tests. |
-| PR3   | Not started               | PR1, PR2           | Pinned NuGet preparation, controlled source/manifest, atomic cache and rollback; concurrency, version/command verification and offline tests.                                                             |
-| PR4   | Not started               | PR0, PR1           | Internal process/transport manager; framing, backpressure, bounded queues, early messages, malformed input and shutdown tests. No public launch path.                                                     |
-| PR5   | Not started               | PR1                | Trusted native-execution consent and review/revoke UI; deny, fingerprint changes, duplicate prompts and self-approval rejection tests.                                                                    |
+| PR3   | Completed                 | PR1, PR2           | Pinned NuGet preparation, controlled source/manifest, atomic cache and rollback; concurrency, version/command verification and offline tests.                                                             |
+| PR4   | Completed                 | PR0, PR1           | Internal process/transport manager; framing, backpressure, bounded queues, early messages, malformed input and shutdown tests. No public launch path.                                                     |
+| PR5   | Completed                 | PR1                | Trusted native-execution consent and review/revoke UI; deny, fingerprint changes, duplicate prompts and self-approval rejection tests.                                                                    |
 | PR6   | Not started               | PR2, PR3, PR4, PR5 | Internal broker, sender-derived ownership, targeted events and full lifecycle; foreign-handle, denial, close/crash/revoke/update/uninstall/quit tests.                                                    |
 | PR7   | Not started               | PR6                | Public preload API, browser-compatible RPC adapter and author example; Electron callback flow, disposal, SDK guidance and public-type tests.                                                              |
 | PR8   | Not started               | PR7                | .NET 10 and declared platform qualification, packaged-app checks, migration docs and coordinated release of app/types/validator.                                                                          |
@@ -225,10 +226,66 @@ that the revised contract passes validation.
   qualification remain PR8; alternate host roots/system drives and musl are not
   promised. Diagnostic discovery does not establish worker execution permission.
 
+## PR3 Evidence
+
+- Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr3.md)
+  and [preparation contract](DOTNET_TOOL_PREPARATION.md).
+- 91 focused tests passed: approval-before-I/O, pinned SDK/config/source, exact
+  package/command/runtime verification, concurrent preparation, filesystem locks,
+  rollback, cleanup failures, integrity checks and warm offline reuse.
+- Runtime-policy review fixes reject nested framework overrides, conflicting
+  legacy properties and adjacent development runtimeconfigs, on cold and warm paths.
+- Default restore is internal and approval-gated; no production caller is wired.
+  Real .NET 10/NuGet restore was not executed because SDK 10 is absent. Tests use
+  injected commands and real temporary filesystem artifacts. Native qualification
+  and actual downloaded-package compatibility remain PR8 gates.
+
+## PR4 Evidence
+
+- Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr4.md)
+  and [transport contract](WORKER_PROCESS_TRANSPORT.md).
+- 111 focused fake-child tests passed: owner isolation, initialize handshake,
+  UTF-8 framing/limits, backpressure, ordered delivery, early subscriptions,
+  error/exit/EOF/timeout behavior and bounded process-tree cleanup.
+- Review regressions cover sparse-array rejection before JSON serialization and
+  observed-exit rechecking immediately before deferred tree termination.
+- vscode-jsonrpc 8.2.1 moved to production dependencies. No app startup, IPC or
+  public API constructs this manager. OS-native tree-kill behavior and packaged
+  transport execution remain PR8 qualification; fixtures do not prove OS sandboxing.
+
+## PR5 Evidence
+
+- Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr5.md)
+  and [consent contract](NATIVE_WORKER_CONSENT.md).
+- 62 focused tests passed for consent, live identity and filesystem boundary:
+  main-only authority, canonical fingerprints, persistence, denial, deduplication,
+  revocation races, timeout/disposal and immutable launch identity.
+- Security fixes bind consent to the loaded tool version/source and register
+  ownership before page execution. All filesystem channels reject unknown senders;
+  failed early loads clean up ownership/grants. Follow-up security review found
+  no remaining blockers in these boundaries.
+- Five Chromium/Playwright tests passed against the actual consent module and
+  built styles: focus/Escape, allow-once/save failure, review/revoke, narrow mobile
+  and desktop dark theme. Both screenshots inspected for framing and overflow.
+  Consent API responses are mocked in this browser fixture; complete packaged
+  Electron workflow and OS-platform checks remain later gates.
+
+## Combined PR3-PR5 Verification
+
+- Fresh serial no-cache Jest run: 52 suites passed; 971 tests passed, five opt-in
+  PR0 tests skipped. The editor runner's cached renderer-global failure disappeared
+  in the fresh process without modifying the unrelated test or its declarations.
+- Desktop typecheck, lint and production build (renderer/main/preloads/CLI) passed.
+  Existing parser/Vite warnings remain. Files formatted with repository settings;
+  diagnostics and git diff --check passed. No .NET runtime or SDK was acquired;
+  Chromium was installed solely to run browser UI validation.
+- No Git commits/branches, worker/public launch API or PR6 implementation.
+
 ## Next Checkpoint
 
-PR1 and PR2 acceptance gates passed. PR3 is ready for its own checkpoint;
-PR4 and PR5 remain independently available after PR1.
+PR3, PR4 and PR5 acceptance gates passed. PR6 is ready for its own checkpoint:
+wire the consent, discovery, preparation and transport contracts into an internal
+sender-authorized broker with revocation and application lifecycle integration.
 Do not claim a complete Dataverse proxy or cross-platform compatibility from these
 metadata changes. Retain the organization-locale
 fixture as the cheap full-duplex regression test. Carry the remaining real-query
