@@ -22,6 +22,9 @@
       packageJson = builtins.fromJSON (builtins.readFile ./package.json);
       majorOf = spec: builtins.head (builtins.match "[^0-9]*([0-9]+).*" spec);
       electronAttr = "electron_${majorOf packageJson.devDependencies.electron}";
+      electronFor =
+        pkgs:
+        pkgs.${electronAttr} or (throw "nixpkgs has no ${electronAttr}; run `nix flake update` to pick up a newer nixpkgs");
       pnpmAttr = "pnpm_${majorOf packageJson.packageManager}";
 
       # The pinned Electron major is end-of-life in nixpkgs, so it is marked insecure
@@ -31,7 +34,7 @@
           inherit system;
           overlays = [ pnpm2nix.overlays.default ];
           config.permittedInsecurePackages = [
-            "electron-${nixpkgs.legacyPackages.${system}.${electronAttr}.version}"
+            "electron-${(electronFor nixpkgs.legacyPackages.${system}).version}"
           ];
         };
     in
@@ -40,7 +43,7 @@
         system:
         let
           pkgs = pkgsFor system;
-          electron = pkgs.${electronAttr};
+          electron = electronFor pkgs;
           nodejs = pkgs.nodejs;
           pnpm = pnpm2nix.inputs.nixpkgs.legacyPackages.${system}.pnpm;
           pname = "power-platform-toolbox";
