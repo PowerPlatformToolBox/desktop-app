@@ -579,9 +579,7 @@ function getConnectionSlotsModalControllerScript(
 
     const rail = document.getElementById("connection-slot-rail");
     const list = document.getElementById("slot-connection-list");
-    const activeLabel = document.getElementById("active-connection-slot-label");
     const confirmButton = document.getElementById("confirm-multi-connection-btn");
-    const addButton = document.getElementById("add-connection-slot-btn");
     const duplicateWarning = document.getElementById("slot-duplicate-warning");
     const searchInput = document.getElementById("multi-connection-search");
     const searchClearButton = document.getElementById("multi-connection-search-clear");
@@ -600,6 +598,7 @@ function getConnectionSlotsModalControllerScript(
     let allConnections = [];
     const impersonateSlots = new Set();
     const pendingConnectionIds = new Set();
+    const pendingSlotByConnectionId = new Map();
     const DEFAULT_SORT_OPTION = "last-used";
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION;
@@ -619,9 +618,9 @@ ${sortingUtilities}
                 '</span>';
             return '<div class="connection-slot-row" data-slot-row="' + index + '">' +
                 '<button type="button" class="connection-slot-button" data-slot-index="' + index + '" aria-pressed="' + (activeSlot === index) + '">' +
-                '<span class="connection-slot-number">' + (index + 1) + '</span><span class="connection-slot-copy"><strong>Connection ' + (index + 1) + '</strong><small>' + escapeHtml(label) + '</small></span>' +
+                '<span class="connection-slot-number">' + (index + 1) + '</span><span class="connection-slot-copy"><small title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</small></span>' +
                 slotIndicators + '<span class="connection-badge ' + (required ? "required" : "optional") + '">' + (required ? "Required" : "Optional") + '</span></button>' +
-                (required ? "" : '<button type="button" class="connection-slot-clear" data-clear-slot="' + index + '" aria-label="Clear connection ' + (index + 1) + '" title="Clear slot">&times;</button>') + '</div>';
+                (required ? "" : '<button type="button" class="connection-slot-clear" data-clear-slot="' + index + '" aria-label="Remove connection slot ' + (index + 1) + '" title="Remove slot">&times;</button>') + '</div>';
         }).join("");
         const existingAdd = document.getElementById("add-connection-slot-btn");
         rail.innerHTML = rows + '<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ' + (slotIds.length >= MAX_CONNECTIONS ? "disabled" : "") + '>+ Add connection</button>';
@@ -633,10 +632,25 @@ ${sortingUtilities}
         }));
         rail.querySelectorAll("[data-clear-slot]").forEach((button) => button.addEventListener("click", () => {
             const index = Number(button.getAttribute("data-clear-slot"));
-            slotIds[index] = null;
-            connectedSlots.delete(index);
-            impersonateSlots.delete(index);
-            activeSlot = index;
+            if (index < MIN_CONNECTIONS || index >= slotIds.length) return;
+            slotIds.splice(index, 1);
+            const remapSlotSet = (slots) => new Set([...slots].flatMap((slot) => slot === index ? [] : [slot > index ? slot - 1 : slot]));
+            const remappedConnectedSlots = remapSlotSet(connectedSlots);
+            connectedSlots.clear();
+            remappedConnectedSlots.forEach((slot) => connectedSlots.add(slot));
+            const remappedImpersonateSlots = remapSlotSet(impersonateSlots);
+            impersonateSlots.clear();
+            remappedImpersonateSlots.forEach((slot) => impersonateSlots.add(slot));
+            for (const [connectionId, slot] of pendingSlotByConnectionId) {
+                if (slot === index) {
+                    pendingSlotByConnectionId.delete(connectionId);
+                    pendingConnectionIds.delete(connectionId);
+                } else if (slot > index) {
+                    pendingSlotByConnectionId.set(connectionId, slot - 1);
+                }
+            }
+            if (activeSlot > index) activeSlot -= 1;
+            else if (activeSlot === index) activeSlot = Math.max(0, index - 1);
             updateState();
             renderRail();
             renderConnections();
@@ -702,6 +716,7 @@ ${sortingUtilities}
                 const connectionId = button.getAttribute("data-connection-id");
                 if (!connectionId || pendingConnectionIds.has(connectionId)) return;
                 pendingConnectionIds.add(connectionId);
+                pendingSlotByConnectionId.set(connectionId, activeSlot);
                 renderConnections();
                 modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
             });
@@ -710,6 +725,7 @@ ${sortingUtilities}
             const connectionId = item.getAttribute("data-connection-id");
             if (!connectionId || pendingConnectionIds.has(connectionId)) return;
             pendingConnectionIds.add(connectionId);
+            pendingSlotByConnectionId.set(connectionId, activeSlot);
             renderConnections();
             modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
         }));
@@ -721,7 +737,6 @@ ${sortingUtilities}
     };
 
     const updateState = () => {
-        if (activeLabel) activeLabel.textContent = "Connection " + (activeSlot + 1);
         if (duplicateWarning) {
             const assignedId = slotIds[activeSlot];
             duplicateWarning.hidden = !assignedId || !slotIds.some((id, index) => index !== activeSlot && id === assignedId);
@@ -760,10 +775,10 @@ ${sortingUtilities}
             updateState();
         }
         if (payload?.channel === CHANNELS.connectReady && payload.data?.success && payload.data?.connectionId) {
-            const match = /^slot-(\\d+)$/.exec(payload.data.listType || "");
-            if (!match) return;
+            const slotIndex = pendingSlotByConnectionId.get(payload.data.connectionId);
+            if (slotIndex === undefined) return;
+            pendingSlotByConnectionId.delete(payload.data.connectionId);
             pendingConnectionIds.delete(payload.data.connectionId);
-            const slotIndex = Number(match[1]);
             slotIds[slotIndex] = payload.data.connectionId;
             connectedSlots.add(slotIndex);
             activeSlot = slotIndex;
@@ -772,6 +787,7 @@ ${sortingUtilities}
             updateState();
         }
         if (payload?.channel === CHANNELS.connectReady && payload.data?.success === false) {
+            pendingSlotByConnectionId.delete(payload.data.connectionId);
             pendingConnectionIds.delete(payload.data.connectionId);
             renderConnections();
         }

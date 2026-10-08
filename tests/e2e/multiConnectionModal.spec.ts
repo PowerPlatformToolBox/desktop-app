@@ -87,9 +87,25 @@ test.describe("Multi-connection selection modal", () => {
 
         await expect(modal.locator("[data-slot-row]")).toHaveCount(2);
         await expect(modal.locator(".connection-badge.required")).toHaveCount(2);
+        await expect(modal.locator(".slot-connections-pane #multi-connection-search")).toHaveCount(1);
+        await expect(modal.locator("#active-connection-slot-label")).toHaveCount(0);
+        await expect(modal.locator(".connection-slot-copy strong")).toHaveCount(0);
         await expect(modal.locator("#slot-connection-list .connection-item")).toHaveCount(4);
         await expect(modal.locator("#slot-connection-list")).toContainText("E2E Development");
         await expect(modal.locator("#slot-connection-list")).toContainText("E2E Test");
+        const scrollMetrics = await modal.evaluate(() => {
+            const body = document.querySelector(".modal-body")!;
+            const list = document.querySelector("#slot-connection-list")!;
+            list.querySelectorAll<HTMLElement>(".connection-item").forEach((item) => (item.style.minHeight = "220px"));
+            return {
+                bodyClientHeight: body.clientHeight,
+                bodyScrollHeight: body.scrollHeight,
+                listClientHeight: list.clientHeight,
+                listScrollHeight: list.scrollHeight,
+            };
+        });
+        expect(scrollMetrics.listScrollHeight).toBeGreaterThan(scrollMetrics.listClientHeight);
+        expect(scrollMetrics.bodyScrollHeight).toBeLessThanOrEqual(scrollMetrics.bodyClientHeight);
         await expect(modal.locator("#confirm-multi-connection-btn")).toBeDisabled();
         await modal.locator(".slot-impersonate-checkbox").first().check();
         const impersonationIcon = modal.locator('[data-slot-row="0"] .connection-slot-impersonation-icon');
@@ -113,9 +129,11 @@ test.describe("Multi-connection selection modal", () => {
         await expect(modal.locator("#add-connection-slot-btn")).toBeDisabled();
         await expect(modal.locator("#confirm-multi-connection-btn")).toBeDisabled();
         await modal.locator('[data-clear-slot="1"]').click();
-        await expect(modal.locator('[data-slot-row="1"] .connection-slot-copy small')).toHaveText("Not selected");
+        await expect(modal.locator("[data-slot-row]")).toHaveCount(1);
+        await expect(modal.locator('[data-slot-row="1"]')).toHaveCount(0);
+        await expect(modal.locator("#add-connection-slot-btn")).toBeEnabled();
+        await modal.locator("#add-connection-slot-btn").click();
         await expect(modal.locator("[data-slot-row]")).toHaveCount(2);
-        await expect(modal.locator("#add-connection-slot-btn")).toBeDisabled();
         await modal.locator("#cancel-select-multi-connection-btn").click();
     });
 
