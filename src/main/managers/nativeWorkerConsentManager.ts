@@ -1,17 +1,18 @@
 import { createHash, randomUUID } from "crypto";
 import type { WebContents } from "electron";
 import { EventEmitter } from "events";
+import { isAbsolute, resolve } from "path";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../common/ipc/channels";
+import { DOTNET_NUGET_ORG_SOURCE, type DotNetPackageSource } from "../../common/types/dotnetTool";
 import type { NativeWorkerConsentDecision, NativeWorkerConsentDescriptor, NativeWorkerConsentRecord, NativeWorkerConsentRequest, WorkerDeclaration } from "../../common/types";
 import { normalizeWorkerMetadata } from "../utilities/workerMetadata";
-
-const SOURCE = "https://api.nuget.org/v3/index.json" as const;
 
 export interface NativeWorkerIdentity {
     toolId: string;
     toolName: string;
     toolVersion: string;
     declaration: WorkerDeclaration;
+    source?: DotNetPackageSource;
 }
 
 export interface NativeWorkerConsentStore {
@@ -50,16 +51,33 @@ export function nativeWorkerConsentSnapshot(identity: NativeWorkerIdentity, work
         },
         platforms: [...normalized.platforms].sort(),
     };
+    const sourceValue = identity.source ?? { kind: "nuget.org" as const, url: DOTNET_NUGET_ORG_SOURCE };
+    let source: DotNetPackageSource;
+    if (sourceValue.kind === "nuget.org" && Object.keys(sourceValue).sort().join(",") === "kind,url" && sourceValue.url === DOTNET_NUGET_ORG_SOURCE) {
+        source = { kind: "nuget.org", url: DOTNET_NUGET_ORG_SOURCE };
+    } else if (
+        sourceValue.kind === "local-feed" &&
+        Object.keys(sourceValue).sort().join(",") === "kind,packageSha512,path" &&
+        typeof sourceValue.path === "string" &&
+        isAbsolute(sourceValue.path) &&
+        resolve(sourceValue.path) === sourceValue.path &&
+        /^[A-Za-z0-9+/]{86}==$/.test(sourceValue.packageSha512)
+    ) {
+        source = { kind: "local-feed", path: sourceValue.path, packageSha512: sourceValue.packageSha512 };
+    } else {
+        throw new Error("Invalid native worker package source");
+    }
     Object.freeze(declaration.dotnet);
     Object.freeze(declaration.platforms);
     Object.freeze(declaration);
+    Object.freeze(source);
     return Object.freeze({
         toolId: identity.toolId,
         toolName: identity.toolName,
         toolVersion: identity.toolVersion,
         workerId,
         declaration,
-        source: SOURCE,
+        source,
         protocolVersion: 1,
         platformMatrixVersion: 1,
     });
@@ -111,8 +129,7 @@ export class NativeWorkerConsentManager extends EventEmitter {
         const valid = new Map<string, NativeWorkerConsentRecord>();
         for (const row of rows) {
             try {
-                if (!row || row.source !== SOURCE || row.protocolVersion !== 1 || row.platformMatrixVersion !== 1 || typeof row.approvedAt !== "string" || !Number.isFinite(Date.parse(row.approvedAt)))
-                    continue;
+                if (!row || row.protocolVersion !== 1 || row.platformMatrixVersion !== 1 || typeof row.approvedAt !== "string" || !Number.isFinite(Date.parse(row.approvedAt))) continue;
                 const snapshot = nativeWorkerConsentSnapshot({ ...row, declaration: row.declaration }, row.workerId);
                 const fingerprint = nativeWorkerConsentFingerprint(snapshot);
                 if (row.fingerprint !== fingerprint) continue;

@@ -1,10 +1,13 @@
 import { execFile } from "child_process";
 import { createHash, randomUUID } from "crypto";
+import { app } from "electron";
 import * as filesystem from "fs/promises";
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "path";
 import { validateWorkers } from "../../../packages/validation/src/validate";
 import type { DotNetPreparedTool, DotNetToolPreparationErrorCode, DotNetToolPreparationRequest } from "../../common/types/dotnetTool";
+import { DOTNET_NUGET_ORG_SOURCE } from "../../common/types/dotnetTool";
 import type { DotNetDiscoveryResult, DotNetDiscoverySelection } from "../../common/types/dotnetWorker";
+import { resolveDotNetLocalFeedPath, resolveDotNetPackageSource } from "../utilities/dotnetLocalFeed";
 import {
     dotNetHasControlCharacters,
     dotNetHash,
@@ -42,6 +45,8 @@ export interface DotNetToolResolverEntry {
 export interface DotNetToolPreparationDependencies {
     approve(request: DotNetToolPreparationRequest): Promise<boolean>;
     rediscover?(request: DotNetToolPreparationRequest): Promise<DotNetDiscoveryResult>;
+    localFeedPath?(): string | null;
+    isDeveloperBuild?: boolean;
     fs?: typeof filesystem;
     exec?(host: string, args: readonly string[], options: DotNetToolExecOptions): Promise<string>;
     inventory?(resolverPath: string, contents: string): Promise<DotNetToolResolverEntry[]>;
@@ -68,8 +73,15 @@ export class DotNetToolPreparationError extends Error {
     }
 }
 
-const nuGetConfig =
-    '<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" /></packageSources><fallbackPackageFolders><clear /></fallbackPackageFolders><disabledPackageSources><clear /></disabledPackageSources><packageSourceMapping><clear /><packageSource key="nuget.org"><package pattern="*" /></packageSource></packageSourceMapping></configuration>\n';
+const nuGetConfig = (request: DotNetToolPreparationRequest): string => {
+    if (request.source.kind === "nuget.org") {
+        return `<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear /><add key="nuget.org" value="${DOTNET_NUGET_ORG_SOURCE}" protocolVersion="3" /></packageSources><fallbackPackageFolders><clear /></fallbackPackageFolders><disabledPackageSources><clear /></disabledPackageSources><packageSourceMapping><clear /><packageSource key="nuget.org"><package pattern="*" /></packageSource></packageSourceMapping></configuration>\n`;
+    }
+    const escapeXml = (value: string): string => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+    const packageId = escapeXml(request.declaration.packageId);
+    const feedPath = escapeXml(request.source.path);
+    return `<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear /><add key="pptb-local" value="${feedPath}" /><add key="nuget.org" value="${DOTNET_NUGET_ORG_SOURCE}" protocolVersion="3" /></packageSources><fallbackPackageFolders><clear /></fallbackPackageFolders><disabledPackageSources><clear /></disabledPackageSources><packageSourceMapping><clear /><packageSource key="pptb-local"><package pattern="${packageId}" /></packageSource><packageSource key="nuget.org"><package pattern="*" /></packageSource></packageSourceMapping></configuration>\n`;
+};
 const markerName = "complete.json";
 
 function authoritySelection(selection: DotNetDiscoverySelection): Omit<DotNetDiscoverySelection, "attempts"> {
@@ -171,7 +183,7 @@ export class DotNetToolManager {
         try {
             const identity = request.identity;
             if (
-                Object.keys(request).sort().join(",") !== "declaration,identity,selection" ||
+                Object.keys(request).sort().join(",") !== "declaration,identity,selection,source" ||
                 !identity ||
                 Object.keys(identity).sort().join(",") !== "sourceFingerprint,toolId,toolVersion,workerId" ||
                 typeof identity.toolId !== "string" ||
@@ -201,10 +213,23 @@ export class DotNetToolManager {
                 dotNetStableJson(selection.sdkPin) !== dotNetStableJson({ sdk: { version: selection.sdk.version, rollForward: "disable", allowPrerelease: false, paths: ["$host$"] } })
             )
                 throw new Error("Invalid selection");
+            if (request.source.kind === "nuget.org") {
+                if (Object.keys(request.source).sort().join(",") !== "kind,url" || request.source.url !== DOTNET_NUGET_ORG_SOURCE) throw new Error("Invalid package source");
+            } else if (request.source.kind === "local-feed") {
+                if (Object.keys(request.source).sort().join(",") !== "kind,packageSha512,path" || !/^[A-Za-z0-9+/]{86}==$/.test(request.source.packageSha512))
+                    throw new Error("Invalid local package source");
+                const isDeveloperBuild = this.dependencies.isDeveloperBuild ?? process.env.PPTB_DEVELOPER_BUILD === "1";
+                const configuredFeed = this.dependencies.localFeedPath ? this.dependencies.localFeedPath() : resolveDotNetLocalFeedPath(process.env, app.isPackaged, isDeveloperBuild);
+                if (configuredFeed !== request.source.path) throw new Error("Local package source is not the configured developer feed");
+                const currentSource = resolveDotNetPackageSource(configuredFeed, request.declaration, app.isPackaged, isDeveloperBuild);
+                if (dotNetStableJson(currentSource) !== dotNetStableJson(request.source)) throw new Error("Local package changed");
+            } else {
+                throw new Error("Unknown package source");
+            }
         } catch {
             throw new DotNetToolPreparationError("INVALID_REQUEST");
         }
-        const authority = { schema: 1, identity: request.identity, declaration: request.declaration, selection: authoritySelection(request.selection) };
+        const authority = { schema: 1, identity: request.identity, declaration: request.declaration, selection: authoritySelection(request.selection), source: request.source };
         const fingerprint = dotNetHash(dotNetStableJson(authority));
         const pending = control ? undefined : this.inflight.get(fingerprint);
         if (pending) return pending;
@@ -296,10 +321,10 @@ export class DotNetToolManager {
         await this.safePath(workspace, true);
         if (
             dotNetStableJson(JSON.parse(await this.read(join(workspace, "global.json")))) !== dotNetStableJson(request.selection.sdkPin) ||
-            (await this.read(join(workspace, "NuGet.Config"))) !== nuGetConfig ||
+            (await this.read(join(workspace, "NuGet.Config"))) !== nuGetConfig(request) ||
             dotNetStableJson(JSON.parse(await this.read(join(workspace, ".config", "dotnet-tools.json")))) !== dotNetStableJson(this.manifest(request))
         )
-            throw new DotNetToolPreparationError("ARTIFACT_INVALID");
+            throw new DotNetToolPreparationError("ARTIFACT_INVALID_CONFIGURATION");
     }
 
     private options(workspace: string, selection: DotNetDiscoverySelection, restore: boolean): DotNetToolExecOptions {
@@ -350,24 +375,37 @@ export class DotNetToolManager {
         return join(workspace, "cli-home", ".dotnet", "toolResolverCache", "1", packageId);
     }
 
-    private async verifyArtifacts(workspace: string, request: DotNetToolPreparationRequest): Promise<{ entryPoint: string; runtimeConfigPath: string; depsPath: string }> {
+    private async verifyArtifacts(
+        workspace: string,
+        request: DotNetToolPreparationRequest,
+        setStage: (stage: string) => void = () => undefined,
+    ): Promise<{ entryPoint: string; runtimeConfigPath: string; depsPath: string }> {
+        setStage("CONFIGURATION");
         await this.validateConfiguration(workspace, request);
         const { declaration, selection } = request;
         const packageId = declaration.packageId.toLowerCase();
         const version = normalizeDotNetNuGetVersion(declaration.packageVersion);
         const packageRoot = join(workspace, "packages", packageId, version);
+        setStage("PACKAGE_DIRECTORY");
         await this.safePath(packageRoot, true);
         const archive = join(packageRoot, `${packageId}.${version}.nupkg`);
+        setStage("PACKAGE_ARCHIVE_HASH");
         const archiveHash = await this.digest(archive, "sha512");
+        setStage("PACKAGE_METADATA");
         const packageMetadata = JSON.parse(await this.read(join(packageRoot, ".nupkg.metadata")));
-        if (
-            (await this.read(`${archive}.sha512`)).trim() !== archiveHash ||
-            packageMetadata.version !== 2 ||
-            packageMetadata.contentHash !== archiveHash ||
-            packageMetadata.source !== "https://api.nuget.org/v3/index.json"
-        )
-            throw new Error("Package archive or source mismatch");
-        const nuspec = parseDotNetPackageXml(await this.read(join(packageRoot, `${packageId}.nuspec`)));
+        if (packageMetadata.version !== 2 || typeof packageMetadata.contentHash !== "string" || !/^[A-Za-z0-9+/]{86}==$/.test(packageMetadata.contentHash))
+            throw new Error("Invalid NuGet package metadata");
+        setStage("PACKAGE_SOURCE");
+        if (request.source.kind === "local-feed") {
+            setStage("PACKAGE_SIDECAR");
+            const sidecarHash = (await this.read(`${archive}.sha512`)).trim();
+            if (!/^[A-Za-z0-9+/]{86}==$/.test(sidecarHash) || sidecarHash !== packageMetadata.contentHash) throw new Error("Local package sidecar does not match NuGet contentHash");
+            if (archiveHash !== request.source.packageSha512) throw new Error("Package archive does not match its local-feed consent pin");
+        }
+        setStage("NUSPEC");
+        const nuspecFiles = (await this.fs.readdir(packageRoot)).filter((name) => name.toLowerCase() === `${packageId}.nuspec`);
+        if (nuspecFiles.length !== 1) throw new Error("Package nuspec filename is missing or ambiguous");
+        const nuspec = parseDotNetPackageXml(await this.read(join(packageRoot, nuspecFiles[0])));
         const metadata = nuspec.children.filter((node) => node.name === "metadata");
         const packageIdentity = (name: string): string => {
             const nodes = metadata[0]?.children.filter((node) => node.name === name);
@@ -377,6 +415,7 @@ export class DotNetToolManager {
         if (nuspec.name !== "package" || metadata.length !== 1 || packageIdentity("id").toLowerCase() !== packageId || normalizeDotNetNuGetVersion(packageIdentity("version")) !== version)
             throw new Error("Package identity mismatch");
         const path = this.resolverPath(workspace, packageId);
+        setStage("RESOLVER");
         const contents = await this.read(path);
         const parsed = JSON.parse(contents) as DotNetToolResolverEntry[];
         const entries = this.dependencies.inventory ? await this.dependencies.inventory(path, contents) : parsed;
@@ -393,6 +432,7 @@ export class DotNetToolManager {
         )
             throw new Error("Resolver mismatch");
         const artifactRoot = join(packageRoot, "tools", declaration.dotnet.targetFramework, "any");
+        setStage("TOOL_SETTINGS");
         const executableName = dotNetToolSettings(await this.read(join(artifactRoot, "DotnetToolSettings.xml")), declaration.command);
         const entryPoint = join(artifactRoot, dotNetPackageRelativePath(executableName));
         if (entry.PathToExecutable !== entryPoint) throw new Error("Entrypoint mismatch");
@@ -400,7 +440,9 @@ export class DotNetToolManager {
         const runtimeConfigPath = entryPoint.slice(0, -4) + ".runtimeconfig.json";
         const depsPath = entryPoint.slice(0, -4) + ".deps.json";
         if (await this.exists(entryPoint.slice(0, -4) + ".runtimeconfig.dev.json")) throw new Error("Development runtime configuration is unsupported");
+        setStage("RUNTIME_CONFIG");
         verifyDotNetRuntimeConfig(await this.read(runtimeConfigPath), declaration, selection);
+        setStage("DEPENDENCY_MANIFEST");
         const deps = JSON.parse(await this.read(depsPath, 4 * 1024 * 1024));
         const targetName = deps?.runtimeTarget?.name;
         if (
@@ -413,6 +455,7 @@ export class DotNetToolManager {
         )
             throw new Error("Invalid dependency target");
         let entryFound = false;
+        setStage("DEPENDENCY_ASSETS");
         for (const [libraryId, library] of Object.entries(deps.targets[targetName]) as [
             string,
             { runtime?: Record<string, unknown>; native?: Record<string, unknown>; runtimeTargets?: Record<string, unknown>; dependencies?: Record<string, unknown> },
@@ -543,7 +586,7 @@ export class DotNetToolManager {
                 stage = await this.fs.mkdtemp(join(this.root, `${fingerprint}.stage-`));
                 for (const directory of [".config", "cli-home", "packages", "http-cache", "plugin-cache", "tmp"]) await this.fs.mkdir(join(stage, directory), { mode: 0o700 });
                 await this.fs.writeFile(join(stage, "global.json"), dotNetStableJson(request.selection.sdkPin), { flag: "wx", mode: 0o600 });
-                await this.fs.writeFile(join(stage, "NuGet.Config"), nuGetConfig, { flag: "wx", mode: 0o600 });
+                await this.fs.writeFile(join(stage, "NuGet.Config"), nuGetConfig(request), { flag: "wx", mode: 0o600 });
                 await this.fs.writeFile(join(stage, ".config", "dotnet-tools.json"), dotNetStableJson(this.manifest(request)), { flag: "wx", mode: 0o600 });
                 const sdkVersion = await this.command(stage, request, ["--version"], false, control);
                 if (sdkVersion.trim() !== request.selection.sdk.version) throw new DotNetToolPreparationError("SDK_MISMATCH");
@@ -566,11 +609,15 @@ export class DotNetToolManager {
                     control,
                 );
                 let artifacts: Awaited<ReturnType<DotNetToolManager["verifyArtifacts"]>>;
+                let artifactStage = "CONFIGURATION";
                 try {
-                    artifacts = await this.verifyArtifacts(stage, request);
+                    artifacts = await this.verifyArtifacts(stage, request, (stageName) => {
+                        artifactStage = stageName;
+                    });
+                    artifactStage = "INTEGRITY_INVENTORY";
                     await this.inventoryHash(stage);
                 } catch {
-                    throw new DotNetToolPreparationError("ARTIFACT_INVALID");
+                    throw new DotNetToolPreparationError(`ARTIFACT_INVALID_${artifactStage}` as DotNetToolPreparationErrorCode);
                 }
                 const resolverPath = this.resolverPath(stage, request.declaration.packageId.toLowerCase());
                 const records = JSON.parse(await this.read(resolverPath)) as DotNetToolResolverEntry[];

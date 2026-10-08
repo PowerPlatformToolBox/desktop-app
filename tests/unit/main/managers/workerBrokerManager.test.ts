@@ -8,9 +8,9 @@ import { StreamMessageReader } from "vscode-jsonrpc/node";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../../../src/common/ipc/channels";
 import type { DotNetPreparedTool, DotNetToolPreparationRequest } from "../../../../src/common/types/dotnetTool";
 import type { DotNetDiscoveryResult, DotNetDiscoverySelection } from "../../../../src/common/types/dotnetWorker";
+import { defaultExec, DotNetToolPreparationError } from "../../../../src/main/managers/dotnetToolManager";
 import { NativeWorkerConsentManager, type NativeWorkerIdentity } from "../../../../src/main/managers/nativeWorkerConsentManager";
 import { WorkerBrokerManager, type WorkerBrokerIdentity } from "../../../../src/main/managers/workerBrokerManager";
-import { defaultExec, DotNetToolPreparationError } from "../../../../src/main/managers/dotnetToolManager";
 import type { WorkerChild, WorkerLaunchOptions } from "../../../../src/main/managers/workerProcessManager";
 import { dotNetStableJson } from "../../../../src/main/utilities/dotnetToolPreparation";
 
@@ -97,6 +97,7 @@ describe("WorkerBrokerManager", () => {
     let prepare: jest.Mock;
     let launch: jest.Mock;
     let errors: jest.Mock;
+    let startupFailures: jest.Mock;
     let children: Child[];
     let expectedShutdownFailure: string | undefined;
 
@@ -154,6 +155,7 @@ describe("WorkerBrokerManager", () => {
         );
         children = [];
         errors = jest.fn();
+        startupFailures = jest.fn();
         launch = jest.fn((_descriptor, _options: WorkerLaunchOptions) => {
             const child = new Child();
             children.push(child);
@@ -173,6 +175,7 @@ describe("WorkerBrokerManager", () => {
             }),
             process: { launch, platform: "darwin", killTree: async () => undefined, limits: { stopTimeoutMs: 10, killTimeoutMs: 10 } },
             onError: errors,
+            onStartupFailure: startupFailures,
             cleanupTimeoutMs: 100,
         });
     });
@@ -194,8 +197,9 @@ describe("WorkerBrokerManager", () => {
     it("denial never discovers, prepares or launches", async () => {
         const started = broker.start(web(first), "engine");
         consent.respond(web(main), prompt().requestId, "reject");
-        await expect(started.ready).rejects.toThrow();
+        await expect(started.ready).rejects.toThrow("CONSENT_REJECTED");
         await tick();
+        expect(startupFailures).not.toHaveBeenCalled();
         expect(discover).not.toHaveBeenCalled();
         expect(prepare).not.toHaveBeenCalled();
         expect(launch).not.toHaveBeenCalled();
@@ -492,18 +496,21 @@ describe("WorkerBrokerManager", () => {
         expect(launch).not.toHaveBeenCalled();
     });
 
-    it.each(["WORKSPACE_INVALID", "RESTORE_STOP_UNVERIFIED"] as const)("retains spontaneous preparation cleanup failure as a blocker: %s", async (code) => {
+    it.each(["WORKSPACE_INVALID", "RESTORE_STOP_UNVERIFIED", "RESTORE_FAILED"] as const)("retains spontaneous preparation failure details: %s", async (code) => {
         prepare.mockRejectedValue(new DotNetToolPreparationError(code));
         const started = broker.start(web(first), "engine");
         allow();
-        await expect(started.ready).rejects.toThrow("STARTUP_FAILED");
+        await expect(started.ready).rejects.toThrow(code);
         await tick();
-        const mutate = jest.fn(async () => undefined);
-        expectedShutdownFailure = code;
-        await expect(broker.withToolMutation("tool-a", mutate)).rejects.toThrow(code);
-        expect(mutate).not.toHaveBeenCalled();
-        expect(() => broker.start(web(first), "engine")).toThrow("ALREADY_STARTED");
-        expect(errors).toHaveBeenCalledWith(expect.objectContaining({ code }));
+        expect(startupFailures).toHaveBeenCalledWith(code);
+        if (code === "WORKSPACE_INVALID" || code === "RESTORE_STOP_UNVERIFIED") {
+            const mutate = jest.fn(async () => undefined);
+            expectedShutdownFailure = code;
+            await expect(broker.withToolMutation("tool-a", mutate)).rejects.toThrow(code);
+            expect(mutate).not.toHaveBeenCalled();
+            expect(() => broker.start(web(first), "engine")).toThrow("ALREADY_STARTED");
+        }
+        if (code !== "RESTORE_FAILED") expect(errors).toHaveBeenCalledWith(expect.objectContaining({ code }));
     });
 
     it("rejects mutation on preparation timeout and permits cleanup retry only after settlement", async () => {

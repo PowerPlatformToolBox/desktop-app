@@ -3,23 +3,26 @@
 This is the implementation tracker for issue #493. PR numbers below identify
 planned delivery slices, not opened GitHub pull requests. PR0 and PR1, including
 the approved platform and transport contract revision, and PR2 through PR6 are implemented and verified.
-No public worker launch API or production worker startup path is enabled. Native
-consent administration is main-window-only; PR6's internal broker is wired but
-has no renderer-callable launch handlers. Public exposure remains PR7.
+The consolidated author/developer guide is [DOTNET_WORKERS.md](DOTNET_WORKERS.md).
+Internal contracts and qualification limits are collected in
+[DOTNET_WORKERS_ENGINEERING.md](DOTNET_WORKERS_ENGINEERING.md).
+PR7 has added the typed tool-preload API and internal broker path, but remains
+in progress until the real .NET 10 local-package smoke and all acceptance gates
+pass. Native consent administration remains main-window-only.
 
 ## Status
 
-| Slice | Status                    | Dependencies       | Deliverable and completion gate                                                                                                                                                                                 |
-| ----- | ------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PR0   | Completed (bounded probe) | None               | Real SQL 4 CDS DLL, reverse callback, concurrent requests, cancellation, progress, errors and EOF exit tested. See the [probe](DOTNET_WORKERS_PR0.md) for compatibility limits.                                 |
-| PR1   | Completed                 | PR0                | Platform aliases/all and implicit transport verified. Public manifest types, registry/npm/local loading and persisted metadata remain metadata-only, with strict validation and canonical Major default.        |
-| PR2   | Completed                 | PR1                | Installed SDK/runtime discovery with deterministic .NET 10 SDK selection and declared runtime policy resolution; missing SDK, runtime-only, all four policies and incompatible architecture/config tests.       |
-| PR3   | Completed                 | PR1, PR2           | Pinned NuGet preparation, controlled source/manifest, atomic cache and rollback; concurrency, version/command verification and offline tests.                                                                   |
-| PR4   | Completed                 | PR0, PR1           | Internal process/transport manager; framing, backpressure, bounded queues, early messages, malformed input and shutdown tests. No public launch path.                                                           |
-| PR5   | Completed                 | PR1                | Trusted native-execution consent and review/revoke UI; deny, fingerprint changes, duplicate prompts and self-approval rejection tests.                                                                          |
-| PR6   | Completed                 | PR2, PR3, PR4, PR5 | Internal broker, sender-derived ownership, targeted events and full lifecycle; foreign-handle, denial, close/crash/revoke/update/uninstall/quit tests.                                                          |
-| PR7   | Not started               | PR6                | Public preload API, browser-compatible RPC adapter and author example; Electron callback flow, disposal, SDK guidance, public-type tests, and developer-only local NuGet feed for unpublished worker iteration. |
-| PR8   | Not started               | PR7                | .NET 10 and declared platform qualification, packaged-app checks, migration docs and coordinated release of app/types/validator.                                                                                |
+| Slice | Status                    | Dependencies       | Deliverable and completion gate                                                                                                                                                                                    |
+| ----- | ------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PR0   | Completed (bounded probe) | None               | Real SQL 4 CDS DLL, reverse callback, concurrent requests, cancellation, progress, errors and EOF exit tested. See [PR0 evidence](DOTNET_WORKERS_ENGINEERING.md#compatibility-probe-pr0) for compatibility limits. |
+| PR1   | Completed                 | PR0                | Platform aliases/all and implicit transport verified. Public manifest types, registry/npm/local loading and persisted metadata remain metadata-only, with strict validation and canonical Major default.           |
+| PR2   | Completed                 | PR1                | Installed SDK/runtime discovery with deterministic .NET 10 SDK selection and declared runtime policy resolution; missing SDK, runtime-only, all four policies and incompatible architecture/config tests.          |
+| PR3   | Completed                 | PR1, PR2           | Pinned NuGet preparation, controlled source/manifest, atomic cache and rollback; concurrency, version/command verification and offline tests.                                                                      |
+| PR4   | Completed                 | PR0, PR1           | Internal process/transport manager; framing, backpressure, bounded queues, early messages, malformed input and shutdown tests. No public launch path.                                                              |
+| PR5   | Completed                 | PR1                | Trusted native-execution consent and review/revoke UI; deny, fingerprint changes, duplicate prompts and self-approval rejection tests.                                                                             |
+| PR6   | Completed                 | PR2, PR3, PR4, PR5 | Internal broker, sender-derived ownership, targeted events and full lifecycle; foreign-handle, denial, close/crash/revoke/update/uninstall/quit tests.                                                             |
+| PR7   | In progress               | PR6                | Public preload API, browser-compatible RPC adapter and author example; Electron callback flow, disposal, SDK guidance, public-type tests, and developer-only local NuGet feed for unpublished worker iteration.    |
+| PR8   | Not started               | PR7                | .NET 10 and declared platform qualification, packaged-app checks, migration docs and coordinated release of app/types/validator.                                                                                   |
 
 ## Runtime Declaration Decision (2026-10-05)
 
@@ -156,7 +159,7 @@ The following dated results apply to the original contract, before the platform
 and transport amendment. They are retained as historical evidence, not proof
 that the revised contract passes validation.
 
-- Date: 2026-10-05, macOS workspace. See the [declaration contract](DOTNET_WORKER_DECLARATIONS.md)
+- Date: 2026-10-05, macOS workspace. See the [declaration contract](DOTNET_WORKERS_ENGINEERING.md#declaration-and-discovery-pr1-pr2)
   and [execution log](../.github/plans/plan-dotnet-workers-pr1.md).
 - Canonical worker declarations validate package/version/command, console TFM,
   minimum runtime, platform list and transport. Omitted rollForward becomes Major.
@@ -197,7 +200,7 @@ that the revised contract passes validation.
 
 - Date: 2026-10-05; explicit Go checkpoint selected. See the
   [execution log](../.github/plans/plan-dotnet-workers-pr2.md) and
-  [discovery decisions/PR3 handoff](DOTNET_WORKER_DECLARATIONS.md#internal-discovery-pr2).
+  [discovery decisions/PR3 handoff](DOTNET_WORKERS_ENGINEERING.md#declaration-and-discovery-pr1-pr2).
 - Added internal typed discovery results, pure platform/listing/version/policy
   helpers and an injectable main-process discovery manager. No startup wiring,
   worker process, API, IPC/preload, consent, NuGet, download or global.json writes.
@@ -230,7 +233,7 @@ that the revised contract passes validation.
 ## PR3 Evidence
 
 - Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr3.md)
-  and [preparation contract](DOTNET_TOOL_PREPARATION.md).
+  and [preparation contract](DOTNET_WORKERS_ENGINEERING.md#package-preparation-pr3).
 - 91 focused tests passed: approval-before-I/O, pinned SDK/config/source, exact
   package/command/runtime verification, concurrent preparation, filesystem locks,
   rollback, cleanup failures, integrity checks and warm offline reuse.
@@ -244,7 +247,7 @@ that the revised contract passes validation.
 ## PR4 Evidence
 
 - Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr4.md)
-  and [transport contract](WORKER_PROCESS_TRANSPORT.md).
+  and [transport contract](DOTNET_WORKERS_ENGINEERING.md#process-transport-pr4).
 - 111 focused fake-child tests passed: owner isolation, initialize handshake,
   UTF-8 framing/limits, backpressure, ordered delivery, early subscriptions,
   error/exit/EOF/timeout behavior and bounded process-tree cleanup.
@@ -257,7 +260,7 @@ that the revised contract passes validation.
 ## PR5 Evidence
 
 - Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr5.md)
-  and [consent contract](NATIVE_WORKER_CONSENT.md).
+  and [consent contract](DOTNET_WORKERS_ENGINEERING.md#consent-and-broker-pr5-pr6).
 - 62 focused tests passed for consent, live identity and filesystem boundary:
   main-only authority, canonical fingerprints, persistence, denial, deduplication,
   revocation races, timeout/disposal and immutable launch identity.
@@ -285,7 +288,7 @@ that the revised contract passes validation.
 ## PR6 Evidence
 
 - Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr6.md)
-  and [broker contract](WORKER_BROKER.md).
+  and [broker contract](DOTNET_WORKERS_ENGINEERING.md#consent-and-broker-pr5-pr6).
 - Internal sender-derived broker connects allow-once/persistent consent leases,
   source snapshots, native discovery, pinned preparation and framed transport.
   Live authority is rechecked through asynchronous preparation and before spawn.
@@ -310,10 +313,15 @@ that the revised contract passes validation.
 
 ## Next Checkpoint
 
-PR6 acceptance gates passed. PR7 is ready for a separate GO checkpoint to expose
-the reviewed broker through targeted preload APIs and a browser-compatible RPC
-adapter, with a runnable author example, local-debug package-source workflow and
-end-to-end callback tests. See the [PR7 test guide](DOTNET_WORKER_LOCAL_DEBUG.md).
+PR6 acceptance gates passed. PR7 is in progress: the tool-scoped preload API,
+browser RPC adapter, local UI/C# example and developer-feed isolation are
+implemented. Full unit tests (1,087 passed, five optional PR0 tests skipped),
+typecheck, lint, production build and sample UI build passed. The remaining PR7
+acceptance blocker is packing/restoring/running the `net10.0` sample worker against the local
+feed; this environment has only .NET 8/9 SDKs. See the [PR7 plan](../.github/plans/plan-dotnet-workers-pr7.md)
+and [local-debug workflow](DOTNET_WORKERS.md#local-debug-with-an-unpublished-package).
+Do not mark PR7 completed
+or claim C# interoperability until the real local-package smoke passes.
 Do not claim a complete Dataverse proxy or cross-platform compatibility from these
 metadata changes. Retain the organization-locale
 fixture as the cheap full-duplex regression test. Carry the remaining real-query

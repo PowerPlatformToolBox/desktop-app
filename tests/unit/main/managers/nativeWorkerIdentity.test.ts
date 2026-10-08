@@ -7,6 +7,7 @@ import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../../../src/common/ipc/chann
 import type { NativeWorkerConsentRecord, NativeWorkerConsentRequest, Tool, WorkerDeclaration } from "../../../../src/common/types";
 import { NativeWorkerConsentManager } from "../../../../src/main/managers/nativeWorkerConsentManager";
 import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity, type LoadedToolIdentity } from "../../../../src/main/utilities/nativeWorkerIdentity";
+import { DOTNET_LOCAL_NUGET_FEED_ENV } from "../../../../src/main/utilities/dotnetLocalFeed";
 
 class Sender extends EventEmitter {
     readonly send = jest.fn();
@@ -31,7 +32,8 @@ describe("native worker launch-bound identity", () => {
         fs.writeFileSync(path.join(root, "pptb.config.json"), JSON.stringify(config));
     }
 
-    const resolve = (owner = oldSender) => resolveNativeWorkerIdentity(owner === oldSender ? loaded : { ...loaded, toolVersion: tool.version }, tool, tool.localPath, "engine");
+    const resolve = (owner = oldSender, environment: NodeJS.ProcessEnv = {}) =>
+        resolveNativeWorkerIdentity(owner === oldSender ? loaded : { ...loaded, toolVersion: tool.version }, tool, tool.localPath, "engine", false, environment, true);
     const authorize = (owner = oldSender) => manager.authorize(owner as unknown as WebContents, "engine");
     const request = (): NativeWorkerConsentRequest => main.send.mock.calls.find(([channel]) => channel === NATIVE_WORKER_CONSENT_CHANNELS.REQUEST)?.[1];
 
@@ -109,6 +111,27 @@ describe("native worker launch-bound identity", () => {
         tool.localPath = path.join(root, "replacement");
         expect(resolve()).toBeNull();
         expect(resolveNativeWorkerIdentity({ ...loaded, sourcePath: null }, tool, tool.localPath, "engine")).toBeNull();
+    });
+
+    it("keeps marketplace worker identities on nuget.org when a developer feed is configured", () => {
+        const feed = path.join(root, "feed");
+        fs.mkdirSync(feed);
+        fs.writeFileSync(path.join(feed, "trusted.worker.1.2.3.nupkg"), "local-only package");
+        delete tool.localPath;
+
+        const resolved = resolveNativeWorkerIdentity(loaded, tool, root, "engine", false, { [DOTNET_LOCAL_NUGET_FEED_ENV]: feed }, true);
+        expect(resolved?.source).toEqual({ kind: "nuget.org", url: "https://api.nuget.org/v3/index.json" });
+    });
+
+    it("keeps npm-debug-installed worker identities on nuget.org when a developer feed is configured", () => {
+        const feed = path.join(root, "feed");
+        fs.mkdirSync(feed);
+        fs.writeFileSync(path.join(feed, "trusted.worker.1.2.3.nupkg"), "local-only package");
+        delete tool.localPath;
+        tool.npmPackageName = "@pptb/trusted-ui";
+
+        const resolved = resolveNativeWorkerIdentity(loaded, tool, root, "engine", false, { [DOTNET_LOCAL_NUGET_FEED_ENV]: feed }, true);
+        expect(resolved?.source).toEqual({ kind: "nuget.org", url: "https://api.nuget.org/v3/index.json" });
     });
 
     it("rejects an update while the original sender's prompt is pending without persisting approval", async () => {

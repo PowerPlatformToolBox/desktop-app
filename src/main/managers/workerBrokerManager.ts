@@ -23,6 +23,7 @@ export interface WorkerBrokerDependencies {
     createPreparation?: (approve: (request: DotNetToolPreparationRequest) => Promise<boolean>) => Pick<DotNetToolManager, "prepare">;
     process?: Omit<WorkerProcessDependencies, "prepare">;
     cleanupTimeoutMs?: number;
+    onStartupFailure?(code: string): void;
     onError(error: unknown): void;
 }
 
@@ -55,6 +56,10 @@ function freezeAuthority<Value>(value: Value): Value {
         Object.freeze(value);
     }
     return value;
+}
+
+function startupFailureCode(error: unknown): string {
+    return error instanceof Error && "code" in error && typeof error.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code) ? error.code : "STARTUP_FAILED";
 }
 
 export class WorkerBrokerManager {
@@ -129,6 +134,15 @@ export class WorkerBrokerManager {
         this.launches.set(key, launch);
         try {
             const started = this.processes.start(launch.owner, workerId);
+            void started.ready.catch((error: unknown) => {
+                const code = startupFailureCode(error);
+                if (["APPROVAL_DENIED", "CANCELLED", "CONSENT_REJECTED", "NOT_AUTHORIZED", "OWNER_UNAVAILABLE", "SOURCE_CHANGED", "TOOL_UNAVAILABLE", "WORKER_STOPPED"].includes(code)) return;
+                try {
+                    this.dependencies.onStartupFailure?.(code);
+                } catch {
+                    return;
+                }
+            });
             launch.handle = started.handle;
             launch.unsubscribeTerminal = this.processes.onTerminal(launch.owner, started.handle, () => {
                 queueMicrotask(() => {
@@ -144,7 +158,13 @@ export class WorkerBrokerManager {
 
     private async prepare(launch: Launch): Promise<WorkerLaunchDescriptor> {
         this.check(launch);
-        launch.lease = await this.dependencies.consent.authorizeLease(launch.sender, launch.workerId, launch.abort.signal);
+        try {
+            launch.lease = await this.dependencies.consent.authorizeLease(launch.sender, launch.workerId, launch.abort.signal);
+        } catch (error) {
+            if (launch.abort.signal.aborted) throw new WorkerProcessError("CANCELLED");
+            if (error instanceof Error && error.message === "Native worker consent rejected") throw new WorkerProcessError("CONSENT_REJECTED");
+            throw error;
+        }
         this.check(launch);
         const declaration = launch.lease.approval.declaration;
         const control = { signal: launch.abort.signal, assertCurrent: () => this.check(launch) };
@@ -164,6 +184,7 @@ export class WorkerBrokerManager {
                     },
                     declaration,
                     selection: discovered.value,
+                    source: launch.lease.approval.source,
                 }),
             ) as DotNetToolPreparationRequest,
         );
@@ -229,6 +250,11 @@ export class WorkerBrokerManager {
     snapshot(sender: WebContents, handle: WorkerProcessHandle) {
         const launch = this.owned(sender, handle);
         return this.processes.snapshot(launch.owner, handle);
+    }
+
+    onTerminal(sender: WebContents, handle: WorkerProcessHandle, callback: () => void): () => void {
+        const launch = this.owned(sender, handle);
+        return this.processes.onTerminal(launch.owner, handle, callback);
     }
 
     async stop(sender: WebContents, handle: WorkerProcessHandle): Promise<void> {

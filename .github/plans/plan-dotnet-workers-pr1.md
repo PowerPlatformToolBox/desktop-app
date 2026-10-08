@@ -68,7 +68,8 @@ No SDK/probe rerun is required for this metadata-only slice.
   Regression cases also cover removed declarations, malformed JSON, absent registry
   minAPI and deterministic ordering without modifying input. No PR0 fixture,
   terminal block, IPC, preload API or native process implementation changed.
-- Added docs/DOTNET_WORKER_DECLARATIONS.md; updated the current delivery tracker.
+- Added declaration details to docs/DOTNET_WORKERS.md and validation details to
+  docs/DOTNET_WORKERS_ENGINEERING.md; updated the current delivery tracker.
 - Files changed: packages/validation/src/{validate,index,cli}.ts,
   packages/types/pptbConfig.d.ts, src/common/types/tool.ts,
   src/main/utilities/workerMetadata.ts,
@@ -186,7 +187,8 @@ the main session. The main agent executed the acceptance gates after the repairs
 - Files changed: packages/validation/src/validate.ts,
   packages/types/pptbConfig.d.ts, tests/unit/validation/workers.test.ts,
   tests/unit/main/managers/workerMetadata.test.ts,
-  docs/DOTNET_WORKER_DECLARATIONS.md, docs/DOTNET_WORKERS_STATUS.md and this plan.
+  docs/DOTNET_WORKERS.md, docs/DOTNET_WORKERS_ENGINEERING.md,
+  docs/DOTNET_WORKERS_STATUS.md and this plan.
 - Declaration tests cover each alias, all alone, all plus each concrete alias in
   either order, old/unknown RIDs, each duplicate alias, required/empty platforms,
   strict forbidden transport and canonical ordering/no transport.

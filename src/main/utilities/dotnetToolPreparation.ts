@@ -144,7 +144,7 @@ export function verifyDotNetRuntimeConfig(text: string, declaration: NormalizedW
     const requirement = declaration.dotnet;
     const nativePolicy = requirement.rollForward === "Latest" ? "LatestMajor" : requirement.rollForward;
     const explicitPolicy = options && Object.hasOwn(options, "rollForward");
-    const policy = explicitPolicy ? options.rollForward : "Minor";
+    const policy = explicitPolicy ? options.rollForward : nativePolicy;
     if (
         !options ||
         options.tfm !== requirement.targetFramework ||

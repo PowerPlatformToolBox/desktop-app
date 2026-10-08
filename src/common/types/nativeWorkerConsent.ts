@@ -1,4 +1,5 @@
 import type { NormalizedWorkerDeclaration } from "./tool";
+import type { DotNetPackageSource } from "./dotnetTool";
 
 export type NativeWorkerConsentDecision = "allow-tool" | "allow-once" | "reject";
 
@@ -8,7 +9,7 @@ export interface NativeWorkerConsentDescriptor {
     toolVersion: string;
     workerId: string;
     declaration: NormalizedWorkerDeclaration;
-    source: "https://api.nuget.org/v3/index.json";
+    source: DotNetPackageSource;
     protocolVersion: 1;
     platformMatrixVersion: 1;
 }

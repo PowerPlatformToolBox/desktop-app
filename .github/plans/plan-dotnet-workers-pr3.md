@@ -74,7 +74,7 @@ qualification and main-agent gates remain pending unless actually executed.
   cache tampering, cold archive/source/settings/deps failures, traversal/symlinks,
   in-memory concurrency, separate managers and non-stealing filesystem locks,
   offline reuse and exact four-policy parity/no stricter binary override.
-- Added docs/DOTNET_TOOL_PREPARATION.md: default behavior, internal contracts and
+- Added docs/DOTNET_WORKERS_ENGINEERING.md preparation section: default behavior, internal contracts and
   PR4 descriptor handoff, controlled local package/cache layout, integrity bounds,
   conservative unsupported layouts and native qualification/command limitations.
 - Local CLI layout decision: local-tool packages live under NUGET_PACKAGES, with
@@ -141,7 +141,7 @@ qualification and main-agent gates remain pending unless actually executed.
   explicit-null rejection, development runtimeconfigs and omitted-Minor parity.
   Warm fixtures update their inventory hashes and assert resolver verification
   was reached; cold failures assert complete staging rollback.
-- Updated docs/DOTNET_TOOL_PREPARATION.md with conservative unsupported-layout
+- Updated docs/DOTNET_WORKERS_ENGINEERING.md with conservative unsupported-layout
   limits and separate post-repair validation evidence.
 - Validation: get_errors immediately after the first production repair and after
   regression additions reported no diagnostics. No terminal/run_task/test-runner

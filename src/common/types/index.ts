@@ -18,6 +18,8 @@ export * from "./terminal";
 
 // Settings-related types
 export * from "./settings";
+export * from "./workerProcess";
+export * from "./workerToolApi";
 
 // Event-related types
 export * from "./events";

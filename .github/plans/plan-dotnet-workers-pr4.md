@@ -61,7 +61,7 @@ git diff --check
     - src/main/utilities/workerStdio.ts
     - src/main/managers/workerProcessManager.ts
     - tests/unit/main/managers/workerProcessManager.test.ts
-    - docs/WORKER_PROCESS_TRANSPORT.md
+    - docs/DOTNET_WORKERS_ENGINEERING.md process-transport section
     - This plan artifact.
 - Reader admission is bounded before library buffering; only one frame at a
   time reaches its async decoder. Incoming envelopes and UTF-8 are strict,

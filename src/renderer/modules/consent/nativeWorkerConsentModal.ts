@@ -1,25 +1,42 @@
-import type { NativeWorkerConsentDecision, NativeWorkerConsentDescriptor, NativeWorkerConsentRequest, NativeWorkerConsentUI } from "../../../common/types";
+import type { ModalWindowClosedPayload, ModalWindowMessagePayload, NativeWorkerConsentDescriptor, NativeWorkerConsentRequest, NativeWorkerConsentUI } from "../../../common/types";
+import { getModalStyles } from "../../modals/sharedStyles";
+import {
+    closeBrowserWindowModal,
+    offBrowserWindowModalClosed,
+    offBrowserWindowModalMessage,
+    onBrowserWindowModalClosed,
+    onBrowserWindowModalMessage,
+    sendBrowserWindowModalMessage,
+    showBrowserWindowModal,
+} from "../browserWindowModals";
 
-export const NATIVE_WORKER_WARNING =
-    "This is native code running as your operating-system user, NOT in a sandbox. It can access your same-user filesystem, use the network, and start child processes with your user's permissions. Only approve code and publishers you trust. This approval does not install a .NET runtime or grant administrator privileges; any missing runtime requires your explicit installation.";
+const MODAL_ID = "native-worker-consent-browser-modal";
+const DECISION_CHANNEL = "native-worker-consent:decision";
+const RESULT_CHANNEL = "native-worker-consent:result";
+
+let activeRequest: NativeWorkerConsentRequest | null = null;
+let initialized = false;
+
+export const NATIVE_WORKER_WARNING = "Native code runs with your user permissions and is not sandboxed. It can access files, use the network, and start processes. Approve only workers you trust.";
 
 export function nativeWorkerConsentDetails(descriptor: NativeWorkerConsentDescriptor): string[] {
     const worker = descriptor.declaration;
+    const source = descriptor.source.kind === "nuget.org" ? descriptor.source.url : `Local feed: ${descriptor.source.path} (package SHA-512 ${descriptor.source.packageSha512})`;
     return [
         `Tool: ${descriptor.toolName} (${descriptor.toolId}) ${descriptor.toolVersion}`,
         `Worker: ${descriptor.workerId}`,
         `Package: ${worker.packageId} ${worker.packageVersion}`,
-        `Source: ${descriptor.source} (nuget.org only)`,
+        `Source: ${source}`,
         `Command: ${worker.command}`,
-        `Runtime: ${worker.dotnet.targetFramework}, minimum ${worker.dotnet.minimumRuntimeVersion}`,
-        `Effective roll-forward: ${worker.dotnet.rollForward === "Latest" ? "LatestMajor" : worker.dotnet.rollForward}`,
-        `Platforms: ${worker.platforms.join(", ")} (matrix ${descriptor.platformMatrixVersion})`,
-        `Trust scope: this tool version, worker and exact native declaration; protocol ${descriptor.protocolVersion}. Changes require new approval.`,
     ];
 }
 
 function api(): NativeWorkerConsentUI {
     return (window as unknown as { toolboxAPI: NativeWorkerConsentUI }).toolboxAPI;
+}
+
+function escapeHtml(value: string): string {
+    return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 function textElement(tag: string, text: string): HTMLElement {
@@ -28,112 +45,137 @@ function textElement(tag: string, text: string): HTMLElement {
     return element;
 }
 
-function fluentButton(label: string, action: () => void): HTMLElement {
-    const button = textElement("fluent-button", label);
-    button.setAttribute("role", "button");
-    button.tabIndex = 0;
+function consentActionButton(label: string, onClick: () => void): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
     button.className = "fluent-button fluent-button-secondary";
-    const activate = () => {
-        if (!button.hasAttribute("disabled")) action();
-    };
-    button.addEventListener("click", activate);
-    button.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            activate();
-        }
-    });
+    button.textContent = label;
+    button.addEventListener("click", onClick);
     return button;
 }
 
-export function initializeNativeWorkerConsentModal(): void {
-    let active: { request: NativeWorkerConsentRequest; overlay: HTMLElement; previousFocus: HTMLElement | null; keydown: (event: KeyboardEvent) => void } | null = null;
-    const close = (requestId: string) => {
-        if (!active || active.request.requestId !== requestId) return;
-        const previousFocus = active.previousFocus;
-        document.removeEventListener("keydown", active.keydown, true);
-        active.overlay.remove();
-        active = null;
-        if (previousFocus?.isConnected) previousFocus.focus();
-    };
-    const unsubscribeRequest = api().onNativeWorkerConsentRequest((request) => {
-        if (active) close(active.request.requestId);
-        const overlay = document.createElement("div");
-        overlay.className = "native-worker-consent-overlay";
-        const dialog = document.createElement("fluent-dialog");
-        dialog.className = "native-worker-consent-dialog";
-        dialog.setAttribute("role", "dialog");
-        dialog.setAttribute("aria-modal", "true");
-        dialog.setAttribute("aria-labelledby", "native-worker-consent-title");
-        dialog.setAttribute("aria-describedby", "native-worker-consent-warning");
-        const title = textElement("h2", "Approve Native Worker");
-        title.id = "native-worker-consent-title";
-        const warning = textElement("p", NATIVE_WORKER_WARNING);
-        warning.id = "native-worker-consent-warning";
-        dialog.append(title, warning);
-        nativeWorkerConsentDetails(request).forEach((line) => dialog.appendChild(textElement("p", line)));
-        const error = textElement("p", "");
-        error.setAttribute("role", "alert");
-        const actions = document.createElement("div");
-        actions.className = "native-worker-consent-actions";
-        const buttons: HTMLElement[] = [];
-        const respond = async (decision: NativeWorkerConsentDecision) => {
-            if (buttons.some((button) => button.hasAttribute("disabled"))) return;
-            buttons.forEach((button) => {
-                button.setAttribute("disabled", "");
-                button.setAttribute("aria-disabled", "true");
-            });
-            try {
-                const accepted = await api().respondToNativeWorkerConsent(request.requestId, decision);
-                if (accepted) close(request.requestId);
-                else throw new Error("Consent request expired");
-            } catch {
-                if (active?.request.requestId !== request.requestId) return;
-                error.textContent = "Approval was not saved. Reject or try again.";
-                buttons.forEach((button) => {
-                    button.removeAttribute("disabled");
-                    button.removeAttribute("aria-disabled");
-                });
-            }
-        };
-        const choices: Array<[string, NativeWorkerConsentDecision]> = [
-            ["Reject", "reject"],
-            ["Allow Once", "allow-once"],
-            ["Trust This Tool Version and Worker", "allow-tool"],
-        ];
-        choices.forEach(([label, decision]) => {
-            const button = fluentButton(label, () => {
-                void respond(decision);
-            });
-            buttons.push(button);
-            actions.appendChild(button);
+function buildModalHtml(request: NativeWorkerConsentRequest): string {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const detailRows = nativeWorkerConsentDetails(request)
+        .map((line) => `<div class="worker-detail"><dt>${escapeHtml(line.split(":", 1)[0])}</dt><dd>${escapeHtml(line.slice(line.indexOf(":") + 1).trim())}</dd></div>`)
+        .join("");
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Native worker permission</title>
+    ${getModalStyles(isDarkTheme)}
+    <style>
+        .modal-panel { gap: 12px; overflow: hidden; }
+        .worker-warning { flex: none; margin: 0; padding: 12px; border-left: 3px solid #d83b01; background: ${isDarkTheme ? "rgba(216,59,1,.16)" : "rgba(216,59,1,.08)"}; font-size: 13px; line-height: 1.5; }
+        .modal-body { min-height: 0; }
+        .worker-details { display: grid; gap: 8px; margin: 0; }
+        .worker-detail { display: grid; grid-template-columns: minmax(120px, .32fr) minmax(0, .68fr); gap: 8px 12px; padding: 8px 10px; border: 1px solid ${isDarkTheme ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.12)"}; border-radius: 6px; }
+        .worker-detail dt { color: ${isDarkTheme ? "rgba(255,255,255,.62)" : "rgba(0,0,0,.62)"}; font-size: 12px; }
+        .worker-detail dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45; }
+        .modal-footer { flex: none; }
+        .modal-feedback { display: none; }
+        .modal-feedback.visible { display: block; }
+        .modal-footer button { white-space: normal; overflow-wrap: anywhere; }
+        @media (max-width: 520px) { .worker-detail { grid-template-columns: 1fr; gap: 4px; } }
+    </style>
+</head>
+<body>
+    <main class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="consent-title" aria-describedby="worker-warning">
+        <header class="modal-header">
+            <div>
+                <p class="modal-eyebrow">Native code permission request</p>
+                <h3 id="consent-title">Approve Native Worker</h3>
+            </div>
+            <button class="icon-button" type="button" data-decision="reject" aria-label="Reject and close">&times;</button>
+        </header>
+        <p class="worker-warning" id="worker-warning">${escapeHtml(NATIVE_WORKER_WARNING)}</p>
+        <section class="modal-body" aria-label="Worker details">
+            <dl class="worker-details">${detailRows}</dl>
+        </section>
+        <p class="modal-feedback" id="consent-feedback" role="alert" aria-live="assertive"></p>
+        <footer class="modal-footer">
+            <button class="fluent-button fluent-button-secondary" type="button" data-decision="reject">Reject</button>
+            <button id="allow-once-button" class="fluent-button fluent-button-secondary" type="button" data-decision="allow-once">Allow once</button>
+            <button class="fluent-button fluent-button-primary" type="button" data-decision="allow-tool">Trust this tool version and worker</button>
+        </footer>
+    </main>
+    <script>
+        const buttons = [...document.querySelectorAll("[data-decision]")];
+        buttons.forEach((button) => button.addEventListener("click", () => {
+            buttons.forEach((item) => { item.disabled = true; });
+            window.modalBridge.send("${DECISION_CHANNEL}", { decision: button.dataset.decision });
+        }));
+        window.modalBridge.onMessage((payload) => {
+            if (payload?.channel !== "${RESULT_CHANNEL}") return;
+            const feedback = document.getElementById("consent-feedback");
+            feedback.textContent = "Approval was not saved. Reject or try again.";
+            feedback.classList.add("visible");
+            buttons.forEach((button) => { button.disabled = false; });
         });
-        dialog.append(error, actions);
-        overlay.appendChild(dialog);
-        const keydown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                void respond("reject");
-            } else if (event.key === "Tab") {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                const current = buttons.indexOf(document.activeElement as HTMLElement);
-                buttons[(current + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
+        document.getElementById("allow-once-button")?.focus();
+    </script>
+</body>
+</html>`;
+}
+
+export function initializeNativeWorkerConsentModal(): void {
+    if (initialized) return;
+    initialized = true;
+    const showRequest = async (request: NativeWorkerConsentRequest): Promise<void> => {
+        activeRequest = request;
+        try {
+            await showBrowserWindowModal({ id: MODAL_ID, html: buildModalHtml(request), width: 640, height: 500 });
+        } catch {
+            if (activeRequest?.requestId === request.requestId) {
+                activeRequest = null;
+                await api()
+                    .respondToNativeWorkerConsent(request.requestId, "reject")
+                    .catch(() => false);
             }
-        };
-        active = { request, overlay, previousFocus: document.activeElement as HTMLElement | null, keydown };
-        document.body.appendChild(overlay);
-        document.addEventListener("keydown", keydown, true);
-        buttons[0].focus();
-    });
-    const unsubscribeClosed = api().onNativeWorkerConsentClosed(close);
+        }
+    };
+    const handleClosed = (payload: ModalWindowClosedPayload): void => {
+        if (payload.id !== MODAL_ID || !activeRequest) return;
+        const requestId = activeRequest.requestId;
+        activeRequest = null;
+        void api().respondToNativeWorkerConsent(requestId, "reject");
+    };
+    const handleConsentClosed = (requestId: string): void => {
+        if (activeRequest?.requestId !== requestId) return;
+        activeRequest = null;
+        void closeBrowserWindowModal();
+    };
+    const handleMessage = (payload: ModalWindowMessagePayload): void => {
+        if (payload.channel !== DECISION_CHANNEL || !payload.data || typeof payload.data !== "object" || !activeRequest) return;
+        const decision = (payload.data as { decision?: unknown }).decision;
+        if (decision !== "allow-tool" && decision !== "allow-once" && decision !== "reject") return;
+        void api()
+            .respondToNativeWorkerConsent(activeRequest.requestId, decision)
+            .then(async (accepted) => {
+                if (!accepted) throw new Error("Consent request expired");
+                activeRequest = null;
+                await closeBrowserWindowModal();
+            })
+            .catch(() => {
+                if (!activeRequest) return;
+                void sendBrowserWindowModalMessage({ channel: RESULT_CHANNEL, data: { success: false } }).catch(() => undefined);
+            });
+    };
+    onBrowserWindowModalMessage(handleMessage);
+    onBrowserWindowModalClosed(handleClosed);
+    const unsubscribeRequest = api().onNativeWorkerConsentRequest((request) => void showRequest(request));
+    const unsubscribeClosed = api().onNativeWorkerConsentClosed(handleConsentClosed);
     window.addEventListener(
         "beforeunload",
         () => {
             unsubscribeRequest();
             unsubscribeClosed();
-            if (active) close(active.request.requestId);
+            offBrowserWindowModalMessage(handleMessage);
+            offBrowserWindowModalClosed(handleClosed);
+            activeRequest = null;
         },
         { once: true },
     );
@@ -158,7 +200,7 @@ export function appendNativeWorkerConsentReview(container: HTMLElement): void {
                 row.appendChild(textElement("p", `Approved: ${record.approvedAt}`));
                 const status = textElement("p", "");
                 status.setAttribute("role", "status");
-                const revoke = fluentButton("Revoke", () => {
+                const revoke = consentActionButton("Revoke", () => {
                     revoke.setAttribute("disabled", "");
                     void api()
                         .revokeNativeWorkerConsent(record.fingerprint)
@@ -176,7 +218,7 @@ export function appendNativeWorkerConsentReview(container: HTMLElement): void {
         }
     };
     section.append(
-        fluentButton("Refresh Native Approvals", () => {
+        consentActionButton("Refresh Native Approvals", () => {
             void refresh();
         }),
         list,

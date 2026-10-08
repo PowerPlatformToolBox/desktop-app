@@ -25,6 +25,7 @@ import {
     TOOL_REPORT_CHANNELS,
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
+    WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
 import { captureException, captureMessage, logInfo as logSentryInfo, recordSentryTelemetryDisabled } from "../common/sentryHelper";
@@ -72,11 +73,12 @@ import { clearLogEntries, readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
+import { ToolInstallationCoordinator } from "./utilities/appWorkerLifecycle";
 import { mergeDataverseHeaders } from "./utilities/dataverseBatch";
 import { authorizeFilesystemCaller } from "./utilities/filesystemAuthorization";
 import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utilities/nativeWorkerIdentity";
 import { WorkerQuitCoordinator } from "./utilities/workerQuit";
-import { ToolInstallationCoordinator } from "./utilities/appWorkerLifecycle";
+import { registerWorkerToolIpcHandlers } from "./utilities/workerToolIpc";
 import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
 
 // Constants
@@ -187,7 +189,7 @@ class ToolBoxApp {
                     const tool = this.toolManager.getTool(identity.toolId);
                     const manifest = this.toolManager.getInstalledManifestSync(identity.toolId);
                     const toolPath = tool?.localPath ?? manifest?.installPath;
-                    return resolveNativeWorkerIdentity(identity, tool, toolPath, workerId);
+                    return resolveNativeWorkerIdentity(identity, tool, toolPath, workerId, app.isPackaged, process.env, process.env.PPTB_DEVELOPER_BUILD === "1");
                 },
             );
             this.workerBrokerManager = new WorkerBrokerManager({
@@ -201,10 +203,22 @@ class ToolBoxApp {
                     if (!loaded) return null;
                     const tool = this.toolManager.getTool(loaded.toolId);
                     const manifest = this.toolManager.getInstalledManifestSync(loaded.toolId);
-                    const identity = resolveNativeWorkerIdentity(loaded, tool, tool?.localPath ?? manifest?.installPath, workerId);
+                    const identity = resolveNativeWorkerIdentity(
+                        loaded,
+                        tool,
+                        tool?.localPath ?? manifest?.installPath,
+                        workerId,
+                        app.isPackaged,
+                        process.env,
+                        process.env.PPTB_DEVELOPER_BUILD === "1",
+                    );
                     if (!identity) return null;
                     return { owner: { toolId: loaded.toolId, instanceId }, identity, sourceFingerprint: nativeWorkerSourceFingerprint(loaded) };
                 },
+                onStartupFailure: (code) =>
+                    captureException(new Error(`Native worker startup failed: ${code}`), {
+                        tags: { component: "native_worker", failure_code: code },
+                    }),
                 onError: (error) => logError("Native worker cleanup failed", error),
             });
             this.protocolHandlerManager = new ProtocolHandlerManager();
@@ -428,6 +442,9 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_CONTEXT);
+        ipcMain.removeHandler(WORKER_CHANNELS.START);
+        ipcMain.removeHandler(WORKER_CHANNELS.SEND);
+        ipcMain.removeHandler(WORKER_CHANNELS.STOP);
 
         // Tool settings handlers
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_SETTINGS);
@@ -636,6 +653,7 @@ class ToolBoxApp {
         // Remove existing handlers first to prevent duplicate registration errors
         // This is necessary on macOS where the app doesn't quit when windows are closed
         this.removeIpcHandlers();
+        registerWorkerToolIpcHandlers(ipcMain, this.workerBrokerManager);
 
         ipcMain.handle(UTIL_CHANNELS.WINDOW_MINIMIZE, (event) => {
             BrowserWindow.fromWebContents(event.sender)?.minimize();
@@ -693,11 +711,11 @@ class ToolBoxApp {
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.GET_SETTING, (_, key) => {
+        ipcMain.handle(SETTINGS_CHANNELS.GET_SETTING, (event, key) => {
             return this.settingsManager.getSetting(key);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (_, key, value) => {
+        ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (event, key, value) => {
             this.settingsManager.setSetting(key, value);
             if (key === "sentryTelemetryConsent") {
                 const currentSentryConsent = this.settingsManager.getSentryTelemetryConsent();

@@ -53,7 +53,7 @@ are available. GUI verification manual if no Electron GUI test path is available
 - Added textContent-based native disclosure modal and Consent Review section, with
   minimal initialization/style wiring; no shared tool API or tool preload changes.
 - Added mocked manager tests and a pure Node disclosure test, plus
-  docs/NATIVE_WORKER_CONSENT.md with the PR6 lifecycle/event handoff.
+  docs/DOTNET_WORKERS_ENGINEERING.md consent/broker sections with the PR6 lifecycle/event handoff.
 - get_errors checked each implementation slice. Editor test diagnostics exposed
   a missing record fingerprint and a Node/renderer ambient-type mismatch; both
   were repaired. Sass @use ordering was also corrected after a targeted check.
@@ -157,7 +157,7 @@ are available. GUI verification manual if no Electron GUI test path is available
   initialization.ts, toolManagement.ts, the closeAllTools unit mock, the native
   consent manager test import and the e2e source-read path. APIs and markup remain
   unchanged; no modal merge, UI separation or broad restructuring.
-- Updated docs/NATIVE_WORKER_CONSENT.md and the current source tree in
+- Updated docs/DOTNET_WORKERS_ENGINEERING.md and the current source tree in
   .github/copilot-instructions.md. Historical execution entries retain old names;
   current paths are recorded here and below. Shared tracker remains main-agent-owned.
 - Validation: focused get_errors immediately after the helper rename and consent
@@ -196,5 +196,5 @@ are available. GUI verification manual if no Electron GUI test path is available
 - tests/unit/main/managers/nativeWorkerConsentManager.test.ts
 - tests/unit/renderer/closeAllTools.test.ts
 - tests/e2e/nativeWorkerConsent.test.ts
-- docs/NATIVE_WORKER_CONSENT.md
+- docs/DOTNET_WORKERS_ENGINEERING.md
 - .github/copilot-instructions.md

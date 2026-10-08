@@ -324,8 +324,13 @@ export class WorkerProcessManager {
             await this.enqueue(record, { jsonrpc: "2.0", id: record.startupId, method: "platform/initialize", params: { protocol: "jsonrpc-stdio-v1", protocolVersion: 1 } });
         } catch (error) {
             if (error instanceof Error && "code" in error && (error.code === "WORKSPACE_INVALID" || error.code === "RESTORE_STOP_UNVERIFIED")) record.preparationFailure = error;
-            if (record.state === "starting" || record.state === "running")
-                this.fail(record, this.dependencies.preserveStartupErrorCodes && error instanceof WorkerProcessError ? error.code : "STARTUP_FAILED");
+            if (record.state === "starting" || record.state === "running") {
+                const code =
+                    this.dependencies.preserveStartupErrorCodes && error instanceof Error && "code" in error && typeof error.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)
+                        ? error.code
+                        : "STARTUP_FAILED";
+                this.fail(record, code);
+            }
         } finally {
             record.preparationSettled = true;
             this.cleanup(record);

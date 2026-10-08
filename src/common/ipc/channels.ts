@@ -289,6 +289,13 @@ export const NATIVE_WORKER_CONSENT_CHANNELS = {
     CLOSED: "native-worker-consent:closed",
 } as const;
 
+export const WORKER_CHANNELS = {
+    START: "worker:start",
+    SEND: "worker:send",
+    STOP: "worker:stop",
+    EVENT: "worker:event",
+} as const;
+
 // Power Platform API-related IPC channels
 export const POWERPLATFORM_CHANNELS = {
     REQUEST: "powerplatform.request",

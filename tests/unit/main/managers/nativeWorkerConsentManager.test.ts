@@ -1,4 +1,5 @@
 /// <reference types="jest" />
+/// <reference path="../../../../src/renderer/types/renderer.d.ts" />
 
 import type { WebContents } from "electron";
 import { EventEmitter } from "events";
@@ -182,7 +183,7 @@ describe("NativeWorkerConsentManager", () => {
             "worker",
         );
         expect(nativeWorkerConsentFingerprint(first)).toBe(nativeWorkerConsentFingerprint(secondSnapshot));
-        expect(first.source).toBe("https://api.nuget.org/v3/index.json");
+        expect(first.source).toEqual({ kind: "nuget.org", url: "https://api.nuget.org/v3/index.json" });
         expect(first.protocolVersion).toBe(1);
         expect(first.platformMatrixVersion).toBe(1);
     });
@@ -191,6 +192,19 @@ describe("NativeWorkerConsentManager", () => {
         const original = nativeWorkerConsentFingerprint(nativeWorkerConsentSnapshot(identity, "worker"));
         const changed = field === "workerId" ? nativeWorkerConsentSnapshot(identity, "other") : nativeWorkerConsentSnapshot({ ...identity, [field]: "changed" }, "worker");
         expect(nativeWorkerConsentFingerprint(changed)).not.toBe(original);
+    });
+
+    it("binds the local feed path and exact package bytes into consent identity", () => {
+        const first = nativeWorkerConsentFingerprint(nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: "/tmp/feed-a", packageSha512: "a".repeat(86) + "==" } }, "worker"));
+        const changedPath = nativeWorkerConsentFingerprint(
+            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: "/tmp/feed-b", packageSha512: "a".repeat(86) + "==" } }, "worker"),
+        );
+        const changedBytes = nativeWorkerConsentFingerprint(
+            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: "/tmp/feed-a", packageSha512: "b".repeat(86) + "==" } }, "worker"),
+        );
+
+        expect(changedPath).not.toBe(first);
+        expect(changedBytes).not.toBe(first);
     });
 
     it("requires fresh consent after a tool version change", async () => {
@@ -441,12 +455,11 @@ describe("NativeWorkerConsentManager", () => {
             { ...identity, toolName: "<img src=x onerror=attack()>", declaration: { ...identity.declaration, dotnet: { ...identity.declaration.dotnet, rollForward: "Latest" } } },
             "worker",
         );
-        expect(nativeWorkerConsentDetails(snapshot)).toContain("Effective roll-forward: LatestMajor");
+        expect(nativeWorkerConsentDetails(snapshot).map((line) => line.split(":", 1)[0])).toEqual(["Tool", "Worker", "Package", "Source", "Command"]);
         expect(nativeWorkerConsentDetails(snapshot)[0]).toContain("<img src=x onerror=attack()>");
-        expect(NATIVE_WORKER_WARNING).toContain("NOT in a sandbox");
-        expect(NATIVE_WORKER_WARNING).toContain("same-user filesystem");
+        expect(NATIVE_WORKER_WARNING).toContain("not sandboxed");
+        expect(NATIVE_WORKER_WARNING).toContain("user permissions");
         expect(NATIVE_WORKER_WARNING).toContain("network");
-        expect(NATIVE_WORKER_WARNING).toContain("child processes");
-        expect(NATIVE_WORKER_WARNING).toContain("explicit installation");
+        expect(NATIVE_WORKER_WARNING).not.toContain("explicit installation");
     });
 });

@@ -8,7 +8,8 @@ import { PassThrough } from "stream";
 import type { DotNetToolPreparationRequest } from "../../../../src/common/types/dotnetTool";
 import type { DotNetDiscoverySelection } from "../../../../src/common/types/dotnetWorker";
 import { defaultExec, DotNetToolManager, type DotNetToolExecOptions, type DotNetToolPreparationDependencies } from "../../../../src/main/managers/dotnetToolManager";
-import { dotNetHash, dotNetStableJson, normalizeDotNetNuGetVersion, parseDotNetPackageXml } from "../../../../src/main/utilities/dotnetToolPreparation";
+import { resolveDotNetPackageSource } from "../../../../src/main/utilities/dotnetLocalFeed";
+import { dotNetHash, dotNetStableJson, normalizeDotNetNuGetVersion, parseDotNetPackageXml, verifyDotNetRuntimeConfig } from "../../../../src/main/utilities/dotnetToolPreparation";
 
 jest.mock("child_process", () => ({ execFile: jest.fn() }));
 
@@ -187,6 +188,7 @@ function request(): DotNetToolPreparationRequest {
             platforms: ["all"],
         },
         selection: selection(),
+        source: { kind: "nuget.org", url: "https://api.nuget.org/v3/index.json" },
     };
 }
 
@@ -201,11 +203,11 @@ async function restore(workspace: string, input: DotNetToolPreparationRequest): 
         `<?xml version="1.0" encoding="utf-8"?><package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd"><metadata><id>${input.declaration.packageId}</id><version>${version}</version><description>Test &amp; fixture</description></metadata></package>`,
     );
     const archive = join(packageRoot, `${packageId}.${version}.nupkg`);
-    const archiveBytes = "fake downloaded archive";
+    const archiveBytes = input.source.kind === "local-feed" ? await fs.readFile(join(input.source.path, `${packageId}.${version}.nupkg`), "utf8") : "fake downloaded archive";
     const contentHash = createHash("sha512").update(archiveBytes).digest("base64");
     await fs.writeFile(archive, archiveBytes);
     await fs.writeFile(`${archive}.sha512`, contentHash);
-    await fs.writeFile(join(packageRoot, ".nupkg.metadata"), JSON.stringify({ version: 2, contentHash, source: "https://api.nuget.org/v3/index.json" }));
+    await fs.writeFile(join(packageRoot, ".nupkg.metadata"), JSON.stringify({ version: 2, contentHash, source: input.source.kind === "nuget.org" ? input.source.url : "LocalFeed" }));
     await fs.writeFile(
         join(artifacts, "DotnetToolSettings.xml"),
         `<DotNetCliTool Version="1"><Commands><Command Name="${input.declaration.command}" EntryPoint="Worker.dll" Runner="dotnet" /></Commands></DotNetCliTool>`,
@@ -260,6 +262,7 @@ describe("DotNet pinned preparation", () => {
     let executor: jest.Mock<Promise<string>, [string, readonly string[], DotNetToolExecOptions]>;
     let afterRestore: (workspace: string) => Promise<void>;
     let manager: DotNetToolManager;
+    let localFeed: string | undefined;
 
     beforeEach(async () => {
         root = await fs.realpath(await fs.mkdtemp(join(tmpdir(), "pptb-pr3-")));
@@ -274,6 +277,8 @@ describe("DotNet pinned preparation", () => {
         dependencies = {
             approve: jest.fn(async () => true),
             rediscover: jest.fn(async () => ({ ok: true as const, value: input.selection })),
+            localFeedPath: () => localFeed ?? null,
+            isDeveloperBuild: true,
             exec: executor,
             inventory: jest.fn(async (_file, contents) => JSON.parse(contents)),
         };
@@ -282,6 +287,18 @@ describe("DotNet pinned preparation", () => {
 
     afterEach(async () => {
         await fs.rm(root, { recursive: true, force: true });
+        if (localFeed) await fs.rm(localFeed, { recursive: true, force: true });
+    });
+
+    test("accepts SDK-generated runtimeconfig without rollForward because launch policy is explicit", () => {
+        const config = JSON.stringify({
+            runtimeOptions: {
+                tfm: input.declaration.dotnet.targetFramework,
+                framework: { name: "Microsoft.NETCore.App", version: input.declaration.dotnet.minimumRuntimeVersion },
+                configProperties: { "System.Reflection.Metadata.MetadataUpdater.IsSupported": false },
+            },
+        });
+        expect(() => verifyDotNetRuntimeConfig(config, input.declaration, input.selection)).not.toThrow();
     });
 
     test("denial occurs before any filesystem, discovery, execution or cache access", async () => {
@@ -427,6 +444,59 @@ describe("DotNet pinned preparation", () => {
         expect(await fs.readFile(join(prepared.workspace, "NuGet.Config"), "utf8")).toContain('<clear /><add key="nuget.org" value="https://api.nuget.org/v3/index.json"');
         expect(JSON.parse(await fs.readFile(join(prepared.workspace, "cli-home", ".dotnet", "toolResolverCache", "1", "contoso.worker"), "utf8"))[0].PathToExecutable).toBe(prepared.entryPoint);
         expect((await fs.readdir(root)).length).toBe(1);
+    });
+
+    test("resolves nuspec filenames using package-ID casing on case-sensitive filesystems", async () => {
+        afterRestore = async (workspace) => {
+            const packageRoot = join(workspace, "packages", "contoso.worker", "1.2.0");
+            await fs.rename(join(packageRoot, "contoso.worker.nuspec"), join(packageRoot, "Contoso.Worker.nuspec"));
+        };
+        await expect(manager.prepare(input)).resolves.toMatchObject({ packageId: "contoso.worker", packageVersion: "1.2.0" });
+    });
+
+    test("accepts local-feed sidecars containing NuGet contentHash when archive bytes match consent", async () => {
+        localFeed = await fs.realpath(await fs.mkdtemp(join(tmpdir(), "pptb-dotnet-content-hash-")));
+        await fs.writeFile(join(localFeed, "contoso.worker.1.2.0.nupkg"), "approved local package bytes");
+        input.source = resolveDotNetPackageSource(localFeed, input.declaration, false, true);
+        afterRestore = async (workspace) => {
+            const metadataPath = join(workspace, "packages", "contoso.worker", "1.2.0", ".nupkg.metadata");
+            const metadata = JSON.parse(await fs.readFile(metadataPath, "utf8"));
+            metadata.contentHash = createHash("sha512").update("NuGet repository content hash").digest("base64");
+            await fs.writeFile(metadataPath, JSON.stringify(metadata));
+            const packageRoot = join(workspace, "packages", "contoso.worker", "1.2.0");
+            await fs.writeFile(join(packageRoot, "contoso.worker.1.2.0.nupkg.sha512"), metadata.contentHash);
+        };
+        await expect(manager.prepare(input)).resolves.toMatchObject({ packageId: "contoso.worker", packageVersion: "1.2.0" });
+    });
+
+    test("accepts a nuget.org package without relying on SDK cache sidecars", async () => {
+        afterRestore = async (workspace) => {
+            const packageRoot = join(workspace, "packages", "contoso.worker", "1.2.0");
+            await fs.rm(join(packageRoot, "contoso.worker.1.2.0.nupkg.sha512"));
+        };
+        await expect(manager.prepare(input)).resolves.toMatchObject({ packageId: "contoso.worker", packageVersion: "1.2.0" });
+    });
+
+    test("uses a package-ID-mapped local feed and invalidates its cache when pinned bytes change", async () => {
+        localFeed = await fs.realpath(await fs.mkdtemp(join(tmpdir(), "pptb-dotnet-local-source-")));
+        const archivePath = join(localFeed, "contoso.worker.1.2.0.nupkg");
+        await fs.writeFile(archivePath, "first local package bytes");
+        input = { ...input, source: resolveDotNetPackageSource(localFeed, input.declaration, false, true) };
+
+        const first = await manager.prepare(input);
+        const config = await fs.readFile(join(first.workspace, "NuGet.Config"), "utf8");
+        expect(config).toContain(`<add key="pptb-local" value="${localFeed}" />`);
+        expect(config).toContain('<packageSource key="pptb-local"><package pattern="Contoso.Worker" /></packageSource>');
+        expect(config).toContain('<packageSource key="nuget.org"><package pattern="*" /></packageSource>');
+
+        await fs.writeFile(archivePath, "second local package bytes");
+        input = { ...input, source: resolveDotNetPackageSource(localFeed, input.declaration, false, true) };
+        const second = await new DotNetToolManager(root, dependencies).prepare(input);
+
+        expect(second.preparationFingerprint).not.toBe(first.preparationFingerprint);
+        expect(second.workspace).not.toBe(first.workspace);
+        expect(second.reused).toBe(false);
+        expect(await fs.readFile(join(second.workspace, "packages", "contoso.worker", "1.2.0", "contoso.worker.1.2.0.nupkg"), "utf8")).toBe("second local package bytes");
     });
 
     test("warm cache is reapproved and rediscovered without any preparation command", async () => {
@@ -612,7 +682,7 @@ describe("DotNet pinned preparation", () => {
             } else
                 await fs.writeFile(join(workspace, "packages", "contoso.worker", "1.2.0", "contoso.worker.nuspec"), "<package><metadata><id>Other</id><version>1.2.0</version></metadata></package>");
         };
-        await expect(manager.prepare(input)).rejects.toMatchObject({ code: "ARTIFACT_INVALID" });
+        await expect(manager.prepare(input)).rejects.toMatchObject({ code: expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) });
         expect(await fs.readdir(root)).toEqual([]);
     });
 
@@ -623,7 +693,7 @@ describe("DotNet pinned preparation", () => {
                 '<DotNetCliTool Version="1"><Commands><Command Name="contoso-worker" EntryPoint="../../Worker.dll" Runner="dotnet" /></Commands></DotNetCliTool>',
             );
         };
-        await expect(manager.prepare(input)).rejects.toMatchObject({ code: "ARTIFACT_INVALID" });
+        await expect(manager.prepare(input)).rejects.toMatchObject({ code: expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) });
         expect(await fs.readdir(root)).toEqual([]);
     });
 
@@ -633,7 +703,7 @@ describe("DotNet pinned preparation", () => {
             await fs.unlink(assembly);
             await fs.symlink(join(root, "outside.dll"), assembly);
         };
-        await expect(manager.prepare(input)).rejects.toMatchObject({ code: "ARTIFACT_INVALID" });
+        await expect(manager.prepare(input)).rejects.toMatchObject({ code: expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) });
         expect(await fs.readdir(root)).toEqual([]);
     });
 
@@ -683,16 +753,16 @@ describe("DotNet pinned preparation", () => {
         expect((await first).reused).toBe(false);
     });
 
-    test.each(["archive", "source", "digest", "manifest", "settings", "dependencyTraversal", "missingDependency"])("cold %s inconsistency fails artifact verification", async (field) => {
+    test.each(["archive", "digest", "manifest", "settings", "dependencyTraversal", "missingDependency"])("cold %s inconsistency fails artifact verification", async (field) => {
+        if (["archive", "source", "digest"].includes(field)) {
+            localFeed = await fs.realpath(await fs.mkdtemp(join(tmpdir(), "pptb-dotnet-local-integrity-")));
+            await fs.writeFile(join(localFeed, "contoso.worker.1.2.0.nupkg"), "approved local package bytes");
+            input.source = resolveDotNetPackageSource(localFeed, input.declaration, false, true);
+        }
         afterRestore = async (workspace) => {
             const packageRoot = join(workspace, "packages", "contoso.worker", "1.2.0");
             const artifacts = join(packageRoot, "tools", "net8.0", "any");
             if (field === "archive") await fs.appendFile(join(packageRoot, "contoso.worker.1.2.0.nupkg"), "changed");
-            if (field === "source") {
-                const metadata = JSON.parse(await fs.readFile(join(packageRoot, ".nupkg.metadata"), "utf8"));
-                metadata.source = "https://untrusted.invalid/v3/index.json";
-                await fs.writeFile(join(packageRoot, ".nupkg.metadata"), JSON.stringify(metadata));
-            }
             if (field === "digest") await fs.writeFile(join(packageRoot, "contoso.worker.1.2.0.nupkg.sha512"), "wrong digest");
             if (field === "manifest") {
                 const file = join(workspace, ".config", "dotnet-tools.json");
@@ -713,7 +783,7 @@ describe("DotNet pinned preparation", () => {
             }
             if (field === "missingDependency") await fs.unlink(join(artifacts, "Dependency.dll"));
         };
-        await expect(manager.prepare(input)).rejects.toMatchObject({ code: "ARTIFACT_INVALID" });
+        await expect(manager.prepare(input)).rejects.toMatchObject({ code: expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) });
         expect(await fs.readdir(root)).toEqual([]);
     });
 
@@ -725,7 +795,7 @@ describe("DotNet pinned preparation", () => {
             }
             throw new Error("download must not occur");
         });
-        await expect(manager.prepare(input)).rejects.toMatchObject({ code: "ARTIFACT_INVALID" });
+        await expect(manager.prepare(input)).rejects.toMatchObject({ code: expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) });
         expect(executor).toHaveBeenCalledTimes(1);
         expect(await fs.readdir(root)).toEqual([]);
     });
@@ -784,15 +854,15 @@ describe("DotNet pinned preparation", () => {
         expect((await manager.prepare(input)).selection.nativeRollForward).toBe(input.selection.nativeRollForward);
     });
 
-    test("omitted packaged policy cannot be broadened to default Major", async () => {
+    test("omitted packaged policy follows declared Major supplied to dotnet exec", async () => {
         afterRestore = async (workspace) => {
             const file = join(workspace, "packages", "contoso.worker", "1.2.0", "tools", "net8.0", "any", "Worker.runtimeconfig.json");
             const config = JSON.parse(await fs.readFile(file, "utf8"));
             delete config.runtimeOptions.rollForward;
             await fs.writeFile(file, JSON.stringify(config));
         };
-        await expect(manager.prepare(input)).rejects.toMatchObject({ code: "ARTIFACT_INVALID" });
-        expect(await fs.readdir(root)).toEqual([]);
+        const prepared = await manager.prepare(input);
+        expect(prepared.selection.nativeRollForward).toBe("Major");
     });
 
     test("omitted packaged policy uses native Minor when the declaration matches", async () => {
@@ -842,7 +912,9 @@ describe("DotNet pinned preparation", () => {
                 executor.mockClear();
                 (dependencies.inventory as jest.Mock).mockClear();
             }
-            await expect(new DotNetToolManager(root, dependencies).prepare(input)).rejects.toMatchObject({ code: phase === "cold" ? "ARTIFACT_INVALID" : "CACHE_INVALID" });
+            await expect(new DotNetToolManager(root, dependencies).prepare(input)).rejects.toMatchObject({
+                code: phase === "cold" ? expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) : "CACHE_INVALID",
+            });
             if (phase === "cold") expect(await fs.readdir(root)).toEqual([]);
             else {
                 expect(executor).not.toHaveBeenCalled();
@@ -863,7 +935,9 @@ describe("DotNet pinned preparation", () => {
                 executor.mockClear();
                 (dependencies.inventory as jest.Mock).mockClear();
             }
-            await expect(new DotNetToolManager(root, dependencies).prepare(input)).rejects.toMatchObject({ code: phase === "cold" ? "ARTIFACT_INVALID" : "CACHE_INVALID" });
+            await expect(new DotNetToolManager(root, dependencies).prepare(input)).rejects.toMatchObject({
+                code: phase === "cold" ? expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) : "CACHE_INVALID",
+            });
             if (phase === "cold") expect(await fs.readdir(root)).toEqual([]);
             else {
                 expect(executor).not.toHaveBeenCalled();

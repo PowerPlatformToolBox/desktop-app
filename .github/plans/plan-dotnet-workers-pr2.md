@@ -41,7 +41,7 @@ Checkpoint: **GO**, explicitly selected by the user on 2026-10-05.
     - `tests/unit/dotnetDiscovery.test.ts`: SDK/network-independent adapter fixtures and
       suites `.NET runtime policy selection`, `.NET listings and host info`,
       `platform matrix v1`, `internal .NET discovery manager`.
-    - `docs/DOTNET_WORKER_DECLARATIONS.md`: discovery decisions and PR3 artifact requirements.
+    - `docs/DOTNET_WORKERS_ENGINEERING.md`: discovery decisions and PR3 artifact requirements.
     - `docs/DOTNET_WORKERS_STATUS.md`: In progress and pending evidence.
     - This plan: checkpoint, gates and execution record.
 - Focused `get_errors` run immediately after every substantive edit. All four new
@@ -97,7 +97,7 @@ package changes or worker execution were performed.
   `src/common/types/dotnetWorker.ts`, `src/main/utilities/dotnetDiscovery.ts`,
   `src/main/managers/dotnetDiscoveryManager.ts` and `tests/unit/dotnetDiscovery.test.ts`.
 - Updated the current `DotNetDiscoveryManager` reference in
-  `docs/DOTNET_WORKER_DECLARATIONS.md` and execution-log class/interface names here.
+  `docs/DOTNET_WORKERS_ENGINEERING.md` and execution-log class/interface names here.
 - Preserved existing user edits, behavior, filenames/module paths, JSON `dotnet`,
   command paths, `DOTNET` constants/environment, package/protocol names and upstream
   `DotnetToolSettings.xml`. Validator-local `dotnet` remains configuration-oriented.

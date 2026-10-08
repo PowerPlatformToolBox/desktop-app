@@ -169,6 +169,55 @@ declare namespace ToolBoxAPI {
         error?: string;
     }
 
+    const workerHandleBrand: unique symbol;
+    export type WorkerHandle = string & { readonly [workerHandleBrand]: true };
+
+    export type WorkerRpcMessage =
+        | { jsonrpc: "2.0"; method: string; id?: string | number; params?: unknown[] | Record<string, unknown> }
+        | { jsonrpc: "2.0"; id: string | number | null; result: unknown }
+        | { jsonrpc: "2.0"; id: string | number | null; error: { code: number; message: string; data?: unknown } };
+
+    export interface WorkerSnapshot {
+        state: "starting" | "running" | "stopping" | "exited" | "failed";
+        failure?: string;
+        stderr: { bytes: number; truncated: boolean; summary: "Worker stderr redacted" };
+    }
+
+    export interface WorkerStart {
+        handle: WorkerHandle;
+        ready: Promise<void>;
+    }
+
+    export interface WorkerRequestContext {
+        readonly isCancellationRequested: boolean;
+        onCancellationRequested(callback: () => void): { dispose(): void };
+    }
+
+    export interface WorkerSessionOptions {
+        requests?: Record<string, (params: unknown, context: WorkerRequestContext) => unknown | Promise<unknown>>;
+        notifications?: Record<string, (params: unknown) => void>;
+        onExit?: (snapshot: WorkerSnapshot) => void;
+    }
+
+    export interface WorkerSession {
+        readonly ready: Promise<void>;
+        request<Result = unknown>(method: string, params?: unknown): Promise<Result>;
+        notify(method: string, params?: unknown): Promise<void>;
+        cancel(): void;
+        stop(): Promise<void>;
+        dispose(): Promise<void>;
+    }
+
+    export interface WorkersAPI {
+        connect(workerId: string, options?: WorkerSessionOptions): Promise<WorkerSession>;
+        start(workerId: string): Promise<WorkerStart>;
+        send(handle: WorkerHandle, message: WorkerRpcMessage): Promise<void>;
+        onMessage(handle: WorkerHandle, callback: (message: WorkerRpcMessage) => void): () => void;
+        onExit(handle: WorkerHandle, callback: (snapshot: WorkerSnapshot) => void): () => void;
+        stop(handle: WorkerHandle): Promise<void>;
+        dispose(handle: WorkerHandle): Promise<void>;
+    }
+
     /**
      * Connections namespace - restricted access for tools
      */
@@ -406,6 +455,9 @@ declare namespace ToolBoxAPI {
      * Main ToolBox API exposed to tools via window.toolboxAPI
      */
     export interface API {
+        /** Start and communicate with a worker declared by this tool's manifest. */
+        workers: WorkersAPI;
+
         /**
          * Connection-related operations (restricted)
          */
@@ -611,11 +663,13 @@ declare global {
         /**
          * The organized ToolBox API for tools
          */
+        // @ts-expect-error App-renderer and tool windows expose different global API contracts.
         toolboxAPI: ToolBoxAPI.API;
 
         /**
          * Tool context available at startup
          */
+        // @ts-expect-error App-renderer and tool windows expose distinct context contracts.
         TOOLBOX_CONTEXT?: ToolBoxAPI.ToolContext;
     }
 }
