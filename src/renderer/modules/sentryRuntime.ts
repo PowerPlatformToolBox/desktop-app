@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/electron/renderer";
-import { getSentryConfig, scrubSentryEvent } from "../../common/sentry";
+import { getSentryConfig, normalizeSentryFields, scrubSentryEvent } from "../../common/sentry";
 import { hasSentryTelemetryConsent, initializeSentryHelper, resetSentryHelper, setSentryTelemetryConsent } from "../../common/sentryHelper";
 import type { TelemetryConsentChoice } from "../../common/types";
 
@@ -58,7 +58,10 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
                 return scrubbed;
             },
             beforeSendTransaction(event) {
-                return hasSentryTelemetryConsent() ? event : null;
+                return hasSentryTelemetryConsent() ? normalizeSentryFields(event) : null;
+            },
+            beforeSendLog(log) {
+                return { ...log, attributes: normalizeSentryFields(log.attributes) };
             },
         });
 

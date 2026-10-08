@@ -1,6 +1,17 @@
 /// <reference types="jest" />
 
-import { addConnectionSlotsBreadcrumb, initializeSentryHelper, logInfo, recordSentryTelemetryDisabled, resetSentryHelper, setSentryTelemetryConsent } from "../../../src/common/sentryHelper";
+import {
+    addConnectionSlotsBreadcrumb,
+    captureException,
+    captureMessage,
+    initializeSentryHelper,
+    logInfo,
+    recordSentryTelemetryDisabled,
+    resetSentryHelper,
+    setContext,
+    setSentryTelemetryConsent,
+    setTags,
+} from "../../../src/common/sentryHelper";
 
 describe("Sentry helper telemetry consent", () => {
     const sentry = {
@@ -24,6 +35,56 @@ describe("Sentry helper telemetry consent", () => {
         logInfo("ordinary message");
 
         expect(sentry.logger.info).not.toHaveBeenCalled();
+    });
+
+    it("normalizes nested log fields and keeps the shared machine identifier authoritative", () => {
+        setSentryTelemetryConsent("yes");
+
+        logInfo("tool launched", { toolId: "alias", tool_id: "canonical", machineId: "caller", data: { toolid: "nested" } });
+
+        expect(sentry.logger.info).toHaveBeenCalledWith("tool launched", {
+            tool_id: "canonical",
+            machine_id: null,
+            data: { tool_id: "nested" },
+        });
+    });
+
+    it("normalizes global tags and context fields", () => {
+        const setTag = jest.fn();
+        const setContextMock = jest.fn();
+        initializeSentryHelper({ ...sentry, setTag, setContext: setContextMock });
+
+        setTags({ toolId: "tool", machineid: "machine" });
+        setContext("tool", { toolId: "tool", machineId: "caller" });
+
+        expect(setTag.mock.calls).toEqual([
+            ["tool_id", "tool"],
+            ["machine_id", "machine"],
+        ]);
+        expect(setContextMock).toHaveBeenCalledWith("tool", { tool_id: "tool", machine_id: null });
+    });
+
+    it.each(["exception", "message"])("normalizes %s scope metadata", (kind) => {
+        const scope = { setTag: jest.fn(), setExtra: jest.fn(), setLevel: jest.fn(), clear: jest.fn() };
+        initializeSentryHelper({
+            ...sentry,
+            logger: { ...sentry.logger, error: jest.fn() },
+            withScope: (callback: (value: typeof scope) => void) => callback(scope),
+            captureException: jest.fn(),
+            captureMessage: jest.fn(),
+        });
+        setSentryTelemetryConsent("yes");
+        const context = { tags: { toolId: "tool" }, extra: { details: { machineId: "machine" } } };
+
+        if (kind === "exception") {
+            captureException(new Error("failed"), context);
+        } else {
+            captureMessage("failed", "error", context);
+        }
+
+        expect(scope.setTag).toHaveBeenCalledWith("tool_id", "tool");
+        expect(scope.setTag).not.toHaveBeenCalledWith("toolId", expect.anything());
+        expect(scope.setExtra).toHaveBeenCalledWith("details", { machine_id: "machine" });
     });
 
     it("allows the explicit telemetry-disabled marker while consent is no", async () => {

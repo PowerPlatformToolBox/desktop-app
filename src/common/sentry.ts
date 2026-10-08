@@ -123,8 +123,31 @@ export function scrubPii(value: string): string {
 }
 
 /**
- * Recursively scrub PII from an object (tags, extra, breadcrumb data, etc.)
- * Returns a new object with PII scrubbed from all string values.
+ * Normalize telemetry identifier aliases without mutating the input.
+ * Canonical snake_case fields take precedence over aliases.
+ */
+export function normalizeSentryFields<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map((item) => normalizeSentryFields(item)) as T;
+    }
+    if (value === null || typeof value !== "object") {
+        return value;
+    }
+
+    const fields = value as Record<string, unknown>;
+    const normalized: Record<string, unknown> = {};
+    for (const [key, fieldValue] of Object.entries(fields)) {
+        const canonicalKey = /^(machineid|machine_id|machin_id)$/i.test(key) ? "machine_id" : /^(toolid|tool_id)$/i.test(key) ? "tool_id" : key;
+        if (key !== canonicalKey && Object.prototype.hasOwnProperty.call(fields, canonicalKey)) {
+            continue;
+        }
+        normalized[canonicalKey] = normalizeSentryFields(fieldValue);
+    }
+    return normalized as T;
+}
+
+/**
+ * Recursively scrub PII from metadata, returning a new object.
  */
 export function scrubPiiFromObject(obj: unknown): unknown {
     if (typeof obj === "string") {
@@ -165,6 +188,12 @@ export function scrubPiiFromObject(obj: unknown): unknown {
 export function scrubSentryEvent(event: any): any {
     if (!event) return event;
 
+    for (const key of ["tags", "extra", "contexts", "breadcrumbs"]) {
+        if (event[key]) {
+            event[key] = normalizeSentryFields(event[key]);
+        }
+    }
+
     // Scrub exception values
     if (event.exception?.values) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,13 +219,19 @@ export function scrubSentryEvent(event: any): any {
     }
 
     // Scrub breadcrumb messages and data
-    if (event.breadcrumbs?.values) {
+    const breadcrumbs = Array.isArray(event.breadcrumbs) ? event.breadcrumbs : event.breadcrumbs?.values;
+    if (Array.isArray(breadcrumbs)) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        event.breadcrumbs.values = event.breadcrumbs.values.map((crumb: any) => ({
+        const scrubbedBreadcrumbs = breadcrumbs.map((crumb: any) => ({
             ...crumb,
             message: crumb.message ? scrubPii(crumb.message) : crumb.message,
             data: crumb.data ? scrubPiiFromObject(crumb.data) : crumb.data,
         }));
+        if (Array.isArray(event.breadcrumbs)) {
+            event.breadcrumbs = scrubbedBreadcrumbs;
+        } else {
+            event.breadcrumbs.values = scrubbedBreadcrumbs;
+        }
     }
 
     // Scrub request URL and headers
