@@ -6,7 +6,7 @@
  * Sentry from the appropriate subpath in the calling code
  */
 
-import { normalizeSentryFields, scrubPii, scrubPiiFromObject } from "./sentry";
+import { normalizeSentryFields, sanitizeSentryData, scrubPii, scrubPiiFromObject } from "./sentry";
 import type { TelemetryConsentChoice } from "./types";
 
 // Define types for Sentry operations (these are compatible with both main and renderer)
@@ -149,7 +149,13 @@ export function addConnectionSlotsBreadcrumb(minConnections: number, maxConnecti
  * Use this for important operations like tool loading, connection testing, etc.
  */
 export function startTransaction(name: string, op: string, data?: Record<string, unknown>): SentryTransaction | undefined {
-    if (!sentryModule) return undefined;
+    if (!sentryModule?.startInactiveSpan || !hasSentryTelemetryConsent()) return undefined;
+
+    const span = sentryModule.startInactiveSpan({
+        name: scrubPii(name),
+        op,
+        attributes: sanitizeSentryData({ ...data, machine_id: machineId }),
+    });
 
     const startTime = Date.now();
     let finished = false;
@@ -158,10 +164,12 @@ export function startTransaction(name: string, op: string, data?: Record<string,
     const transactionWrapper: SentryTransaction = {
         setStatus: (newStatus: string) => {
             status = newStatus;
+            span.setStatus({ code: newStatus === "ok" ? 1 : 2, message: newStatus });
         },
         finish: () => {
             if (!finished) {
                 finished = true;
+                span.end();
                 const duration = Date.now() - startTime;
 
                 addBreadcrumb(`Operation ${name} finished`, "performance", "debug", {
@@ -211,20 +219,6 @@ export function captureException(
 ): void {
     if (!sentryModule || !hasSentryTelemetryConsent()) return;
 
-    const level = context?.level || "error";
-    const errorMessage = `${error.name}: ${error.message}`;
-    const errorData = {
-        ...context?.extra,
-        ...context?.tags,
-        stack: error.stack,
-    };
-
-    if (level === "fatal") {
-        logFatal(errorMessage, errorData);
-    } else {
-        logError(errorMessage, errorData);
-    }
-
     sentryModule.withScope((scope: SentryScope) => {
         scope.setTag("machine_id", machineId || "unknown");
 
@@ -261,23 +255,6 @@ export function captureMessage(
     },
 ): void {
     if (!sentryModule || !hasSentryTelemetryConsent()) return;
-
-    const logData = {
-        ...context?.extra,
-        ...context?.tags,
-    };
-
-    switch (level) {
-        case "fatal":
-            logFatal(message, logData);
-            break;
-        case "error":
-            logError(message, logData);
-            break;
-        case "warning":
-            logWarn(message, logData);
-            break;
-    }
 
     sentryModule.withScope((scope: SentryScope) => {
         scope.setTag("machine_id", machineId || "unknown");
@@ -325,7 +302,8 @@ export function wrapAsyncOperation<T>(
 
     logDebug(`Starting operation: ${operationName}`, context?.extra);
 
-    return operation()
+    return Promise.resolve()
+        .then(operation)
         .then((result) => {
             transaction?.setStatus("ok");
             transaction?.finish();

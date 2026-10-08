@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/electron/renderer";
-import { getSentryConfig, normalizeSentryFields, scrubSentryEvent } from "../../common/sentry";
-import { hasSentryTelemetryConsent, initializeSentryHelper, resetSentryHelper, setSentryTelemetryConsent } from "../../common/sentryHelper";
+import { getSentryConfig, sanitizeSentryLog, scrubSentryEvent } from "../../common/sentry";
+import { hasSentryTelemetryConsent, initializeSentryHelper, resetSentryHelper, setSentryMachineId, setSentryTelemetryConsent } from "../../common/sentryHelper";
 import type { TelemetryConsentChoice } from "../../common/types";
 
 let isRendererSentryInitialized = false;
@@ -9,7 +9,7 @@ function getAppVersionFromRelease(release?: string): string {
     return release?.split("@")[1] || "unknown";
 }
 
-export async function applyRendererSentryConsent(consent: TelemetryConsentChoice | null): Promise<boolean> {
+export async function applyRendererSentryConsent(consent: TelemetryConsentChoice | null, installId?: string): Promise<boolean> {
     setSentryTelemetryConsent(consent);
 
     if (consent !== "yes") {
@@ -41,7 +41,7 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
             replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
             replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
             enableLogs: true,
-            integrations: [Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }), Sentry.browserTracingIntegration({ enableLongTask: true }), Sentry.contextLinesIntegration()],
+            integrations: [Sentry.browserTracingIntegration({ enableLongTask: true }), Sentry.contextLinesIntegration()],
             beforeSend(event) {
                 if (!hasSentryTelemetryConsent()) {
                     return null;
@@ -58,15 +58,19 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
                 return scrubbed;
             },
             beforeSendTransaction(event) {
-                return hasSentryTelemetryConsent() ? normalizeSentryFields(event) : null;
+                return hasSentryTelemetryConsent() ? scrubSentryEvent(event) : null;
             },
             beforeSendLog(log) {
-                return { ...log, attributes: normalizeSentryFields(log.attributes) };
+                return sanitizeSentryLog(log, hasSentryTelemetryConsent());
             },
         });
 
         initializeSentryHelper(Sentry);
         isRendererSentryInitialized = true;
+    }
+
+    if (installId) {
+        setSentryMachineId(installId);
     }
 
     return true;

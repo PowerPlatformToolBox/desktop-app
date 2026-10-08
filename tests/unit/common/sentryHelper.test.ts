@@ -11,11 +11,50 @@ import {
     setContext,
     setSentryTelemetryConsent,
     setTags,
+    startTransaction,
+    wrapAsyncOperation,
 } from "../../../src/common/sentryHelper";
 
 describe("Sentry helper telemetry consent", () => {
+    it("creates and finishes a real SDK span only once", () => {
+        const span = { setStatus: jest.fn(), end: jest.fn() };
+        const startInactiveSpan = jest.fn().mockReturnValue(span);
+        initializeSentryHelper({ ...sentry, startInactiveSpan, addBreadcrumb: jest.fn() });
+        setSentryTelemetryConsent("yes");
+        const transaction = startTransaction("tool load", "tool", { toolId: "tool" });
+        transaction?.setStatus("internal_error");
+        transaction?.finish();
+        transaction?.finish();
+        expect(startInactiveSpan).toHaveBeenCalledWith({ name: "tool load", op: "tool", attributes: { tool_id: "tool", machine_id: null } });
+        expect(span.setStatus).toHaveBeenCalledWith({ code: 2, message: "internal_error" });
+        expect(span.end).toHaveBeenCalledTimes(1);
+        setSentryTelemetryConsent("no");
+        expect(startTransaction("disabled", "tool")).toBeUndefined();
+        expect(startInactiveSpan).toHaveBeenCalledTimes(1);
+    });
+
+    it("captures synchronous operation failures and ends their spans", async () => {
+        const span = { setStatus: jest.fn(), end: jest.fn() };
+        const capture = jest.fn();
+        initializeSentryHelper({
+            ...sentry,
+            startInactiveSpan: jest.fn().mockReturnValue(span),
+            addBreadcrumb: jest.fn(),
+            withScope: (callback: (scope: unknown) => void) => callback({ setTag: jest.fn(), setExtra: jest.fn(), setLevel: jest.fn() }),
+            captureException: capture,
+        });
+        setSentryTelemetryConsent("yes");
+        const error = new Error("sync failure");
+        await expect(
+            wrapAsyncOperation("load", () => {
+                throw error;
+            }),
+        ).rejects.toBe(error);
+        expect(capture).toHaveBeenCalledTimes(1);
+        expect(span.end).toHaveBeenCalledTimes(1);
+    });
     const sentry = {
-        logger: { info: jest.fn() },
+        logger: { info: jest.fn(), debug: jest.fn(), error: jest.fn() },
         flush: jest.fn().mockResolvedValue(true),
     };
 
@@ -85,6 +124,7 @@ describe("Sentry helper telemetry consent", () => {
         expect(scope.setTag).toHaveBeenCalledWith("tool_id", "tool");
         expect(scope.setTag).not.toHaveBeenCalledWith("toolId", expect.anything());
         expect(scope.setExtra).toHaveBeenCalledWith("details", { machine_id: "machine" });
+        expect(sentry.logger.error).not.toHaveBeenCalled();
     });
 
     it("allows the explicit telemetry-disabled marker while consent is no", async () => {
