@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import pino from "pino";
+import { logError } from "../../common/logger";
 
 const LOG_FILE_NAME = "agent-invocation.log";
 const MAX_LOG_SIZE_MB = 5;
@@ -74,7 +75,7 @@ function rotateLogIfNeeded(): void {
             fs.renameSync(logPath, `${logPath}.1`);
         }
     } catch (error) {
-        console.error("Failed to rotate log file:", error instanceof Error ? error.message : String(error));
+        logError("Failed to rotate log file", error);
     }
 }
 
@@ -114,7 +115,7 @@ export function readLogEntries(): AgentInvocationLogEntry[] {
             .filter((entry): entry is AgentInvocationLogEntry => entry !== null)
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     } catch (error) {
-        console.error("Failed to read log entries:", error instanceof Error ? error.message : String(error));
+        logError("Failed to read log entries", error);
         return [];
     }
 }
@@ -137,7 +138,7 @@ export function clearLogEntries(): void {
             }
         }
     } catch (error) {
-        console.error("Failed to clear log entries:", error instanceof Error ? error.message : String(error));
+        logError("Failed to clear log entries", error);
     }
 }
 
