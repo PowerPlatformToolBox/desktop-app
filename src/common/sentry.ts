@@ -187,34 +187,31 @@ export function scrubPiiFromObject(obj: unknown, ancestors = new WeakSet<object>
         if (Array.isArray(obj)) {
             return obj.map((item) => scrubPiiFromObject(item, ancestors));
         }
-        if (obj !== null && typeof obj === "object") {
-            const result: Record<string, unknown> = {};
-            for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-                // Redact known sensitive keys entirely
-                const lowerKey = key.toLowerCase().replace(/_/g, "");
-                if (
-                    lowerKey === "password" ||
-                    lowerKey === "token" ||
-                    lowerKey === "secret" ||
-                    lowerKey === "accesstoken" ||
-                    lowerKey === "refreshtoken" ||
-                    lowerKey === "apikey" ||
-                    lowerKey === "authorization"
-                ) {
-                    result[key] = "[redacted]";
-                } else if ((key === "machine_id" || key === "tool_id") && typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-                    result[key] = value;
-                } else if ((key === "trace_id" || key === "sentry.trace_id") && typeof value === "string" && /^[0-9a-f]{32}$/i.test(value)) {
-                    result[key] = value;
-                } else if (["span_id", "parent_span_id", "sentry.span_id"].includes(key) && typeof value === "string" && /^[0-9a-f]{16}$/i.test(value)) {
-                    result[key] = value;
-                } else {
-                    result[key] = scrubPiiFromObject(value, ancestors);
-                }
+        const result: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+            // Redact known sensitive keys entirely
+            const lowerKey = key.toLowerCase().replace(/_/g, "");
+            if (
+                lowerKey === "password" ||
+                lowerKey === "token" ||
+                lowerKey === "secret" ||
+                lowerKey === "accesstoken" ||
+                lowerKey === "refreshtoken" ||
+                lowerKey === "apikey" ||
+                lowerKey === "authorization"
+            ) {
+                result[key] = "[redacted]";
+            } else if ((key === "machine_id" || key === "tool_id") && typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+                result[key] = value;
+            } else if ((key === "trace_id" || key === "sentry.trace_id") && typeof value === "string" && /^[0-9a-f]{32}$/i.test(value)) {
+                result[key] = value;
+            } else if (["span_id", "parent_span_id", "sentry.span_id"].includes(key) && typeof value === "string" && /^[0-9a-f]{16}$/i.test(value)) {
+                result[key] = value;
+            } else {
+                result[key] = scrubPiiFromObject(value, ancestors);
             }
-            return result;
         }
-        return obj;
+        return result;
     } finally {
         ancestors.delete(obj);
     }
