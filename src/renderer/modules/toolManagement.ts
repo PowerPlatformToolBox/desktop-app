@@ -22,7 +22,7 @@ import { getConnectionSlotSquarePresentation, getEmptyConnectionSlotPresentation
 import { authenticateRestoredSlots, copyConnectionSlots } from "../utils/sessionConnectionSlots";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
-import { openCspExceptionModal } from "./cspExceptionModal";
+import { openCspExceptionModal } from "./consent/cspExceptionModal";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
 
 // Constants

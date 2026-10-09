@@ -1,8 +1,9 @@
-import { logError, logInfo } from "../../common/logger";
-import { CspConsentRecord, DataverseHeaderConsentRecord, Tool } from "../../common/types";
-import { getNormalizedCspDomains } from "../../common/utils/cspConsent";
+import { logError, logInfo } from "../../../common/logger";
+import { CspConsentRecord, DataverseHeaderConsentRecord, Tool } from "../../../common/types";
+import { getNormalizedCspDomains } from "../../../common/utils/cspConsent";
+import { openLocalPageAsTab, registerCloseGuard } from "../toolManagement";
 import { openCspConsentManagementModal } from "./cspExceptionModal";
-import { openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
+import { appendNativeWorkerConsentReview } from "./nativeWorkerConsentModal";
 
 type ConsentType = "csp" | "dataverse";
 type ConsentStatus = "granted" | "partial" | "revoked";
@@ -415,6 +416,8 @@ function renderConsentTabContent(panel: HTMLElement): void {
         entries: { csp: [], dataverse: [] },
     };
     bindEvents(context);
+    const scrollArea = panel.querySelector<HTMLElement>("#consent-review-tab-scroll-area");
+    if (scrollArea) appendNativeWorkerConsentReview(scrollArea);
     panel.querySelector("#consent-tab-refresh-btn")?.addEventListener("click", () => void loadEntries(context).catch(handleError));
     void loadEntries(context).catch(handleError);
 }

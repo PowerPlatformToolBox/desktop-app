@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => {
         "process.env.PPTB_UPDATES_ORIGIN": JSON.stringify(updatesOrigin),
         "process.env.PPTB_CHANNEL": JSON.stringify(channel),
         "process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
+        "process.env.PPTB_DEVELOPER_BUILD": JSON.stringify(mode === "development" ? "1" : "0"),
     };
 
     return {

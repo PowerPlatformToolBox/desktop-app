@@ -1,8 +1,33 @@
-// Import variables and mixins using modern @use syntax
 @use "sass:color";
 @use "./styles/variables" as *;
 @use "./styles/mixins" as *;
 @use "./styles/homepage" as *;
+
+.native-worker-consent-review fluent-button {
+    cursor: pointer;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+
+    &:focus-visible {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+    }
+    &[disabled] {
+        opacity: 0.6;
+        cursor: default;
+    }
+}
+
+.native-worker-consent-record {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-color, GrayText);
+    overflow-wrap: anywhere;
+}
+
+.native-worker-consent-review fluent-button.fluent-button-secondary {
+    color: var(--text-primary, CanvasText);
+}
 
 :root {
     --primary-color: #{$primary-color};

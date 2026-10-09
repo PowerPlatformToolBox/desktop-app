@@ -18,6 +18,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Connections](#connections)
         - [Utilities](#utilities)
         - [Terminal Operations](#terminal-operations)
+        - [Native Workers](#native-workers)
         - [Events](#events)
         - [Inter-Tool Invocation](#inter-tool-invocation)
             - [Caller: launching another tool with prefill data](#caller-launching-another-tool-with-prefill-data)
@@ -42,6 +43,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
             - [Connections](#connections-1)
             - [Utils](#utils)
             - [Terminal](#terminal)
+            - [Workers](#workers)
             - [Events](#events-1)
             - [Invocation](#invocation)
         - [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
@@ -350,6 +352,42 @@ const terminals = await toolboxAPI.terminal.list();
 // Close a terminal
 await toolboxAPI.terminal.close(terminal.id);
 ```
+
+### Native Workers
+
+If a tool declares a .NET worker in `pptb.config.json`, connect to it through
+`toolboxAPI.workers.connect()`. PPTB owns process startup, consent, JSON-RPC
+framing, readiness, request correlation, cancellation and cleanup. Tool code only
+registers any worker-to-tool callbacks it needs, then calls worker methods by
+name:
+
+```typescript
+const worker = await toolboxAPI.workers.connect("sample", {
+    requests: {
+        "dataverse/fetchXml": async (params, context) => {
+            if (context.isCancellationRequested) throw new Error("Request cancelled");
+            const fetchXml = String(params);
+            const result = await dataverseAPI.fetchXmlQuery(fetchXml);
+            if (context.isCancellationRequested) throw new Error("Request cancelled");
+            return { value: result.value };
+        },
+    },
+    notifications: {
+        progress: (message) => setStatus(String(message)),
+    },
+});
+
+await worker.ready;
+const result = await worker.request("query", fetchXml);
+await worker.stop();
+```
+
+Use `worker.cancel()` to cancel outstanding requests. `worker.stop()` waits for
+PPTB's verified process cleanup; if it rejects, keep the session and let the user
+retry stop rather than claiming the worker was stopped. Workers are trusted
+native code running as the current OS user, not sandboxed. Do not send tokens or
+credential material to them; implement narrowly scoped reverse requests through
+PPTB APIs instead.
 
 ### Events
 
@@ -768,6 +806,21 @@ Core platform features organized into namespaces:
 
 - **setVisibility(terminalId: string, visible: boolean)**: Promise<void>
     - Shows or hides the terminal UI for the specified terminal id
+
+#### Workers
+
+- **connect(workerId: string, options?: WorkerSessionOptions)**: Promise<WorkerSession>
+    - Starts the declared worker and returns a JSON-RPC session. `ready` resolves after the protocol initialize handshake.
+    - `options.requests` registers worker-initiated requests handled by the tool; `options.notifications` handles worker notifications; `options.onExit` observes process termination.
+- **WorkerSession.request<Result>(method: string, params?: unknown)**: Promise<Result>
+    - Sends a named request to the worker and resolves with its result.
+- **WorkerSession.notify(method: string, params?: unknown)**: Promise<void>
+    - Sends a notification to the worker.
+- **WorkerSession.cancel()**: void
+    - Requests cancellation of outstanding requests. Worker and callback cancellation is cooperative.
+- **WorkerSession.stop() / dispose()**: Promise<void>
+    - Stops the worker and waits for verified cleanup. A failed stop must remain visible and retryable.
+- **WorkerSessionOptions.requests** handlers receive `(params, context)`, where `context.isCancellationRequested` and `context.onCancellationRequested()` expose cancellation without exposing transport details.
 
 #### Events
 

@@ -8,6 +8,7 @@ import {
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
     MCP_SERVER_CHANNELS,
+    NATIVE_WORKER_CONSENT_CHANNELS,
     SETTINGS_CHANNELS,
     SPLIT_LAYOUT_CHANNELS,
     TERMINAL_CHANNELS,
@@ -17,7 +18,15 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import type { DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
+import type {
+    DataverseHeaderConsentDecision,
+    DataverseHeaderConsentRequest,
+    EntityRelatedMetadataPath,
+    EntityRelatedMetadataResponse,
+    LastUsedToolUpdate,
+    NativeWorkerConsentDecision,
+    NativeWorkerConsentRequest,
+} from "../common/types";
 
 /**
  * Preload script that exposes safe APIs to the renderer process
@@ -177,6 +186,19 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
     getDataverseHeaderConsents: () => ipcRenderer.invoke(DATAVERSE_HEADER_CONSENT_CHANNELS.GET_ALL),
+    getNativeWorkerConsents: () => ipcRenderer.invoke(NATIVE_WORKER_CONSENT_CHANNELS.GET_ALL),
+    revokeNativeWorkerConsent: (fingerprint: string) => ipcRenderer.invoke(NATIVE_WORKER_CONSENT_CHANNELS.REVOKE, fingerprint),
+    respondToNativeWorkerConsent: (requestId: string, decision: NativeWorkerConsentDecision) => ipcRenderer.invoke(NATIVE_WORKER_CONSENT_CHANNELS.RESPOND, requestId, decision),
+    onNativeWorkerConsentRequest: (callback: (request: NativeWorkerConsentRequest) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, request: NativeWorkerConsentRequest) => callback(request);
+        ipcRenderer.on(NATIVE_WORKER_CONSENT_CHANNELS.REQUEST, listener);
+        return () => ipcRenderer.removeListener(NATIVE_WORKER_CONSENT_CHANNELS.REQUEST, listener);
+    },
+    onNativeWorkerConsentClosed: (callback: (requestId: string) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, requestId: string) => callback(requestId);
+        ipcRenderer.on(NATIVE_WORKER_CONSENT_CHANNELS.CLOSED, listener);
+        return () => ipcRenderer.removeListener(NATIVE_WORKER_CONSENT_CHANNELS.CLOSED, listener);
+    },
     revokeDataverseHeaderConsent: (toolId: string) => ipcRenderer.invoke(DATAVERSE_HEADER_CONSENT_CHANNELS.REVOKE, toolId),
     respondToDataverseHeaderConsent: (requestId: string, decision: DataverseHeaderConsentDecision) => ipcRenderer.invoke(DATAVERSE_HEADER_CONSENT_CHANNELS.RESPOND, requestId, decision),
     onDataverseHeaderConsentRequest: (callback: (request: DataverseHeaderConsentRequest) => void) => {

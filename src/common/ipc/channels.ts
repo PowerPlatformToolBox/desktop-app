@@ -281,6 +281,21 @@ export const DATAVERSE_HEADER_CONSENT_CHANNELS = {
     REVOKE: "dataverse-header-consent:revoke",
 } as const;
 
+export const NATIVE_WORKER_CONSENT_CHANNELS = {
+    GET_ALL: "native-worker-consent:get-all",
+    REVOKE: "native-worker-consent:revoke",
+    RESPOND: "native-worker-consent:respond",
+    REQUEST: "native-worker-consent:request",
+    CLOSED: "native-worker-consent:closed",
+} as const;
+
+export const WORKER_CHANNELS = {
+    START: "worker:start",
+    SEND: "worker:send",
+    STOP: "worker:stop",
+    EVENT: "worker:event",
+} as const;
+
 // Power Platform API-related IPC channels
 export const POWERPLATFORM_CHANNELS = {
     REQUEST: "powerplatform.request",
