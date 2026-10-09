@@ -76,7 +76,7 @@ async function installModal(page: Page): Promise<void> {
             toolName: "Fixture Tool",
             toolVersion: "1.0.0",
             workerId: "engine",
-            source: "https://api.nuget.org/v3/index.json",
+            source: { kind: "nuget.org", url: "https://api.nuget.org/v3/index.json" },
             platformMatrixVersion: 1,
             protocolVersion: "jsonrpc-stdio-v1",
             declaration: {
@@ -159,6 +159,7 @@ test("uses the shared BrowserWindow modal bridge and escapes consent content", a
         "Native code runs with your user permissions and is not sandboxed. It can access files, use the network, and start processes. Approve only workers you trust.",
     );
     expect(await frame.locator(".worker-details dt").allTextContents()).toEqual(["Tool", "Worker", "Package", "Source", "Command"]);
+    await expect(frame.locator(".worker-detail").filter({ has: frame.locator("dt", { hasText: /^Source$/ }) }).locator("dd")).toHaveText("https://api.nuget.org/v3/index.json");
     expect(await page.evaluate(() => (window as unknown as { currentModalSize: unknown }).currentModalSize)).toEqual({ width: 640, height: 500 });
     const html = await page.evaluate(() => (window as unknown as { currentModalHtml: string }).currentModalHtml);
     expect(html).toContain("<dt>Package</dt>");
@@ -190,6 +191,7 @@ test("keeps the BrowserWindow open and re-enables decisions when approval persis
 test("reviews and revokes a persistent approval in the main window", async ({ page }) => {
     await page.evaluate(() => {
         const fixture = window as unknown as {
+            approved: boolean;
             toolboxAPI: Record<string, any>;
             lastRequest: Record<string, unknown>;
             nativeConsent: { appendNativeWorkerConsentReview(container: HTMLElement): void };
