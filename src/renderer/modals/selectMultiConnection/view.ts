@@ -239,7 +239,7 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
         return `<div class="connection-slot-row" data-slot-row="${index}">
             <button type="button" class="connection-slot-button" data-slot-index="${index}" aria-pressed="${index === 0 ? "true" : "false"}">
                 <span class="connection-slot-number">${index + 1}</span>
-                <span class="connection-slot-copy"><small data-slot-name="${index}" title="${escapeHtml(assigned || "Not selected")}">${assigned ? escapeHtml(assigned) : "Not selected"}</small></span>
+                <span class="connection-slot-copy"><strong data-slot-name="${index}" title="${escapeHtml(assigned || "Not selected")}">${assigned ? escapeHtml(assigned) : "Not selected"}</strong></span>
                 <span class="connection-badge ${required ? "required" : "optional"}">${required ? "Required" : "Optional"}</span>
             </button>
             ${required ? "" : `<button type="button" class="connection-slot-clear" data-clear-slot="${index}" aria-label="Remove connection slot ${index + 1}" title="Remove slot">&times;</button>`}
@@ -261,6 +261,7 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
     .connection-slot-number { display: grid; place-items: center; width: 26px; height: 26px; flex: 0 0 26px; border-radius: 2px; background: ${isDarkTheme ? "#3a3a3a" : "#e8e8e8"}; font-weight: 600; }
     .connection-slot-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
     .connection-slot-copy strong, .connection-slot-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .connection-slot-copy strong { font-weight: 700; }
     .connection-slot-copy small { opacity: .75; }
     .connection-slot-indicators { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: 0 0 auto; min-width: 16px; }
     .connection-slot-connected-check { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border-radius: 50%; background: ${isDarkTheme ? "#39734d" : "#d7f0dd"}; color: ${isDarkTheme ? "#a5e0b5" : "#176b35"}; font-size: 11px; }

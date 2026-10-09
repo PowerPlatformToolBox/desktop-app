@@ -618,7 +618,8 @@ ${sortingUtilities}
                 '</span>';
             return '<div class="connection-slot-row" data-slot-row="' + index + '">' +
                 '<button type="button" class="connection-slot-button" data-slot-index="' + index + '" aria-pressed="' + (activeSlot === index) + '">' +
-                '<span class="connection-slot-number">' + (index + 1) + '</span><span class="connection-slot-copy"><small title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</small></span>' +
+                '<span class="connection-slot-number">' + (index + 1) + '</span><span class="connection-slot-copy"><strong title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</strong>' +
+                (connection ? '<small title="' + escapeHtml(connection.url) + '">' + escapeHtml(connection.url) + '</small>' : '') + '</span>' +
                 slotIndicators + '<span class="connection-badge ' + (required ? "required" : "optional") + '">' + (required ? "Required" : "Optional") + '</span></button>' +
                 (required ? "" : '<button type="button" class="connection-slot-clear" data-clear-slot="' + index + '" aria-label="Remove connection slot ' + (index + 1) + '" title="Remove slot">&times;</button>') + '</div>';
         }).join("");

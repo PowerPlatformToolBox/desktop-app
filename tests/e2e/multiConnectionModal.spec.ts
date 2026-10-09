@@ -89,7 +89,7 @@ test.describe("Multi-connection selection modal", () => {
         await expect(modal.locator(".connection-badge.required")).toHaveCount(2);
         await expect(modal.locator(".slot-connections-pane #multi-connection-search")).toHaveCount(1);
         await expect(modal.locator("#active-connection-slot-label")).toHaveCount(0);
-        await expect(modal.locator(".connection-slot-copy strong")).toHaveCount(0);
+        await expect(modal.locator(".connection-slot-copy strong")).toHaveCount(2);
         await expect(modal.locator("#slot-connection-list .connection-item")).toHaveCount(4);
         await expect(modal.locator("#slot-connection-list")).toContainText("E2E Development");
         await expect(modal.locator("#slot-connection-list")).toContainText("E2E Test");

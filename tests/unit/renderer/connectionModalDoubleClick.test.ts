@@ -78,7 +78,10 @@ describe("connection modal double-click controller wiring", () => {
         expect(view.body).toContain('id="add-connection-slot-btn"');
         expect(view.body).not.toContain('id="secondary-connections-list"');
         expect(view.body).toContain('id="slot-connection-list"');
-        expect(view.body).toContain('data-slot-name="0" title="source-id"');
+        expect(view.body).toContain('<strong data-slot-name="0" title="source-id">source-id</strong>');
+        expect(view.styles).toContain(".connection-slot-copy strong { font-weight: 700; }");
+        expect(view.styles).toContain(".connection-slot-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }");
+        expect(view.styles).toContain(".connection-slot-copy strong, .connection-slot-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
     });
 
     it("generates a controller that marks connected slots without changing focus", () => {
@@ -149,8 +152,8 @@ describe("connection modal double-click controller wiring", () => {
         expect(view.body).not.toContain("<strong>Connection 1</strong>");
         expect(view.body.indexOf('class="slot-connections-pane">')).toBeLessThan(view.body.indexOf('id="multi-connection-search"'));
         expect(view.styles).toContain("grid-template-columns: 340px minmax(0, 1fr)");
-        expect(view.styles).toContain('.connection-badge.required { color: #a4262c; font-weight: 700; }');
-        expect(view.styles).toContain('.connection-badge.optional { color: #4b4b4b; font-weight: 700; }');
+        expect(view.styles).toContain(".connection-badge.required { color: #a4262c; font-weight: 700; }");
+        expect(view.styles).toContain(".connection-badge.optional { color: #4b4b4b; font-weight: 700; }");
         expect(view.styles).toContain(".slot-duplicate-warning { color: #9a6700; margin: 8px 0 14px;");
         expect(view.styles).toContain(".slot-duplicate-card-note { display: flex; align-items: center; gap: 6px;");
         expect(view.styles).toContain(".connect-button { padding: 5px 10px;");
@@ -180,7 +183,8 @@ describe("connection modal double-click controller wiring", () => {
         );
 
         expect(script).toContain("slotIds.splice(index, 1)");
-        expect(script).toContain("<small title=\"' + escapeHtml(label) + '\">");
+        expect(script).toContain("<strong title=\"' + escapeHtml(label) + '\">' + escapeHtml(label) + '</strong>");
+        expect(script).toContain("<small title=\"' + escapeHtml(connection.url) + '\">' + escapeHtml(connection.url) + '</small>");
         expect(script).toContain("slot > index ? slot - 1 : slot");
         expect(script).toContain("if (activeSlot > index) activeSlot -= 1;");
     });
