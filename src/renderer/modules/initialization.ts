@@ -81,7 +81,7 @@ export async function initializeApplication(): Promise<void> {
         initializeNativeWorkerConsentModal();
         const initialSettings = await window.toolboxAPI.getUserSettings();
         applyTheme(initialSettings.theme);
-        await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent));
+        await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent), initialSettings.installId ?? initialSettings.machineId);
 
         if (shouldPromptForTelemetryConsent(initialSettings.sentryTelemetryConsent)) {
             const consentChoice = await openSentryConsentModal({
@@ -92,7 +92,8 @@ export async function initializeApplication(): Promise<void> {
 
             if (consentChoice !== null) {
                 await window.toolboxAPI.updateUserSettings({ sentryTelemetryConsent: consentChoice });
-                await applyRendererSentryConsent(consentChoice);
+                const updatedSettings = await window.toolboxAPI.getUserSettings();
+                await applyRendererSentryConsent(consentChoice, updatedSettings.installId ?? updatedSettings.machineId);
             }
         }
 

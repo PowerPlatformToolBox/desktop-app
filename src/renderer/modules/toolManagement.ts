@@ -461,6 +461,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
+                        connectionIds = [selectedConnectionId];
                         impersonationUsers[0] = impersonationUser;
                     } else {
                         throw new Error("No connection was selected");

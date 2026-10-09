@@ -207,7 +207,8 @@ export class BrowserviewProtocolManager {
              * - "my-tool" => "my-tool"
              * - "@scope/my-tool" => "@scope/my-tool"
              */
-            const packageDirName = tool.npmPackageName.replace(/@?([^@]+)(?:@[\d.]+)?$/, "");
+            const versionAtIndex = tool.npmPackageName.indexOf("@", 1);
+            const packageDirName = versionAtIndex === -1 ? tool.npmPackageName : tool.npmPackageName.slice(0, versionAtIndex);
 
             // Npm-installed tool (debug mode)
             return path.join(this.toolsDir, "node_modules", packageDirName);

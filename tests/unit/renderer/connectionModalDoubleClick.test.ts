@@ -78,6 +78,10 @@ describe("connection modal double-click controller wiring", () => {
         expect(view.body).toContain('id="add-connection-slot-btn"');
         expect(view.body).not.toContain('id="secondary-connections-list"');
         expect(view.body).toContain('id="slot-connection-list"');
+        expect(view.body).toContain('<strong data-slot-name="0" title="source-id">source-id</strong>');
+        expect(view.styles).toContain(".connection-slot-copy strong { font-weight: 700; }");
+        expect(view.styles).toContain(".connection-slot-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }");
+        expect(view.styles).toContain(".connection-slot-copy strong, .connection-slot-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
     });
 
     it("generates a controller that marks connected slots without changing focus", () => {
@@ -140,14 +144,48 @@ describe("connection modal double-click controller wiring", () => {
         expect(script).toContain('const IMPERSONATION_ICON_URL = "data:image/svg+xml,%3Csvg%3E%3C%2Fsvg%3E";');
     });
 
-    it("spaces the active-slot duplicate warning away from the connection list", () => {
+    it("keeps slot guidance and filtering in the available-connections pane", () => {
         const view = getSelectMultiConnectionModalView(false, { minConnections: 1, maxConnections: 2 });
 
         expect(view.body).toContain('id="slot-duplicate-warning"');
-        expect(view.body).toContain('id="active-connection-slot-label"');
-        expect(view.styles).toContain("#active-connection-slot-label { display: block; margin: 0 0 12px;");
+        expect(view.body).not.toContain('id="active-connection-slot-label"');
+        expect(view.body).not.toContain("<strong>Connection 1</strong>");
+        expect(view.body.indexOf('class="slot-connections-pane">')).toBeLessThan(view.body.indexOf('id="multi-connection-search"'));
+        expect(view.styles).toContain("grid-template-columns: 340px minmax(0, 1fr)");
+        expect(view.styles).toContain(".connection-badge.required { color: #a4262c; font-weight: 700; }");
+        expect(view.styles).toContain(".connection-badge.optional { color: #4b4b4b; font-weight: 700; }");
         expect(view.styles).toContain(".slot-duplicate-warning { color: #9a6700; margin: 8px 0 14px;");
         expect(view.styles).toContain(".slot-duplicate-card-note { display: flex; align-items: center; gap: 6px;");
         expect(view.styles).toContain(".connect-button { padding: 5px 10px;");
+    });
+
+    it("limits scrolling to the connection lists in both multi-connection layouts", () => {
+        const slotView = getSelectMultiConnectionModalView(false, { minConnections: 1, maxConnections: 2 });
+        const columnsView = getSelectMultiConnectionModalView(false, true);
+
+        for (const view of [slotView, columnsView]) {
+            expect(view.styles).toContain(".modal-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }");
+            expect(view.styles).toContain(".connection-list");
+            expect(view.styles).toContain("overflow-y: auto;");
+        }
+        expect(slotView.styles).toContain(".slot-connections-pane .connection-list { flex: 1; min-height: 0; overflow-y: auto;");
+        expect(columnsView.styles).toContain(".connections-container");
+    });
+
+    it("removes optional slots and remaps the state of following slots", () => {
+        const script = getSelectMultiConnectionModalControllerScript(
+            {
+                selectConnections: "select-multi-connection:select",
+                connectReady: "select-multi-connection:connect:ready",
+                populateConnections: "select-multi-connection:populate",
+            },
+            { minConnections: 1, maxConnections: 4 },
+        );
+
+        expect(script).toContain("slotIds.splice(index, 1)");
+        expect(script).toContain("<strong title=\"' + escapeHtml(label) + '\">' + escapeHtml(label) + '</strong>");
+        expect(script).toContain("<small title=\"' + escapeHtml(connection.url) + '\">' + escapeHtml(connection.url) + '</small>");
+        expect(script).toContain("slot > index ? slot - 1 : slot");
+        expect(script).toContain("if (activeSlot > index) activeSlot -= 1;");
     });
 });
