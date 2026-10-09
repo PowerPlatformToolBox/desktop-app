@@ -159,7 +159,12 @@ test("uses the shared BrowserWindow modal bridge and escapes consent content", a
         "Native code runs with your user permissions and is not sandboxed. It can access files, use the network, and start processes. Approve only workers you trust.",
     );
     expect(await frame.locator(".worker-details dt").allTextContents()).toEqual(["Tool", "Worker", "Package", "Source", "Command"]);
-    await expect(frame.locator(".worker-detail").filter({ has: frame.locator("dt", { hasText: /^Source$/ }) }).locator("dd")).toHaveText("https://api.nuget.org/v3/index.json");
+    await expect(
+        frame
+            .locator(".worker-detail")
+            .filter({ has: frame.locator("dt", { hasText: /^Source$/ }) })
+            .locator("dd"),
+    ).toHaveText("https://api.nuget.org/v3/index.json");
     expect(await page.evaluate(() => (window as unknown as { currentModalSize: unknown }).currentModalSize)).toEqual({ width: 640, height: 500 });
     const html = await page.evaluate(() => (window as unknown as { currentModalHtml: string }).currentModalHtml);
     expect(html).toContain("<dt>Package</dt>");
