@@ -74,7 +74,7 @@
     "@azure/msal-node": "^3.8.0",
     "@fluentui/svg-icons": "^1.1.312",
     "@fluentui/tokens": "^1.0.0-alpha.22",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@sentry/electron": "^7.16.0",
     "@supabase/supabase-js": "^2.84.0",
     "@types/uuid": "^10.0.0",
