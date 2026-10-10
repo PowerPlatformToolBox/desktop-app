@@ -18,7 +18,6 @@
     "test:unit": "jest --config jest.config.ts",
     "test:unit:watch": "jest --config jest.config.ts --watch",
     "test:unit:coverage": "jest --config jest.config.ts --coverage",
-    "test:dotnet-probe": "dotnet build tests/fixtures/dotnet-worker/Worker/Worker.csproj --configuration Release -p:RestoreLockedMode=true && jest --config tests/dotnet-probe.jest.config.ts --runInBand",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "start": "electron .",
