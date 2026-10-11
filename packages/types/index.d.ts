@@ -19,9 +19,11 @@
 /// <reference path="./dataverseAPI.d.ts" />
 /// <reference path="./powerplatformAPI.d.ts" />
 /// <reference path="./pptbConfig.d.ts" />
+/// <reference path="./toolManifest.d.ts" />
 
 // Re-export all namespaces for convenience
 export * from "./dataverseAPI";
 export * from "./powerplatformAPI";
 export * from "./pptbConfig";
 export * from "./toolboxAPI";
+export * from "./toolManifest";

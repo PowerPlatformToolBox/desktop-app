@@ -79,7 +79,24 @@ Supported metadata:
 - `executionMode`: `"windowed"` or `"headless"`.
 - `timeoutMs`: positive number in milliseconds.
 - `authToken`: optional caller-provided token for headless execution contexts.
-- `connectionName`: optional saved PPTB connection name. MCP resolves and refreshes tokens server-side when possible.
+- `connectionNames`: saved PPTB connection names in slot order. Index 0 is primary, 1 is secondary, and 2+ addresses additional slots. Names are matched case-insensitively after trimming; unknown or ambiguous names are rejected.
+- `connectionName`: legacy slot-0 alias. When both fields are supplied, it must match `connectionNames[0]`; the array is authoritative (including an empty array).
+
+For example, a tool declaring `features.connections: { "min": 2, "max": 3 }` can be invoked with:
+
+```json
+{
+    "__pptb": {
+        "executionMode": "headless",
+        "mode": "two-way",
+        "connectionNames": ["Development", "Test", "Production"]
+    }
+}
+```
+
+The server rejects more names than the declared maximum and any names supplied to a zero-connection tool. Headless calls must supply at least the declared minimum; they do not open a connection picker or initiate fresh interactive sign-in. Authenticate interactive connections in PPTB first; cached tokens, silent refresh, client-secret and username/password authentication remain supported. `authToken` overrides the primary token in the `invokeHeadless` callback context only. Global Dataverse/Power Platform APIs use the saved connection's credentials, which are authenticated independently. A callback token does not identify a saved connection, satisfy a missing required slot, or replace saved credentials. Windowed calls can prompt for missing required slots.
+
+Headless tools use `toolboxAPI.connections.getConnections()` or `getConnection(2)` to access later slots, and pass the same zero-based numeric target to Dataverse or Power Platform APIs. Legacy `"primary"` / `"secondary"` targets remain supported. Metadata returned by `getToolContext()` contains slot IDs/names/URLs, not tokens.
 
 ## Mode Semantics
 

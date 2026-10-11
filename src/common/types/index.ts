@@ -7,6 +7,7 @@
 export * from "./common";
 
 // Tool-related types
+export * from "./nativeWorkerConsent";
 export * from "./tool";
 
 // Connection-related types
@@ -17,6 +18,8 @@ export * from "./terminal";
 
 // Settings-related types
 export * from "./settings";
+export * from "./workerProcess";
+export * from "./workerToolApi";
 
 // Event-related types
 export * from "./events";
@@ -32,3 +35,6 @@ export * from "./communityLinks";
 
 // Tool concern report ("Report a Concern") types
 export * from "./toolReport";
+
+// Tool idea types
+export * from "./toolIdea";

@@ -27,7 +27,10 @@ import {
     openAddConnectionModal,
     updateFooterConnection,
 } from "./connectionManagement";
-import { openConsentReviewTab } from "./cspConsentReviewSidebarManagement";
+import { openConsentReviewTab } from "./consent/consentReviewManagement";
+import { initializeDataverseHeaderConsentModal } from "./consent/dataverseHeaderConsentModal";
+import { initializeNativeWorkerConsentModal } from "./consent/nativeWorkerConsentModal";
+import { openSentryConsentModal } from "./consent/sentryConsentModal";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -36,12 +39,13 @@ import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
 import { openReportConcernModal } from "./reportConcernModal";
-import { openSentryConsentModal } from "./sentryConsentModal";
 import { applyRendererSentryConsent } from "./sentryRuntime";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { initializeTitlebar } from "./titlebarManagement";
+import { openToolIdeasModal } from "./toolIdeasModal";
 import {
     applyAppearanceSettings,
     closeAllTools,
@@ -63,15 +67,21 @@ import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFro
  */
 export async function initializeApplication(): Promise<void> {
     try {
+        initializeTitlebar();
         // Signal the main process that the renderer is starting fresh so it can clean up
         // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
         // This must be the very first IPC call so the cleanup happens before session restore.
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
 
         initializeBrowserWindowModals();
+        window.api.on("open-suggest-tool-modal", () => {
+            openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+        });
+        initializeDataverseHeaderConsentModal();
+        initializeNativeWorkerConsentModal();
         const initialSettings = await window.toolboxAPI.getUserSettings();
         applyTheme(initialSettings.theme);
-        await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent));
+        await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent), initialSettings.installId ?? initialSettings.machineId);
 
         if (shouldPromptForTelemetryConsent(initialSettings.sentryTelemetryConsent)) {
             const consentChoice = await openSentryConsentModal({
@@ -82,7 +92,8 @@ export async function initializeApplication(): Promise<void> {
 
             if (consentChoice !== null) {
                 await window.toolboxAPI.updateUserSettings({ sentryTelemetryConsent: consentChoice });
-                await applyRendererSentryConsent(consentChoice);
+                const updatedSettings = await window.toolboxAPI.getUserSettings();
+                await applyRendererSentryConsent(consentChoice, updatedSettings.installId ?? updatedSettings.machineId);
             }
         }
 
@@ -325,6 +336,13 @@ function setupToolbarButtons(): void {
  * Set up sidebar buttons
  */
 function setupSidebarButtons(): void {
+    const marketplaceSuggestToolButton = document.getElementById("marketplace-suggest-tool-btn");
+    if (marketplaceSuggestToolButton) {
+        marketplaceSuggestToolButton.addEventListener("click", () => {
+            openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+        });
+    }
+
     // Sidebar update all tools button
     const sidebarUpdateAllToolsBtn = document.getElementById("sidebar-update-all-tools-btn");
     if (sidebarUpdateAllToolsBtn) {
@@ -380,16 +398,6 @@ function setupSidebarButtons(): void {
             // Import the function dynamically to avoid circular dependencies
             const { openToolConnectionModal } = await import("./toolManagement");
             await openToolConnectionModal();
-        });
-    }
-
-    // Secondary footer connection status - click to open connection selector for secondary connection
-    const secondaryConnectionStatus = document.getElementById("secondary-connection-status");
-    if (secondaryConnectionStatus) {
-        secondaryConnectionStatus.addEventListener("click", async () => {
-            // Import the function dynamically to avoid circular dependencies
-            const { openToolSecondaryConnectionModal } = await import("./toolManagement");
-            await openToolSecondaryConnectionModal();
         });
     }
 }
@@ -857,6 +865,14 @@ function setupToolPanelBoundsListener(): void {
             const invocationBanner = document.getElementById("invocation-banner");
             if (invocationBanner && invocationBanner.style.display !== "none") {
                 const bannerHeight = Math.round(invocationBanner.getBoundingClientRect().height);
+                adjustedY += bannerHeight;
+                adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
+            }
+
+            // Same treatment for the impersonation banner (stacks below the invocation banner if both are visible).
+            const impersonationBanner = document.getElementById("impersonation-banner");
+            if (impersonationBanner && impersonationBanner.style.display !== "none") {
+                const bannerHeight = Math.round(impersonationBanner.getBoundingClientRect().height);
                 adjustedY += bannerHeight;
                 adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
             }

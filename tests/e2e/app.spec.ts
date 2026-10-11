@@ -20,9 +20,7 @@ test.describe("App launch", () => {
     });
 
     test("sidebar navigation is present", async ({ window }) => {
-        // The sidebar element should exist in the DOM
-        const sidebar = window.locator("#sidebar, .sidebar, nav");
-        await expect(sidebar.first()).toBeVisible({ timeout: 15_000 });
+        await expect(window.locator("#sidebar")).toBeVisible({ timeout: 15_000 });
     });
 
     test("no JavaScript errors thrown at startup", async ({ electronApp }) => {

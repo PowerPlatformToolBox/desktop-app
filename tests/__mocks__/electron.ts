@@ -62,6 +62,13 @@ export class BrowserWindow {
     getBrowserView = jest.fn(() => null);
     getContentBounds = jest.fn(() => ({ width: 1200, height: 800 }));
     isVisible = jest.fn(() => true);
+    focus = jest.fn();
+    moveTop = jest.fn();
+    setAlwaysOnTop = jest.fn();
+    setResizable = jest.fn();
+    setMenuBarVisibility = jest.fn();
+    setBounds = jest.fn();
+    getBounds = jest.fn(() => ({ x: 0, y: 0, width: 1200, height: 800 }));
     static getAllWindows = jest.fn(() => []);
     static fromWebContents = jest.fn(() => null);
 }

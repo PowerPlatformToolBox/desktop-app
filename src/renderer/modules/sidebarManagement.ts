@@ -17,6 +17,14 @@ export function getCurrentSidebarId(): string | null {
     return currentSidebarId;
 }
 
+/** Toggle the currently selected sidebar without changing its active panel. */
+export function toggleSidebar(): void {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+
+    switchSidebar(currentSidebarId ?? "tools");
+}
+
 /**
  * Switch to a different sidebar panel
  */

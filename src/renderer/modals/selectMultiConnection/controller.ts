@@ -1,6 +1,7 @@
 import { UIConnectionData } from "../../../common/types/connection";
 import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
+import type { SelectMultiConnectionModalOptions } from "./view";
 
 export interface SelectMultiConnectionModalChannelIds {
     selectConnections: string;
@@ -18,12 +19,20 @@ export interface ConnectionListData {
  * @param channels - Channel IDs for IPC communication
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
  * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
+ * @param enableDoubleClickConnect - Whether double-clicking a connection triggers Connect
  */
 export function getSelectMultiConnectionModalControllerScript(
     channels: SelectMultiConnectionModalChannelIds,
-    isSecondaryRequired: boolean = true,
+    optionsOrIsSecondaryRequired: boolean | SelectMultiConnectionModalOptions = true,
     enabledForPowerPlatformAPI: boolean = false,
+    enableDoubleClickConnect: boolean = false,
+    impersonationIconUrl?: string,
 ): string {
+    if (typeof optionsOrIsSecondaryRequired === "object") {
+        return getConnectionSlotsModalControllerScript(channels, optionsOrIsSecondaryRequired, enabledForPowerPlatformAPI, enableDoubleClickConnect, impersonationIconUrl);
+    }
+
+    const isSecondaryRequired = optionsOrIsSecondaryRequired;
     const serializedChannels = JSON.stringify(channels);
     const sortingUtilities = getConnectionSortingUtilitiesScript();
     return `
@@ -32,6 +41,7 @@ export function getSelectMultiConnectionModalControllerScript(
     const CHANNELS = ${serializedChannels};
     const IS_SECONDARY_REQUIRED = ${isSecondaryRequired};
     const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -55,6 +65,7 @@ export function getSelectMultiConnectionModalControllerScript(
     let authenticatedPrimaryConnectionId = null;
     let authenticatedSecondaryConnectionId = null;
     let allConnections = [];
+    const impersonateConnectionKeys = new Set();
     const DEFAULT_SORT_OPTION = "last-used";
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => (value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION);
@@ -237,6 +248,10 @@ ${sortingUtilities}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
+                <label class="impersonate-checkbox-row" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="impersonate-checkbox" data-connection-id="\${safeId}" data-list="\${idPrefix}" \${impersonateConnectionKeys.has(idPrefix + ':' + conn.id) ? 'checked' : ''} />
+                    Impersonate as another user
+                </label>
             </div>
         \`;
         };
@@ -317,6 +332,33 @@ ${sortingUtilities}
             });
         });
 
+        if (ENABLE_DOUBLE_CLICK_CONNECT) {
+            document.querySelectorAll('.connection-item').forEach(item => {
+                item.addEventListener('dblclick', async (event) => {
+                    if (event.target instanceof Element && event.target.closest('.connect-button')) return;
+                    if (item.classList.contains('disabled') || item.classList.contains('authenticated')) return;
+
+                    const connectionId = item.getAttribute('data-connection-id');
+                    const listType = item.getAttribute('data-list');
+                    if (!connectionId || !listType) return;
+
+                    await handleConnectClick(connectionId, listType);
+                });
+            });
+        }
+
+        // Track the "Impersonate as another user" checkbox per connection card
+        document.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const key = checkbox.getAttribute('data-list') + ':' + checkbox.getAttribute('data-connection-id');
+                if (checkbox.checked) {
+                    impersonateConnectionKeys.add(key);
+                } else {
+                    impersonateConnectionKeys.delete(key);
+                }
+            });
+        });
+
         // Update confirm button state
         updateConfirmButtonState();
     };
@@ -374,6 +416,8 @@ ${sortingUtilities}
         modalBridge.send(CHANNELS.selectConnections, { 
             primaryConnectionId: authenticatedPrimaryConnectionId,
             secondaryConnectionId: authenticatedSecondaryConnectionId,
+            primaryWantsImpersonation: impersonateConnectionKeys.has('primary:' + authenticatedPrimaryConnectionId),
+            secondaryWantsImpersonation: authenticatedSecondaryConnectionId ? impersonateConnectionKeys.has('secondary:' + authenticatedSecondaryConnectionId) : false,
             action: 'confirm'
         });
     });
@@ -505,6 +549,257 @@ ${sortingUtilities}
     }
 
     // Request connections list from main process
+    modalBridge.send(CHANNELS.populateConnections, {});
+})();
+</script>`;
+}
+
+function getConnectionSlotsModalControllerScript(
+    channels: SelectMultiConnectionModalChannelIds,
+    options: SelectMultiConnectionModalOptions,
+    enabledForPowerPlatformAPI: boolean,
+    enableDoubleClickConnect: boolean,
+    impersonationIconUrl?: string,
+): string {
+    const serializedChannels = JSON.stringify(channels);
+    const sortingUtilities = getConnectionSortingUtilitiesScript();
+    const initialConnectionIds = JSON.stringify(options.initialConnectionIds ?? []);
+    return `
+<script>
+(() => {
+    const CHANNELS = ${serializedChannels};
+    const MIN_CONNECTIONS = ${options.minConnections};
+    const MAX_CONNECTIONS = ${options.maxConnections};
+    const INITIAL_CONNECTION_IDS = ${initialConnectionIds};
+    const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
+    const IMPERSONATION_ICON_URL = ${JSON.stringify(impersonationIconUrl ?? "icons/light/impersonate.svg")};
+    const modalBridge = window.modalBridge;
+    if (!modalBridge) return;
+
+    const rail = document.getElementById("connection-slot-rail");
+    const list = document.getElementById("slot-connection-list");
+    const confirmButton = document.getElementById("confirm-multi-connection-btn");
+    const duplicateWarning = document.getElementById("slot-duplicate-warning");
+    const searchInput = document.getElementById("multi-connection-search");
+    const searchClearButton = document.getElementById("multi-connection-search-clear");
+    const envFilter = document.getElementById("multi-connection-env-filter");
+    const authFilter = document.getElementById("multi-connection-auth-filter");
+    const categoryFilter = document.getElementById("multi-connection-category-filter");
+    const sortSelect = document.getElementById("multi-connection-sort");
+    const filterButton = document.getElementById("multi-connection-filter-btn");
+    const filterDropdown = document.getElementById("multi-connection-filter-dropdown");
+    let slotIds = [...INITIAL_CONNECTION_IDS];
+    while (slotIds.length > MIN_CONNECTIONS && !slotIds[slotIds.length - 1]) slotIds.pop();
+    while (slotIds.length < MIN_CONNECTIONS) slotIds.push(null);
+    slotIds.length = Math.min(slotIds.length, MAX_CONNECTIONS);
+    const connectedSlots = new Set(slotIds.flatMap((connectionId, index) => connectionId ? [index] : []));
+    let activeSlot = 0;
+    let allConnections = [];
+    const impersonateSlots = new Set();
+    const pendingConnectionIds = new Set();
+    const pendingSlotByConnectionId = new Map();
+    const DEFAULT_SORT_OPTION = "last-used";
+    const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
+    const sanitizeSortOption = (value) => value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION;
+    const escapeHtml = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    const formatAuthType = (authType) => ({ interactive: "Microsoft Login", clientSecret: "Client Secret", usernamePassword: "Username/Password" }[authType] || authType);
+${sortingUtilities}
+
+    const renderRail = () => {
+        if (!rail) return;
+        const rows = slotIds.map((connectionId, index) => {
+            const required = index < MIN_CONNECTIONS;
+            const connection = allConnections.find((item) => item.id === connectionId);
+            const label = connection ? connection.name : "Not selected";
+            const slotIndicators = '<span class="connection-slot-indicators">' +
+                (connectedSlots.has(index) ? '<span class="connection-slot-connected-check" role="img" aria-label="Connected" title="Connected">&#10003;</span>' : '') +
+                (impersonateSlots.has(index) ? '<img class="connection-slot-impersonation-icon" src="' + escapeHtml(IMPERSONATION_ICON_URL) + '" alt="" title="Dataverse impersonation enabled" aria-label="Dataverse impersonation enabled" />' : '') +
+                '</span>';
+            return '<div class="connection-slot-row" data-slot-row="' + index + '">' +
+                '<button type="button" class="connection-slot-button" data-slot-index="' + index + '" aria-pressed="' + (activeSlot === index) + '">' +
+                '<span class="connection-slot-number">' + (index + 1) + '</span><span class="connection-slot-copy"><strong title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</strong>' +
+                (connection ? '<small title="' + escapeHtml(connection.url) + '">' + escapeHtml(connection.url) + '</small>' : '') + '</span>' +
+                slotIndicators + '<span class="connection-badge ' + (required ? "required" : "optional") + '">' + (required ? "Required" : "Optional") + '</span></button>' +
+                (required ? "" : '<button type="button" class="connection-slot-clear" data-clear-slot="' + index + '" aria-label="Remove connection slot ' + (index + 1) + '" title="Remove slot">&times;</button>') + '</div>';
+        }).join("");
+        const existingAdd = document.getElementById("add-connection-slot-btn");
+        rail.innerHTML = rows + '<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ' + (slotIds.length >= MAX_CONNECTIONS ? "disabled" : "") + '>+ Add connection</button>';
+        rail.querySelectorAll("[data-slot-index]").forEach((button) => button.addEventListener("click", () => {
+            activeSlot = Number(button.getAttribute("data-slot-index"));
+            updateState();
+            renderRail();
+            renderConnections();
+        }));
+        rail.querySelectorAll("[data-clear-slot]").forEach((button) => button.addEventListener("click", () => {
+            const index = Number(button.getAttribute("data-clear-slot"));
+            if (index < MIN_CONNECTIONS || index >= slotIds.length) return;
+            slotIds.splice(index, 1);
+            const remapSlotSet = (slots) => new Set([...slots].flatMap((slot) => slot === index ? [] : [slot > index ? slot - 1 : slot]));
+            const remappedConnectedSlots = remapSlotSet(connectedSlots);
+            connectedSlots.clear();
+            remappedConnectedSlots.forEach((slot) => connectedSlots.add(slot));
+            const remappedImpersonateSlots = remapSlotSet(impersonateSlots);
+            impersonateSlots.clear();
+            remappedImpersonateSlots.forEach((slot) => impersonateSlots.add(slot));
+            for (const [connectionId, slot] of pendingSlotByConnectionId) {
+                if (slot === index) {
+                    pendingSlotByConnectionId.delete(connectionId);
+                    pendingConnectionIds.delete(connectionId);
+                } else if (slot > index) {
+                    pendingSlotByConnectionId.set(connectionId, slot - 1);
+                }
+            }
+            if (activeSlot > index) activeSlot -= 1;
+            else if (activeSlot === index) activeSlot = Math.max(0, index - 1);
+            updateState();
+            renderRail();
+            renderConnections();
+        }));
+        const newAddButton = document.getElementById("add-connection-slot-btn");
+        newAddButton?.addEventListener("click", () => {
+            const reusableIndex = slotIds.findIndex((connectionId, index) => index >= MIN_CONNECTIONS && !connectionId);
+            if (reusableIndex >= 0) {
+                activeSlot = reusableIndex;
+            } else if (slotIds.length < MAX_CONNECTIONS) {
+                activeSlot = slotIds.length;
+                slotIds.push(null);
+            }
+            updateState();
+            renderRail();
+            renderConnections();
+        });
+        if (existingAdd && slotIds.length >= MAX_CONNECTIONS) existingAdd.disabled = true;
+    };
+
+    const getFilteredConnections = () => {
+        const query = searchInput?.value?.toLowerCase() || "";
+        const env = envFilter?.value || "";
+        const auth = authFilter?.value || "";
+        const category = categoryFilter?.value || "";
+        const sortOption = sanitizeSortOption(sortSelect?.value);
+        return allConnections.filter((connection) => {
+            if (query && ![connection.name || "", connection.url || ""].some((value) => value.toLowerCase().includes(query))) return false;
+            if (env && connection.environment !== env) return false;
+            if (auth && connection.authenticationType !== auth) return false;
+            if (category === "__default__" && connection.category) return false;
+            if (category && category !== "__default__" && connection.category !== category) return false;
+            return true;
+        }).sort((first, second) => sortConnections(first, second, sortOption));
+    };
+
+    const renderConnections = () => {
+        if (!list) return;
+        const connections = getFilteredConnections();
+        if (!connections.length) {
+            list.innerHTML = '<div class="empty-state"><p>' + (allConnections.length ? "No matching connections" : "No connections configured yet. Add connections from the Connections page.") + '</p></div>';
+            return;
+        }
+        list.innerHTML = connections.map((connection) => {
+            const selected = slotIds[activeSlot] === connection.id;
+            const duplicate = slotIds.some((id, index) => index !== activeSlot && id === connection.id);
+            const envClass = "connection-env-badge env-" + escapeHtml(String(connection.environment).toLowerCase());
+            const category = connection.category ? '<span class="category-badge">' + escapeHtml(connection.category) + '</span>' : "";
+            const ppApi = connection.enabledForPowerPlatformAPI ? '<span class="power-platform-api-badge">PP API</span>' : "";
+            const connecting = pendingConnectionIds.has(connection.id);
+            const selectionControl = selected
+                ? '<span class="connection-selected-indicator" role="status" aria-label="Selected for Connection ' + (activeSlot + 1) + '" title="Selected for Connection ' + (activeSlot + 1) + '"><span class="connection-selected-check" aria-hidden="true">&#10003;</span><span>Selected</span></span>'
+                : '<button class="connect-button fluent-button fluent-button-primary" data-connection-id="' + escapeHtml(connection.id) + '" type="button" ' + (connecting ? 'disabled aria-busy="true"' : "") + '>' + (connecting ? "Connecting…" : "Connect") + '</button>';
+            return '<div class="connection-item ' + (selected ? "authenticated" : "") + '" data-connection-id="' + escapeHtml(connection.id) + '">' +
+                '<div class="connection-header"><div class="connection-name">' + escapeHtml(connection.name) + '</div><div class="connection-actions">' + selectionControl + '</div></div>' +
+                '<div class="connection-url">' + escapeHtml(connection.url) + '</div><div class="connection-item-footer"><div class="connection-item-meta-left"><span class="' + envClass + '">' + escapeHtml(connection.environment) + '</span><span class="auth-type-badge">' + escapeHtml(formatAuthType(connection.authenticationType)) + '</span>' + ppApi + category + '</div></div>' +
+                '<label class="impersonate-checkbox-row"><input type="checkbox" class="slot-impersonate-checkbox" data-connection-id="' + escapeHtml(connection.id) + '" ' + (impersonateSlots.has(activeSlot) ? "checked" : "") + ' />Impersonate as another user</label>' +
+                (duplicate ? '<small class="slot-duplicate-card-note"><span aria-hidden="true">&#9888;</span><span>Also assigned to another slot</span></small>' : "") + '</div>';
+        }).join("");
+        list.querySelectorAll(".connect-button").forEach((button) => {
+            button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const connectionId = button.getAttribute("data-connection-id");
+                if (!connectionId || pendingConnectionIds.has(connectionId)) return;
+                pendingConnectionIds.add(connectionId);
+                pendingSlotByConnectionId.set(connectionId, activeSlot);
+                renderConnections();
+                modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
+            });
+        });
+        if (ENABLE_DOUBLE_CLICK_CONNECT) list.querySelectorAll(".connection-item").forEach((item) => item.addEventListener("dblclick", () => {
+            const connectionId = item.getAttribute("data-connection-id");
+            if (!connectionId || pendingConnectionIds.has(connectionId)) return;
+            pendingConnectionIds.add(connectionId);
+            pendingSlotByConnectionId.set(connectionId, activeSlot);
+            renderConnections();
+            modalBridge.send(CHANNELS.selectConnections, { action: "authenticate", connectionId, listType: "slot-" + activeSlot });
+        }));
+        list.querySelectorAll(".slot-impersonate-checkbox").forEach((checkbox) => checkbox.addEventListener("change", () => {
+            if (checkbox.checked) impersonateSlots.add(activeSlot);
+            else impersonateSlots.delete(activeSlot);
+            renderRail();
+        }));
+    };
+
+    const updateState = () => {
+        if (duplicateWarning) {
+            const assignedId = slotIds[activeSlot];
+            duplicateWarning.hidden = !assignedId || !slotIds.some((id, index) => index !== activeSlot && id === assignedId);
+        }
+        if (confirmButton) confirmButton.disabled = slotIds.slice(0, MIN_CONNECTIONS).filter(Boolean).length < MIN_CONNECTIONS;
+    };
+
+    const confirm = () => {
+        if (slotIds.slice(0, MIN_CONNECTIONS).filter(Boolean).length < MIN_CONNECTIONS) return;
+        modalBridge.send(CHANNELS.selectConnections, { action: "confirm", connectionIds: slotIds, impersonateSlots: [...impersonateSlots] });
+    };
+    confirmButton?.addEventListener("click", confirm);
+    document.getElementById("cancel-select-multi-connection-btn")?.addEventListener("click", () => modalBridge.close());
+    document.getElementById("close-select-multi-connection-modal")?.addEventListener("click", () => modalBridge.close());
+    searchInput?.addEventListener("input", renderConnections);
+    envFilter?.addEventListener("change", renderConnections);
+    authFilter?.addEventListener("change", renderConnections);
+    categoryFilter?.addEventListener("change", renderConnections);
+    sortSelect?.addEventListener("change", renderConnections);
+    searchClearButton?.addEventListener("click", () => { if (searchInput) { searchInput.value = ""; renderConnections(); searchInput.focus(); } });
+    filterButton?.addEventListener("click", () => {
+        if (!filterDropdown) return;
+        const open = filterDropdown.style.display === "block";
+        filterDropdown.style.display = open ? "none" : "block";
+        filterButton.setAttribute("aria-expanded", String(!open));
+    });
+    modalBridge.onMessage?.((payload) => {
+        if (payload?.channel === CHANNELS.populateConnections) {
+            allConnections = payload.data?.connections || [];
+            if (categoryFilter) {
+                const categories = [...new Set(allConnections.map((connection) => connection.category).filter(Boolean))].sort();
+                categoryFilter.innerHTML = '<option value="">All Categories</option>' + (allConnections.some((connection) => !connection.category) ? '<option value="__default__">Default (No Category)</option>' : "") + categories.map((category) => '<option value="' + escapeHtml(category) + '">' + escapeHtml(category) + '</option>').join("");
+            }
+            renderRail();
+            renderConnections();
+            updateState();
+        }
+        if (payload?.channel === CHANNELS.connectReady && payload.data?.success && payload.data?.connectionId) {
+            const slotIndex = pendingSlotByConnectionId.get(payload.data.connectionId);
+            if (slotIndex === undefined) return;
+            pendingSlotByConnectionId.delete(payload.data.connectionId);
+            pendingConnectionIds.delete(payload.data.connectionId);
+            slotIds[slotIndex] = payload.data.connectionId;
+            connectedSlots.add(slotIndex);
+            activeSlot = slotIndex;
+            renderRail();
+            renderConnections();
+            updateState();
+        }
+        if (payload?.channel === CHANNELS.connectReady && payload.data?.success === false) {
+            pendingSlotByConnectionId.delete(payload.data.connectionId);
+            pendingConnectionIds.delete(payload.data.connectionId);
+            renderConnections();
+        }
+    });
+    if (ENABLED_FOR_POWER_PLATFORM_API) {
+        const warning = document.getElementById("power-platform-api-info-multi");
+        if (warning) warning.style.display = "block";
+    }
+    renderRail();
+    renderConnections();
+    updateState();
     modalBridge.send(CHANNELS.populateConnections, {});
 })();
 </script>`;
