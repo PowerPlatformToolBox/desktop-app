@@ -22,7 +22,9 @@ export function toggleSidebar(): void {
     const sidebar = document.getElementById("sidebar");
     if (!sidebar) return;
 
-    switchSidebar(currentSidebarId ?? "tools");
+    const activeSidebar = document.querySelector<HTMLElement>(".sidebar-content.active");
+    const activeSidebarId = currentSidebarId ?? (activeSidebar?.id.startsWith("sidebar-") ? activeSidebar.id.slice("sidebar-".length) : "tools");
+    switchSidebar(activeSidebarId);
 }
 
 /**

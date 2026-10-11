@@ -28,10 +28,19 @@ export function getRateToolModalView(model: RateToolModalViewModel): ModalViewTe
     }
 
     .star-rating .star {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        font: inherit;
         cursor: pointer;
         color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.25)" : "rgba(0, 0, 0, 0.2)"};
         transition: color 0.1s ease-in-out;
         user-select: none;
+    }
+
+    .star-rating .star:focus-visible {
+        outline: 2px solid currentColor;
+        outline-offset: 3px;
     }
 
     .star-rating .star.active {
@@ -60,7 +69,7 @@ export function getRateToolModalView(model: RateToolModalViewModel): ModalViewTe
 
     const existingRating = typeof model.existingRating === "number" ? Math.min(5, Math.max(1, Math.round(model.existingRating))) : 0;
     const stars = [1, 2, 3, 4, 5]
-        .map((value) => `<span class="star${value <= existingRating ? " active" : ""}" data-star-value="${value}" role="button" aria-label="${value} star${value > 1 ? "s" : ""}">★</span>`)
+        .map((value) => `<button type="button" class="star${value <= existingRating ? " active" : ""}" data-star-value="${value}" aria-label="${value} star${value > 1 ? "s" : ""}" aria-pressed="${value === existingRating}">★</button>`)
         .join("");
 
     const body = `

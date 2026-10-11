@@ -77,7 +77,7 @@ export function getReportConcernModalView(model: ReportConcernModalViewModel): M
             <label for="report-email">Email (optional, for follow-up)</label>
             <input id="report-email" type="email" class="modal-input" placeholder="you@example.com" />
         </div>
-        <div id="report-concern-feedback" class="modal-feedback"></div>
+        <div id="report-concern-feedback" class="modal-feedback" role="status" aria-live="polite"></div>
     </div>
     <div class="modal-footer">
         <button id="report-concern-cancel-btn" class="fluent-button fluent-button-secondary">Cancel</button>
