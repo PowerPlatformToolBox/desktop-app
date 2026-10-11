@@ -5,7 +5,7 @@ import { openLocalPageAsTab, registerCloseGuard } from "../toolManagement";
 import { openCspConsentManagementModal } from "./cspExceptionModal";
 import { appendNativeWorkerConsentReview } from "./nativeWorkerConsentModal";
 
-type ConsentType = "csp" | "dataverse";
+type ConsentType = "csp" | "dataverse" | "native";
 type ConsentStatus = "granted" | "partial" | "revoked";
 
 interface CspEntry {
@@ -38,9 +38,11 @@ interface ConsentReviewContext {
     searchInput: HTMLInputElement;
     statusFilter: HTMLSelectElement;
     listContainer: HTMLElement;
+    nativePanel: HTMLElement;
+    toolbar: HTMLElement;
     tabButtons: NodeListOf<HTMLButtonElement>;
     expandedRows: Set<string>;
-    entries: Record<ConsentType, ConsentEntry[]>;
+    entries: Record<Exclude<ConsentType, "native">, ConsentEntry[]>;
 }
 
 function isMarketplaceInstalledTool(tool: Tool): boolean {
@@ -147,7 +149,7 @@ function createEntryRow(entry: ConsentEntry, context: ConsentReviewContext): HTM
     const detailId = `consent-detail-${encodeURIComponent(rowKey)}`;
     const expanded = context.expandedRows.has(rowKey);
     const row = document.createElement("section");
-    row.className = "consent-review-row";
+    row.className = `consent-review-row consent-review-row-${entry.type}`;
     row.setAttribute("data-row-key", rowKey);
 
     const overview = document.createElement("div");
@@ -238,6 +240,7 @@ function createEntryRow(entry: ConsentEntry, context: ConsentReviewContext): HTM
 }
 
 function filteredEntries(context: ConsentReviewContext): ConsentEntry[] {
+    if (context.activeType === "native") return [];
     const search = context.searchInput.value.trim().toLowerCase();
     const status = context.statusFilter.value;
     return context.entries[context.activeType].filter((entry) => {
@@ -260,9 +263,14 @@ function render(context: ConsentReviewContext): void {
         button.tabIndex = active ? 0 : -1;
         const type = button.dataset.consentType as ConsentType;
         const count = button.querySelector(".consent-review-tab-count");
-        if (count) count.textContent = String(context.entries[type].length);
+        if (count && type !== "native") count.textContent = String(context.entries[type].length);
     });
 
+    context.nativePanel.hidden = context.activeType !== "native";
+    context.listContainer.hidden = context.activeType === "native";
+    context.toolbar.hidden = context.activeType === "native";
+    if (context.activeType === "native") return;
+    context.listContainer.setAttribute("aria-labelledby", `consent-${context.activeType}-tab`);
     context.listContainer.innerHTML = "";
     const allEntries = context.entries[context.activeType];
     const visibleEntries = filteredEntries(context);
@@ -337,7 +345,7 @@ async function handleDataverseRevoke(context: ConsentReviewContext, toolId: stri
 
 function bindEvents(context: ConsentReviewContext): void {
     const activateTab = (button: HTMLButtonElement, focus = false) => {
-        context.activeType = button.dataset.consentType === "dataverse" ? "dataverse" : "csp";
+        context.activeType = button.dataset.consentType === "native" ? "native" : button.dataset.consentType === "dataverse" ? "dataverse" : "csp";
         context.searchInput.value = "";
         context.statusFilter.value = "all";
         render(context);
@@ -391,6 +399,7 @@ function renderConsentTabContent(panel: HTMLElement): void {
                 <div class="consent-review-type-tabs" role="tablist" aria-label="Consent type">
                     <button id="consent-csp-tab" class="consent-review-type-tab active" type="button" role="tab" aria-selected="true" aria-controls="consent-tab-list-container" data-consent-type="csp">CSP Exceptions <span class="consent-review-tab-count">0</span></button>
                     <button id="consent-dataverse-tab" class="consent-review-type-tab" type="button" role="tab" aria-selected="false" aria-controls="consent-tab-list-container" data-consent-type="dataverse">Dataverse Headers <span class="consent-review-tab-count">0</span></button>
+                    <button id="consent-native-tab" class="consent-review-type-tab" type="button" role="tab" aria-selected="false" aria-controls="consent-native-panel" data-consent-type="native">Native Workers <span class="consent-review-tab-count">0</span></button>
                 </div>
                 <div class="consent-review-tab-toolbar">
                     <div class="sidebar-search-input-wrapper"><input type="text" id="consent-tab-search-input" class="search-input" placeholder="Search tools..." aria-label="Search consented tools" /></div>
@@ -400,6 +409,7 @@ function renderConsentTabContent(panel: HTMLElement): void {
                     </div>
                 </div>
                 <div id="consent-tab-list-container" class="consent-review-list" role="tabpanel" aria-live="polite"></div>
+                <div id="consent-native-panel" role="tabpanel" aria-labelledby="consent-native-tab" hidden></div>
             </section>
         </div>`;
 
@@ -411,13 +421,17 @@ function renderConsentTabContent(panel: HTMLElement): void {
         searchInput,
         statusFilter,
         listContainer,
+        nativePanel: panel.querySelector<HTMLElement>("#consent-native-panel")!,
+        toolbar: panel.querySelector<HTMLElement>(".consent-review-tab-toolbar")!,
         tabButtons: panel.querySelectorAll<HTMLButtonElement>(".consent-review-type-tab"),
         expandedRows: new Set(),
         entries: { csp: [], dataverse: [] },
     };
     bindEvents(context);
-    const scrollArea = panel.querySelector<HTMLElement>("#consent-review-tab-scroll-area");
-    if (scrollArea) appendNativeWorkerConsentReview(scrollArea);
+    appendNativeWorkerConsentReview(context.nativePanel, (count) => {
+        const badge = panel.querySelector("#consent-native-tab .consent-review-tab-count");
+        if (badge) badge.textContent = String(count);
+    });
     panel.querySelector("#consent-tab-refresh-btn")?.addEventListener("click", () => void loadEntries(context).catch(handleError));
     void loadEntries(context).catch(handleError);
 }

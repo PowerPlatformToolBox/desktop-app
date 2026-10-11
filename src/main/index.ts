@@ -29,6 +29,7 @@ import {
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
 import { captureException, captureMessage, logInfo as logSentryInfo, recordSentryTelemetryDisabled } from "../common/sentryHelper";
+import type { DataverseHeaderConsentDecision } from "../common/types";
 import {
     AttributeMetadataType,
     DataverseBatchRequest,
@@ -1498,7 +1499,7 @@ class ToolBoxApp {
             this.settingsManager.revokeDataverseHeaderConsent(toolId);
         });
 
-        ipcMain.handle(DATAVERSE_HEADER_CONSENT_CHANNELS.RESPOND, (event, requestId: string, decision: "allow-tool" | "allow-once" | "reject") => {
+        ipcMain.handle(DATAVERSE_HEADER_CONSENT_CHANNELS.RESPOND, (event, requestId: string, decision: DataverseHeaderConsentDecision) => {
             if (event.sender.id !== this.mainWindow?.webContents.id) throw new Error("Dataverse consent responses are restricted to the main application");
             return this.dataverseHeaderConsentManager.respond(requestId, decision);
         });

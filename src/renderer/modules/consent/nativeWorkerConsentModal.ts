@@ -181,26 +181,76 @@ export function initializeNativeWorkerConsentModal(): void {
     );
 }
 
-export function appendNativeWorkerConsentReview(container: HTMLElement): void {
+export function appendNativeWorkerConsentReview(container: HTMLElement, onCount?: (count: number) => void): void {
     const section = document.createElement("section");
-    section.className = "settings-vscode-section native-worker-consent-review";
-    section.appendChild(textElement("h2", "Native Workers"));
-    section.appendChild(textElement("p", NATIVE_WORKER_WARNING));
+    section.className = "native-worker-consent-review";
+    const warning = textElement("p", NATIVE_WORKER_WARNING);
+    warning.className = "consent-review-scope-note native-worker-review-warning";
+    section.appendChild(warning);
     const list = document.createElement("div");
+    list.className = "consent-review-list";
     list.setAttribute("aria-live", "polite");
     const refresh = async () => {
         try {
             const records = await api().getNativeWorkerConsents();
+            onCount?.(records.length);
             list.replaceChildren();
-            if (!records.length) list.appendChild(textElement("p", "No persistent native-worker approvals."));
+            const summary = textElement("div", `${records.length} granted`);
+            summary.className = "consent-review-summary";
+            list.appendChild(summary);
+            if (!records.length) {
+                const empty = textElement("p", "No persistent native-worker approvals.");
+                empty.className = "consent-review-empty";
+                list.appendChild(empty);
+            }
             records.forEach((record) => {
                 const row = document.createElement("article");
-                row.className = "native-worker-consent-record";
-                nativeWorkerConsentDetails(record).forEach((line) => row.appendChild(textElement("p", line)));
-                row.appendChild(textElement("p", `Approved: ${record.approvedAt}`));
+                row.className = "consent-review-row native-worker-consent-record";
+                const overview = document.createElement("div");
+                overview.className = "consent-review-row-overview";
+                const identity = document.createElement("div");
+                identity.className = "consent-review-row-identity";
+                const title = textElement("h3", record.toolName);
+                title.className = "consent-review-row-title";
+                title.title = record.toolName;
+                const worker = textElement("p", `Worker: ${record.workerId}`);
+                worker.className = "consent-review-row-authors";
+                identity.append(title, worker);
+                const packageSummary = textElement("p", `${record.declaration.packageId} ${record.declaration.packageVersion}`);
+                packageSummary.className = "consent-review-row-summary";
+                const controls = document.createElement("div");
+                controls.className = "consent-review-row-controls";
+                const granted = textElement("span", "Granted");
+                granted.className = "consent-status granted";
+                const dot = document.createElement("span");
+                dot.className = "consent-status-dot";
+                dot.setAttribute("aria-hidden", "true");
+                granted.prepend(dot);
+                const detail = document.createElement("div");
+                detail.className = "consent-review-row-detail";
+                detail.id = `native-worker-detail-${encodeURIComponent(record.fingerprint)}`;
+                detail.hidden = true;
+                nativeWorkerConsentDetails(record).forEach((line) => {
+                    const item = textElement("p", line);
+                    item.className = "consent-review-scope-note";
+                    detail.appendChild(item);
+                });
+                const approved = textElement("p", `Approved: ${new Date(record.approvedAt).toLocaleString()}`);
+                approved.className = "consent-review-scope-note";
+                detail.appendChild(approved);
+                const details = consentActionButton("Details", () => {
+                    detail.hidden = !detail.hidden;
+                    details.textContent = detail.hidden ? "Details" : "Hide details";
+                    details.setAttribute("aria-expanded", String(!detail.hidden));
+                });
+                details.setAttribute("aria-expanded", "false");
+                details.setAttribute("aria-controls", detail.id);
+                controls.append(granted, details);
+                overview.append(identity, packageSummary, controls);
                 const status = textElement("p", "");
+                status.className = "consent-review-scope-note";
                 status.setAttribute("role", "status");
-                const revoke = consentActionButton("Revoke", () => {
+                const revoke = consentActionButton("Revoke access", () => {
                     revoke.setAttribute("disabled", "");
                     void api()
                         .revokeNativeWorkerConsent(record.fingerprint)
@@ -210,19 +260,24 @@ export function appendNativeWorkerConsentReview(container: HTMLElement): void {
                             revoke.removeAttribute("disabled");
                         });
                 });
-                row.append(revoke, status);
+                detail.append(revoke, status);
+                row.append(overview, detail);
                 list.appendChild(row);
             });
         } catch {
-            list.replaceChildren(textElement("p", "Unable to load native-worker approvals."));
+            const error = textElement("p", "Unable to load native-worker approvals.");
+            error.className = "consent-review-empty";
+            list.replaceChildren(error);
         }
     };
-    section.append(
-        consentActionButton("Refresh Native Approvals", () => {
+    const toolbar = document.createElement("div");
+    toolbar.className = "consent-review-tab-toolbar native-worker-review-toolbar";
+    toolbar.append(
+        consentActionButton("Refresh", () => {
             void refresh();
         }),
-        list,
     );
+    section.append(toolbar, list);
     container.appendChild(section);
     void refresh();
 }

@@ -5,6 +5,8 @@ import ts from "typescript";
 
 const source = readFileSync(path.resolve("src/renderer/modules/consent/nativeWorkerConsentModal.ts"), "utf8");
 const script = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const reviewSource = readFileSync(path.resolve("src/renderer/modules/consent/consentReviewManagement.ts"), "utf8");
+const reviewScript = ts.transpileModule(reviewSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const modalStylesSource = readFileSync(path.resolve("src/renderer/modals/sharedStyles.ts"), "utf8");
 const modalStylesScript = ts.transpileModule(modalStylesSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const assets = path.resolve("dist/renderer/assets");
@@ -208,9 +210,66 @@ test("reviews and revokes a persistent approval in the main window", async ({ pa
         };
         fixture.nativeConsent.appendNativeWorkerConsentReview(document.body);
     });
-    await expect(page.getByText(/Approved: 2026-10-06T00:00:00.000Z/)).toBeVisible();
-    await page.getByRole("button", { name: "Revoke", exact: true }).click();
+    await expect(page.getByText(/^Approved:/)).toBeHidden();
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await expect(page.getByText(/^Approved:/)).toBeVisible();
+    await page.getByRole("button", { name: "Revoke access", exact: true }).click();
     await expect(page.getByText("No persistent native-worker approvals.")).toBeVisible();
+});
+
+test("isolates consent categories and fits compact review rows on desktop and mobile", async ({ page }) => {
+    await page.evaluate(async (compiledReview) => {
+        const fixture = window as unknown as {
+            toolboxAPI: Record<string, any>;
+            lastRequest: Record<string, unknown>;
+            nativeConsent: Record<string, (...args: any[]) => any>;
+        };
+        fixture.toolboxAPI.getAllTools = async () => [];
+        fixture.toolboxAPI.getCspConsents = async () => ({});
+        fixture.toolboxAPI.getDataverseHeaderConsents = async () => ({
+            "local-power-maverick-tool-root-cause-analysis": { status: "granted", grantedAt: "2026-10-06T00:00:00.000Z" },
+        });
+        fixture.toolboxAPI.getNativeWorkerConsents = async () => [{ ...fixture.lastRequest, fingerprint: "a".repeat(64), approvedAt: "2026-10-06T00:00:00.000Z" }];
+        const exports: Record<string, (...args: any[]) => any> = {};
+        new Function("exports", "require", compiledReview)(exports, (name: string) => {
+            if (name === "./nativeWorkerConsentModal") return fixture.nativeConsent;
+            if (name === "../toolManagement")
+                return {
+                    registerCloseGuard: () => undefined,
+                    openLocalPageAsTab: async (_id: string, _title: string, render: (panel: HTMLElement) => void) => {
+                        const panel = document.createElement("div");
+                        document.body.replaceChildren(panel);
+                        render(panel);
+                    },
+                };
+            if (name === "../../../common/logger") return { logInfo: () => undefined, logError: () => undefined };
+            return {};
+        });
+        await exports.openConsentReviewTab();
+        document.body.classList.add("dark-theme");
+    }, reviewScript);
+    await page.setViewportSize({ width: 820, height: 768 });
+    await page.getByRole("tab", { name: /Dataverse Headers/ }).click();
+    await expect(page.locator("#consent-native-panel")).toBeHidden();
+    await expect(page.locator(".consent-review-row-title").first()).toHaveText("local-power-maverick-tool-root-cause-analysis");
+    await page.getByRole("button", { name: "Details", exact: true }).first().click();
+    await expect(page.getByRole("button", { name: "Revoke access" }).first()).toBeVisible();
+    expect(await page.locator("html").evaluate((element) => element.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: "test-results/consent-review-dataverse-desktop.png" });
+    await page.getByRole("tab", { name: /Native Workers/ }).click();
+    await expect(page.locator("#consent-tab-list-container")).toBeHidden();
+    await expect(page.locator("#consent-native-panel")).toBeVisible();
+    await expect(page.locator("#consent-native-panel .consent-review-row-detail")).toBeHidden();
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await expect(page.getByText(/^Approved:/)).toBeVisible();
+    await page.screenshot({ path: "test-results/consent-review-native-desktop.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.locator("html").evaluate((element) => element.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: "test-results/consent-review-native-mobile.png" });
+    await page.getByRole("tab", { name: /Dataverse Headers/ }).click();
+    await expect(page.locator("#consent-native-panel")).toBeHidden();
+    expect(await page.locator("html").evaluate((element) => element.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: "test-results/consent-review-dataverse-mobile.png" });
 });
 
 test("fits the shared BrowserWindow dialog on mobile and desktop dark theme", async ({ page }) => {

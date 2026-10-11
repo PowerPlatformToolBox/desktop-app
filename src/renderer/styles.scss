@@ -19,10 +19,26 @@
     }
 }
 
-.native-worker-consent-record {
-    padding: 16px 0;
-    border-bottom: 1px solid var(--border-color, GrayText);
+.native-worker-consent-record .consent-review-scope-note,
+.native-worker-consent-record .consent-review-row-summary {
+    min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.native-worker-review-warning {
+    margin: 16px 24px !important;
+    padding: 12px;
+    border-left: 3px solid var(--accent-color);
+    background: var(--sidebar-bg);
+}
+
+.native-worker-review-toolbar {
+    justify-content: flex-end;
+}
+
+#consent-review-section [hidden],
+.native-worker-consent-review [hidden] {
+    display: none !important;
 }
 
 .native-worker-consent-review fluent-button.fluent-button-secondary {
@@ -1490,7 +1506,7 @@ body.dark-theme .consent-status.revoked {
 
 .consent-review-row-overview {
     display: grid;
-    grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr) auto;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
     align-items: center;
     gap: 20px;
     min-height: 68px;
@@ -1514,6 +1530,11 @@ body.dark-theme .consent-status.revoked {
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.consent-review-row-dataverse .consent-review-row-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .consent-review-row-authors,

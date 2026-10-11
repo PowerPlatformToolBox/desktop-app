@@ -42,8 +42,9 @@ function buildModalHtml(request: DataverseHeaderConsentRequest): string {
         .header-name, .header-value { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
         .header-name { color: ${isDarkTheme ? "#75b6e7" : "#005a9e"}; }
         .header-value { color: inherit; }
-        .modal-footer { flex-wrap: nowrap; }
-        .consent-footer-note { margin: 0 auto 0 0; color: ${isDarkTheme ? "rgba(255,255,255,.62)" : "rgba(0,0,0,.62)"}; font-size: 12px; line-height: 1.4; }
+        .modal-footer { flex-wrap: wrap; }
+        .modal-footer .fluent-button { white-space: normal; }
+        .consent-footer-note { flex-basis: 100%; margin: 0; color: ${isDarkTheme ? "rgba(255,255,255,.62)" : "rgba(0,0,0,.62)"}; font-size: 12px; line-height: 1.4; }
         @media (max-width: 520px) { .header-row { grid-template-columns: 1fr; } .modal-footer { flex-wrap: wrap; } }
     </style>
 </head>
@@ -58,7 +59,8 @@ function buildModalHtml(request: DataverseHeaderConsentRequest): string {
         </header>
         <p class="request-summary"><strong>${escapeHtml(request.toolName)}</strong> wants to ${escapeHtml(request.operation.toLowerCase())} using the headers below.</p>
         <div class="scope-warning">
-            <strong>Allow always</strong> also permits different Dataverse header names and values in future requests until you revoke access in Consent Review.
+            Approval permits different Dataverse header names and values. <strong>Approve for this tool instance</strong> lasts until this instance closes.
+            <strong>Approve for this tool</strong> includes future executions until you revoke access in Consent Review.
         </div>
         <section class="modal-body" aria-label="Requested headers">
             <ul class="header-list">${headerRows}</ul>
@@ -66,15 +68,15 @@ function buildModalHtml(request: DataverseHeaderConsentRequest): string {
         <footer class="modal-footer">
             <p class="consent-footer-note">This consent applies only to this tool.</p>
             <button class="fluent-button fluent-button-secondary" type="button" data-decision="reject">Reject</button>
-            <button id="allow-once-button" class="fluent-button fluent-button-secondary" type="button" data-decision="allow-once">Allow once</button>
-            <button class="fluent-button fluent-button-primary" type="button" data-decision="allow-tool">Allow always</button>
+            <button id="allow-instance-button" class="fluent-button fluent-button-secondary" type="button" data-decision="allow-instance">Approve for this tool instance</button>
+            <button class="fluent-button fluent-button-primary" type="button" data-decision="allow-tool">Approve for this tool</button>
         </footer>
     </main>
     <script>
         const sendDecision = (decision) => window.modalBridge.send("${DECISION_CHANNEL}", { decision });
         document.querySelectorAll("[data-decision]").forEach((button) => button.addEventListener("click", () => sendDecision(button.dataset.decision)));
         document.addEventListener("keydown", (event) => { if (event.key === "Escape") sendDecision("reject"); });
-        document.getElementById("allow-once-button")?.focus();
+        document.getElementById("allow-instance-button")?.focus();
     </script>
 </body>
 </html>`;
@@ -94,7 +96,7 @@ async function respond(decision: DataverseHeaderConsentDecision): Promise<void> 
 function handleModalMessage(payload: ModalWindowMessagePayload): void {
     if (payload.channel !== DECISION_CHANNEL || !payload.data || typeof payload.data !== "object") return;
     const decision = (payload.data as { decision?: unknown }).decision;
-    if (decision !== "allow-tool" && decision !== "allow-once" && decision !== "reject") return;
+    if (decision !== "allow-tool" && decision !== "allow-instance" && decision !== "reject") return;
     void respond(decision);
 }
 
