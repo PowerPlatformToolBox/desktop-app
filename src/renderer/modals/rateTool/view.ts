@@ -69,7 +69,10 @@ export function getRateToolModalView(model: RateToolModalViewModel): ModalViewTe
 
     const existingRating = typeof model.existingRating === "number" ? Math.min(5, Math.max(1, Math.round(model.existingRating))) : 0;
     const stars = [1, 2, 3, 4, 5]
-        .map((value) => `<button type="button" class="star${value <= existingRating ? " active" : ""}" data-star-value="${value}" aria-label="${value} star${value > 1 ? "s" : ""}" aria-pressed="${value === existingRating}">★</button>`)
+        .map(
+            (value) =>
+                `<button type="button" class="star${value <= existingRating ? " active" : ""}" data-star-value="${value}" aria-label="${value} star${value > 1 ? "s" : ""}" aria-pressed="${value === existingRating}">★</button>`,
+        )
         .join("");
 
     const body = `
