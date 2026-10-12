@@ -19,6 +19,7 @@ interface PendingConsent {
 export class DataverseHeaderConsentManager {
     private readonly queue: PendingConsent[] = [];
     private active: PendingConsent | null = null;
+    private instanceConsents = new WeakMap<WebContents, Set<string>>();
 
     constructor(
         private readonly settingsManager: SettingsManager,
@@ -67,7 +68,9 @@ export class DataverseHeaderConsentManager {
     private async ensureConsent(sender: WebContents, operation: string, headers: Array<{ name: string; value: string; scope?: string }>, api?: "financeOperations"): Promise<void> {
         const identity = this.resolveToolIdentity(sender.id);
         if (!identity) throw new Error("Dataverse header consent denied: untrusted tool sender");
-        if (this.settingsManager.hasDataverseHeaderConsent(api ? `financeOperations:${identity.toolId}` : identity.toolId)) return;
+        if (sender.isDestroyed()) throw new Error("Dataverse header consent caller closed");
+        const consentKey = api ? `financeOperations:${identity.toolId}` : identity.toolId;
+        if (this.instanceConsents.get(sender)?.has(consentKey) || this.settingsManager.hasDataverseHeaderConsent(consentKey)) return;
 
         return new Promise<void>((resolve, reject) => {
             this.queue.push({
@@ -89,10 +92,16 @@ export class DataverseHeaderConsentManager {
 
     respond(requestId: string, decision: DataverseHeaderConsentDecision): boolean {
         const pending = this.active;
-        if (!pending || pending.request.requestId !== requestId || !(["allow-tool", "allow-once", "reject"] as string[]).includes(decision)) return false;
+        if (!pending || pending.request.requestId !== requestId || !(["allow-tool", "allow-instance", "reject"] as string[]).includes(decision)) return false;
 
         if (decision === "allow-tool") {
-            this.settingsManager.grantDataverseHeaderConsent(pending.request.api ? `financeOperations:${pending.request.toolId}` : pending.request.toolId);
+            const consentKey = pending.request.api ? `financeOperations:${pending.request.toolId}` : pending.request.toolId;
+            this.settingsManager.grantDataverseHeaderConsent(consentKey);
+        } else if (decision === "allow-instance") {
+            const consentKey = pending.request.api ? `financeOperations:${pending.request.toolId}` : pending.request.toolId;
+            const consents = this.instanceConsents.get(pending.sender) ?? new Set<string>();
+            consents.add(consentKey);
+            this.instanceConsents.set(pending.sender, consents);
         }
         if (decision === "reject") {
             this.finishActive(new Error("Dataverse additional headers were rejected"));
@@ -103,6 +112,7 @@ export class DataverseHeaderConsentManager {
     }
 
     dispose(): void {
+        this.instanceConsents = new WeakMap<WebContents, Set<string>>();
         if (this.active) this.finishActive(new Error("Dataverse header consent was cancelled"), false);
         while (this.queue.length > 0) this.queue.shift()?.reject(new Error("Dataverse header consent was cancelled"));
     }
@@ -113,6 +123,18 @@ export class DataverseHeaderConsentManager {
         if (!pending) return;
         if (pending.sender.isDestroyed()) {
             pending.reject(new Error("Dataverse header consent caller closed"));
+            this.showNext();
+            return;
+        }
+        const identity = this.resolveToolIdentity(pending.sender.id);
+        if (!identity || identity.toolId !== pending.request.toolId) {
+            pending.reject(new Error("Dataverse header consent denied: untrusted tool sender"));
+            this.showNext();
+            return;
+        }
+        const consentKey = pending.request.api ? `financeOperations:${identity.toolId}` : identity.toolId;
+        if (this.instanceConsents.get(pending.sender)?.has(consentKey) || this.settingsManager.hasDataverseHeaderConsent(consentKey)) {
+            pending.resolve();
             this.showNext();
             return;
         }

@@ -26,8 +26,9 @@ export function buildToolIssueUrl(repository?: string, toolName?: string): strin
     try {
         const url = new URL(normalized);
         if (url.hostname !== "github.com") return null;
-        const cleanPath = url.pathname.replace(/\/(issues|pulls|discussions).*$/, "").replace(/\/+$/, "");
-        url.pathname = `${cleanPath}/issues/new`;
+        const [owner, repository] = url.pathname.split("/").filter(Boolean);
+        if (!owner || !repository) return null;
+        url.pathname = `/${owner}/${repository}/issues/new`;
         url.search = "";
         url.hash = "";
         url.searchParams.set("title", `[Feedback]: ${toolName || "Tool"}`);

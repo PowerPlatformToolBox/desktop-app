@@ -27,8 +27,10 @@ import {
     openAddConnectionModal,
     updateFooterConnection,
 } from "./connectionManagement";
-import { openConsentReviewTab } from "./consentReviewManagement";
-import { initializeDataverseHeaderConsentModal } from "./dataverseHeaderConsentModal";
+import { openConsentReviewTab } from "./consent/consentReviewManagement";
+import { initializeDataverseHeaderConsentModal } from "./consent/dataverseHeaderConsentModal";
+import { initializeNativeWorkerConsentModal } from "./consent/nativeWorkerConsentModal";
+import { openSentryConsentModal } from "./consent/sentryConsentModal";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -37,7 +39,6 @@ import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
 import { openReportConcernModal } from "./reportConcernModal";
-import { openSentryConsentModal } from "./sentryConsentModal";
 import { applyRendererSentryConsent } from "./sentryRuntime";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
@@ -66,17 +67,18 @@ import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFro
  */
 export async function initializeApplication(): Promise<void> {
     try {
-        initializeTitlebar();
         // Signal the main process that the renderer is starting fresh so it can clean up
         // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
         // This must be the very first IPC call so the cleanup happens before session restore.
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
+        initializeTitlebar();
 
         initializeBrowserWindowModals();
         window.api.on("open-suggest-tool-modal", () => {
             openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
         });
         initializeDataverseHeaderConsentModal();
+        initializeNativeWorkerConsentModal();
         const initialSettings = await window.toolboxAPI.getUserSettings();
         applyTheme(initialSettings.theme);
         await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent), initialSettings.installId ?? initialSettings.machineId);

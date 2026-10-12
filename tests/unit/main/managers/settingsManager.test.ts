@@ -25,6 +25,7 @@ describe("SettingsManager", () => {
             expect(settings.installedTools).toEqual([]);
             expect(settings.favoriteTools).toEqual([]);
             expect(settings.sentryTelemetryConsent).toBeNull();
+            expect(settings).not.toHaveProperty("dotnetLocalFeedPath");
         });
     });
 

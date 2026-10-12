@@ -174,15 +174,40 @@ export interface InvocationConfig {
 }
 
 /**
- * The shape of a tool's `pptb.config.json` file.
- *
- * This file lives alongside `package.json` in the tool's package root.
- * All sections are optional; the file itself is optional.  When present it
- * is validated by `pptb-validate` in addition to `package.json`.
+ * Author-facing runtime policy. Latest maps to native LatestMajor in later runtime work.
  */
+export type WorkerRollForward = "Disable" | "Latest" | "Minor" | "Major";
+export type WorkerTargetFramework = "net8.0" | "net9.0" | "net10.0";
+export type WorkerPlatform = "all" | "windows-x64" | "windows-arm64" | "macos-x64" | "macos-arm64" | "linux-x64" | "linux-arm64";
+
+/** Declarative metadata only; no worker execution API is available yet. */
+export interface WorkerDeclaration {
+    kind: "dotnet-tool";
+    packageId: string;
+    /** Exact NuGet version; ranges, floating versions and tags are forbidden. */
+    packageVersion: string;
+    command: string;
+    dotnet: {
+        targetFramework: WorkerTargetFramework;
+        /** Stable major.minor.patch matching the executable target framework. */
+        minimumRuntimeVersion: string;
+        /** Defaults to Major when omitted. Explicit null/empty/unknown values are invalid. */
+        rollForward?: WorkerRollForward;
+    };
+    /** Required unique aliases; all must appear alone and names the versioned officially supported PPTB platform matrix. */
+    platforms: WorkerPlatform[];
+}
+
+export interface NormalizedWorkerDeclaration extends WorkerDeclaration {
+    dotnet: WorkerDeclaration["dotnet"] & { rollForward: WorkerRollForward };
+}
+
+/** Optional package-root config, validated alongside package.json by pptb-validate. */
 export interface PPTBConfig {
     /** Invocation contract – how this tool can be called by other tools. */
     invocation?: InvocationConfig;
     /** Agent contract – how this tool can be called by external automation. */
     agents?: AgentsConfig;
+    /** Native worker declarations keyed by stable ID. Requires package.json features.minAPI. */
+    workers?: Record<string, WorkerDeclaration>;
 }

@@ -2,7 +2,7 @@
  * Dataverse API-related type definitions
  */
 
-export type DataverseConnectionTarget = "primary" | "secondary";
+export type DataverseConnectionTarget = "primary" | "secondary" | number;
 
 export type DataverseAdditionalHeaders = Readonly<Record<string, string>>;
 
@@ -33,7 +33,7 @@ export interface DataverseHeaderConsentRequest {
     headers: ReadonlyArray<Readonly<{ name: string; value: string; scope?: string }>>;
 }
 
-export type DataverseHeaderConsentDecision = "allow-tool" | "allow-once" | "reject";
+export type DataverseHeaderConsentDecision = "allow-tool" | "allow-instance" | "reject";
 
 export interface DataverseHeaderConsentResponse {
     requestId: string;

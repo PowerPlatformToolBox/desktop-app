@@ -93,7 +93,7 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
         </div>
     </div>
     <div class="modal-footer">
-        ${allowClearSelection ? '<button id="clear-selected-connection-btn" class="fluent-button fluent-button-secondary">Clear Secondary Connection</button>' : ""}
+        ${allowClearSelection ? '<button id="clear-selected-connection-btn" class="fluent-button fluent-button-secondary">Clear Connection</button>' : ""}
         <span class="footer-spacer"></span>
         <button id="cancel-select-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="connect-selected-connection-btn" class="fluent-button fluent-button-primary" disabled>Connect</button>

@@ -37,6 +37,7 @@ export function getRateToolModalControllerScript(config: RateToolModalController
         stars.forEach((star) => {
             const value = parseInt(star.getAttribute("data-star-value") || "0", 10);
             star.classList.toggle("active", value <= selectedRating);
+            star.setAttribute("aria-pressed", String(value === selectedRating));
         });
         if (submitBtn instanceof HTMLButtonElement) {
             submitBtn.disabled = selectedRating < 1;

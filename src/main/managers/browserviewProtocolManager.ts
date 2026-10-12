@@ -191,7 +191,7 @@ export class BrowserviewProtocolManager {
     /**
      * Get the base directory for a tool
      */
-    private getToolBaseDirectory(tool: any): string | null {
+    getToolBaseDirectory(tool: any): string | null {
         if (tool.localPath) {
             // Local development tool
             return tool.localPath;

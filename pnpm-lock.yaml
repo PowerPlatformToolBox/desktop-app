@@ -53,6 +53,9 @@ importers:
       uuid:
         specifier: ^14.0.2
         version: 14.0.2
+      vscode-jsonrpc:
+        specifier: 8.2.1
+        version: 8.2.1
     devDependencies:
       '@electron/notarize':
         specifier: ^3.1.0
@@ -121,8 +124,8 @@ importers:
   packages/types:
     dependencies:
       '@pptb/validate':
-        specifier: 1.0.4
-        version: 1.0.4
+        specifier: 1.0.5
+        version: 1.0.5
 
   packages/validation:
     dependencies:
@@ -892,8 +895,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@pptb/validate@1.0.4':
-    resolution: {integrity: sha512-Xew21gUgwrdstVpu6EB8b8vDaWNE4OOiPqr1Xk61Ao2EKN4ioCVg/cG6uFRFBhLaLqSjublVYczJ01KAUbBsvw==}
+  '@pptb/validate@1.0.5':
+    resolution: {integrity: sha512-zi5WUWAnWm/JFf4oq3ffoeyEpVwV/8qHy+oaJ95kvi+QYnpDqXFFi0uoTt1pBGI+G1Ws6ljmEtxfGbxn/bAhhA==}
     hasBin: true
 
   '@rollup/rollup-android-arm-eabi@4.63.3':
@@ -4006,6 +4009,10 @@ packages:
       yaml:
         optional: true
 
+  vscode-jsonrpc@8.2.1:
+    resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
+    engines: {node: '>=14.0.0'}
+
   walker@1.0.8:
     resolution: {integrity: sha512-ts/8E8l5b7kY0vlWLewOkDXMmPdLcVV4GmOQLyxuSswIJsweeFZtAsMF7k1Nszz+TYBQrlYRmzOnr398y1JemQ==}
 
@@ -5015,7 +5022,7 @@ snapshots:
     dependencies:
       playwright: 1.60.0
 
-  '@pptb/validate@1.0.4':
+  '@pptb/validate@1.0.5':
     dependencies:
       tar: 7.5.21
 
@@ -8530,6 +8537,8 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.7.0
       sass: 1.97.2
+
+  vscode-jsonrpc@8.2.1: {}
 
   walker@1.0.8:
     dependencies:

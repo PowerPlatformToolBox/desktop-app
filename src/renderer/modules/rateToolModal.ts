@@ -21,38 +21,46 @@ const RATE_TOOL_MODAL_CHANNELS = {
 const RATE_TOOL_MODAL_DIMENSIONS = { width: 420, height: 400 };
 
 let resolveOpenModal: ((result: RateToolResult | null) => void) | null = null;
+let openModalPromise: Promise<RateToolResult | null> | null = null;
 let bridgeInitialized = false;
 
 /**
  * Open the "Rate this tool" modal. Resolves with the recomputed aggregate rating on
  * successful submission, or null if the user cancels.
  */
-export async function openRateToolModal(tool: RateToolModalTool): Promise<RateToolResult | null> {
-    const existing = await window.toolboxAPI.getMyToolRating(tool.id);
+export function openRateToolModal(tool: RateToolModalTool): Promise<RateToolResult | null> {
+    if (openModalPromise) return openModalPromise;
 
-    return new Promise<RateToolResult | null>((resolve) => {
-        resolveOpenModal = resolve;
-        initializeBridge();
+    const promise = window.toolboxAPI.getMyToolRating(tool.id).then(
+        (existing) =>
+            new Promise<RateToolResult | null>((resolve) => {
+                resolveOpenModal = resolve;
+                initializeBridge();
 
-        const isDarkTheme = document.body.classList.contains("dark-theme");
-        const { styles, body } = getRateToolModalView({
-            toolName: tool.name,
-            isDarkTheme,
-            existingRating: existing?.rating,
-            existingComment: existing?.comment,
-        });
-        const script = getRateToolModalControllerScript({ channels: RATE_TOOL_MODAL_CHANNELS, toolId: tool.id });
+                const isDarkTheme = document.body.classList.contains("dark-theme");
+                const { styles, body } = getRateToolModalView({
+                    toolName: tool.name,
+                    isDarkTheme,
+                    existingRating: existing?.rating,
+                    existingComment: existing?.comment,
+                });
+                const script = getRateToolModalControllerScript({ channels: RATE_TOOL_MODAL_CHANNELS, toolId: tool.id });
 
-        showBrowserWindowModal({
-            id: RATE_TOOL_MODAL_ID,
-            html: `${styles}\n${body}\n${script}`,
-            width: RATE_TOOL_MODAL_DIMENSIONS.width,
-            height: RATE_TOOL_MODAL_DIMENSIONS.height,
-        }).catch((error) => {
-            logError("Failed to open Rate Tool modal", error);
-            settleAndClose(null);
-        });
+                showBrowserWindowModal({
+                    id: RATE_TOOL_MODAL_ID,
+                    html: `${styles}\n${body}\n${script}`,
+                    width: RATE_TOOL_MODAL_DIMENSIONS.width,
+                    height: RATE_TOOL_MODAL_DIMENSIONS.height,
+                }).catch((error) => {
+                    logError("Failed to open Rate Tool modal", error);
+                    settleAndClose(null);
+                });
+            }),
+    );
+    openModalPromise = promise.finally(() => {
+        openModalPromise = null;
     });
+    return openModalPromise;
 }
 
 function initializeBridge(): void {

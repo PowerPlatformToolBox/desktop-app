@@ -1,20 +1,12 @@
 /// <reference types="jest" />
 /// <reference path="../../../src/renderer/types/renderer.d.ts" />
 
-import type { ToolboxAPI } from "../../../src/common/types/api";
-
-declare global {
-    interface Window {
-        toolboxAPI: ToolboxAPI;
-    }
-}
-
 jest.mock("../../../src/renderer/utils/browserIcons", () => ({
     chromeIconUrl: "chrome-mock-icon",
     edgeIconUrl: "edge-mock-icon",
 }));
 jest.mock("../../../src/renderer/modules/connectionManagement", () => ({}));
-jest.mock("../../../src/renderer/modules/cspExceptionModal", () => ({}));
+jest.mock("../../../src/renderer/modules/consent/cspExceptionModal", () => ({}));
 jest.mock("../../../src/renderer/modules/homepageManagement", () => ({}));
 
 import { closeAllTools } from "../../../src/renderer/modules/toolManagement";
