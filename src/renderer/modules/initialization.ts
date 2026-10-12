@@ -67,11 +67,11 @@ import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFro
  */
 export async function initializeApplication(): Promise<void> {
     try {
-        initializeTitlebar();
         // Signal the main process that the renderer is starting fresh so it can clean up
         // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
         // This must be the very first IPC call so the cleanup happens before session restore.
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
+        initializeTitlebar();
 
         initializeBrowserWindowModals();
         window.api.on("open-suggest-tool-modal", () => {

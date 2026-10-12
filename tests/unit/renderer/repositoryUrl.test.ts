@@ -13,6 +13,12 @@ describe("buildToolIssueUrl", () => {
         expect(parsed.searchParams.get("body")).toContain("Share feedback");
     });
 
+    it("preserves repository names that begin with GitHub route names", () => {
+        const url = buildToolIssueUrl("https://github.com/acme/issues-tracker", "Tracker");
+
+        expect(new URL(url!).pathname).toBe("/acme/issues-tracker/issues/new");
+    });
+
     it("rejects non-GitHub and invalid repositories", () => {
         expect(buildToolIssueUrl("https://example.com/owner/tool", "Tool")).toBeNull();
         expect(buildToolIssueUrl("javascript:alert(1)", "Tool")).toBeNull();

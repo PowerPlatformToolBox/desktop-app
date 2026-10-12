@@ -2,7 +2,7 @@
  * Dataverse API-related type definitions
  */
 
-export type DataverseConnectionTarget = "primary" | "secondary";
+export type DataverseConnectionTarget = "primary" | "secondary" | number;
 
 export type DataverseAdditionalHeaders = Readonly<Record<string, string>>;
 
