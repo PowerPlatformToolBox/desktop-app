@@ -9,6 +9,7 @@ import {
     LastUsedToolUpdate,
     MarketplaceSource,
     MyToolRating,
+    NativeWorkerConsentRecord,
     TelemetryConsentChoice,
     ToolSettings,
     UserSettings,
@@ -31,8 +32,13 @@ function generateMcpAccessToken(): string {
 export class SettingsManager {
     private store: Store<UserSettings>;
     private toolSettingsStore: Store<{ [toolId: string]: ToolSettings }>;
+    private nativeWorkerConsentStore: Store<{ records: Record<string, NativeWorkerConsentRecord> }>;
 
     constructor() {
+        this.nativeWorkerConsentStore = new Store<{ records: Record<string, NativeWorkerConsentRecord> }>({
+            name: "native-worker-consents",
+            defaults: { records: {} },
+        });
         this.store = new Store<UserSettings>({
             name: "user-settings",
             defaults: {
@@ -403,6 +409,18 @@ export class SettingsManager {
     hasDataverseHeaderConsent(toolId: string): boolean {
         const consents = this.store.get("dataverseHeaderConsents") || {};
         return consents[toolId]?.status === "granted";
+    }
+
+    getNativeWorkerConsentRows(): unknown {
+        const records = this.nativeWorkerConsentStore.get("records");
+        if (!records || typeof records !== "object" || Array.isArray(records)) return records;
+        return Object.entries(records)
+            .filter(([fingerprint, record]) => record?.fingerprint === fingerprint)
+            .map(([, record]) => record);
+    }
+
+    setNativeWorkerConsentRows(rows: NativeWorkerConsentRecord[]): void {
+        this.nativeWorkerConsentStore.set("records", Object.fromEntries(rows.map((record) => [record.fingerprint, record])));
     }
 
     grantDataverseHeaderConsent(toolId: string, grantedAt = new Date().toISOString()): void {

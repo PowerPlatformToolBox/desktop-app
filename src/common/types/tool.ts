@@ -2,7 +2,9 @@
  * Tool-related type definitions
  */
 
+import type { NormalizedWorkerDeclaration } from "../../../packages/types/pptbConfig";
 import { CspExceptions } from "./common";
+export type { NormalizedWorkerDeclaration, WorkerDeclaration, WorkerPlatform, WorkerRollForward, WorkerTargetFramework } from "../../../packages/types/pptbConfig";
 
 /**
  * A single entry from the capability tag registry.
@@ -82,6 +84,7 @@ export interface ToolMetadata {
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
     capabilities?: string[];
+    workers?: Record<string, NormalizedWorkerDeclaration>;
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";

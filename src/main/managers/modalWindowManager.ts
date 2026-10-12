@@ -1,7 +1,8 @@
 import { BrowserWindow } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, MODAL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { logError } from "../../common/logger";
+import { scrubPii } from "../../common/sentry";
+import { addBreadcrumb, captureException, captureMessage, hasSentryTelemetryConsent, logWarn } from "../../common/sentryHelper";
 import { ModalWindowClosedPayload, ModalWindowMessagePayload, ModalWindowOptions } from "../../common/types";
 
 const MIN_MODAL_WIDTH = 280;
@@ -18,6 +19,9 @@ export class ModalWindowManager {
     private modalWindow: BrowserWindow | null = null;
     private readonly mainWindow: BrowserWindow;
     private currentOptions: ModalWindowOptions | null = null;
+    private modalLoadSequence = 0;
+    private reportedModalLoadSequence = -1;
+    private closingModalWindow: BrowserWindow | null = null;
 
     constructor(mainWindow: BrowserWindow) {
         this.mainWindow = mainWindow;
@@ -40,6 +44,7 @@ export class ModalWindowManager {
         this.updateWindowBounds();
 
         const documentHtml = this.composeDocumentHtml(this.currentOptions.html);
+        const loadSequence = ++this.modalLoadSequence;
         modalWindow
             .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(documentHtml)}`)
             .then(() => {
@@ -56,7 +61,11 @@ export class ModalWindowManager {
                 }
             })
             .catch((error) => {
-                logError("Failed to load modal content", error);
+                const errorCode = typeof error?.errno === "number" ? error.errno : undefined;
+                if (errorCode === -3 || error?.code === "ERR_ABORTED" || (typeof error?.message === "string" && error.message.startsWith("ERR_ABORTED"))) {
+                    return;
+                }
+                this.reportLoadFailure(modalWindow, loadSequence, errorCode);
             });
     }
 
@@ -73,6 +82,7 @@ export class ModalWindowManager {
 
     destroy(): void {
         if (this.modalWindow && !this.modalWindow.isDestroyed()) {
+            this.closingModalWindow = this.modalWindow;
             this.modalWindow.close();
         }
         this.modalWindow = null;
@@ -105,13 +115,74 @@ export class ModalWindowManager {
         });
 
         this.modalWindow.setMenuBarVisibility(false);
+        const modalWindow = this.modalWindow;
+        modalWindow.on("close", () => {
+            this.closingModalWindow = modalWindow;
+        });
+        modalWindow.webContents.on("console-message", (details, level, message) => {
+            if (!this.canReportTelemetry(modalWindow)) return;
+            const severity = details.level ?? (level === 3 ? "error" : level === 2 ? "warning" : "info");
+            if (severity !== "error" && severity !== "warning") return;
+
+            const safeMessage = this.sanitizeModalMessage(details.message ?? message);
+            const text = `Modal renderer ${severity}: ${safeMessage}`;
+            if (severity === "error") {
+                captureMessage(text, "error", { tags: { component: "modal-window", event_type: "console-error" } });
+            } else {
+                logWarn(text, { component: "modal-window", event_type: "console-warning" });
+            }
+            addBreadcrumb(text, "modal.console", severity);
+        });
+        modalWindow.webContents.on("render-process-gone", (_event, details) => {
+            if (!this.canReportTelemetry(modalWindow) || details.reason === "clean-exit") return;
+            captureException(new Error("Modal renderer process terminated unexpectedly"), {
+                tags: { component: "modal-window", event_type: "render-process-gone" },
+                extra: { reason: details.reason, exit_code: details.exitCode },
+            });
+        });
+        modalWindow.webContents.on("did-fail-load", (_event, errorCode, _description, _url, isMainFrame) => {
+            if (isMainFrame) this.reportLoadFailure(modalWindow, this.modalLoadSequence, errorCode);
+        });
         this.modalWindow.on("closed", () => {
             this.emitModalClosed();
             this.modalWindow = null;
             this.currentOptions = null;
+            if (this.closingModalWindow === modalWindow) this.closingModalWindow = null;
         });
 
         return this.modalWindow;
+    }
+
+    private canReportTelemetry(modalWindow: BrowserWindow): boolean {
+        return (
+            hasSentryTelemetryConsent() &&
+            this.modalWindow === modalWindow &&
+            this.closingModalWindow !== modalWindow &&
+            this.currentOptions !== null &&
+            !modalWindow.isDestroyed() &&
+            !this.mainWindow.isDestroyed()
+        );
+    }
+
+    private reportLoadFailure(modalWindow: BrowserWindow, loadSequence: number, errorCode?: number): void {
+        if (!this.canReportTelemetry(modalWindow) || errorCode === -3 || loadSequence !== this.modalLoadSequence || this.reportedModalLoadSequence === loadSequence) {
+            return;
+        }
+        this.reportedModalLoadSequence = loadSequence;
+        captureException(new Error("Failed to load modal content"), {
+            tags: { component: "modal-window", event_type: "did-fail-load" },
+            extra: { error_code: errorCode },
+        });
+    }
+
+    private sanitizeModalMessage(message: string): string {
+        if (/<[!/?a-z][^>]*>|%3c(?:!|%2f|[a-z])|data:text\/html/i.test(message)) return "[modal document redacted]";
+        return scrubPii(
+            message
+                .replace(/data:[^\s]+/gi, "[data URL redacted]")
+                .replace(/\b(?:Bearer|Basic)\s+[^\s"']+/gi, "[authorization redacted]")
+                .replace(/((?:password|secret|(?:access[_-]?|refresh[_-]?)?token|api[_-]?key|authorization)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1[redacted]"),
+        ).slice(0, 1000);
     }
 
     private setupMainWindowListeners(): void {

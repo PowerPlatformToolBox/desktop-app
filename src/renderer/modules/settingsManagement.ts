@@ -4,8 +4,8 @@
  */
 
 import { logError } from "../../common/logger";
-import { buildPreviewFeatureFlags, type MarketplaceSource } from "../../common/types";
 import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
+import { buildPreviewFeatureFlags, type MarketplaceSource } from "../../common/types";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -565,7 +565,8 @@ export async function saveSettings(): Promise<void> {
         applyPreviewFeaturesVisibility(currentSettings.previewFeatures);
         setDefaultNotificationDuration(currentSettings.notificationDuration);
         applyAppearanceSettings(currentSettings.showCategoryColor, currentSettings.showEnvironmentColor, currentSettings.categoryColorThickness, currentSettings.environmentColorThickness);
-        await applyRendererSentryConsent(currentSettings.sentryTelemetryConsent ?? null);
+        const telemetrySettings = await window.toolboxAPI.getUserSettings();
+        await applyRendererSentryConsent(currentSettings.sentryTelemetryConsent ?? null, telemetrySettings.installId ?? telemetrySettings.machineId);
 
         // Reload tools list if deprecated tools visibility changed
         if (changedSettings.deprecatedToolsVisibility !== undefined) {

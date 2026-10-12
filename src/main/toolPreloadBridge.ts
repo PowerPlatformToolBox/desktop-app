@@ -24,9 +24,12 @@ import {
     TOOL_CHANNELS,
     TOOL_WINDOW_CHANNELS,
     UTIL_CHANNELS,
+    WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logInfo } from "../common/logger";
 import type { DataverseBatchRequest, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
+import { createWorkerToolAPI } from "../common/types/workerToolApiClient";
+import type { WorkerToolEvent } from "../common/types/workerToolApi";
 
 // Tool context received from main process
 let toolContext: Record<string, unknown> | null = null;
@@ -99,6 +102,15 @@ async function ensureToolContext(): Promise<string> {
     }
     return toolContext.toolId;
 }
+
+const workerToolAPI = createWorkerToolAPI({
+    invoke: ipcInvoke,
+    subscribe: (callback) => {
+        const listener = (_event: Electron.IpcRendererEvent, payload: WorkerToolEvent): void => callback(payload);
+        ipcRenderer.on(WORKER_CHANNELS.EVENT, listener);
+        return () => ipcRenderer.removeListener(WORKER_CHANNELS.EVENT, listener);
+    },
+});
 
 async function getToolIdentifiers(): Promise<{ toolId: string; instanceId: string | null }> {
     await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
@@ -223,6 +235,7 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
 
 // Expose toolboxAPI to the tool window
 contextBridge.exposeInMainWorld("toolboxAPI", {
+    workers: workerToolAPI,
     // Tool Info
     getToolContext: async () => {
         await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);

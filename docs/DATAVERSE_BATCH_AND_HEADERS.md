@@ -15,8 +15,8 @@ const result = await dataverseAPI.retrieve("account", accountId, ["name"], "prim
 
 The first header-bearing request from a tool is paused before token acquisition or network access. The user can:
 
-- **Allow for this tool**: permit any additional Dataverse header name and value from that tool until revoked.
-- **Allow once**: permit only the pending request.
+- **Approve for this tool instance**: permit any additional Dataverse header name and value for the current tool instance, including queued and subsequent queries, until that instance closes. This approval is not persisted or shared with other instances.
+- **Approve for this tool**: permit any additional Dataverse header name and value from that tool, including future executions, until revoked.
 - **Reject**: cancel the request without sending it.
 
 The dialog displays the exact outgoing names and values. Persistent grants can be revoked from **Consent Review > Dataverse Headers**. Revoked grants remain in the review history, and the next header-bearing request prompts again.

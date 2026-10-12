@@ -232,7 +232,11 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         const release = mapSupabaseToolRow({ ...catalogRow, connections: '{"max":3,"min":0}' });
         const manager = new ToolRegistryManager(toolsDirectory, "https://supabase.example", "anon-key");
         jest.spyOn(manager, "fetchRegistry").mockResolvedValue([release]);
-        jest.spyOn(manager, "downloadTool").mockResolvedValue(extractedPath);
+        jest.spyOn(manager, "downloadTool").mockImplementation(async (_tool, targetPath) => {
+            if (!targetPath) throw new Error("Expected staged download destination");
+            fs.cpSync(extractedPath, targetPath, { recursive: true });
+            return targetPath;
+        });
         jest.spyOn(manager, "trackToolDownload").mockResolvedValue();
 
         const manifest = await manager.installTool("catalog-tool");

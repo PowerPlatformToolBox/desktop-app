@@ -22,7 +22,7 @@ import { getConnectionSlotSquarePresentation, getEmptyConnectionSlotPresentation
 import { authenticateRestoredSlots, copyConnectionSlots } from "../utils/sessionConnectionSlots";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
-import { openCspExceptionModal } from "./cspExceptionModal";
+import { openCspExceptionModal } from "./consent/cspExceptionModal";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
 
 // Constants
@@ -461,6 +461,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
+                        connectionIds = [selectedConnectionId];
                         impersonationUsers[0] = impersonationUser;
                     } else {
                         throw new Error("No connection was selected");

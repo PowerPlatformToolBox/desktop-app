@@ -538,7 +538,7 @@ function populateMarketplaceFilters(): void {
     }
 
     // Populate author filter
-    const sortedAuthors = Array.from(authors).sort();
+    const sortedAuthors = Array.from(authors).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     authorFilter.innerHTML = '<option value="">All Authors</option>' + sortedAuthors.map((author) => `<option value="${author}">${author}</option>`).join("");
     if (selectedAuthor && sortedAuthors.includes(selectedAuthor)) {
         authorFilter.value = selectedAuthor;

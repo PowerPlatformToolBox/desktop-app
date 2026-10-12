@@ -315,20 +315,6 @@ ${sortingUtilities}
             });
         });
 
-        // Track the "Impersonate as another user" checkbox per connection card
-        connectionsListContainer.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                const connectionId = checkbox.getAttribute('data-connection-id');
-                if (checkbox.checked) {
-                    impersonateConnectionIds.add(connectionId);
-                    // Checking the box implies the user wants this connection - select its card too
-                    selectConnection(connectionId);
-                } else {
-                    impersonateConnectionIds.delete(connectionId);
-                }
-            });
-        });
-
         // Auto-select active connection if it exists and is in filtered results
         const activeConnection = connections.find(conn => conn.isActive);
         if (activeConnection) {

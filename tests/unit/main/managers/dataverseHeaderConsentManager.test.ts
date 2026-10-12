@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
-import { EventEmitter } from "events";
 import type { WebContents } from "electron";
+import { EventEmitter } from "events";
 import { DATAVERSE_HEADER_CONSENT_CHANNELS } from "../../../../src/common/ipc/channels";
 import { DataverseHeaderConsentManager } from "../../../../src/main/managers/dataverseHeaderConsentManager";
 import type { SettingsManager } from "../../../../src/main/managers/settingsManager";
@@ -56,14 +56,16 @@ describe("DataverseHeaderConsentManager", () => {
         expect(main.send).not.toHaveBeenCalled();
     });
 
-    it("releases the exact frozen snapshot for allow once without persisting", async () => {
+    it("approves repeated queries for this instance without persisting", async () => {
         const result = manager.authorize(asWebContents(sender), "Retrieve", { Prefer: "odata.maxpagesize=10" });
         const request = main.send.mock.calls[0][1];
 
         expect(main.send).toHaveBeenCalledWith(DATAVERSE_HEADER_CONSENT_CHANNELS.REQUEST, expect.objectContaining({ toolId: "tool-a", operation: "Retrieve" }));
-        expect(manager.respond(request.requestId, "allow-once")).toBe(true);
+        expect(manager.respond(request.requestId, "allow-instance")).toBe(true);
         await expect(result).resolves.toEqual({ Prefer: "odata.maxpagesize=10" });
         expect(settings.grantDataverseHeaderConsent).not.toHaveBeenCalled();
+        await expect(manager.authorize(asWebContents(sender), "Update", { "If-Match": "*" })).resolves.toEqual({ "If-Match": "*" });
+        expect(main.send).toHaveBeenCalledTimes(1);
     });
 
     it("persists allow-for-tool and skips later prompts", async () => {
@@ -103,7 +105,7 @@ describe("DataverseHeaderConsentManager", () => {
             { name: "Prefer", value: "odata.maxpagesize=5", scope: "Operation 1: GET /api/data/v9.2/accounts" },
             { name: "Prefer", value: "return=minimal", scope: "Operation 2: PATCH /api/data/v9.2/contacts(1)" },
         ]);
-        manager.respond(request.requestId, "allow-once");
+        manager.respond(request.requestId, "allow-instance");
         await expect(result).resolves.toEqual(expect.objectContaining({ additionalHeaders: { Consistency: "Strong" } }));
     });
 
@@ -113,16 +115,35 @@ describe("DataverseHeaderConsentManager", () => {
         await expect(result).rejects.toThrow("caller closed");
     });
 
-    it("queues concurrent prompts and advances after a decision", async () => {
+    it("releases queued queries after approving their instance", async () => {
         const first = manager.authorize(asWebContents(sender), "First", { Prefer: "return=minimal" });
         const second = manager.authorize(asWebContents(sender), "Second", { Consistency: "Strong" });
         expect(main.send).toHaveBeenCalledTimes(1);
 
-        manager.respond(main.send.mock.calls[0][1].requestId, "allow-once");
+        manager.respond(main.send.mock.calls[0][1].requestId, "allow-instance");
+        await Promise.all([first, second]);
+        expect(main.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not share instance approval with another instance of the same tool", async () => {
+        const first = manager.authorize(asWebContents(sender), "First", { Prefer: "return=minimal" });
+        const otherSender = new FakeWebContents(11);
+        const second = manager.authorize(asWebContents(otherSender), "Second", { Consistency: "Strong" });
+        manager.respond(main.send.mock.calls[0][1].requestId, "allow-instance");
         await first;
         expect(main.send).toHaveBeenCalledTimes(2);
-        expect(main.send.mock.calls[1][1].operation).toBe("Second");
+        manager.respond(main.send.mock.calls[1][1].requestId, "reject");
+        await expect(second).rejects.toThrow("rejected");
+    });
 
+    it("requires consent again when an approved instance closes and reopens", async () => {
+        const first = manager.authorize(asWebContents(sender), "First", { Prefer: "return=minimal" });
+        manager.respond(main.send.mock.calls[0][1].requestId, "allow-instance");
+        await first;
+        sender.destroy();
+        const reopenedSender = new FakeWebContents(sender.id);
+        const second = manager.authorize(asWebContents(reopenedSender), "Second", { Prefer: "return=minimal" });
+        expect(main.send).toHaveBeenCalledTimes(2);
         manager.respond(main.send.mock.calls[1][1].requestId, "reject");
         await expect(second).rejects.toThrow("rejected");
     });

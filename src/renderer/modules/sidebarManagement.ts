@@ -22,7 +22,9 @@ export function toggleSidebar(): void {
     const sidebar = document.getElementById("sidebar");
     if (!sidebar) return;
 
-    switchSidebar(currentSidebarId ?? "tools");
+    const activeSidebar = document.querySelector<HTMLElement>(".sidebar-content.active");
+    const activeSidebarId = currentSidebarId ?? (activeSidebar?.id.startsWith("sidebar-") ? activeSidebar.id.slice("sidebar-".length) : "tools");
+    switchSidebar(activeSidebarId);
 }
 
 /**
@@ -62,7 +64,6 @@ export function switchSidebar(sidebarId: string): void {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
             }
-
         }
         window.api?.send("sidebar-layout-changed");
         return;

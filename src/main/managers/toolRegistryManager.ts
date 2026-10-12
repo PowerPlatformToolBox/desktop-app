@@ -15,6 +15,7 @@ import {
     CommunityLinksGroup,
     CommunityLinksItem,
     MarketplaceSource,
+    Tool,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
     ToolFeatures,
@@ -27,6 +28,7 @@ import {
 import { compareVersions } from "../../common/utils/version";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
+import { normalizeWorkerMetadata, readWorkerMetadata } from "../utilities/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
 
 /**
@@ -716,9 +718,8 @@ export class ToolRegistryManager extends EventEmitter {
     /**
      * Download a tool from the registry
      */
-    async downloadTool(tool: ToolRegistryEntry): Promise<string> {
-        const toolPath = path.join(this.toolsDirectory, tool.id);
-        const downloadPath = path.join(this.toolsDirectory, `${tool.id}.tar.gz`);
+    async downloadTool(tool: ToolRegistryEntry, toolPath = path.join(this.toolsDirectory, tool.id)): Promise<string> {
+        const downloadPath = `${toolPath}.tar.gz`;
 
         logInfo(`[ToolRegistry] Downloading tool ${tool.id} from ${tool.downloadUrl}`);
 
@@ -839,8 +840,19 @@ export class ToolRegistryManager extends EventEmitter {
             throw new Error(`Tool ${toolId} not found in registry`);
         }
 
-        // Download and extract
-        const toolPath = await this.downloadTool(tool);
+        const installPath = path.join(this.toolsDirectory, tool.id);
+        const stagingPath = fs.mkdtempSync(path.join(path.dirname(installPath), ".pptb-install-"));
+        try {
+            return await this.installStagedTool(tool, stagingPath, installPath);
+        } finally {
+            fs.rmSync(stagingPath, { recursive: true, force: true });
+            fs.rmSync(`${stagingPath}.tar.gz`, { force: true });
+        }
+    }
+
+    private async installStagedTool(tool: ToolRegistryEntry, toolPath: string, installPath: string): Promise<ToolManifest> {
+        const toolId = tool.id;
+        await this.downloadTool(tool, toolPath);
 
         // Load tool metadata from package.json
         const packageJsonPath = path.join(toolPath, "package.json");
@@ -849,6 +861,10 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+        const workers = readWorkerMetadata(toolPath, packageJson);
+        if (workers && tool.minAPI !== undefined && tool.minAPI !== packageJson.features.minAPI) {
+            throw new Error("Registry minAPI does not match worker package.json features.minAPI");
+        }
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
@@ -889,7 +905,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Extract version information from registry (Supabase)
         // These are pre-processed during tool intake and stored in the database
-        const minAPI: string | undefined = tool.minAPI;
+        const minAPI: string | undefined = workers ? packageJson.features.minAPI : tool.minAPI;
 
         // Log if version info is missing (informational only, tools will still work as legacy)
         if (!minAPI) {
@@ -916,7 +932,7 @@ export class ToolRegistryManager extends EventEmitter {
             description: tool.description || packageJson.description,
             authors,
             icon: tool.icon || packageJson.icon,
-            installPath: toolPath,
+            installPath,
             installedAt: new Date().toISOString(),
             source: "registry",
             sourceUrl: tool.downloadUrl,
@@ -934,6 +950,7 @@ export class ToolRegistryManager extends EventEmitter {
             minAPI,
             mcpHeadlessEnabled: tool.mcpHeadlessEnabled ?? mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
+            workers,
             marketplaceSourceId: tool.marketplaceSourceId,
             marketplaceSourceLabel: tool.marketplaceSourceLabel,
             marketplaceSourceType: tool.marketplaceSourceType,
@@ -941,7 +958,34 @@ export class ToolRegistryManager extends EventEmitter {
         };
 
         // Save to manifest file
-        await this.saveManifest(manifest);
+        const backupPath = `${toolPath}-backup`;
+        const previousManifest = fs.existsSync(this.manifestPath) ? fs.readFileSync(this.manifestPath) : undefined;
+        let backedUp = false;
+        let promoted = false;
+        try {
+            if (fs.existsSync(installPath)) {
+                fs.renameSync(installPath, backupPath);
+                backedUp = true;
+            }
+            fs.renameSync(toolPath, installPath);
+            promoted = true;
+            await this.saveManifest(manifest);
+        } catch (error) {
+            if (promoted) fs.rmSync(installPath, { recursive: true, force: true });
+            if (backedUp) fs.renameSync(backupPath, installPath);
+            if (promoted) {
+                if (previousManifest) fs.writeFileSync(this.manifestPath, previousManifest);
+                else fs.rmSync(this.manifestPath, { force: true });
+            }
+            throw error;
+        }
+        if (backedUp) {
+            try {
+                fs.rmSync(backupPath, { recursive: true, force: true });
+            } catch (error) {
+                logWarn(`[ToolRegistry] Could not remove installation backup ${backupPath}`, error);
+            }
+        }
 
         logInfo(`[ToolRegistry] Tool ${toolId} installed successfully`);
         this.emit("tool:installed", manifest);
@@ -1000,7 +1044,14 @@ export class ToolRegistryManager extends EventEmitter {
             const data = fs.readFileSync(this.manifestPath, "utf-8");
             const manifest = JSON.parse(data);
             const tools: Record<string, unknown>[] = manifest.tools || [];
-            return tools.map((entry) => this.normalizeManifestEntry(entry));
+            return tools.flatMap((entry) => {
+                try {
+                    return [this.normalizeManifestEntry(entry)];
+                } catch (error) {
+                    logError("[ToolRegistry] Invalid installed tool metadata", error);
+                    return [];
+                }
+            });
         } catch (error) {
             logError("[ToolRegistry] Failed to read manifest", error);
             return [];
@@ -1077,6 +1128,7 @@ export class ToolRegistryManager extends EventEmitter {
             minAPI: manifestEntry.minAPI,
             mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
             capabilities: manifestEntry.capabilities,
+            workers: Object.prototype.hasOwnProperty.call(entry, "workers") ? normalizeWorkerMetadata(entry.workers, manifestEntry.minAPI) : undefined,
             marketplaceSourceId: manifestEntry.marketplaceSourceId,
             marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,
             marketplaceSourceType: manifestEntry.marketplaceSourceType,
@@ -1130,6 +1182,14 @@ export class ToolRegistryManager extends EventEmitter {
     /**
      * Save tool manifest
      */
+    async saveDevelopmentTool(tool: Tool, installPath: string, source: "npm" | "local"): Promise<void> {
+        const metadata = { ...tool };
+        delete metadata.localPath;
+        delete metadata.npmPackageName;
+        delete metadata.isSupported;
+        await this.saveManifest({ ...metadata, packageName: tool.npmPackageName, installPath, source, installedAt: new Date().toISOString() });
+    }
+
     private async saveManifest(toolManifest: ToolManifest): Promise<void> {
         const tools = await this.getInstalledTools();
 
@@ -1164,6 +1224,10 @@ export class ToolRegistryManager extends EventEmitter {
         };
 
         fs.writeFileSync(this.manifestPath, JSON.stringify(manifest, null, 2));
+    }
+
+    async removeInstalledManifest(toolId: string): Promise<void> {
+        if (this.getInstalledManifestSync(toolId)) await this.removeFromManifest(toolId);
     }
 
     /**

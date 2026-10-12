@@ -86,6 +86,108 @@ export interface InvocationConfig {
 export interface PPTBConfig {
     invocation?: InvocationConfig;
     agents?: AgentsConfig;
+    workers?: Record<string, WorkerDeclaration>;
+}
+
+export type WorkerRollForward = "Disable" | "Latest" | "Minor" | "Major";
+export type WorkerTargetFramework = "net8.0" | "net9.0" | "net10.0";
+export type WorkerPlatform = "all" | "windows-x64" | "windows-arm64" | "macos-x64" | "macos-arm64" | "linux-x64" | "linux-arm64";
+export interface WorkerDeclaration {
+    kind: "dotnet-tool";
+    packageId: string;
+    packageVersion: string;
+    command: string;
+    dotnet: { targetFramework: WorkerTargetFramework; minimumRuntimeVersion: string; rollForward?: WorkerRollForward };
+    platforms: WorkerPlatform[];
+}
+export interface NormalizedWorkerDeclaration extends WorkerDeclaration {
+    dotnet: WorkerDeclaration["dotnet"] & { rollForward: WorkerRollForward };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function matchesEntireString(value: unknown, pattern: RegExp): value is string {
+    return typeof value === "string" && pattern.exec(value)?.[0] === value;
+}
+
+function isExactNuGetVersion(value: unknown): value is string {
+    if (!matchesEntireString(value, /^\d+(?:\.\d+){0,3}(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/)) return false;
+    return value
+        .split(/[+-]/, 1)[0]
+        .split(".")
+        .every((component) => Number(component) <= 2_147_483_647);
+}
+
+function rejectUnknownKeys(value: Record<string, unknown>, allowed: string[], field: string, errors: string[]): void {
+    for (const key of Object.keys(value)) {
+        if (!allowed.includes(key)) errors.push(`${field}.${key} is not supported`);
+    }
+}
+
+export function validateWorkers(value: unknown): { workers?: Record<string, NormalizedWorkerDeclaration>; errors: string[] } {
+    const errors: string[] = [];
+    if (!isRecord(value) || Object.keys(value).length === 0) return { errors: ["workers must be a non-empty object keyed by declaration ID"] };
+    const workers: Record<string, NormalizedWorkerDeclaration> = {};
+    for (const [workerId, declaration] of Object.entries(value).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))) {
+        const field = `workers.${workerId}`;
+        if (!matchesEntireString(workerId, /^[A-Za-z][A-Za-z0-9_-]{0,63}$/) || ["__proto__", "constructor", "prototype"].includes(workerId)) {
+            errors.push(`${field} has an invalid declaration ID`);
+        }
+        if (!isRecord(declaration)) {
+            errors.push(`${field} must be an object`);
+            continue;
+        }
+        rejectUnknownKeys(declaration, ["kind", "packageId", "packageVersion", "command", "dotnet", "platforms"], field, errors);
+        if (declaration.kind !== "dotnet-tool") errors.push(`${field}.kind must be dotnet-tool`);
+        if (!matchesEntireString(declaration.packageId, /^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*$/) || declaration.packageId.length > 100) {
+            errors.push(`${field}.packageId must be a NuGet package ID`);
+        }
+        if (!isExactNuGetVersion(declaration.packageVersion)) errors.push(`${field}.packageVersion must be an exact NuGet version`);
+        if (!matchesEntireString(declaration.command, /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/)) errors.push(`${field}.command must be a safe registered command name`);
+        if (!isRecord(declaration.dotnet)) {
+            errors.push(`${field}.dotnet must be an object`);
+        } else {
+            const dotnet = declaration.dotnet;
+            rejectUnknownKeys(dotnet, ["targetFramework", "minimumRuntimeVersion", "rollForward"], `${field}.dotnet`, errors);
+            if (!["net8.0", "net9.0", "net10.0"].includes(dotnet.targetFramework as string)) {
+                errors.push(`${field}.dotnet.targetFramework must be net8.0, net9.0 or net10.0`);
+            }
+            if (
+                !matchesEntireString(dotnet.minimumRuntimeVersion, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/) ||
+                dotnet.minimumRuntimeVersion.split(".").some((component) => Number(component) > 2_147_483_647) ||
+                `net${dotnet.minimumRuntimeVersion.split(".").slice(0, 2).join(".")}` !== dotnet.targetFramework
+            ) {
+                errors.push(`${field}.dotnet.minimumRuntimeVersion must be major.minor.patch matching targetFramework`);
+            }
+            if (Object.prototype.hasOwnProperty.call(dotnet, "rollForward") && !["Disable", "Latest", "Minor", "Major"].includes(dotnet.rollForward as string)) {
+                errors.push(`${field}.dotnet.rollForward must be Disable, Latest, Minor or Major`);
+            }
+        }
+        const platforms = declaration.platforms;
+        if (
+            !Array.isArray(platforms) ||
+            platforms.length === 0 ||
+            platforms.some((platform) => !["all", "windows-x64", "windows-arm64", "macos-x64", "macos-arm64", "linux-x64", "linux-arm64"].includes(platform)) ||
+            new Set(platforms).size !== platforms.length ||
+            (platforms.includes("all") && platforms.length !== 1)
+        ) {
+            errors.push(`${field}.platforms must be a non-empty unique list of supported PPTB platform aliases; all must appear alone`);
+        }
+        if (errors.length === 0) {
+            const worker = declaration as unknown as WorkerDeclaration;
+            workers[workerId] = {
+                kind: worker.kind,
+                packageId: worker.packageId,
+                packageVersion: worker.packageVersion,
+                command: worker.command,
+                dotnet: { targetFramework: worker.dotnet.targetFramework, minimumRuntimeVersion: worker.dotnet.minimumRuntimeVersion, rollForward: worker.dotnet.rollForward ?? "Major" },
+                platforms: [...worker.platforms].sort(),
+            };
+        }
+    }
+    return errors.length ? { errors } : { errors, workers };
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +530,7 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
 // validatePPTBConfig
 // ---------------------------------------------------------------------------
 
-export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
+export function validatePPTBConfig(config: PPTBConfig, packageJson?: Pick<ToolPackageJson, "features">): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -437,10 +539,16 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
         return { valid: false, errors, warnings };
     }
 
-    const VALID_ROOT_KEYS = ["invocation", "agents"];
+    const VALID_ROOT_KEYS = ["invocation", "agents", "workers"];
     const unknownRootKeys = Object.keys(config).filter((k) => !VALID_ROOT_KEYS.includes(k));
     if (unknownRootKeys.length > 0) {
         warnings.push(`pptb.config.json contains unrecognised root keys: ${unknownRootKeys.join(", ")}`);
+    }
+
+    const workerResult = Object.prototype.hasOwnProperty.call(config, "workers") ? validateWorkers(config.workers) : undefined;
+    if (workerResult) errors.push(...workerResult.errors);
+    if (workerResult && packageJson !== undefined && !matchesEntireString(packageJson.features?.minAPI, SEMVER_REGEX)) {
+        errors.push("Worker declarations require a valid package.json features.minAPI");
     }
 
     if (config.invocation !== undefined) {
@@ -548,6 +656,6 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
         valid,
         errors,
         warnings,
-        packageInfo: valid ? { invocation: config.invocation, agents: config.agents } : undefined,
+        packageInfo: valid ? { invocation: config.invocation, agents: config.agents, ...(workerResult ? { workers: workerResult.workers } : {}) } : undefined,
     };
 }

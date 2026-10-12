@@ -168,6 +168,53 @@ describe("ToolWindowManager prevent-close behavior", () => {
         jest.clearAllMocks();
     });
 
+    it("canceled close preserves workers and does not call the disposal hook", async () => {
+        const { manager } = createManager();
+        const view = new BrowserView();
+        (manager as any).toolViews.set("tool-1", view);
+        (manager as any).loadedToolIdentities.set("tool-1", { toolId: "actual-tool", toolName: "Tool", toolVersion: "1.0.0", sourcePath: "/tool" });
+        (manager as any).preventCloseTools.add("tool-1");
+        const dispose = jest.fn(async () => undefined);
+        manager.setOnOwnerDisposing(dispose);
+        (dialog.showMessageBoxSync as jest.Mock).mockReturnValue(0);
+        await expect(manager.closeTool("tool-1")).resolves.toBe(false);
+        expect(dispose).not.toHaveBeenCalled();
+    });
+
+    it("confirmed close waits for actual owner shutdown before destroying or clearing state", async () => {
+        const { manager, terminalManager } = createManager();
+        const view = new BrowserView();
+        (manager as any).toolViews.set("tool-1", view);
+        (manager as any).loadedToolIdentities.set("tool-1", { toolId: "actual-tool", toolName: "Tool", toolVersion: "1.0.0", sourcePath: "/tool" });
+        let finish!: () => void;
+        const dispose = jest.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        manager.setOnOwnerDisposing(dispose);
+        const closing = manager.closeTool("tool-1");
+        expect(dispose).toHaveBeenCalledWith({ toolId: "actual-tool", instanceId: "tool-1" });
+        expect((manager as any).toolViews.has("tool-1")).toBe(true);
+        expect(terminalManager.closeToolInstanceTerminals).not.toHaveBeenCalled();
+        finish();
+        await expect(closing).resolves.toBe(true);
+    });
+
+    it("failed owner stop leaves the view and unrelated cleanup untouched", async () => {
+        const { manager, terminalManager } = createManager();
+        const view = new BrowserView();
+        (manager as any).toolViews.set("tool-1", view);
+        (manager as any).loadedToolIdentities.set("tool-1", { toolId: "actual-tool", toolName: "Tool", toolVersion: "1.0.0", sourcePath: "/tool" });
+        manager.setOnOwnerDisposing(async () => {
+            throw new Error("process still alive");
+        });
+        await expect(manager.closeTool("tool-1")).resolves.toBe(false);
+        expect((manager as any).toolViews.has("tool-1")).toBe(true);
+        expect(terminalManager.closeToolInstanceTerminals).not.toHaveBeenCalled();
+    });
+
     it("cancels app close confirmation when user selects Cancel", () => {
         const { manager, mainWindow } = createManager();
         (manager as any).preventCloseTools.add("tool-1");
@@ -180,7 +227,7 @@ describe("ToolWindowManager prevent-close behavior", () => {
         expect(manager.hasPreventCloseTools()).toBe(true);
     });
 
-    it("allows app close confirmation and clears prevent-close when user selects Ignore & Close", () => {
+    it("allows app close confirmation without clearing prevent-close before shutdown commits", () => {
         const { manager, mainWindow } = createManager();
         (manager as any).preventCloseTools.add("tool-1");
         (dialog.showMessageBoxSync as jest.Mock).mockReturnValue(1);
@@ -188,7 +235,24 @@ describe("ToolWindowManager prevent-close behavior", () => {
         const result = manager.confirmAppCloseIfPrevented(mainWindow as unknown as import("electron").BrowserWindow);
 
         expect(result).toBe(true);
-        expect(manager.hasPreventCloseTools()).toBe(false);
+        expect(manager.hasPreventCloseTools()).toBe(true);
+    });
+
+    it("prompts afresh after confirmed app close fails to stop workers", async () => {
+        const { manager, mainWindow } = createManager();
+        const view = new BrowserView();
+        (manager as any).toolViews.set("tool-1", view);
+        (manager as any).loadedToolIdentities.set("tool-1", { toolId: "actual-tool", toolName: "Tool", toolVersion: "1.0.0", sourcePath: "/tool" });
+        (manager as any).preventCloseTools.add("tool-1");
+        (dialog.showMessageBoxSync as jest.Mock).mockReturnValueOnce(1).mockReturnValueOnce(0);
+        expect(manager.confirmAppCloseIfPrevented(mainWindow)).toBe(true);
+        manager.setOnOwnerDisposing(async () => {
+            throw new Error("still alive");
+        });
+        await expect(manager.closeTool("tool-1", { force: true })).resolves.toBe(false);
+        expect(manager.confirmAppCloseIfPrevented(mainWindow)).toBe(false);
+        expect(dialog.showMessageBoxSync).toHaveBeenCalledTimes(2);
+        expect(manager.hasPreventCloseTools()).toBe(true);
     });
 
     it("keeps the tool open when close is prevented and user selects Cancel", async () => {
