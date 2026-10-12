@@ -6,11 +6,12 @@
 import { logError, logInfo } from "../../common/logger";
 import { ToolDetail } from "../types/index";
 import { formatRatingMarkup } from "../utils/rating";
-import { normalizeRepositoryUrl } from "../utils/repositoryUrl";
+import { buildToolIssueUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
+import { ToolUpdateState } from "../utils/toolUpdateState";
 import { getToolLibrary, loadMarketplace, loadToolsLibrary, openToolDetail } from "./marketplaceManagement";
 import { openRateToolModal } from "./rateToolModal";
 import { openReportConcernModal } from "./reportConcernModal";
@@ -18,6 +19,7 @@ import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
 
 let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
+const bulkToolUpdateState = new ToolUpdateState();
 
 type CheckboxElement = HTMLInputElement & { _pptbBound?: boolean };
 
@@ -63,7 +65,7 @@ export async function loadSidebarTools(): Promise<void> {
                     latestVersion: updateInfo.latestVersion,
                     hasUpdate: updateInfo.hasUpdate,
                     isFavorite: favoriteTools.includes(tool.id),
-                    isUpdating,
+                    isUpdating: isUpdating || bulkToolUpdateState.isUpdating(tool.id),
                     maturity: currentMaturityByToolId.get(tool.id),
                 };
             }),
@@ -618,6 +620,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
     const reportIconPath = isDarkTheme ? "icons/dark/report.svg" : "icons/light/report.svg";
     const libraryTool = getToolLibrary().find((libraryEntry) => libraryEntry.id === tool.id);
     const repositoryUrl = normalizeRepositoryUrl(tool.repository || libraryTool?.repository);
+    const issueUrl = buildToolIssueUrl(tool.repository || libraryTool?.repository, tool.name);
 
     const hasUpdate = !!tool.hasUpdate;
     const latestVersion = tool.latestVersion;
@@ -653,6 +656,14 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
                 ? `<div class="context-menu-item" data-menu-action="repository">
             <img src="${repositoryIconPath}" class="context-menu-icon" alt="" />
             <span>Repository</span>
+        </div>`
+                : ""
+        }
+        ${
+            issueUrl
+                ? `<div class="context-menu-item" data-menu-action="issue">
+            <img src="${reportIconPath}" class="context-menu-icon" alt="" />
+            <span>Tool Feedback</span>
         </div>`
                 : ""
         }
@@ -768,6 +779,16 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
                 await window.toolboxAPI.openExternal(repositoryUrl);
             } catch (error) {
                 logError("Failed to open repository link", error);
+            }
+            return;
+        }
+
+        if (action === "issue") {
+            if (!issueUrl) return;
+            try {
+                await window.toolboxAPI.openExternal(issueUrl);
+            } catch (error) {
+                logError("Failed to open tool issue link", error);
             }
             return;
         }
@@ -898,6 +919,8 @@ export async function updateAllToolsFromSidebar(): Promise<void> {
             updateAllBtn.disabled = true;
             updateAllBtn.title = `Updating ${toolsToUpdate.length} tool(s)...`;
         }
+        bulkToolUpdateState.markUpdating(toolsToUpdate.map(({ tool }) => tool.id));
+        await loadSidebarTools();
 
         let succeeded = 0;
         const failures: string[] = [];
@@ -909,6 +932,8 @@ export async function updateAllToolsFromSidebar(): Promise<void> {
             } catch (error) {
                 failures.push(tool.name || tool.id);
                 logError(`Failed to update tool ${tool.id}`, error);
+            } finally {
+                bulkToolUpdateState.markComplete(tool.id);
             }
             // Refresh the sidebar after each tool so progress/spinners stay accurate
             await loadSidebarTools();
@@ -937,6 +962,7 @@ export async function updateAllToolsFromSidebar(): Promise<void> {
             type: "error",
         });
     } finally {
+        bulkToolUpdateState.clear();
         await loadSidebarTools();
     }
 }

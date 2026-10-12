@@ -123,21 +123,74 @@ export function scrubPii(value: string): string {
 }
 
 /**
- * Recursively scrub PII from an object (tags, extra, breadcrumb data, etc.)
- * Returns a new object with PII scrubbed from all string values.
+ * Normalize telemetry identifier aliases without mutating the input.
+ * Canonical snake_case fields take precedence over aliases.
  */
-export function scrubPiiFromObject(obj: unknown): unknown {
+export function normalizeSentryFields<T>(value: T, ancestors = new WeakSet<object>()): T {
+    if (value === null || typeof value !== "object") {
+        return value;
+    }
+    if (ancestors.has(value)) {
+        return "[circular]" as T;
+    }
+    ancestors.add(value);
+    try {
+        if (value instanceof Error) {
+            return normalizeSentryFields(
+                {
+                    ...value,
+                    name: value.name,
+                    message: value.message,
+                    stack: value.stack,
+                    ...(value.cause !== undefined ? { cause: value.cause } : {}),
+                },
+                ancestors,
+            ) as T;
+        }
+        if (Array.isArray(value)) {
+            return value.map((item) => normalizeSentryFields(item, ancestors)) as T;
+        }
+
+        const fields = value as Record<string, unknown>;
+        const normalized: Record<string, unknown> = {};
+        for (const [key, fieldValue] of Object.entries(fields)) {
+            const canonicalKey = /^(machineid|machine_id|machin_id)$/i.test(key) ? "machine_id" : /^(toolid|tool_id)$/i.test(key) ? "tool_id" : key;
+            if (key !== canonicalKey && Object.prototype.hasOwnProperty.call(fields, canonicalKey)) {
+                continue;
+            }
+            normalized[canonicalKey] = normalizeSentryFields(fieldValue, ancestors);
+        }
+        return normalized as T;
+    } finally {
+        ancestors.delete(value);
+    }
+}
+
+/**
+ * Recursively scrub PII from metadata, returning a new object.
+ */
+export function scrubPiiFromObject(obj: unknown, ancestors = new WeakSet<object>()): unknown {
     if (typeof obj === "string") {
         return scrubPii(obj);
     }
-    if (Array.isArray(obj)) {
-        return obj.map(scrubPiiFromObject);
+    if (obj === null || typeof obj !== "object") {
+        return obj;
     }
-    if (obj !== null && typeof obj === "object") {
+    if (ancestors.has(obj)) {
+        return "[circular]";
+    }
+    ancestors.add(obj);
+    try {
+        if (obj instanceof Error) {
+            return scrubPiiFromObject(normalizeSentryFields(obj), ancestors);
+        }
+        if (Array.isArray(obj)) {
+            return obj.map((item) => scrubPiiFromObject(item, ancestors));
+        }
         const result: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
             // Redact known sensitive keys entirely
-            const lowerKey = key.toLowerCase();
+            const lowerKey = key.toLowerCase().replace(/_/g, "");
             if (
                 lowerKey === "password" ||
                 lowerKey === "token" ||
@@ -148,13 +201,35 @@ export function scrubPiiFromObject(obj: unknown): unknown {
                 lowerKey === "authorization"
             ) {
                 result[key] = "[redacted]";
+            } else if ((key === "machine_id" || key === "tool_id") && typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+                result[key] = value;
+            } else if ((key === "trace_id" || key === "sentry.trace_id") && typeof value === "string" && /^[0-9a-f]{32}$/i.test(value)) {
+                result[key] = value;
+            } else if (["span_id", "parent_span_id", "sentry.span_id"].includes(key) && typeof value === "string" && /^[0-9a-f]{16}$/i.test(value)) {
+                result[key] = value;
             } else {
-                result[key] = scrubPiiFromObject(value);
+                result[key] = scrubPiiFromObject(value, ancestors);
             }
         }
         return result;
+    } finally {
+        ancestors.delete(obj);
     }
-    return obj;
+}
+
+export function sanitizeSentryData<T>(value: T): T {
+    return scrubPiiFromObject(normalizeSentryFields(value)) as T;
+}
+
+export function sanitizeSentryLog<T extends { message: string; attributes?: Record<string, unknown> }>(log: T, hasConsent: boolean): T | null {
+    if (!hasConsent) {
+        if (log.message !== "Sentry telemetry disabled" || log.attributes?.event_type !== "telemetry_disabled") {
+            return null;
+        }
+        const attributes = Object.fromEntries(Object.entries(log.attributes).filter(([key]) => ["event_type", "machine_id", "release", "release_action", "previous_release"].includes(key)));
+        return { ...log, attributes: sanitizeSentryData(attributes) };
+    }
+    return { ...log, message: scrubPii(log.message), attributes: sanitizeSentryData(log.attributes) };
 }
 
 /**
@@ -165,12 +240,23 @@ export function scrubPiiFromObject(obj: unknown): unknown {
 export function scrubSentryEvent(event: any): any {
     if (!event) return event;
 
+    for (const key of ["tags", "extra", "contexts", "breadcrumbs", "spans"]) {
+        if (event[key]) {
+            event[key] = sanitizeSentryData(event[key]);
+        }
+    }
+
+    if (typeof event.transaction === "string") {
+        event.transaction = scrubPii(event.transaction);
+    }
+
     // Scrub exception values
     if (event.exception?.values) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         event.exception.values = event.exception.values.map((exc: any) => ({
             ...exc,
             value: exc.value ? scrubPii(exc.value) : exc.value,
+            ...(exc.stacktrace ? { stacktrace: sanitizeSentryData(exc.stacktrace) } : {}),
         }));
     }
 
@@ -190,13 +276,19 @@ export function scrubSentryEvent(event: any): any {
     }
 
     // Scrub breadcrumb messages and data
-    if (event.breadcrumbs?.values) {
+    const breadcrumbs = Array.isArray(event.breadcrumbs) ? event.breadcrumbs : event.breadcrumbs?.values;
+    if (Array.isArray(breadcrumbs)) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        event.breadcrumbs.values = event.breadcrumbs.values.map((crumb: any) => ({
+        const scrubbedBreadcrumbs = breadcrumbs.map((crumb: any) => ({
             ...crumb,
             message: crumb.message ? scrubPii(crumb.message) : crumb.message,
             data: crumb.data ? scrubPiiFromObject(crumb.data) : crumb.data,
         }));
+        if (Array.isArray(event.breadcrumbs)) {
+            event.breadcrumbs = scrubbedBreadcrumbs;
+        } else {
+            event.breadcrumbs.values = scrubbedBreadcrumbs;
+        }
     }
 
     // Scrub request URL and headers

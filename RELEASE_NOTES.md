@@ -1,43 +1,42 @@
-# Power Platform ToolBox 1.2.6
+# Power Platform ToolBox 1.2.7
 
 ## Highlights
 
-- Verified tools display maturity badges and can be filtered to the top of Marketplace and Installed lists.
-- Tool ratings are now available in the desktop app so users can see community feedback before installing or launching a tool.
-- User concern reporting lets people flag a tool that appears unsafe, spammy, or inappropriate from app and tool flows.
-- Connectionless-capable tools can launch without a blocking connection prompt when a connection is optional.
-- Installed tools now show a direct Launch action and clearer status styling for faster access.
-- Tool update management includes a bulk Update all action for installed tools.
-- Per-tool close protection can require an override prompt before a tool closes the app.
+- Select a Dataverse user to impersonate for a tool instance and see when impersonation is active.
+- Assign tools up to ten positional connection slots, including optional slots, and route requests to the selected environment.
+- Send additional Dataverse request headers after consent, with persistent approvals available for review and revocation.
+- Run independent Dataverse operations in one batch or group writes in an atomic transaction.
+- Connect declared .NET worker processes through a typed API with managed startup, requests, cancellation, and shutdown.
+- Use the refreshed workspace layout with a custom title bar, sidebar controls, full-screen mode, and split-pane tool placement.
 
 ## Fixes
 
-- Fixed close and release prompts to respect per-tool PreventClose settings without blocking valid shutdown paths.
-- Improved connection handling so optional-connection tools do not force a connection modal before launch.
-- Fixed tool maturity ordering and filters so Verified tools appear first and are easy to find in app views.
-- Corrected app flows for rating and concern reporting so submissions and local tracking behave consistently.
-- Improved release and package download messaging, including macOS and Windows signing/update reliability.
+- Improved multi-connection selection responsiveness and clarified connection assignment in the picker.
+- Preserved positional connection assignments, including empty slots, across restore, duplication, deletion, and tool updates.
+- Added paged Dataverse user search for impersonation selection.
+- Kept modal dialogs above the main window on Linux and constrained long notification messages.
+- Restored missing log recording and improved telemetry scrubbing of sensitive fields.
+- Corrected Dataverse header consent so instance approvals remain limited to the active tool instance.
 
 ## Developer & Build
 
-- Added tool maturity metadata, Verified badge rendering, and Verified-only filtering in the desktop app.
-- Added in-app tool rating submission and retrieval with install-local persistence and aggregate display.
-- Added support for reporting tool concerns with backend submission, source tracking, and duplicate prevention.
-- Added connectionless tool support so tool manifests can declare launch without a required connection.
-- Updated release workflows and packaging metadata for Windows/macOS artifact generation and update integrity.
-- Added homepage sponsor support and refreshed installed-tool UI styling for the current app layout.
+- Added `features.connections` declarations, numeric connection targets, slot-aware APIs, and positional MCP `connectionNames`.
+- Added `dataverseAPI.executeBatch` and `executeTransaction`, with request validation, consent checks, and per-operation results.
+- Added the typed `toolboxAPI.workers.connect` interface, .NET runtime/package handling, native-execution consent, and JSON-RPC process lifecycle.
+- Added Dataverse impersonation APIs and user-search support for tool authors.
+- Updated title-bar, full-screen, and split-layout controls across the renderer and main-process IPC bridge.
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-v1.2.6-Setup.exe
-- macOS: Power-Platform-ToolBox-v1.2.6.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-v1.2.6.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-v1.2.7-Setup.exe
+- macOS: Power-Platform-ToolBox-v1.2.7.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-v1.2.7.AppImage (chmod +x, then run)
 
 ## Notes
 
-- No manual migration needed.
-- Existing tools continue to work without changes; tools that do not advertise maturity or ratings simply appear as unverified or unrated.
+- No manual migration needed; existing connection declarations and primary/secondary APIs remain supported.
+- .NET worker support is opt-in; Windows/Linux and packaged-app qualification remains outstanding.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.5...v1.2.6
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.6...v1.2.7

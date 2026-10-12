@@ -34,6 +34,9 @@ export const SETTINGS_CHANNELS = {
     GET_TOOL_SECONDARY_CONNECTION: "get-tool-secondary-connection",
     REMOVE_TOOL_SECONDARY_CONNECTION: "remove-tool-secondary-connection",
     GET_ALL_TOOL_SECONDARY_CONNECTIONS: "get-all-tool-secondary-connections",
+    SET_TOOL_CONNECTION_SLOTS: "set-tool-connection-slots",
+    GET_TOOL_CONNECTION_SLOTS: "get-tool-connection-slots",
+    REMOVE_TOOL_CONNECTION_SLOTS: "remove-tool-connection-slots",
     ADD_LAST_USED_TOOL: "add-last-used-tool",
     GET_LAST_USED_TOOLS: "get-last-used-tools",
     CLEAR_LAST_USED_TOOLS: "clear-last-used-tools",
@@ -45,6 +48,7 @@ export const CONNECTION_CHANNELS = {
     ADD_CONNECTION: "add-connection",
     UPDATE_CONNECTION: "update-connection",
     DELETE_CONNECTION: "delete-connection",
+    GET_CONNECTION_DELETE_BLOCKER: "get-connection-delete-blocker",
     GET_CONNECTIONS: "get-connections",
     GET_CONNECTION_BY_ID: "get-connection-by-id",
     GET_CATEGORIES: "get-connection-categories",
@@ -98,6 +102,12 @@ export const TOOL_REPORT_CHANNELS = {
     HAS_REPORTED_CONCERN: "tool-report:has-reported-concern",
 } as const;
 
+export const TOOL_IDEA_CHANNELS = {
+    FETCH: "tool-idea:fetch",
+    SUBMIT: "tool-idea:submit",
+    UPVOTE: "tool-idea:upvote",
+} as const;
+
 // Tool Window-related IPC channels
 export const TOOL_WINDOW_CHANNELS = {
     LAUNCH: "tool-window:launch",
@@ -107,6 +117,7 @@ export const TOOL_WINDOW_CHANNELS = {
     GET_ACTIVE: "tool-window:get-active",
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
+    UPDATE_TOOL_CONNECTIONS: "tool-window:update-tool-connections",
     HIDE_ALL: "tool-window:hide-all",
     RENDERER_INITIALIZED: "tool-window:renderer-initialized",
     RETURN_INVOCATION_DATA: "tool-window:return-invocation-data",
@@ -139,6 +150,9 @@ export const TOOL_WINDOW_CHANNELS = {
     CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
     PREVENT_CLOSE: "tool-window:prevent-close",
     RELEASE_PREVENT_CLOSE: "tool-window:release-prevent-close",
+    GET_IMPERSONATION: "tool-window:get-impersonation",
+    SET_IMPERSONATION: "tool-window:set-impersonation",
+    RESET_IMPERSONATION: "tool-window:reset-impersonation",
 } as const;
 
 // Terminal-related IPC channels
@@ -173,6 +187,13 @@ export const UTIL_CHANNELS = {
     FETCH_FAVICON: "fetch-favicon",
     OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
     RESTART_APP: "restart-app",
+    WINDOW_MINIMIZE: "window-minimize",
+    WINDOW_TOGGLE_MAXIMIZE: "window-toggle-maximize",
+    WINDOW_CLOSE: "window-close",
+    WINDOW_IS_MAXIMIZED: "window-is-maximized",
+    WINDOW_FULL_SCREEN_CHANGED: "window-full-screen-changed",
+    WINDOW_IS_FULL_SCREEN: "window-is-full-screen",
+    WINDOW_OPEN_MENU: "window-open-menu",
 } as const;
 
 // Filesystem-related IPC channels
@@ -245,6 +266,34 @@ export const DATAVERSE_CHANNELS = {
     DELETE_OPTION_VALUE: "dataverse.deleteOptionValue",
     ORDER_OPTION: "dataverse.orderOption",
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
+    GET_SYSTEM_USERS: "dataverse.getSystemUsers",
+    /** ConnectionId-based system-users lookup used by the connection-selection modals (pre-launch, no tool instance yet). */
+    GET_SYSTEM_USERS_BY_CONNECTION: "dataverse.getSystemUsersByConnection",
+    SEARCH_SYSTEM_USERS_BY_CONNECTION: "dataverse.searchSystemUsersByConnection",
+    EXECUTE_BATCH: "dataverse.executeBatch",
+    EXECUTE_TRANSACTION: "dataverse.executeTransaction",
+} as const;
+
+export const DATAVERSE_HEADER_CONSENT_CHANNELS = {
+    REQUEST: "dataverse-header-consent:request",
+    RESPOND: "dataverse-header-consent:respond",
+    GET_ALL: "dataverse-header-consent:get-all",
+    REVOKE: "dataverse-header-consent:revoke",
+} as const;
+
+export const NATIVE_WORKER_CONSENT_CHANNELS = {
+    GET_ALL: "native-worker-consent:get-all",
+    REVOKE: "native-worker-consent:revoke",
+    RESPOND: "native-worker-consent:respond",
+    REQUEST: "native-worker-consent:request",
+    CLOSED: "native-worker-consent:closed",
+} as const;
+
+export const WORKER_CHANNELS = {
+    START: "worker:start",
+    SEND: "worker:send",
+    STOP: "worker:stop",
+    EVENT: "worker:event",
 } as const;
 
 // Power Platform API-related IPC channels

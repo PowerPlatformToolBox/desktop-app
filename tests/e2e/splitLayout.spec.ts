@@ -36,42 +36,42 @@ async function getAttribute(window: import("playwright").Page, selector: string,
     );
 }
 
-test.describe("Split Layout — initial DOM state", () => {
+test("Split Layout — initial DOM state", async ({ window }) => {
     // -----------------------------------------------------------------------
     // Structural presence
     // -----------------------------------------------------------------------
-    test("left-tabs-container exists in the DOM", async ({ window }) => {
+    await test.step("left-tabs-container exists in the DOM", async () => {
         // Wait for the app to be ready before querying DOM
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#left-tabs-container").count();
         expect(count).toBe(1);
     });
 
-    test("right-tabs-container exists in the DOM", async ({ window }) => {
+    await test.step("right-tabs-container exists in the DOM", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#right-tabs-container").count();
         expect(count).toBe(1);
     });
 
-    test("split-tabs-bar-divider exists in the DOM", async ({ window }) => {
+    await test.step("split-tabs-bar-divider exists in the DOM", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#split-tabs-bar-divider").count();
         expect(count).toBe(1);
     });
 
-    test("split-pane-divider exists in the DOM", async ({ window }) => {
+    await test.step("split-pane-divider exists in the DOM", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#split-pane-divider").count();
         expect(count).toBe(1);
     });
 
-    test("right-tool-tabs container exists in the DOM", async ({ window }) => {
+    await test.step("right-tool-tabs container exists in the DOM", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#right-tool-tabs").count();
         expect(count).toBe(1);
     });
 
-    test("tool-panel-header exists in the DOM", async ({ window }) => {
+    await test.step("tool-panel-header exists in the DOM", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#tool-panel-header").count();
         expect(count).toBe(1);
@@ -80,19 +80,19 @@ test.describe("Split Layout — initial DOM state", () => {
     // -----------------------------------------------------------------------
     // Initial hidden state
     // -----------------------------------------------------------------------
-    test("right-tabs-container has display:none initially", async ({ window }) => {
+    await test.step("right-tabs-container has display:none initially", async () => {
         await window.waitForLoadState("domcontentloaded");
         const display = await getInlineStyle(window, "#right-tabs-container", "display");
         expect(display).toBe("none");
     });
 
-    test("split-tabs-bar-divider has display:none initially", async ({ window }) => {
+    await test.step("split-tabs-bar-divider has display:none initially", async () => {
         await window.waitForLoadState("domcontentloaded");
         const display = await getInlineStyle(window, "#split-tabs-bar-divider", "display");
         expect(display).toBe("none");
     });
 
-    test("split-pane-divider has display:none initially", async ({ window }) => {
+    await test.step("split-pane-divider has display:none initially", async () => {
         await window.waitForLoadState("domcontentloaded");
         const display = await getInlineStyle(window, "#split-pane-divider", "display");
         expect(display).toBe("none");
@@ -101,25 +101,25 @@ test.describe("Split Layout — initial DOM state", () => {
     // -----------------------------------------------------------------------
     // ARIA attributes
     // -----------------------------------------------------------------------
-    test("split-tabs-bar-divider has aria-hidden=true", async ({ window }) => {
+    await test.step("split-tabs-bar-divider has aria-hidden=true", async () => {
         await window.waitForLoadState("domcontentloaded");
         const ariaHidden = await getAttribute(window, "#split-tabs-bar-divider", "aria-hidden");
         expect(ariaHidden).toBe("true");
     });
 
-    test("split-pane-divider has role=separator", async ({ window }) => {
+    await test.step("split-pane-divider has role=separator", async () => {
         await window.waitForLoadState("domcontentloaded");
         const role = await getAttribute(window, "#split-pane-divider", "role");
         expect(role).toBe("separator");
     });
 
-    test("split-pane-divider has aria-orientation=vertical", async ({ window }) => {
+    await test.step("split-pane-divider has aria-orientation=vertical", async () => {
         await window.waitForLoadState("domcontentloaded");
         const orientation = await getAttribute(window, "#split-pane-divider", "aria-orientation");
         expect(orientation).toBe("vertical");
     });
 
-    test("right-tabs-container has role=tablist", async ({ window }) => {
+    await test.step("right-tabs-container has role=tablist", async () => {
         await window.waitForLoadState("domcontentloaded");
         const role = await getAttribute(window, "#right-tabs-container", "role");
         expect(role).toBe("tablist");
@@ -128,7 +128,7 @@ test.describe("Split Layout — initial DOM state", () => {
     // -----------------------------------------------------------------------
     // Class state
     // -----------------------------------------------------------------------
-    test("tool-panel-header does not have split-active class initially", async ({ window }) => {
+    await test.step("tool-panel-header does not have split-active class initially", async () => {
         await window.waitForLoadState("domcontentloaded");
         const hasSplitActive = await window.evaluate(() => {
             const el = document.getElementById("tool-panel-header");
@@ -137,7 +137,7 @@ test.describe("Split Layout — initial DOM state", () => {
         expect(hasSplitActive).toBe(false);
     });
 
-    test("left-tabs-container is always present without split-active on header", async ({ window }) => {
+    await test.step("left-tabs-container is always present without split-active on header", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#tool-tabs").count();
         expect(count).toBe(1);
@@ -147,20 +147,20 @@ test.describe("Split Layout — initial DOM state", () => {
 // ---------------------------------------------------------------------------
 // Split Layout — tool panel controls
 // ---------------------------------------------------------------------------
-test.describe("Split Layout — tool panel controls", () => {
-    test("close-all-tools button is present inside the tool panel header", async ({ window }) => {
+test("Split Layout — tool panel controls", async ({ window }) => {
+    await test.step("close-all-tools button is present inside the tool panel header", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#close-all-tools").count();
         expect(count).toBe(1);
     });
 
-    test("tool-panel-content wrapper is present in the DOM", async ({ window }) => {
+    await test.step("tool-panel-content wrapper is present in the DOM", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#tool-panel-content-wrapper").count();
         expect(count).toBe(1);
     });
 
-    test("tool-panel-content is present in the DOM", async ({ window }) => {
+    await test.step("tool-panel-content is present in the DOM", async () => {
         await window.waitForLoadState("domcontentloaded");
         const count = await window.locator("#tool-panel-content").count();
         expect(count).toBe(1);

@@ -18,3 +18,23 @@ export function normalizeHttpsUrl(url?: string): string | null {
         return null;
     }
 }
+
+export function buildToolIssueUrl(repository?: string, toolName?: string): string | null {
+    const normalized = normalizeRepositoryUrl(repository);
+    if (!normalized) return null;
+
+    try {
+        const url = new URL(normalized);
+        if (url.hostname !== "github.com") return null;
+        const [owner, repository] = url.pathname.split("/").filter(Boolean);
+        if (!owner || !repository) return null;
+        url.pathname = `/${owner}/${repository}/issues/new`;
+        url.search = "";
+        url.hash = "";
+        url.searchParams.set("title", `[Feedback]: ${toolName || "Tool"}`);
+        url.searchParams.set("body", `Tool: ${toolName || "Tool"}\n\nShare feedback, report a bug, or request a feature here.`);
+        return url.toString();
+    } catch {
+        return null;
+    }
+}

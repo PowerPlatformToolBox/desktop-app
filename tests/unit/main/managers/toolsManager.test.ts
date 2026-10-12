@@ -3,6 +3,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { ToolRegistryManager } from "../../../../src/main/managers/toolRegistryManager";
 import { ToolManager } from "../../../../src/main/managers/toolsManager";
 
 describe("ToolManager invocation target resolution", () => {
@@ -13,7 +14,25 @@ describe("ToolManager invocation target resolution", () => {
     });
 
     afterEach(() => {
+        jest.restoreAllMocks();
         fs.rmSync(toolsDirectory, { recursive: true, force: true });
+    });
+
+    it.each(["local-power-maverick-tool-erd-generator", "npm-power-maverick-tool-erd-generator"])("does not send usage for %s to the registry", async (toolId) => {
+        const trackUsage = jest.spyOn(ToolRegistryManager.prototype, "trackToolUsage").mockResolvedValue(undefined);
+
+        await new ToolManager(toolsDirectory).trackToolUsage(toolId);
+
+        expect(trackUsage).not.toHaveBeenCalled();
+    });
+
+    it("continues tracking usage for registry-installed tools", async () => {
+        const toolId = "9ce03edb-9529-4f17-9b20-61d8aa3f6503";
+        const trackUsage = jest.spyOn(ToolRegistryManager.prototype, "trackToolUsage").mockResolvedValue(undefined);
+
+        await new ToolManager(toolsDirectory).trackToolUsage(toolId);
+
+        expect(trackUsage).toHaveBeenCalledWith(toolId);
     });
 
     function writeManifest(tool: { id: string; packageName?: string; installPath: string }): void {
@@ -70,6 +89,43 @@ describe("ToolManager invocation target resolution", () => {
         const target = new ToolManager(toolsDirectory).resolveInvocationTarget("@mohsinonxrm/pptb-fetchxml-studio");
 
         expect(target).toMatchObject({ id: "fetchxml-studio" });
+    });
+
+    it("restores shared release metadata from an installed manifest into runtime tools", () => {
+        const installPath = path.join(toolsDirectory, "fetchxml-studio");
+        writeToolPackage(installPath, "@mohsinonxrm/pptb-fetchxml-studio");
+        fs.writeFileSync(
+            path.join(toolsDirectory, "manifest.json"),
+            JSON.stringify({
+                tools: [
+                    {
+                        id: "fetchxml-studio",
+                        packageName: "@mohsinonxrm/pptb-fetchxml-studio",
+                        name: "FetchXML Studio",
+                        version: "2.1.0",
+                        description: "FetchXML tool",
+                        installPath,
+                        installedAt: new Date().toISOString(),
+                        source: "registry",
+                        authors: ["Contoso"],
+                        readmeUrl: "https://example.com/readme",
+                        features: { multiConnection: "optional", connectionRequirement: "required" },
+                        maturity: "verified",
+                    },
+                ],
+            }),
+        );
+
+        const [tool] = new ToolManager(toolsDirectory).getAllTools();
+
+        expect(tool).toMatchObject({
+            id: "fetchxml-studio",
+            version: "2.1.0",
+            authors: ["Contoso"],
+            readmeUrl: "https://example.com/readme",
+            features: { multiConnection: "optional", connectionRequirement: "required" },
+            maturity: "verified",
+        });
     });
 
     it("resolves a local tool by its canonical package name", async () => {

@@ -9,3 +9,8 @@ declare module "*.png?inline" {
     const dataUri: string;
     export default dataUri;
 }
+
+declare module "*.svg?raw" {
+    const source: string;
+    export default source;
+}

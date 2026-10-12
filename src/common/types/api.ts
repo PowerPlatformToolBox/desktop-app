@@ -3,13 +3,15 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
+import type { ConnectionIds, ConnectionTarget } from "../connectionSlots";
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
-import { DataverseExecuteRequest } from "./dataverse";
-import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, DataverseUser, DataverseUserPage } from "./dataverse";
+import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolRatingAggregate, ToolSettings } from "./tool";
+import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
+import { ToolIdea, ToolIdeaSubmission, ToolIdeaUpvoteResult } from "./toolIdea";
 
 /**
  * Connections API namespace
@@ -18,6 +20,7 @@ export interface ConnectionsAPI {
     add: (connection: Connection) => Promise<void>;
     update: (id: string, updates: Partial<Connection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
+    getDeleteBlocker: (id: string) => Promise<string | null>;
     getAll: () => Promise<Connection[]>;
     getById: (connectionId: string) => Promise<Connection | null>;
     test: (connection: Connection) => Promise<{ success: boolean; error?: string }>;
@@ -26,6 +29,9 @@ export interface ConnectionsAPI {
     authenticate: (connectionId: string) => Promise<void>;
     exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<Connection>[] }>;
     importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
+    /** ConnectionId-based system-users lookup for the connection-selection modals (used before a tool instance exists). */
+    getSystemUsersForConnection: (connectionId: string) => Promise<DataverseUser[]>;
+    searchSystemUsersForConnection: (connectionId: string, search?: string, nextLink?: string) => Promise<DataverseUserPage>;
 }
 
 /**
@@ -187,19 +193,28 @@ export interface TroubleshootingAPI {
  * Dataverse API namespace
  */
 export interface DataverseAPI {
-    create: (entityLogicalName: string, record: Record<string, unknown>) => Promise<unknown>;
-    retrieve: (entityLogicalName: string, id: string, columns?: string[]) => Promise<unknown>;
-    update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => Promise<void>;
-    delete: (entityLogicalName: string, id: string) => Promise<void>;
-    retrieveMultiple: (fetchXml: string) => Promise<unknown>;
-    execute: (request: DataverseExecuteRequest) => Promise<unknown>;
-    fetchXmlQuery: (fetchXml: string) => Promise<unknown>;
-    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => Promise<unknown>;
-    getAllEntitiesMetadata: () => Promise<unknown>;
-    queryData: (odataQuery: string) => Promise<unknown>;
-    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<string[]>;
-    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<void>;
+    getSystemUsers: () => Promise<import("./dataverse").DataverseUser[]>;
+    create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<void>;
+    delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<void>;
+    retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    execute: (request: DataverseExecuteRequest, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    getEntityMetadata: (
+        entityLogicalName: string,
+        searchByLogicalName: boolean,
+        selectColumns?: string[],
+        connectionTarget?: "primary" | "secondary",
+        additionalHeaders?: Record<string, string>,
+    ) => Promise<unknown>;
+    getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<unknown>;
+    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<string[]>;
+    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<void>;
     getEntitySetName: (entityLogicalName: string) => Promise<string>;
+    executeBatch: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
+    executeTransaction: (requests: DataverseBatchRequest[], connectionTarget?: "primary" | "secondary", additionalHeaders?: Record<string, string>) => Promise<DataverseBatchResult[]>;
 }
 
 /**
@@ -246,6 +261,15 @@ export interface ToolboxAPI {
     getSetting: (key: string) => Promise<unknown>;
     setSetting: (key: string, value: unknown) => Promise<void>;
     getMcpAccessToken: () => Promise<string>;
+    window: {
+        minimize: () => Promise<void>;
+        toggleMaximize: () => Promise<boolean>;
+        close: () => Promise<void>;
+        isMaximized: () => Promise<boolean>;
+        isFullScreen: () => Promise<boolean>;
+        onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => void;
+        openMenu: (menuLabel: string, x: number, y: number) => Promise<void>;
+    };
 
     // Connections namespace
     connections: ConnectionsAPI;
@@ -268,12 +292,16 @@ export interface ToolboxAPI {
     grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[], seenOptionalDomains?: string[]) => Promise<void>;
     revokeCspConsent: (toolId: string) => Promise<void>;
     getCspConsents: () => Promise<{ [toolId: string]: CspConsentRecord }>;
+    getDataverseHeaderConsents: () => Promise<{ [toolId: string]: DataverseHeaderConsentRecord }>;
+    revokeDataverseHeaderConsent: (toolId: string) => Promise<void>;
+    respondToDataverseHeaderConsent: (requestId: string, decision: DataverseHeaderConsentDecision) => Promise<boolean>;
+    onDataverseHeaderConsentRequest: (callback: (request: DataverseHeaderConsentRequest) => void) => void;
 
     // Webview URL generation
     getToolWebviewUrl: (toolId: string) => Promise<string>;
 
     // Tool Window Management
-    launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
+    launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null, connectionIds?: ConnectionIds) => Promise<boolean>;
     launchToolWithContext: (
         callerInstanceId: string,
         calleeInstanceId: string,
@@ -282,6 +310,7 @@ export interface ToolboxAPI {
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
         noReturn?: boolean,
+        connectionIds?: ConnectionIds,
     ) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
@@ -289,6 +318,10 @@ export interface ToolboxAPI {
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
+    updateToolConnections: (instanceId: string, connectionIds: ConnectionIds) => Promise<void>;
+    getToolImpersonation: (instanceId: string, connectionTarget?: ConnectionTarget) => Promise<{ user: DataverseUser | null }>;
+    setToolImpersonation: (instanceId: string, user: DataverseUser, connectionTarget?: ConnectionTarget) => Promise<void>;
+    resetToolImpersonation: (instanceId: string, connectionTarget?: ConnectionTarget) => Promise<void>;
     /** Find installed tools that declare a given capability tag in their pptb.config.json. */
     findToolsByCapability: (tag: string) => Promise<Tool[]>;
     /** Returns the list of known capability tags from the registry (Supabase-backed, with built-in fallback). */
@@ -298,15 +331,22 @@ export interface ToolboxAPI {
     /** Subscribe to invocation banner state changes (main → renderer push). */
     onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => void;
     /** Subscribe to multi-connection prompts triggered when an invoked callee requires a secondary connection. */
-    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => void;
+    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; minConnections: number; maxConnections: number; inheritedConnectionIds: ConnectionIds }) => void) => void;
     /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
-    provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => Promise<void>;
+    provideInvocationConnections: (requestId: string, result: { connectionIds: ConnectionIds; primaryConnectionId?: string | null; secondaryConnectionId?: string | null } | null) => Promise<void>;
     /**
      * Subscribe to callee-tool-opened events. Fired once the callee BrowserView is ready
      * so the renderer can create a dedicated tab for the callee instance.
      */
     onCalleeToolOpened: (
-        callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void,
+        callback: (data: {
+            calleeInstanceId: string;
+            callerInstanceId: string;
+            tool: Tool;
+            connectionIds: ConnectionIds;
+            primaryConnectionId: string | null;
+            secondaryConnectionId: string | null;
+        }) => void,
     ) => void;
     /**
      * Subscribe to callee-tool-closed events. Fired after the callee is auto-closed by
@@ -332,6 +372,9 @@ export interface ToolboxAPI {
     getToolSecondaryConnection: (toolId: string) => Promise<string | null>;
     removeToolSecondaryConnection: (toolId: string) => Promise<void>;
     getAllToolSecondaryConnections: () => Promise<Record<string, string>>;
+    setToolConnectionSlots: (toolId: string, connectionIds: ConnectionIds) => Promise<void>;
+    getToolConnectionSlots: (toolId: string) => Promise<ConnectionIds>;
+    removeToolConnectionSlots: (toolId: string) => Promise<void>;
 
     // Recently used tools
     addLastUsedTool: (entry: LastUsedToolUpdate) => Promise<void>;
@@ -344,9 +387,9 @@ export interface ToolboxAPI {
     openDirectoryPicker: () => Promise<string | null>;
 
     // Registry-based tools
-    fetchRegistryTools: () => Promise<Tool[]>;
+    fetchRegistryTools: () => Promise<ToolRegistryEntry[]>;
     fetchCommunityLinks: () => Promise<CommunityLinksCollection | null>;
-    installToolFromRegistry: (toolId: string) => Promise<{ manifest: unknown; tool: Tool }>;
+    installToolFromRegistry: (toolId: string) => Promise<{ manifest: ToolManifest; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
     isToolUpdating: (toolId: string) => Promise<boolean>;
     /** Check whether a beta (pre-release) npm package version exists for the given npm package name. */
@@ -357,6 +400,9 @@ export interface ToolboxAPI {
     submitToolRating: (toolId: string, rating: number, comment?: string) => Promise<ToolRatingAggregate>;
     /** Get this install's previously submitted rating/comment for a tool, if any. */
     getMyToolRating: (toolId: string) => Promise<MyToolRating | null>;
+    fetchToolIdeas: () => Promise<ToolIdea[]>;
+    submitToolIdea: (idea: ToolIdeaSubmission) => Promise<void>;
+    upvoteToolIdea: (ideaId: string) => Promise<ToolIdeaUpvoteResult>;
 
     // Split layout namespace
     splitLayout: SplitLayoutAPI;
@@ -424,9 +470,6 @@ export interface ToolboxAPI {
             isInsider: boolean;
         }) => void,
     ) => void;
-
-    // Dataverse namespace
-    dataverse: DataverseAPI;
 
     // Agent Invocation namespace
     agentInvocation: AgentInvocationAPI;

@@ -6,8 +6,8 @@
  * Sentry from the appropriate subpath in the calling code
  */
 
+import { normalizeSentryFields, sanitizeSentryData, scrubPii, scrubPiiFromObject } from "./sentry";
 import type { TelemetryConsentChoice } from "./types";
-import { scrubPii, scrubPiiFromObject } from "./sentry";
 
 // Define types for Sentry operations (these are compatible with both main and renderer)
 export interface SentryScope {
@@ -92,6 +92,19 @@ export function setSentryMachineId(id: string): void {
     logInfo(`[Sentry] Machine ID set: ${id}`);
 }
 
+export async function recordSentryTelemetryDisabled(installId: string, release: string, releaseAction: string, previousRelease: string): Promise<void> {
+    if (!sentryModule?.logger || telemetryConsent !== "no") return;
+
+    sentryModule.logger.info("Sentry telemetry disabled", {
+        event_type: "telemetry_disabled",
+        machine_id: installId,
+        release,
+        release_action: releaseAction,
+        previous_release: previousRelease,
+    });
+    await sentryModule.flush(2000);
+}
+
 /**
  * Get the current machine ID
  */
@@ -112,7 +125,7 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
         level,
         data: data
             ? ({
-                  ...(scrubPiiFromObject(data) as Record<string, unknown>),
+                  ...(scrubPiiFromObject(normalizeSentryFields(data)) as Record<string, unknown>),
                   machine_id: machineId,
                   timestamp: new Date().toISOString(),
               } as Record<string, unknown>)
@@ -123,12 +136,26 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
     });
 }
 
+export function addConnectionSlotsBreadcrumb(minConnections: number, maxConnections: number, filledConnectionCount: number): void {
+    addBreadcrumb("Tool connection slots resolved", "tool.connections", "info", {
+        minConnections,
+        maxConnections,
+        filledConnectionCount,
+    });
+}
+
 /**
  * Start a new Sentry span for performance monitoring
  * Use this for important operations like tool loading, connection testing, etc.
  */
 export function startTransaction(name: string, op: string, data?: Record<string, unknown>): SentryTransaction | undefined {
-    if (!sentryModule) return undefined;
+    if (!sentryModule?.startInactiveSpan || !hasSentryTelemetryConsent()) return undefined;
+
+    const span = sentryModule.startInactiveSpan({
+        name: scrubPii(name),
+        op,
+        attributes: sanitizeSentryData({ ...data, machine_id: machineId }),
+    });
 
     const startTime = Date.now();
     let finished = false;
@@ -137,10 +164,12 @@ export function startTransaction(name: string, op: string, data?: Record<string,
     const transactionWrapper: SentryTransaction = {
         setStatus: (newStatus: string) => {
             status = newStatus;
+            span.setStatus({ code: newStatus === "ok" ? 1 : 2, message: newStatus });
         },
         finish: () => {
             if (!finished) {
                 finished = true;
+                span.end();
                 const duration = Date.now() - startTime;
 
                 addBreadcrumb(`Operation ${name} finished`, "performance", "debug", {
@@ -188,33 +217,19 @@ export function captureException(
         level?: string;
     },
 ): void {
-    if (!sentryModule) return;
-
-    const level = context?.level || "error";
-    const errorMessage = `${error.name}: ${error.message}`;
-    const errorData = {
-        ...context?.extra,
-        ...context?.tags,
-        stack: error.stack,
-    };
-
-    if (level === "fatal") {
-        logFatal(errorMessage, errorData);
-    } else {
-        logError(errorMessage, errorData);
-    }
+    if (!sentryModule || !hasSentryTelemetryConsent()) return;
 
     sentryModule.withScope((scope: SentryScope) => {
         scope.setTag("machine_id", machineId || "unknown");
 
         if (context?.tags) {
-            Object.entries(context.tags).forEach(([key, value]) => {
+            Object.entries(normalizeSentryFields(context.tags)).forEach(([key, value]) => {
                 scope.setTag(key, value);
             });
         }
 
         if (context?.extra) {
-            Object.entries(context.extra).forEach(([key, value]) => {
+            Object.entries(normalizeSentryFields(context.extra)).forEach(([key, value]) => {
                 scope.setExtra(key, value);
             });
         }
@@ -239,36 +254,19 @@ export function captureMessage(
         extra?: Record<string, unknown>;
     },
 ): void {
-    if (!sentryModule) return;
-
-    const logData = {
-        ...context?.extra,
-        ...context?.tags,
-    };
-
-    switch (level) {
-        case "fatal":
-            logFatal(message, logData);
-            break;
-        case "error":
-            logError(message, logData);
-            break;
-        case "warning":
-            logWarn(message, logData);
-            break;
-    }
+    if (!sentryModule || !hasSentryTelemetryConsent()) return;
 
     sentryModule.withScope((scope: SentryScope) => {
         scope.setTag("machine_id", machineId || "unknown");
 
         if (context?.tags) {
-            Object.entries(context.tags).forEach(([key, value]) => {
+            Object.entries(normalizeSentryFields(context.tags)).forEach(([key, value]) => {
                 scope.setTag(key, value);
             });
         }
 
         if (context?.extra) {
-            Object.entries(context.extra).forEach(([key, value]) => {
+            Object.entries(normalizeSentryFields(context.extra)).forEach(([key, value]) => {
                 scope.setExtra(key, value);
             });
         }
@@ -284,7 +282,7 @@ export function setContext(key: string, value: Record<string, unknown>): void {
     if (!sentryModule) return;
 
     sentryModule.setContext(key, {
-        ...value,
+        ...normalizeSentryFields(value),
         machine_id: machineId,
     });
 }
@@ -304,7 +302,8 @@ export function wrapAsyncOperation<T>(
 
     logDebug(`Starting operation: ${operationName}`, context?.extra);
 
-    return operation()
+    return Promise.resolve()
+        .then(operation)
         .then((result) => {
             transaction?.setStatus("ok");
             transaction?.finish();
@@ -353,7 +352,7 @@ export function logCheckpoint(checkpoint: string, data?: Record<string, unknown>
 export function setTags(tags: Record<string, string>): void {
     if (!sentryModule) return;
 
-    Object.entries(tags).forEach(([key, value]) => {
+    Object.entries(normalizeSentryFields(tags)).forEach(([key, value]) => {
         sentryModule.setTag(key, value);
     });
 }
@@ -379,10 +378,10 @@ export function logTrace(message: string, data?: Record<string, unknown>): void 
         console.debug("[TRACE]", message, data || "");
     }
 
-    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
+    if (!sentryModule || !sentryModule.logger || !isDevelopment || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.trace(scrubPii(message), {
-        ...(scrubPiiFromObject(data) as Record<string, unknown>),
+        ...(scrubPiiFromObject(normalizeSentryFields(data)) as Record<string, unknown>),
         machine_id: machineId,
     });
 }
@@ -397,10 +396,10 @@ export function logDebug(message: string, data?: Record<string, unknown>): void 
         console.debug("[DEBUG]", message, data || "");
     }
 
-    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
+    if (!sentryModule || !sentryModule.logger || !isDevelopment || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.debug(scrubPii(message), {
-        ...(scrubPiiFromObject(data) as Record<string, unknown>),
+        ...(scrubPiiFromObject(normalizeSentryFields(data)) as Record<string, unknown>),
         machine_id: machineId,
     });
 }
@@ -413,10 +412,10 @@ export function logInfo(message: string, data?: Record<string, unknown>): void {
     // eslint-disable-next-line no-console
     console.info("[INFO]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.info(scrubPii(message), {
-        ...(scrubPiiFromObject(data) as Record<string, unknown>),
+        ...(scrubPiiFromObject(normalizeSentryFields(data)) as Record<string, unknown>),
         machine_id: machineId,
     });
 }
@@ -429,10 +428,10 @@ export function logWarn(message: string, data?: Record<string, unknown>): void {
     // eslint-disable-next-line no-console
     console.warn("[WARN]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.warn(scrubPii(message), {
-        ...(scrubPiiFromObject(data) as Record<string, unknown>),
+        ...(scrubPiiFromObject(normalizeSentryFields(data)) as Record<string, unknown>),
         machine_id: machineId,
     });
 }
@@ -445,10 +444,10 @@ export function logError(message: string, data?: Record<string, unknown>): void 
     // eslint-disable-next-line no-console
     console.error("[ERROR]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.error(scrubPii(message), {
-        ...(scrubPiiFromObject(data) as Record<string, unknown>),
+        ...(scrubPiiFromObject(normalizeSentryFields(data)) as Record<string, unknown>),
         machine_id: machineId,
     });
 }
@@ -461,10 +460,10 @@ export function logFatal(message: string, data?: Record<string, unknown>): void 
     // eslint-disable-next-line no-console
     console.error("[FATAL]", message, data || "");
 
-    if (!sentryModule || !sentryModule.logger) return;
+    if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
     sentryModule.logger.fatal(scrubPii(message), {
-        ...(scrubPiiFromObject(data) as Record<string, unknown>),
+        ...(scrubPiiFromObject(normalizeSentryFields(data)) as Record<string, unknown>),
         machine_id: machineId,
     });
 }

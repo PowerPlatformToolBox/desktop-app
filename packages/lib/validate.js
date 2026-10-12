@@ -9,7 +9,7 @@
 /** @typedef {{ name: string; url?: string }} Contributor */
 /** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
-/** @typedef {{ multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
+/** @typedef {{ connections?: number | { min?: number; max?: number }; multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
 /**
  * @typedef {{
  *   name: string;
@@ -315,9 +315,9 @@ async function validatePackageJson(packageJson, options = {}) {
         const features = packageJson.features;
 
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
-            errors.push("features must be a non-array object with optional 'multiConnection', 'connectionRequirement', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
+            errors.push("features must be a non-array object with optional 'connections', 'multiConnection', 'connectionRequirement', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
+            const VALID_FEATURE_KEYS = ["connections", "multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
             const featureKeys = Object.keys(features);
             const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
 
@@ -325,8 +325,47 @@ async function validatePackageJson(packageJson, options = {}) {
                 errors.push(`features can only contain ${VALID_FEATURE_KEYS.map((k) => `'${k}'`).join(", ")} properties. Invalid properties: ${invalidKeys.join(", ")}`);
             }
 
-            if (features.multiConnection === undefined) {
-                errors.push("features.multiConnection is required when features object is provided");
+            const usesModernConnections = features.connections !== undefined;
+            const usesLegacyConnectionFields = features.multiConnection !== undefined || features.connectionRequirement !== undefined;
+            if (usesModernConnections && usesLegacyConnectionFields) {
+                errors.push("features.connections cannot be combined with legacy features.multiConnection or features.connectionRequirement; remove the legacy fields");
+            }
+            if (usesLegacyConnectionFields) {
+                const legacyFields = [
+                    features.multiConnection !== undefined ? "features.multiConnection" : null,
+                    features.connectionRequirement !== undefined ? "features.connectionRequirement" : null,
+                ].filter(Boolean);
+                warnings.push(`Legacy connection feature fields (${legacyFields.join(", ")}) are deprecated; use features.connections instead`);
+            }
+
+            if (usesModernConnections) {
+                const connections = features.connections;
+                if (typeof connections === "number") {
+                    if (!Number.isInteger(connections) || connections < 0 || connections > 10) {
+                        errors.push("features.connections must be an integer between 0 and 10");
+                    }
+                } else if (connections === null || typeof connections !== "object" || Array.isArray(connections)) {
+                    errors.push("features.connections must be an integer or an object with optional 'min' and 'max' properties");
+                } else {
+                    const invalidConnectionKeys = Object.keys(connections).filter((key) => key !== "min" && key !== "max");
+                    if (invalidConnectionKeys.length > 0) {
+                        errors.push(`features.connections can only contain 'min' and 'max' properties. Invalid properties: ${invalidConnectionKeys.join(", ")}`);
+                    }
+
+                    const min = connections.min ?? 1;
+                    const max = connections.max ?? min;
+                    if (connections.min !== undefined && (!Number.isInteger(connections.min) || connections.min < 0 || connections.min > 10)) {
+                        errors.push("features.connections.min must be an integer between 0 and 10");
+                    }
+                    if (connections.max !== undefined && (!Number.isInteger(connections.max) || connections.max < 0 || connections.max > 10)) {
+                        errors.push("features.connections.max must be an integer between 0 and 10");
+                    }
+                    if (Number.isInteger(min) && Number.isInteger(max) && min > max) {
+                        errors.push("features.connections.min must be less than or equal to features.connections.max");
+                    }
+                }
+            } else if (features.multiConnection === undefined) {
+                errors.push("features.multiConnection is required when features object is provided without features.connections");
             } else if (!VALID_MULTI_CONNECTION_VALUES.includes(features.multiConnection)) {
                 errors.push(`features.multiConnection must be one of: ${VALID_MULTI_CONNECTION_VALUES.join(", ")}`);
             }

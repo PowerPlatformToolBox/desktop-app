@@ -2,7 +2,7 @@
  * Renderer-specific type definitions
  */
 
-import type { MarketplaceSource, PreviewFeatureFlags, TelemetryConsentChoice } from "../../common/types";
+import type { MarketplaceSource, PreviewFeatureFlags, TelemetryConsentChoice, ToolRegistryEntry } from "../../common/types";
 
 /**
  * Interface for an open tool instance
@@ -12,6 +12,8 @@ export interface OpenTool {
     toolId: string; // The base tool ID
     tool: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     isPinned: boolean;
+    connectionIds?: Array<string | null>;
+    clearedConnectionSlots?: number[];
     connectionId: string | null; // Primary connection
     secondaryConnectionId: string | null; // Secondary connection (for multi-connection tools)
     isDetailTab?: boolean; // True for tool detail view tabs (not real tool instances)
@@ -60,6 +62,7 @@ export interface SettingsState {
     terminalFont?: string;
     notificationDuration?: number;
     restoreSessionOnStartup?: boolean;
+    enableConnectionDoubleClickConnect?: boolean;
     showCategoryColor?: boolean;
     showEnvironmentColor?: boolean;
     categoryColorThickness?: number;
@@ -78,6 +81,7 @@ export interface SessionData {
         instanceId: string;
         toolId: string;
         isPinned: boolean;
+        connectionIds?: Array<string | null>;
         connectionId: string | null;
         secondaryConnectionId: string | null;
     }>;
@@ -85,32 +89,40 @@ export interface SessionData {
 }
 
 /**
- * Tool detail for installed & marketplace display
+ * Tool detail view model for installed and marketplace display
  */
-export interface ToolDetail {
-    id: string;
-    name: string;
-    version: string;
+export type ToolDetail = Omit<
+    Pick<
+        ToolRegistryEntry,
+        | "id"
+        | "name"
+        | "version"
+        | "description"
+        | "authors"
+        | "categories"
+        | "size"
+        | "downloads"
+        | "rating"
+        | "mau"
+        | "icon"
+        | "readmeUrl"
+        | "status"
+        | "repository"
+        | "website"
+        | "createdAt"
+        | "minAPI"
+        | "features"
+        | "isSupported"
+        | "npmPackageName"
+        | "mcpHeadlessEnabled"
+        | "marketplaceSourceId"
+        | "marketplaceSourceLabel"
+        | "marketplaceSourceType"
+        | "maturity"
+    >,
+    "description"
+> & {
     description?: string;
     hasUpdate?: boolean;
     latestVersion?: string;
-    authors?: string[];
-    categories?: string[];
-    downloads?: number;
-    rating?: number;
-    mau?: number; // Monthly Active Users
-    icon?: string;
-    readmeUrl?: string;
-    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
-    repository?: string;
-    website?: string;
-    createdAt?: string; // ISO date string from created_at field
-    minAPI?: string; // Minimum ToolBox API version required
-    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
-    npmPackageName?: string; // npm package name used for pre-release version detection
-    mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
-    marketplaceSourceId?: string;
-    marketplaceSourceLabel?: string;
-    marketplaceSourceType?: "builtin" | "private";
-    maturity?: string;
-}
+};

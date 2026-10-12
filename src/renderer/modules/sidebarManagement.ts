@@ -17,6 +17,16 @@ export function getCurrentSidebarId(): string | null {
     return currentSidebarId;
 }
 
+/** Toggle the currently selected sidebar without changing its active panel. */
+export function toggleSidebar(): void {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+
+    const activeSidebar = document.querySelector<HTMLElement>(".sidebar-content.active");
+    const activeSidebarId = currentSidebarId ?? (activeSidebar?.id.startsWith("sidebar-") ? activeSidebar.id.slice("sidebar-".length) : "tools");
+    switchSidebar(activeSidebarId);
+}
+
 /**
  * Switch to a different sidebar panel
  */
@@ -54,7 +64,6 @@ export function switchSidebar(sidebarId: string): void {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
             }
-
         }
         window.api?.send("sidebar-layout-changed");
         return;

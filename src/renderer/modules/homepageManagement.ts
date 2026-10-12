@@ -7,6 +7,7 @@ import { logError } from "../../common/logger";
 import type { LastUsedToolEntry } from "../../common/types";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { filterMarketplaceByNew } from "./marketplaceManagement";
+import { openToolIdeasModal } from "./toolIdeasModal";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
 
@@ -694,6 +695,13 @@ export function setupHomepageActions(): void {
         browseToolsCard.addEventListener("click", (e) => {
             e.preventDefault();
             switchSidebar("marketplace");
+        });
+    }
+
+    const suggestToolCard = document.getElementById("quick-action-suggest-tool");
+    if (suggestToolCard) {
+        suggestToolCard.addEventListener("click", () => {
+            openToolIdeasModal().catch((error) => reportHomepageError("openToolIdeasModal", error));
         });
     }
 

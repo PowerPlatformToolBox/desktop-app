@@ -1,7 +1,7 @@
-import type { ModalWindowClosedPayload, ModalWindowMessagePayload, TelemetryConsentChoice } from "../../common/types";
-import { getSentryConsentModalControllerScript } from "../modals/sentryConsent/controller";
-import { getSentryConsentModalView } from "../modals/sentryConsent/view";
-import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import type { ModalWindowClosedPayload, ModalWindowMessagePayload, TelemetryConsentChoice } from "../../../common/types";
+import { getSentryConsentModalControllerScript } from "../../modals/sentryConsent/controller";
+import { getSentryConsentModalView } from "../../modals/sentryConsent/view";
+import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "../browserWindowModals";
 
 const SENTRY_CONSENT_MODAL_CHANNELS = {
     acceptConsent: "sentry-consent:accept",

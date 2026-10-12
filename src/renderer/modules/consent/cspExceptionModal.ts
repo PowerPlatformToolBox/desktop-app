@@ -3,11 +3,11 @@
  * Handles displaying the CSP exception consent modal using the modal framework
  */
 
-import type { ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
-import { getCspExceptionModalControllerScript } from "../modals/cspException/controller";
-import type { CspReconsentContext } from "../modals/cspException/view";
-import { getCspExceptionModalView } from "../modals/cspException/view";
-import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import type { ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../../common/types";
+import { getCspExceptionModalControllerScript } from "../../modals/cspException/controller";
+import type { CspReconsentContext } from "../../modals/cspException/view";
+import { getCspExceptionModalView } from "../../modals/cspException/view";
+import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "../browserWindowModals";
 
 interface CspExceptionModalPromiseHandlers {
     resolve: ((result: unknown) => void) | null;

@@ -17,8 +17,14 @@ export interface ConnectionListData {
  * Returns the controller script that wires up DOM events for the select connection modal.
  * @param channels - Channel IDs for IPC communication
  * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
+ * @param enableDoubleClickConnect - Whether double-clicking a connection triggers Connect
  */
-export function getSelectConnectionModalControllerScript(channels: SelectConnectionModalChannelIds, enabledForPowerPlatformAPI: boolean = false): string {
+export function getSelectConnectionModalControllerScript(
+    channels: SelectConnectionModalChannelIds,
+    enabledForPowerPlatformAPI: boolean = false,
+    enableDoubleClickConnect: boolean = false,
+    allowClearSelection: boolean = false,
+): string {
     const serializedChannels = JSON.stringify(channels);
     const sortingUtilities = getConnectionSortingUtilitiesScript();
     return `
@@ -26,6 +32,8 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
 (() => {
     const CHANNELS = ${serializedChannels};
     const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
+    const ALLOW_CLEAR_SELECTION = ${allowClearSelection};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -35,6 +43,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const connectionsListContainer = document.getElementById("connections-list-container");
     const connectButton = document.getElementById("connect-selected-connection-btn");
     const cancelButton = document.getElementById("cancel-select-connection-btn");
+    const clearButton = document.getElementById("clear-selected-connection-btn");
     const closeButton = document.getElementById("close-select-connection-modal");
     const searchInput = document.getElementById("select-connection-search");
     const searchClearButton = document.getElementById("select-connection-search-clear");
@@ -47,6 +56,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     
     let selectedConnectionId = null;
     let allConnections = [];
+    const impersonateConnectionIds = new Set();
     const DEFAULT_SORT_OPTION = "last-used";
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => (value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION);
@@ -208,6 +218,10 @@ ${sortingUtilities}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
+                <label class="impersonate-checkbox-row" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="impersonate-checkbox" data-connection-id="\${escapeHtml(conn.id)}" \${impersonateConnectionIds.has(conn.id) ? 'checked' : ''} />
+                    Impersonate as another user
+                </label>
             </div>
         \`;
         };
@@ -276,6 +290,29 @@ ${sortingUtilities}
                 const connectionId = item.getAttribute('data-connection-id');
                 selectConnection(connectionId);
             });
+
+            if (ENABLE_DOUBLE_CLICK_CONNECT) {
+                item.addEventListener('dblclick', () => {
+                    const connectionId = item.getAttribute('data-connection-id');
+                    if (!connectionId) return;
+                    selectConnection(connectionId);
+                    triggerConnect();
+                });
+            }
+        });
+
+        // Track the "Impersonate as another user" checkbox per connection card
+        connectionsListContainer.querySelectorAll('.impersonate-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const connectionId = checkbox.getAttribute('data-connection-id');
+                if (checkbox.checked) {
+                    impersonateConnectionIds.add(connectionId);
+                    // Checking the box implies the user wants this connection - select its card too
+                    selectConnection(connectionId);
+                } else {
+                    impersonateConnectionIds.delete(connectionId);
+                }
+            });
         });
 
         // Auto-select active connection if it exists and is in filtered results
@@ -316,12 +353,22 @@ ${sortingUtilities}
         }
     };
 
-    // Connect button handler
-    connectButton?.addEventListener('click', () => {
+    const triggerConnect = () => {
         if (!selectedConnectionId) return;
-        
+        if (connectButton instanceof HTMLButtonElement && connectButton.disabled) return;
+
         setButtonState(connectButton, true, "Connecting...", "Connect");
-        modalBridge.send(CHANNELS.selectConnection, { connectionId: selectedConnectionId });
+        modalBridge.send(CHANNELS.selectConnection, { connectionId: selectedConnectionId, wantsImpersonation: impersonateConnectionIds.has(selectedConnectionId) });
+    };
+
+    // Connect button handler
+    connectButton?.addEventListener('click', triggerConnect);
+
+    clearButton?.addEventListener('click', () => {
+        if (!ALLOW_CLEAR_SELECTION || !(clearButton instanceof HTMLButtonElement)) return;
+        clearButton.disabled = true;
+        clearButton.textContent = "Clearing...";
+        modalBridge.send(CHANNELS.selectConnection, { clearConnection: true });
     });
 
     // Cancel and close button handlers
