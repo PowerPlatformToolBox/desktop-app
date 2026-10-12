@@ -67,7 +67,7 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
     }
 
     if (consent !== "yes") {
-        return isMainSentryInitialized;
+        return consent === "no" ? false : isMainSentryInitialized;
     }
 
     if (!sentryConfig) {

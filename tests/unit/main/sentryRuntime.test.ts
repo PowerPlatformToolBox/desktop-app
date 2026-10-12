@@ -86,7 +86,7 @@ describe("main Sentry runtime", () => {
     }
 
     test.each([null, "no"] as const)("initializes before app ready with consent %s, but gates ordinary telemetry", async (consent) => {
-        expect(await applyConsent(consent, installId)).toBe(true);
+        expect(await applyConsent(consent, installId)).toBe(consent !== "no");
         expect(sdk.init).toHaveBeenCalledTimes(1);
         expect(helper.hasSentryTelemetryConsent()).toBe(false);
         const options = sdk.init.mock.calls[0][0];
@@ -117,7 +117,7 @@ describe("main Sentry runtime", () => {
         expect(options.beforeSendLog({ message: "allowed" })).not.toBeNull();
         expect(options.beforeSend(privateEvent())).not.toBeNull();
         expect(options.beforeSendTransaction({ transaction: "allowed" })).not.toBeNull();
-        expect(await applyConsent("no")).toBe(true);
+        expect(await applyConsent("no")).toBe(false);
         expect(options.beforeSendLog({ message: "blocked" })).toBeNull();
         expect(options.beforeSend(privateEvent())).toBeNull();
         expect(options.beforeSendTransaction({ transaction: "blocked" })).toBeNull();
