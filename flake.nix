@@ -97,6 +97,9 @@
             env = {
               ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               CI = "true";
+              SUPABASE_URL = "https://apim-pptb-supabase.azure-api.net";
+              SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imthdm1oeHZoa3lla2xzY25ubHhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwNTEwOTQsImV4cCI6MjA3ODYyNzA5NH0.rlURSF-nKzilgKc_2h1W1Axgla_TCD0qRUnpm51aazE";
+              SENTRY_DSN = "https://d287a4f9f9a0cf0676455929c4860f35@o4510671241019392.ingest.us.sentry.io/4510671243051008";
             };
 
             buildPhase = ''
