@@ -97,10 +97,6 @@
             env = {
               ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
               CI = "true";
-              SUPABASE_URL = builtins.getEnv "SUPABASE_URL";
-              SUPABASE_ANON_KEY = builtins.getEnv "SUPABASE_ANON_KEY";
-              AZURE_BLOB_BASE_URL = builtins.getEnv "AZURE_BLOB_BASE_URL";
-              SENTRY_DSN = builtins.getEnv "SENTRY_DSN";
             };
 
             buildPhase = ''
