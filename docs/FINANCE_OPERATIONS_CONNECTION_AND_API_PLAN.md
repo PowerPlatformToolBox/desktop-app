@@ -2,15 +2,15 @@
 
 Tracking issue: [PowerPlatformToolBox/desktop-app#504 — Add support for D365 Ops, Fin, Scm](https://github.com/PowerPlatformToolBox/desktop-app/issues/504). Implementation branch: [OliverFlint/finops-connection](https://github.com/OliverFlint/pptb-desktop-app/tree/finops-connection).
 
-Status as of 2026-10-10: phases 1–3 are complete on `finops-connection`, including live verification and sanitized fixture coverage. Phase 4 has passed its desktop/headless acceptance criterion and awaits release preparation/publication.
+Status as of 2026-10-12: phases 1–4 are complete for the upstream PR on `finops-connection`, including live verification and sanitized fixture coverage. Shipping versions, release-specific compatibility metadata, publication and registry backend rollout are tracked separately as upstream release-process tasks.
 
-| Phase | Implementation status | Acceptance / outstanding work |
-| --- | --- | --- |
-| 1 — Authentication and contract | Complete | Both authentication flows, renewal, paging and restricted-user checks passed; sanitized fixture coverage completed on 2026-10-10 |
-| 2 — Model, storage, compatibility | Complete | Automated migration, compatibility, product guards, and legacy regression checks passed |
-| 3 — Authentication and OData manager | Complete | Automated transport coverage and all named live API checks passed; live validation and permission-denial fixtures captured |
-| 4 — Exposure, headless, UX | Implemented; live desktop/headless read passed | Choose shipping versions, finish minimum-version compatibility metadata, publish matching packages, and coordinate registry rollout |
-| 5 — Batch / transactions | Not started; later scope | Not required for the initial phases 1–4 release |
+| Phase                                | Implementation status                          | Acceptance / outstanding work                                                                                                       |
+| ------------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Authentication and contract      | Complete                                       | Both authentication flows, renewal, paging and restricted-user checks passed; sanitized fixture coverage completed on 2026-10-10    |
+| 2 — Model, storage, compatibility    | Complete                                       | Automated migration, compatibility, product guards, and legacy regression checks passed                                             |
+| 3 — Authentication and OData manager | Complete                                       | Automated transport coverage and all named live API checks passed; live validation and permission-denial fixtures captured          |
+| 4 — Exposure, headless, UX | Complete | Desktop/headless acceptance passed; upstream release-process tasks tracked separately below |
+| 5 — Batch / transactions             | Not started; later scope                       | Not required for the initial phases 1–4 release                                                                                     |
 
 See the [manual testing record](FINANCE_OPERATIONS_MANUAL_TESTING.md#remaining-live-acceptance-checks) for individual results. Deferred or unavailable tests remain explicit verification gaps; they do not count as passes.
 
@@ -42,7 +42,7 @@ The connection list now offers a product filter with clear-filter support. The r
 
 The [F&O fixture bundle](../tests/fixtures/financeOperations/README.md) contains sanitized live-derived customer/action samples, a sanitized live customer numbering error captured on 2026-10-10, reduced live service-document/CSDL captures added on 2026-10-10, two live-derived paging responses, and a sanitized live permission-denial response. Regression tests exercise the facade and HTTP transport together, including explicit continuation, complete composite keys, action POST/results and validation errors. All 45 focused F&O transport/authentication/manager tests pass. All required phase 1 fixture categories now have live-derived inputs with their reductions and sanitization documented.
 
-Next: choose the first shipping desktop/types/validator versions, set the sample's corresponding `features.minAPI`, publish matching packages, and roll out the registry field. The sample currently targets this local branch; it does not claim compatibility with a published PPTB release. Batch helpers remain a later phase.
+Next: upstream review and release handoff. Upstream owns shipping-version selection, release-specific `features.minAPI` values, package/desktop publication and registry backend rollout. These tasks are listed separately below and do not block completion of the PR implementation phases. The sample currently targets this branch; it does not claim compatibility with a published PPTB release. Batch helpers remain a later phase.
 
 ## Goal and scope
 
@@ -60,20 +60,20 @@ F&O supports authorization-code and client-credentials authentication. The OAuth
 
 ## Existing architecture and required changes
 
-| Area | Current integration point | Planned change |
-| --- | --- | --- |
-| Connection model | `src/common/types/connection.ts` | Introduce a product discriminator and product-specific validation. |
-| Persistence and import/export | `src/main/managers/connectionsManager.ts` | Normalize legacy records; preserve encrypted secrets and export exclusions. |
-| Authentication | `src/main/managers/authManager.ts` | Select scopes and environment-access validation by connection type. |
-| Dataverse operations | `src/main/managers/dataverseManager.ts` | Reject F&O connections before authentication or network access. |
-| New OData service | Proposed `src/main/managers/financeOperationsManager.ts` | Implement the F&O transport and API operations. |
-| IPC lifecycle | `src/common/ipc/channels.ts`, `src/main/index.ts` | Register and remove F&O handlers; route authorized tool slots. |
-| Tool bridge | `src/main/toolPreloadBridge.ts` | Expose `financeOperationsAPI` and safe connection-type metadata. |
-| App API types | `src/common/types/api.ts`, `src/common/types/index.ts` | Add matching internal contracts and window declarations where required. |
-| Public declarations | `packages/types/` | Ship `financeOperationsAPI.d.ts`, reference/export it, and include it in package files. |
-| Connection UX | `src/renderer/modules/connectionManagement.ts`, add/edit/select connection modals | Add the type selector, F&O fields, type badges, and compatibility filters. |
-| Manifest contracts | `src/common/types/tool.ts`, `packages/types/toolManifest.d.ts`, `packages/validation/src/validate.ts` | Declare supported connection types independently of slot counts. |
-| Headless/MCP | `src/main/mcp/headlessToolRuntime.ts`, MCP connection and invocation handling | Expose the same API, enforce types, and return safe metadata. |
+| Area                          | Current integration point                                                                             | Planned change                                                                          |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Connection model              | `src/common/types/connection.ts`                                                                      | Introduce a product discriminator and product-specific validation.                      |
+| Persistence and import/export | `src/main/managers/connectionsManager.ts`                                                             | Normalize legacy records; preserve encrypted secrets and export exclusions.             |
+| Authentication                | `src/main/managers/authManager.ts`                                                                    | Select scopes and environment-access validation by connection type.                     |
+| Dataverse operations          | `src/main/managers/dataverseManager.ts`                                                               | Reject F&O connections before authentication or network access.                         |
+| New OData service             | Proposed `src/main/managers/financeOperationsManager.ts`                                              | Implement the F&O transport and API operations.                                         |
+| IPC lifecycle                 | `src/common/ipc/channels.ts`, `src/main/index.ts`                                                     | Register and remove F&O handlers; route authorized tool slots.                          |
+| Tool bridge                   | `src/main/toolPreloadBridge.ts`                                                                       | Expose `financeOperationsAPI` and safe connection-type metadata.                        |
+| App API types                 | `src/common/types/api.ts`, `src/common/types/index.ts`                                                | Add matching internal contracts and window declarations where required.                 |
+| Public declarations           | `packages/types/`                                                                                     | Ship `financeOperationsAPI.d.ts`, reference/export it, and include it in package files. |
+| Connection UX                 | `src/renderer/modules/connectionManagement.ts`, add/edit/select connection modals                     | Add the type selector, F&O fields, type badges, and compatibility filters.              |
+| Manifest contracts            | `src/common/types/tool.ts`, `packages/types/toolManifest.d.ts`, `packages/validation/src/validate.ts` | Declare supported connection types independently of slot counts.                        |
+| Headless/MCP                  | `src/main/mcp/headlessToolRuntime.ts`, MCP connection and invocation handling                         | Expose the same API, enforce types, and return safe metadata.                           |
 
 `resolveToolConnectionForRequest` in `src/main/utils/connectionTarget.ts` already resolves a tool instance's assigned connection. Extend this path with product validation instead of accepting arbitrary connection IDs from tool callers.
 
@@ -136,24 +136,12 @@ declare namespace FinanceOperationsAPI {
     }
 
     interface API {
-        request<T = unknown>(
-            method: Method, path: string, body?: unknown, options?: RequestOptions
-        ): Promise<Response<T>>;
-        queryData<T = Record<string, unknown>>(
-            path: string, options?: RequestOptions
-        ): Promise<Page<T>>;
-        retrieve<T = Record<string, unknown>>(
-            entitySet: string, key: EntityKey, select?: string[], options?: RequestOptions
-        ): Promise<T>;
-        create<T = Record<string, unknown>>(
-            entitySet: string, data: Record<string, unknown>, options?: RequestOptions
-        ): Promise<Response<T>>;
-        update(
-            entitySet: string, key: EntityKey, data: Record<string, unknown>, options?: RequestOptions
-        ): Promise<Response<unknown>>;
-        delete(
-            entitySet: string, key: EntityKey, options?: RequestOptions
-        ): Promise<Response<unknown>>;
+        request<T = unknown>(method: Method, path: string, body?: unknown, options?: RequestOptions): Promise<Response<T>>;
+        queryData<T = Record<string, unknown>>(path: string, options?: RequestOptions): Promise<Page<T>>;
+        retrieve<T = Record<string, unknown>>(entitySet: string, key: EntityKey, select?: string[], options?: RequestOptions): Promise<T>;
+        create<T = Record<string, unknown>>(entitySet: string, data: Record<string, unknown>, options?: RequestOptions): Promise<Response<T>>;
+        update(entitySet: string, key: EntityKey, data: Record<string, unknown>, options?: RequestOptions): Promise<Response<unknown>>;
+        delete(entitySet: string, key: EntityKey, options?: RequestOptions): Promise<Response<unknown>>;
         getServiceDocument(options?: RequestOptions): Promise<unknown>;
         getMetadata(options?: RequestOptions): Promise<string>;
     }
@@ -163,22 +151,14 @@ declare namespace FinanceOperationsAPI {
 Use an options object to keep additional request settings extensible. Define a typed service-document response before publishing the declarations; `unknown` above is a placeholder. Generic response types describe caller expectations, not runtime schema validation.
 
 ```ts
-const page = await window.financeOperationsAPI.queryData(
-    "CustomersV3?$select=CustomerAccount,dataAreaId&$top=20" +
-    "&$filter=dataAreaId eq 'USMF'&cross-company=true",
-    { connectionTarget: 0 }
-);
+const page = await window.financeOperationsAPI.queryData("CustomersV3?$select=CustomerAccount,dataAreaId&$top=20" + "&$filter=dataAreaId eq 'USMF'&cross-company=true", { connectionTarget: 0 });
 
 if (page["@odata.nextLink"]) {
-    const nextPage = await window.financeOperationsAPI.queryData(
-        page["@odata.nextLink"], { connectionTarget: 0 }
-    );
+    const nextPage = await window.financeOperationsAPI.queryData(page["@odata.nextLink"], { connectionTarget: 0 });
 }
 
 // Illustrative key: obtain the actual entity keys from the environment's metadata.
-const customer = await window.financeOperationsAPI.retrieve(
-    "CustomersV3", { dataAreaId: "USMF", CustomerAccount: "C000001" }
-);
+const customer = await window.financeOperationsAPI.retrieve("CustomersV3", { dataAreaId: "USMF", CustomerAccount: "C000001" });
 ```
 
 Query strings remain caller-controlled; do not silently add company filters or cross-company access. Writes must supply the legal-entity fields and full keys required by the selected entity. No connection-level company override in the initial release.
@@ -225,23 +205,23 @@ F&O tools must declare the first desktop API version that ships this feature thr
 
 ## Delivery phases
 
-Item statuses updated on 2026-10-10. **Complete** means the item is implemented and its relevant checks passed; **Implemented** means local code is complete but the stated live verification is outstanding. **Deferred** records a user-requested delay, **Unavailable** records a missing test prerequisite, **Partial** identifies unfinished work, and **Pending / Not started** identifies remaining delivery work. Phase checkboxes remain unchecked until all required items and acceptance criteria are complete; no verification gaps have been waived.
+Item statuses updated on 2026-10-12. **Complete** means the item is implemented and its relevant checks passed; **Implemented** means local code is complete but the stated live verification is outstanding. **Deferred** records a user-requested delay, **Unavailable** records a missing test prerequisite, **Partial** identifies unfinished work, and **Pending / Not started** identifies remaining delivery work. Phase checkboxes remain unchecked until all required items and acceptance criteria are complete; no verification gaps have been waived.
 
 ### [x] Phase 1 — Authentication spike and contract confirmation
 
 Status: complete. Both authentication flows, renewal, paging, restricted-user service access and entity denial passed; required fixture captures are recorded.
 
-| Item | Status | Evidence / remaining work |
-| --- | --- | --- |
-| Configured-client Microsoft Login and loopback redirect | Complete | Live sign-in passed on 2026-10-08 |
-| F&O service-document access probe | Complete | Live connection tests and service discovery passed |
-| Client-secret sign-in and app-to-user registration instructions | Complete | Live authentication passed after F&O app mapping |
-| Interactive silent renewal and client-secret renewal | Complete | Both live renewal tests passed, user confirmed on 2026-10-09 |
-| Environment-root resource and scope behavior | Complete | Both live authentication flows passed using the implemented resource profile |
-| Restricted-user service access and entity permissions | Complete | Test Connection and List entity sets succeeded; CustomersV3 reads returned HTTP 403 denying CustCustomerV3Entity access. User confirmed both on 2026-10-10 |
+| Item                                                                                                       | Status   | Evidence / remaining work                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Configured-client Microsoft Login and loopback redirect                                                    | Complete | Live sign-in passed on 2026-10-08                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F&O service-document access probe                                                                          | Complete | Live connection tests and service discovery passed                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Client-secret sign-in and app-to-user registration instructions                                            | Complete | Live authentication passed after F&O app mapping                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Interactive silent renewal and client-secret renewal                                                       | Complete | Both live renewal tests passed, user confirmed on 2026-10-09                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Environment-root resource and scope behavior                                                               | Complete | Both live authentication flows passed using the implemented resource profile                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Restricted-user service access and entity permissions                                                      | Complete | Test Connection and List entity sets succeeded; CustomersV3 reads returned HTTP 403 denying CustCustomerV3Entity access. User confirmed both on 2026-10-10                                                                                                                                                                                                                                                                                                                           |
 | Sanitized fixtures for service discovery, CSDL, composite keys, paging, actions and authorization failures | Complete | [Nine-file fixture bundle](../tests/fixtures/financeOperations/README.md) added with explicit provenance and regression coverage. Customer/action samples are sanitized live-derived; live service document and CSDL captured on 2026-10-10 and reduced to selected contracts; live validation-error envelope captured and sanitized on 2026-10-10. Both paging responses captured from the user on 2026-10-10; live permission-denial envelope captured and sanitized on 2026-10-10 |
-| API names, key literals, manifest allow-list and deployment scope | Complete | Contracts implemented and documented; hosted HTTPS, interactive/client-secret scope retained |
-| Live paged OData read | Complete | User confirmed live paging passed on 2026-10-10 after adding the sample page-size option |
+| API names, key literals, manifest allow-list and deployment scope                                          | Complete | Contracts implemented and documented; hosted HTTPS, interactive/client-secret scope retained                                                                                                                                                                                                                                                                                                                                                                                         |
+| Live paged OData read                                                                                      | Complete | User confirmed live paging passed on 2026-10-10 after adding the sample page-size option                                                                                                                                                                                                                                                                                                                                                                                             |
 
 Exit: both authentication flows and a paged OData read work in a sandbox; registration instructions are reproducible. Both authentication flows and live paging passed. All named live checks passed, including restricted service access and entity denial. Live permission-denial capture is sanitized and covered by regression tests.
 
@@ -249,16 +229,16 @@ Exit: both authentication flows and a paged OData read work in a sandbox; regist
 
 Status: complete.
 
-| Item | Status | Evidence |
-| --- | --- | --- |
-| Normalized discriminated connection types | Complete | Product-specific types and configuration validation implemented |
-| Legacy migration and encrypted persistence | Complete | Idempotence and legacy-record regression checks passed |
-| Product/authentication validation and import/export | Complete | Unsupported configurations rejected; product retained and secrets excluded |
-| Safe browser/headless connection metadata | Complete | Discriminator exposed without credentials |
-| Manifest allow-list resolution and validator parity | Complete | Undeclared tools default to Dataverse; both validators checked |
-| Existing slot semantics and mixed-product assignments | Complete | Indexed slots, gaps and inherited assignments covered |
-| Compatibility enforcement across launch, restore, invocation and reassignment | Complete | Incompatible assignments rejected before authentication/network access |
-| Legacy Dataverse connections and tools | Complete | Unit and selected Electron regression checks passed |
+| Item                                                                          | Status   | Evidence                                                                   |
+| ----------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| Normalized discriminated connection types                                     | Complete | Product-specific types and configuration validation implemented            |
+| Legacy migration and encrypted persistence                                    | Complete | Idempotence and legacy-record regression checks passed                     |
+| Product/authentication validation and import/export                           | Complete | Unsupported configurations rejected; product retained and secrets excluded |
+| Safe browser/headless connection metadata                                     | Complete | Discriminator exposed without credentials                                  |
+| Manifest allow-list resolution and validator parity                           | Complete | Undeclared tools default to Dataverse; both validators checked             |
+| Existing slot semantics and mixed-product assignments                         | Complete | Indexed slots, gaps and inherited assignments covered                      |
+| Compatibility enforcement across launch, restore, invocation and reassignment | Complete | Incompatible assignments rejected before authentication/network access     |
+| Legacy Dataverse connections and tools                                        | Complete | Unit and selected Electron regression checks passed                        |
 
 Exit: existing saved connections and old tools behave as before; incompatible assignments fail before network access. Automated acceptance passed.
 
@@ -266,57 +246,66 @@ Exit: existing saved connections and old tools behave as before; incompatible as
 
 Status: complete. Automated transport coverage and all named live API checks passed.
 
-| Item | Status | Evidence / remaining work |
-| --- | --- | --- |
-| Product-aware scopes and access probes | Complete | Both live authentication flows and service access passed |
-| Cache invalidation after authentication configuration changes | Complete | Implemented with automated regression coverage |
-| Refresh and unattended authentication behavior | Complete | Fixture checks, live client-secret headless read, interactive silent renewal and client-secret renewal passed |
-| Service document and raw XML metadata | Complete | Live reads passed; metadata size/timeout follow-up verified locally |
-| One-page query API and next-link preservation | Complete | Reads and next-link fixture checks passed; user confirmed live paging passed on 2026-10-10 |
-| Cross-company filtering | Complete | Live test passed on 2026-10-08 |
-| Create and keyed retrieve | Complete | CustomersV3 passed using generated account numbering and explicit cross-company keyed read |
-| Update, delete and cleanup verification | Complete | PATCH/name verification, DELETE and final GET 404 passed |
-| General requests and OData actions | Complete | GetInstalledModules POST returned HTTP 200 and Collection(Edm.String) |
-| URL, key, header, size, timeout and replay safeguards | Complete | Automated boundary tests passed; writes are not automatically replayed |
-| Structured errors and nested validation messages | Complete | Live customer-number validation exposed; 35 focused transport/manager tests passed |
-| Product guards on Dataverse and Power Platform APIs | Complete | Pre-network rejection covered by regression tests |
-| Restricted-user authorization failures | Complete | User supplied live HTTP 403 denying reads of CustCustomerV3Entity on 2026-10-10; raw fixture captured and sanitized on 2026-10-10 |
+| Item                                                          | Status   | Evidence / remaining work                                                                                                         |
+| ------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Product-aware scopes and access probes                        | Complete | Both live authentication flows and service access passed                                                                          |
+| Cache invalidation after authentication configuration changes | Complete | Implemented with automated regression coverage                                                                                    |
+| Refresh and unattended authentication behavior                | Complete | Fixture checks, live client-secret headless read, interactive silent renewal and client-secret renewal passed                     |
+| Service document and raw XML metadata                         | Complete | Live reads passed; metadata size/timeout follow-up verified locally                                                               |
+| One-page query API and next-link preservation                 | Complete | Reads and next-link fixture checks passed; user confirmed live paging passed on 2026-10-10                                        |
+| Cross-company filtering                                       | Complete | Live test passed on 2026-10-08                                                                                                    |
+| Create and keyed retrieve                                     | Complete | CustomersV3 passed using generated account numbering and explicit cross-company keyed read                                        |
+| Update, delete and cleanup verification                       | Complete | PATCH/name verification, DELETE and final GET 404 passed                                                                          |
+| General requests and OData actions                            | Complete | GetInstalledModules POST returned HTTP 200 and Collection(Edm.String)                                                             |
+| URL, key, header, size, timeout and replay safeguards         | Complete | Automated boundary tests passed; writes are not automatically replayed                                                            |
+| Structured errors and nested validation messages              | Complete | Live customer-number validation exposed; 35 focused transport/manager tests passed                                                |
+| Product guards on Dataverse and Power Platform APIs           | Complete | Pre-network rejection covered by regression tests                                                                                 |
+| Restricted-user authorization failures                        | Complete | User supplied live HTTP 403 denying reads of CustCustomerV3Entity on 2026-10-10; raw fixture captured and sanitized on 2026-10-10 |
 
 Exit: fixture-based transport coverage passes and sandbox verification covers both flows, CRUD, paging, company filters, and an available action. All named live checks passed, including paging confirmed on 2026-10-10; restricted service access and entity denial also passed on 2026-10-10. Live denial capture is sanitized and covered by regression tests.
 
-### [ ] Phase 4 — Tool exposure, headless support, and connection UX
+### [x] Phase 4 — Tool exposure, headless support, and connection UX
 
-Status: local implementation and live execution acceptance complete; version/release work outstanding.
+Status: complete for the upstream PR. Local implementation and live execution acceptance passed. Remaining shipping and backend rollout tasks belong to the upstream release process and are tracked separately.
 
-| Item | Status | Evidence / remaining work |
+| Item                                                                 | Status   | Evidence / remaining work                                                                                |
+| -------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| IPC registration, sender/slot routing and lifecycle cleanup          | Complete | Implemented; real tool-to-main IPC fixture checks passed                                                 |
+| Browser and headless API exposure                                    | Complete | Shared facade implemented; live reads passed in both runtimes                                            |
+| Matching internal/public declarations and package references         | Complete | Declaration consumer checks passed; package dry run includes F&O declarations                            |
+| Minimum-version compatibility mechanism and author guidance | Complete | Existing minAPI mechanism documented; release-specific values assigned by upstream at release preparation |
+| API and registration documentation                                   | Complete | Tool-author documentation, plan and manual guide available                                               |
+| F&O forms, supported authentication fields and registration guidance | Complete | Add/edit UI and automated checks passed                                                                  |
+| Product badges, connection-list type filter and picker compatibility | Complete | Product filter/clear behavior and picker regression tests passed                                         |
+| Safe connection events and metadata                                  | Complete | Implemented using existing event/context paths                                                           |
+| Small desktop/headless sample                                        | Complete | Local sample includes both entry points and MCP configuration; live headless test passed                 |
+| Same read in desktop and unattended client-secret execution          | Complete | User confirmed live acceptance on 2026-10-08                                                             |
+| Legacy Dataverse usability                                           | Complete | Regression checks passed                                                                                 |
+| Registry client mapping and package fallback | Complete | Desktop accepts connection_types and preserves manifest requirements when the registry omits the field |
+
+Exit: an F&O tool completes the same read in a desktop window and an unattended client-secret invocation; old Dataverse tools remain usable. Acceptance passed. Phase 4 PR implementation is complete; release publication is not claimed.
+
+### Upstream release-process handoff
+
+These tasks remain pending outside the implementation phases. Upstream release maintainers own their scheduling and completion; PR completion does not imply that packages, a desktop release or backend changes have shipped.
+
+| Task | Status | Release responsibility |
 | --- | --- | --- |
-| IPC registration, sender/slot routing and lifecycle cleanup | Complete | Implemented; real tool-to-main IPC fixture checks passed |
-| Browser and headless API exposure | Complete | Shared facade implemented; live reads passed in both runtimes |
-| Matching internal/public declarations and package references | Complete | Declaration consumer checks passed; package dry run includes F&O declarations |
-| Shipping desktop/types/validator version selection | Pending | Choose the first release carrying F&O support |
-| Minimum-version compatibility metadata and author guidance | Partial | Existing minAPI mechanism documented; F&O shipping minimum and sample declaration remain to be finalized |
-| API and registration documentation | Complete | Tool-author documentation, plan and manual guide available |
-| F&O forms, supported authentication fields and registration guidance | Complete | Add/edit UI and automated checks passed |
-| Product badges, connection-list type filter and picker compatibility | Complete | Product filter/clear behavior and picker regression tests passed |
-| Safe connection events and metadata | Complete | Implemented using existing event/context paths |
-| Small desktop/headless sample | Complete | Local sample includes both entry points and MCP configuration; live headless test passed |
-| Same read in desktop and unattended client-secret execution | Complete | User confirmed live acceptance on 2026-10-08 |
-| Legacy Dataverse usability | Complete | Regression checks passed |
-| Publish matching types/validation packages and desktop release | Pending | No release publication performed |
-| Registry connection_types ingestion/view rollout | Partial | Desktop mapping and package fallback implemented; remote backend changes remain outstanding |
-
-Exit: an F&O tool completes the same read in a desktop window and an unattended client-secret invocation; old Dataverse tools remain usable. Execution acceptance passed; phase closure still requires the remaining version/release work.
+| Select shipping desktop/types/validator versions | Upstream pending | Choose the first releases carrying F&O support |
+| Finalize release-specific minimum-version metadata | Upstream pending | Set the sample's features.minAPI and document the selected shipping minimum once versions are agreed |
+| Publish matching types/validation packages and desktop release | Upstream pending | Run upstream publication and desktop release workflows |
+| Registry connection_types ingestion/schema/view rollout | Upstream pending | Coordinate the registry backend changes and deployment; desktop mapping and manifest fallback are already implemented |
 
 ### [ ] Phase 5 — Batch and transaction helpers
 
 Status: not started; later scope, not required for the initial phases 1–4 release.
 
-| Item | Status | Remaining work |
-| --- | --- | --- |
-| executeBatch and executeTransaction helpers | Not started | Implement explicit per-item status, headers and body |
-| Shared multipart transport extraction | Not started | Separate Dataverse assumptions and validate F&O fixtures before reuse |
+| Item                                                          | Status      | Remaining work                                                         |
+| ------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
+| executeBatch and executeTransaction helpers                   | Not started | Implement explicit per-item status, headers and body                   |
+| Shared multipart transport extraction                         | Not started | Separate Dataverse assumptions and validate F&O fixtures before reuse  |
 | Mixed-result, rollback, limits and per-request boundary tests | Not started | Add fixture coverage for successful/failed items and atomic changesets |
-| Live batch/transaction acceptance | Not started | Verify F&O batch behavior and atomic writes in a disposable sandbox |
+| Live batch/transaction acceptance                             | Not started | Verify F&O batch behavior and atomic writes in a disposable sandbox    |
 
 Exit: verified F&O batch behavior and atomic writes in a disposable sandbox.
 
