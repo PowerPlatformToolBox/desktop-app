@@ -113,10 +113,7 @@ export type EntityRelatedMetadataBasePath = "Attributes" | "Keys" | "ManyToOneRe
  * Allowed related metadata paths. Supports nested lookups such as Attributes(LogicalName='accountnumber')/OptionSet
  */
 export type EntityRelatedMetadataPath =
-    | EntityRelatedMetadataBasePath
-    | `${EntityRelatedMetadataBasePath}/${string}`
-    | `${EntityRelatedMetadataBasePath}(${string})`
-    | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
+    EntityRelatedMetadataBasePath | `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
 
 /**
  * Runtime-safe list of supported base segments for related metadata retrieval

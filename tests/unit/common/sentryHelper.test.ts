@@ -1,10 +1,13 @@
 /// <reference types="jest" />
 
+import { logError as applicationLogError } from "../../../src/common/logger";
 import {
     addConnectionSlotsBreadcrumb,
     captureException,
     captureMessage,
     initializeSentryHelper,
+    logError,
+    logFatal,
     logInfo,
     recordSentryTelemetryDisabled,
     resetSentryHelper,
@@ -54,7 +57,10 @@ describe("Sentry helper telemetry consent", () => {
         expect(span.end).toHaveBeenCalledTimes(1);
     });
     const sentry = {
-        logger: { info: jest.fn(), debug: jest.fn(), error: jest.fn() },
+        logger: { info: jest.fn(), debug: jest.fn(), error: jest.fn(), fatal: jest.fn() },
+        withScope: (callback: (scope: unknown) => void) => callback({ setTag: jest.fn(), setExtra: jest.fn(), setLevel: jest.fn() }),
+        captureException: jest.fn(),
+        captureMessage: jest.fn(),
         flush: jest.fn().mockResolvedValue(true),
     };
 
@@ -74,6 +80,49 @@ describe("Sentry helper telemetry consent", () => {
         logInfo("ordinary message");
 
         expect(sentry.logger.info).not.toHaveBeenCalled();
+    });
+
+    it("reports handled error messages as issues as well as structured logs", () => {
+        setSentryTelemetryConsent("yes");
+
+        logError("worker failed", { workerId: "worker" });
+
+        expect(sentry.captureMessage).toHaveBeenCalledWith("worker failed", "error");
+        expect(sentry.logger.error).toHaveBeenCalledWith("worker failed", { workerId: "worker", machine_id: null });
+        expect(sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it("preserves the original exception through the application logger", () => {
+        setSentryTelemetryConsent("yes");
+        const error = new Error("worker failed");
+
+        applicationLogError(error, { workerId: "worker" });
+
+        expect(sentry.captureException).toHaveBeenCalledWith(error);
+        expect(sentry.captureMessage).not.toHaveBeenCalled();
+        expect(sentry.logger.error).toHaveBeenCalledWith("Error: worker failed", { data: { workerId: "worker" }, machine_id: null });
+    });
+
+    it("reports fatal logs as fatal issues even without structured logging", () => {
+        initializeSentryHelper({ ...sentry, logger: undefined });
+        setSentryTelemetryConsent("yes");
+
+        logFatal("worker crashed");
+
+        expect(sentry.captureMessage).toHaveBeenCalledWith("worker crashed", "fatal");
+    });
+
+    it.each([null, "no"] as const)("does not send error or fatal issues with consent %s", (consent) => {
+        setSentryTelemetryConsent(consent);
+
+        logError("worker failed");
+        applicationLogError(new Error("worker failed"));
+        logFatal("worker crashed");
+
+        expect(sentry.captureException).not.toHaveBeenCalled();
+        expect(sentry.captureMessage).not.toHaveBeenCalled();
+        expect(sentry.logger.error).not.toHaveBeenCalled();
+        expect(sentry.logger.fatal).not.toHaveBeenCalled();
     });
 
     it("normalizes nested log fields and keeps the shared machine identifier authoritative", () => {

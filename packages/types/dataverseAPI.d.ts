@@ -49,10 +49,7 @@ declare namespace DataverseAPI {
     export type EntityRelatedMetadataBasePath = "Attributes" | "Keys" | "ManyToOneRelationships" | "OneToManyRelationships" | "ManyToManyRelationships" | "Privileges";
 
     export type EntityRelatedMetadataPath =
-        | EntityRelatedMetadataBasePath
-        | `${EntityRelatedMetadataBasePath}/${string}`
-        | `${EntityRelatedMetadataBasePath}(${string})`
-        | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
+        EntityRelatedMetadataBasePath | `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
 
     type EntityRelatedMetadataRecordPath = `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
 

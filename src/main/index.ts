@@ -221,10 +221,17 @@ class ToolBoxApp {
                     if (!identity) return null;
                     return { owner: { toolId: loaded.toolId, instanceId }, identity, sourceFingerprint: nativeWorkerSourceFingerprint(loaded) };
                 },
-                onStartupFailure: (code) =>
-                    captureException(new Error(`Native worker startup failed: ${code}`), {
+                onStartupFailure: (code, error) => {
+                    const message = error instanceof Error && error.message ? error.message : `Native worker startup failed: ${code}`;
+                    logError(`Native worker startup failed: ${code}`, error);
+                    captureException(error instanceof Error ? error : new Error(message), {
                         tags: { component: "native_worker", failure_code: code },
-                    }),
+                        extra: {
+                            failure_code: code,
+                            ...(error && typeof error === "object" && "details" in error && typeof error.details === "string" ? { details: error.details } : {}),
+                        },
+                    });
+                },
                 onError: (error) => logError("Native worker cleanup failed", error),
             });
             this.protocolHandlerManager = new ProtocolHandlerManager();

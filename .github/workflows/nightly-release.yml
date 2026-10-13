@@ -225,7 +225,7 @@ jobs:
 
             - name: Package installers from signed directory (Windows)
               if: matrix.os == 'windows-latest'
-              run: pnpm exec electron-builder --config ${{ matrix.config }} --prepackaged build/${{ matrix.win_unpacked_dir }}
+              run: pnpm exec electron-builder --config ${{ matrix.config }} --${{ matrix.win_arch }} --prepackaged build/${{ matrix.win_unpacked_dir }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
