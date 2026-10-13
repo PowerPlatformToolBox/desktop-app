@@ -135,24 +135,22 @@ describe("WorkerBrokerManager", () => {
             (sender, workerId) => (workerId === "engine" ? (identities.get(sender)?.identity ?? null) : null),
         );
         discover = jest.fn(async (): Promise<DotNetDiscoveryResult> => ({ ok: true, value: selection() }));
-        prepare = jest.fn(
-            async (request: DotNetToolPreparationRequest): Promise<DotNetPreparedTool> => ({
-                identity: request.identity,
-                declarationFingerprint: createHash("sha256").update(dotNetStableJson(request.declaration)).digest("hex"),
-                preparationFingerprint: "b".repeat(64),
-                workspace: "/cache/worker",
-                manifestPath: "/cache/worker/.config/dotnet-tools.json",
-                packageId: request.declaration.packageId,
-                packageVersion: request.declaration.packageVersion,
-                command: request.declaration.command,
-                entryPoint: "/cache/worker/Worker.dll",
-                runtimeConfigPath: "/cache/worker/Worker.runtimeconfig.json",
-                depsPath: "/cache/worker/Worker.deps.json",
-                selection: request.selection,
-                integrityHash: "c".repeat(64),
-                reused: false,
-            }),
-        );
+        prepare = jest.fn(async (request: DotNetToolPreparationRequest): Promise<DotNetPreparedTool> => ({
+            identity: request.identity,
+            declarationFingerprint: createHash("sha256").update(dotNetStableJson(request.declaration)).digest("hex"),
+            preparationFingerprint: "b".repeat(64),
+            workspace: "/cache/worker",
+            manifestPath: "/cache/worker/.config/dotnet-tools.json",
+            packageId: request.declaration.packageId,
+            packageVersion: request.declaration.packageVersion,
+            command: request.declaration.command,
+            entryPoint: "/cache/worker/Worker.dll",
+            runtimeConfigPath: "/cache/worker/Worker.runtimeconfig.json",
+            depsPath: "/cache/worker/Worker.deps.json",
+            selection: request.selection,
+            integrityHash: "c".repeat(64),
+            reused: false,
+        }));
         children = [];
         errors = jest.fn();
         startupFailures = jest.fn();
@@ -502,7 +500,7 @@ describe("WorkerBrokerManager", () => {
         allow();
         await expect(started.ready).rejects.toThrow(code);
         await tick();
-        expect(startupFailures).toHaveBeenCalledWith(code);
+        expect(startupFailures).toHaveBeenCalledWith(code, expect.objectContaining({ code }));
         if (code === "WORKSPACE_INVALID" || code === "RESTORE_STOP_UNVERIFIED") {
             const mutate = jest.fn(async () => undefined);
             expectedShutdownFailure = code;

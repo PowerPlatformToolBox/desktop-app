@@ -28,6 +28,7 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
                 dsn: sentryConfig.dsn,
                 environment: sentryConfig.environment,
                 release: sentryConfig.release,
+                sampleRate: 1.0,
                 tracesSampleRate: sentryConfig.tracesSampleRate,
                 enableLogs: true,
                 integrations: [Sentry.httpIntegration(), Sentry.nodeContextIntegration(), Sentry.contextLinesIntegration(), Sentry.localVariablesIntegration(), Sentry.modulesIntegration()],

@@ -29,6 +29,7 @@ interface RuntimeLog {
 }
 
 interface RuntimeOptions {
+    sampleRate: number;
     enableLogs: boolean;
     integrations: Array<{ name: string }>;
     beforeSend(event: Record<string, unknown>): Record<string, unknown> | null;
@@ -78,6 +79,15 @@ describe("renderer Sentry runtime", () => {
         expect(await applyConsent("yes")).toBe(true);
         return sdk.init.mock.calls[0][0];
     }
+
+    test.each([true, false])("accepts error events with handled=%s without sampling or disabling default integrations", async (handled) => {
+        const options = await initialize();
+        const event = { level: "error", exception: { values: [{ type: "Error", value: "worker failed", mechanism: { type: "generic", handled } }] } };
+
+        expect(options.sampleRate).toBe(1);
+        expect(options).not.toHaveProperty("defaultIntegrations", false);
+        expect(options.beforeSend(event)).toMatchObject(event);
+    });
 
     test.each([null, "no"] as const)("does not initialize or set identity with consent %s", async (consent) => {
         expect(await applyConsent(consent, installId)).toBe(false);

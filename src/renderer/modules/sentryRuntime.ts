@@ -37,6 +37,7 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
             dsn: sentryConfig.dsn,
             environment: sentryConfig.environment,
             release: sentryConfig.release,
+            sampleRate: 1.0,
             tracesSampleRate: sentryConfig.tracesSampleRate,
             replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
             replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,

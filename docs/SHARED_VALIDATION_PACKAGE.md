@@ -41,9 +41,9 @@ Extract the validation logic into a dedicated, published npm package — **`@ppt
 - [ ] Set `"name": "@pptb/validation"` in `package.json`.
 - [ ] Port `packages/lib/validate.js` (or `pptb-web/lib/tool-validation.ts`) into this package as the canonical source. TypeScript is preferred; ship both ESM and CJS builds.
 - [ ] Export the public API:
-  - `validatePackageJson(pkg, options?)` — async validation function
-  - `APPROVED_LICENSES` — approved license list
-  - TypeScript types: `ValidationResult`, `ToolPackageJson`, `ValidationOptions`
+    - `validatePackageJson(pkg, options?)` — async validation function
+    - `APPROVED_LICENSES` — approved license list
+    - TypeScript types: `ValidationResult`, `ToolPackageJson`, `ValidationOptions`
 - [ ] Write unit tests covering every validation rule.
 - [ ] Publish to npm as `@pptb/validation`.
 
@@ -89,8 +89,8 @@ Until `@pptb/validation` is created and both consumers are migrated, `packages/l
 
 ## Related Files
 
-| File | Role |
-|---|---|
-| `packages/lib/validate.js` | Current local copy of validation rules (in `@pptb/types`) |
-| `packages/bin/pptb-validate.js` | CLI entry point; calls `validate.js` |
-| `pptb-web/lib/tool-validation.ts` | Canonical server-side validation (review pipeline) |
+| File                              | Role                                                      |
+| --------------------------------- | --------------------------------------------------------- |
+| `packages/lib/validate.js`        | Current local copy of validation rules (in `@pptb/types`) |
+| `packages/bin/pptb-validate.js`   | CLI entry point; calls `validate.js`                      |
+| `pptb-web/lib/tool-validation.ts` | Canonical server-side validation (review pipeline)        |

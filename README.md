@@ -38,7 +38,7 @@
     <a href="https://www.powerplatformtoolbox.com" alt="Website">
       <img src="https://img.shields.io/website?url=https%3A%2F%2Fwww.powerplatformtoolbox.com" />
     </a>
-    
+
 </p>
 
 <p align="center">
@@ -222,9 +222,9 @@ Supporting Team:
 - **[Oleksandr Olashyn](https://github.com/OOlashyn)** — _The UI Polisher_ 🎨  
   Focused on refining the toolbox UI and elevating the overall experience.
 - **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
-   Generates ideas and relentlessly pushes the team forward.
+  Generates ideas and relentlessly pushes the team forward.
 - **[Mike Ochs](https://github.com/mikefactorial)** - _The Idea Factory_ 💡  
-   Constantly brainstorming new features and improvements to keep the toolbox evolving.
+  Constantly brainstorming new features and improvements to keep the toolbox evolving.
 
 > If you wish to officially be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
