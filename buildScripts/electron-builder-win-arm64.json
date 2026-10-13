@@ -20,6 +20,8 @@
     "nsis": {
         "oneClick": false,
         "perMachine": false,
+        "differentialPackage": false,
+        "useZip": true,
         "allowToChangeInstallationDirectory": true,
         "createDesktopShortcut": true,
         "createStartMenuShortcut": true
