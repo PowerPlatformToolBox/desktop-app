@@ -23,7 +23,7 @@ export interface WorkerBrokerDependencies {
     createPreparation?: (approve: (request: DotNetToolPreparationRequest) => Promise<boolean>) => Pick<DotNetToolManager, "prepare">;
     process?: Omit<WorkerProcessDependencies, "prepare">;
     cleanupTimeoutMs?: number;
-    onStartupFailure?(code: string): void;
+    onStartupFailure?(code: string, error?: unknown): void;
     onError(error: unknown): void;
 }
 
@@ -138,7 +138,7 @@ export class WorkerBrokerManager {
                 const code = startupFailureCode(error);
                 if (["APPROVAL_DENIED", "CANCELLED", "CONSENT_REJECTED", "NOT_AUTHORIZED", "OWNER_UNAVAILABLE", "SOURCE_CHANGED", "TOOL_UNAVAILABLE", "WORKER_STOPPED"].includes(code)) return;
                 try {
-                    this.dependencies.onStartupFailure?.(code);
+                    this.dependencies.onStartupFailure?.(code, error);
                 } catch {
                     return;
                 }

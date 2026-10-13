@@ -49,9 +49,7 @@ if (configFile) {
         case "darwin": // macOS
             console.log(`📦 Building for macOS (${arch})`);
             run(
-                isInsider
-                    ? "pnpm exec electron-builder --config buildScripts/electron-builder-mac-insider.json"
-                    : "pnpm exec electron-builder --config buildScripts/electron-builder-mac.json",
+                isInsider ? "pnpm exec electron-builder --config buildScripts/electron-builder-mac-insider.json" : "pnpm exec electron-builder --config buildScripts/electron-builder-mac.json",
                 channelEnv,
             );
             break;
@@ -67,9 +65,7 @@ if (configFile) {
                 );
             } else {
                 run(
-                    isInsider
-                        ? "pnpm exec electron-builder --config buildScripts/electron-builder-win-insider.json"
-                        : "pnpm exec electron-builder --config buildScripts/electron-builder-win.json",
+                    isInsider ? "pnpm exec electron-builder --config buildScripts/electron-builder-win-insider.json" : "pnpm exec electron-builder --config buildScripts/electron-builder-win.json",
                     channelEnv,
                 );
             }
@@ -78,9 +74,7 @@ if (configFile) {
         case "linux": // Linux
             console.log(`📦 Building for Linux (${arch})`);
             run(
-                isInsider
-                    ? "pnpm exec electron-builder --config buildScripts/electron-builder-linux-insider.json"
-                    : "pnpm exec electron-builder --config buildScripts/electron-builder-linux.json",
+                isInsider ? "pnpm exec electron-builder --config buildScripts/electron-builder-linux-insider.json" : "pnpm exec electron-builder --config buildScripts/electron-builder-linux.json",
                 channelEnv,
             );
             break;

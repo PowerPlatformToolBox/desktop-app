@@ -7,9 +7,7 @@
             "id": "alpha-unverified",
             "name": "Alpha Unverified",
             "description": "An explicitly unverified test tool.",
-            "authors": [
-                "PPTB Tests"
-            ],
+            "authors": ["PPTB Tests"],
             "version": "1.0.0",
             "downloadUrl": "https://example.test/alpha-unverified.tar.gz",
             "publishedAt": "2026-01-01T00:00:00.000Z",
@@ -23,9 +21,7 @@
             "id": "bravo-verified",
             "name": "Bravo Verified",
             "description": "A verified test tool.",
-            "authors": [
-                "PPTB Tests"
-            ],
+            "authors": ["PPTB Tests"],
             "version": "1.0.0",
             "downloadUrl": "https://example.test/bravo-verified.tar.gz",
             "publishedAt": "2026-01-01T00:00:00.000Z",
@@ -42,9 +38,7 @@
             "id": "community-recommended",
             "name": "Community Recommended",
             "description": "A future maturity tier test tool.",
-            "authors": [
-                "PPTB Tests"
-            ],
+            "authors": ["PPTB Tests"],
             "version": "1.0.0",
             "downloadUrl": "https://example.test/community-recommended.tar.gz",
             "publishedAt": "2026-01-01T00:00:00.000Z",
@@ -55,9 +49,7 @@
             "id": "zulu-verified",
             "name": "Zulu Verified",
             "description": "A second verified test tool.",
-            "authors": [
-                "PPTB Tests"
-            ],
+            "authors": ["PPTB Tests"],
             "version": "1.0.0",
             "downloadUrl": "https://example.test/zulu-verified.tar.gz",
             "publishedAt": "2026-01-01T00:00:00.000Z",

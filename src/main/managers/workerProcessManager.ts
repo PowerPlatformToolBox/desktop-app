@@ -45,9 +45,15 @@ export interface WorkerProcessDependencies {
 }
 
 export class WorkerProcessError extends Error {
-    constructor(readonly code: string) {
-        super(`Worker transport: ${code}`);
+    readonly details?: string;
+    constructor(
+        readonly code: string,
+        message?: string,
+        options?: ErrorOptions & { details?: string },
+    ) {
+        super(message ?? `Worker transport: ${code}`, options);
         this.name = "WorkerProcessError";
+        if (options?.details) this.details = options.details;
     }
 }
 
@@ -329,7 +335,7 @@ export class WorkerProcessManager {
                     this.dependencies.preserveStartupErrorCodes && error instanceof Error && "code" in error && typeof error.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)
                         ? error.code
                         : "STARTUP_FAILED";
-                this.fail(record, code);
+                this.fail(record, code, error instanceof Error ? error : undefined);
             }
         } finally {
             record.preparationSettled = true;
@@ -576,11 +582,12 @@ export class WorkerProcessManager {
         else end();
     }
 
-    private fail(record: WorkerRecord, code: string): void {
+    private fail(record: WorkerRecord, code: string, cause?: Error): void {
         if (record.cleaned || record.state === "failed" || record.state === "exited") return;
         record.state = "failed";
         record.failure = code;
-        record.rejectReady(new WorkerProcessError(code));
+        const details = cause && "details" in cause && typeof (cause as { details?: unknown }).details === "string" ? (cause as { details: string }).details : undefined;
+        record.rejectReady(new WorkerProcessError(code, undefined, { cause, details }));
         void this.beginStop(record, false);
         this.notifyTerminal(record);
     }
