@@ -14,7 +14,7 @@ For Microsoft Login, configure an Entra mobile/desktop app redirect URI of `http
 
 ## Read from a tool window
 
-1. Open **Debug → Local Development → Browse** and select `examples/finance-operations-odata` from this repository. Click **Load Tool**.
+1. Open **Debug → Local Development → Browse** and select `FinOps/finance-operations-odata` from the `pptb-sample-tools` repository. Click **Load Tool**.
 2. Launch the sample and select the F&O connection. Only F&O connections should appear; impersonation should be hidden.
 3. Click **List entity sets**. Expect a JSON service document with public collection names.
 4. Click **Read metadata**. Expect XML CSDL.
@@ -27,9 +27,9 @@ The sample does not write data. For a negative check, query an unavailable entit
 
 ## Read Dataverse and F&O in the same tool
 
-Load `examples/dataverse-finance-operations` using **Debug → Local Development → Browse → Load Tool**. Choose a Dataverse connection for **Dataverse accounts** (slot 1 / API target 0) and an F&O connection for **F&O customers** (slot 2 / API target 1). Verify each purpose is visible while selecting/searching, each slot offers only its product, and confirmation requires both. Click **Read both systems** and expect independent account and customer responses. Reassign either slot to another compatible environment while the tool is open, read again, and confirm each response comes from the newly selected environment at the same target index.
+Load `FinOps/dataverse-finance-operations` using **Debug → Local Development → Browse → Load Tool**. Choose a Dataverse connection for **Dataverse accounts** (slot 1 / API target 0) and an F&O connection for **F&O customers** (slot 2 / API target 1). Verify each purpose is visible while selecting/searching, each slot offers only its product, and confirmation requires both. Click **Read both systems** and expect independent account and customer responses. Reassign either slot to another compatible environment while the tool is open, read again, and confirm each response comes from the newly selected environment at the same target index.
 
-Wrong products should be absent from each picker; direct swaps, same-product pairs and missing required assignments must be rejected before any request and preserve the previous connections. Try a failed query on each side separately and confirm the other side's successful response remains visible. See the [example README](../examples/dataverse-finance-operations/README.md) for details. Automated coverage uses simulated HTTP responses and verifies declared-order routing, compatible reassignment, independent failures and wrong-slot rejection. Existing tool-wide mixed count declarations retain either-order behavior in a separate regression test. This mixed-tool live smoke test remains pending.
+Wrong products should be absent from each picker; direct swaps, same-product pairs and missing required assignments must be rejected before any request and preserve the previous connections. Try a failed query on each side separately and confirm the other side's successful response remains visible. See the [example README](https://github.com/OliverFlint/pptb-sample-tools/blob/main/FinOps/dataverse-finance-operations/README.md) for details. Automated coverage uses simulated HTTP responses and verifies declared-order routing, compatible reassignment, independent failures and wrong-slot rejection. Existing tool-wide mixed count declarations retain either-order behavior in a separate regression test. This mixed-tool live smoke test remains pending.
 
 The example uses an unreleased typed-slot contract. Use the local updated branch; assign its `features.minAPI` to the actual supporting desktop release before publication. The supporting app/types/validator versions and external intake support remain release dependencies in the [slot implementation checklist](CONNECTION_SLOT_DEFINITIONS_IMPLEMENTATION_PLAN.md).
 

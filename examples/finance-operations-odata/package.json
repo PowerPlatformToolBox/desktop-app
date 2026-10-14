@@ -1,9 +1,0 @@
-{
-  "name": "pptb-finance-operations-odata-sample",
-  "version": "0.1.0",
-  "description": "Read-only F&O OData smoke test for local development.",
-  "displayName": "F&O OData Sample",
-  "author": "Power Platform ToolBox",
-  "license": "GPL-3.0",
-  "features": { "connections": 1, "connectionTypes": ["financeOperations"] }
-}

@@ -93,6 +93,16 @@ Phase 6 verification (2026-10-14): **46 additional Electron cases** close the au
 
 ## Outcome
 
+Sample relocation: the maintained OData and mixed-product examples now live in
+`D:\repos\pptb-sample-tools\FinOps`, in `finance-operations-odata` and
+`dataverse-finance-operations` respectively. Desktop E2E coverage retains a
+documented mixed-tool snapshot under `tests/e2e/tool-fixtures` so CI remains
+self-contained. The fixture paths and documentation links were updated. On
+2026-10-15, the user reported both mixed-example E2E tests passing (9.4 seconds),
+covering typed declared-order reassignment and legacy either-order routing after
+the relocation. The relocation is committed as a coordinated checkpoint in both
+repositories; neither repository has been pushed.
+
 Allow a tool to declare the product types and required status of each connection slot. A mixed tool can require Dataverse in slot 0 and Finance & Operations in slot 1, and PPTB enforces that declaration before launching or changing the tool's connections.
 
 Existing integer, range, and legacy declarations retain their current behavior. No saved-connection migration or new connection-target API is required.
@@ -254,7 +264,7 @@ Acceptance: a headless tool with optional slot 0 and required F&O slot 1 receive
 
 ## 6. Example, documentation, and release compatibility
 
-Convert `examples/dataverse-finance-operations/package.json` to two typed required slots. Update its UI instructions and README: slot order is now declared by the tool, so users no longer choose either order. Use explicit targets 0 and 1 in its API calls; keep useful error handling for failed reads.
+Convert `FinOps/dataverse-finance-operations/package.json` to two typed required slots. Update its UI instructions and README: slot order is now declared by the tool, so users no longer choose either order. Use explicit targets 0 and 1 in its API calls; keep useful error handling for failed reads.
 
 Update `docs/N_CONNECTION_TOOL_AUTHOR_GUIDE.md`, the existing N-connection plan's contract reference, F&O manual testing instructions, and MCP author guidance. Document defaults, optional holes, runtime reassignment, and migration from tool-level types.
 

@@ -162,11 +162,7 @@ buildScripts/*/latest-mac.yml
 # Test Results
 test-results/
 
-# The read-only local sample has no build step.
-!examples/finance-operations-odata/dist/
-!examples/finance-operations-odata/dist/index.html
-!examples/finance-operations-odata/dist/sample.js
-!examples/finance-operations-odata/dist/headless.js
-!examples/dataverse-finance-operations/dist/
-!examples/dataverse-finance-operations/dist/index.html
-!examples/dataverse-finance-operations/dist/sample.js
+# The mixed-tool regression snapshot has no build step.
+!tests/e2e/tool-fixtures/dataverse-finance-operations/dist/
+!tests/e2e/tool-fixtures/dataverse-finance-operations/dist/index.html
+!tests/e2e/tool-fixtures/dataverse-finance-operations/dist/sample.js
