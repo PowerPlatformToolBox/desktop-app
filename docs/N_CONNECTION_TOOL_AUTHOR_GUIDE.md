@@ -75,7 +75,7 @@ const accounts = await window.dataverseAPI.queryData("accounts?$top=5", 0);
 const customers = await window.financeOperationsAPI.queryData("CustomersV3?$top=5", { connectionTarget: 1 });
 ```
 
-See the [mixed example](../examples/dataverse-finance-operations/README.md) for concurrent reads and independent error handling. Typed manifests require the coordinated supporting desktop/types/validator release; the release version and example's corresponding `minAPI` remain pending in the [implementation checklist](CONNECTION_SLOT_DEFINITIONS_IMPLEMENTATION_PLAN.md). Use the local updated packages for development and set the actual supporting `minAPI` before publication.
+See the [mixed example](../examples/dataverse-finance-operations/README.md) for concurrent reads and independent error handling. Typed manifests require the coordinated supporting desktop/types/validator release; desktop release **1.3.0** is selected and the example declares `minAPI: "1.3.0"` in the [implementation checklist](CONNECTION_SLOT_DEFINITIONS_IMPLEMENTATION_PLAN.md). Use the local updated packages for development and declare `features.minAPI: "1.3.0"` for slot-based tools.
 
 ## Address Slots
 

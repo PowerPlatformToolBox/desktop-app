@@ -6,6 +6,7 @@
     "author": "Power Platform ToolBox",
     "license": "GPL-3.0",
     "features": {
+        "minAPI": "1.3.0",
         "connections": {
             "slots": [
                 {
