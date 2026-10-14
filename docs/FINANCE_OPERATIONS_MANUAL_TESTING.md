@@ -27,9 +27,11 @@ The sample does not write data. For a negative check, query an unavailable entit
 
 ## Read Dataverse and F&O in the same tool
 
-Load `examples/dataverse-finance-operations` using **Debug → Local Development → Browse → Load Tool**. Select one Dataverse connection and one F&O connection, then click **Read both systems**. Expect independent account and customer responses. Repeat with the connections in the opposite slot order, and reassign them while the tool is open before reading again. The tool identifies each product and passes its slot explicitly to the appropriate API.
+Load `examples/dataverse-finance-operations` using **Debug → Local Development → Browse → Load Tool**. Choose a Dataverse connection for **Dataverse accounts** (slot 1 / API target 0) and an F&O connection for **F&O customers** (slot 2 / API target 1). Verify each purpose is visible while selecting/searching, each slot offers only its product, and confirmation requires both. Click **Read both systems** and expect independent account and customer responses. Reassign either slot to another compatible environment while the tool is open, read again, and confirm each response comes from the newly selected environment at the same target index.
 
-Selecting two connections of the same product should show a configuration message before any read. A failed query on either side should leave the other side's successful response visible. See the [example README](../examples/dataverse-finance-operations/README.md) for details. Automated regression coverage uses simulated HTTP responses; this mixed-tool live smoke test remains pending.
+Wrong products should be absent from each picker; direct swaps, same-product pairs and missing required assignments must be rejected before any request and preserve the previous connections. Try a failed query on each side separately and confirm the other side's successful response remains visible. See the [example README](../examples/dataverse-finance-operations/README.md) for details. Automated coverage uses simulated HTTP responses and verifies declared-order routing, compatible reassignment, independent failures and wrong-slot rejection. Existing tool-wide mixed count declarations retain either-order behavior in a separate regression test. This mixed-tool live smoke test remains pending.
+
+The example uses an unreleased typed-slot contract. Use the local updated branch; assign its `features.minAPI` to the actual supporting desktop release before publication. The supporting app/types/validator versions and external intake support remain release dependencies in the [slot implementation checklist](CONNECTION_SLOT_DEFINITIONS_IMPLEMENTATION_PLAN.md).
 
 ## Compare desktop and unattended reads
 
@@ -80,7 +82,7 @@ Initial CustomersV3 create testing returned HTTP 400 with the generic outer mess
 
 ## API for tool authors
 
-Declare `features.connectionTypes: ["financeOperations"]` and a connection count in the tool's `package.json`. Mixed tools can declare both products and select a zero-based slot with `options.connectionTarget`. Import declarations with `/// <reference types="@pptb/types/financeOperationsAPI" />` from the local updated types package until a release is published.
+The existing default/fallback is a connection count or `{ min, max }` in `package.json`, with `features.connectionTypes: ["financeOperations"]` for an F&O-only tool or both products for a flexible mixed tool. Tools with fixed purposes can opt into `features.connections.slots`, declaring `connectionTypes` and optional `required` per slot; omit tool-level `connectionTypes` in that form. API targets stay zero-based, including optional null holes. See the [connection author guide](N_CONNECTION_TOOL_AUTHOR_GUIDE.md). Import declarations with `/// <reference types="@pptb/types/financeOperationsAPI" />` from the local updated types package until a release is published.
 
 ```typescript
 const entities = await window.financeOperationsAPI.getServiceDocument();

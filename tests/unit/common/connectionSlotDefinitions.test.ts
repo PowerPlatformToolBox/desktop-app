@@ -74,7 +74,9 @@ describe("explicit connection requirements", () => {
         expect(() => resolveConnectionRequirements({ connections: { slots: [{}] }, connectionTypes: ["dataverse"] })).toThrow("cannot be combined");
     });
 
-    it("keeps incomplete runtime support gated rather than treating required slots as a prefix", () => {
-        expect(() => resolveConnectionSlots(features)).toThrow("not enabled yet");
+    it("exposes count summaries while assignment enforcement retains required indexes", () => {
+        expect(resolveConnectionSlots(features)).toEqual({ min: 1, max: 2 });
+        expect(() => validateConnectionAssignments(["dv"], features, getConnection)).toThrow("slot 2");
+        expect(() => resolveConnectionSlots({ connections: { slots: [] } })).toThrow("1 to 10");
     });
 });

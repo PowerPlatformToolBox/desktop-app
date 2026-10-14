@@ -6,10 +6,23 @@
     "author": "Power Platform ToolBox",
     "license": "GPL-3.0",
     "features": {
-        "connections": 2,
-        "connectionTypes": [
-            "dataverse",
-            "financeOperations"
-        ]
+        "connections": {
+            "slots": [
+                {
+                    "label": "Dataverse accounts",
+                    "connectionTypes": [
+                        "dataverse"
+                    ],
+                    "required": true
+                },
+                {
+                    "label": "F&O customers",
+                    "connectionTypes": [
+                        "financeOperations"
+                    ],
+                    "required": true
+                }
+            ]
+        }
     }
 }

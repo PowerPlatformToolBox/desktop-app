@@ -2,8 +2,8 @@ import { clipboard, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { normalizeConnectionTarget, type ConnectionTarget } from "../../common/connectionSlots";
-import { assertConnectionCompatible } from "../../common/connectionCompatibility";
+import { connectionSlotFeatures, normalizeConnectionTarget, resolveConnectionRequirements, type ConnectionTarget } from "../../common/connectionSlots";
+import { assertConnectionCompatible, validateConnectionAssignments } from "../../common/connectionCompatibility";
 import { logError, logInfo } from "../../common/logger";
 import type { Connection, DataverseBatchRequest, DataverseBatchResult, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, MetadataOperationOptions, ToolSettings } from "../../common/types";
 import { resolveConnectionType, ToolManifest } from "../../common/types";
@@ -34,9 +34,9 @@ export interface HeadlessInvokeContext {
     connectionUrl?: string;
     connectionName?: string;
     connectionIds?: Array<string | null>;
-    connectionNames?: string[];
+    connectionNames?: Array<string | null>;
     connectionUrls?: Array<string | null>;
-    authTokens?: Array<string | undefined>;
+    authTokens?: Array<string | null | undefined>;
     updateProgress: (percent: number, message?: string) => void;
     logger: {
         debug: (message: string) => void;
@@ -314,7 +314,7 @@ function toToolSafeConnection(connection: Connection | null): Record<string, unk
     };
 }
 
-function normalizeConnectionName(connectionName?: string): string | undefined {
+function normalizeConnectionName(connectionName?: string | null): string | undefined {
     const trimmed = connectionName?.trim();
     return trimmed ? trimmed.toLowerCase() : undefined;
 }
@@ -335,7 +335,11 @@ function getConnectionSlotCount(context: HeadlessInvokeContext): number {
 
 function resolveConnection(manifest: ToolManifest, context: HeadlessInvokeContext, services: HeadlessRuntimeServices, connectionTarget: ConnectionTarget = "primary"): Connection | null {
     const connection = lookupConnection(manifest, context, services, connectionTarget);
-    if (connection) assertConnectionCompatible(connection, manifest.features);
+    if (connection)
+        assertConnectionCompatible(
+            connection,
+            resolveConnectionRequirements(manifest.features).explicit ? connectionSlotFeatures(manifest.features, normalizeConnectionTarget(connectionTarget)) : manifest.features,
+        );
     return connection;
 }
 
@@ -357,7 +361,9 @@ function lookupConnection(manifest: ToolManifest, context: HeadlessInvokeContext
 
     const connectionName = normalizeConnectionName(hasConnectionArrays(context) ? context.connectionNames?.[index] : context.connectionName);
     if (connectionName) {
-        return connectionsManager.getConnections().find((connection) => normalizeConnectionName(connection.name) === connectionName) ?? null;
+        const matches = connectionsManager.getConnections().filter((connection) => normalizeConnectionName(connection.name) === connectionName);
+        if (matches.length > 1) throw new Error(`Multiple connections found with name '${connectionName}'. Please make names unique.`);
+        return matches[0] ?? null;
     }
 
     logInfo(`[MCP][Headless] No resolved ${connectionTarget} connection for tool '${manifest.id}'`);
@@ -382,11 +388,14 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
         }
         return services.dataverseManager;
     };
-    const slotCount = getConnectionSlotCount(context);
+    const requirements = resolveConnectionRequirements(manifest.features);
+    const slotCount = requirements.explicit ? requirements.max : getConnectionSlotCount(context);
     const usesArrays = hasConnectionArrays(context);
-    const connectionIds = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionIds?.[index] ?? null) : (context.connectionId ?? null)));
-    const connectionNames = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionNames?.[index] ?? "") : (context.connectionName ?? "")));
-    const connectionUrls = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionUrls?.[index] ?? null) : (context.connectionUrl ?? null)));
+    const connectionIds = Array.from({ length: slotCount }, (_, index) => (usesArrays ? context.connectionIds?.[index] ?? null : context.connectionId ?? null));
+    const connectionNames = Array.from({ length: slotCount }, (_, index) =>
+        usesArrays ? context.connectionNames?.[index] ?? (requirements.explicit ? null : "") : index === 0 ? context.connectionName ?? (requirements.explicit ? null : "") : null,
+    );
+    const connectionUrls = Array.from({ length: slotCount }, (_, index) => (usesArrays ? context.connectionUrls?.[index] ?? null : context.connectionUrl ?? null));
     const getConnection = async (target: ConnectionTarget) => toToolSafeConnection(resolveConnection(manifest, context, services, target));
 
     const requireHeaderConsent = (...headerSets: ReadonlyArray<Readonly<Record<string, string>>>) => {
@@ -660,7 +669,8 @@ async function installHeadlessGlobals(manifest: ToolManifest, input: Record<stri
         const connection = requireResolvedConnection(manifest, context, services, options.connectionTarget);
         if (!services.financeOperationsManager) throw new Error("F&O API is unavailable.");
         const headers = validateFinanceOperationsHeaders(options.headers);
-        if (Object.keys(headers).length && !services.settingsManager?.hasDataverseHeaderConsent(`financeOperations:${context.toolId}`)) throw new Error("F&O custom headers require prior desktop consent for this tool.");
+        if (Object.keys(headers).length && !services.settingsManager?.hasDataverseHeaderConsent(`financeOperations:${context.toolId}`))
+            throw new Error("F&O custom headers require prior desktop consent for this tool.");
         return services.financeOperationsManager.request(connection.id, method, path, body, { ...options, headers });
     });
     globalScope.powerplatformAPI = {
@@ -730,6 +740,32 @@ async function requestPowerPlatform(
 }
 
 export async function invokeHeadlessTool(manifest: ToolManifest, input: Record<string, unknown>, context: HeadlessInvokeContext, services: HeadlessRuntimeServices): Promise<Record<string, unknown>> {
+    const requirements = resolveConnectionRequirements(manifest.features);
+    if (requirements.explicit) {
+        const count = Math.max(getConnectionSlotCount(context), context.connectionNames?.length ?? 0, context.connectionUrls?.length ?? 0, context.authTokens?.length ?? 0);
+        if (count > requirements.max) throw new Error(`Tool accepts at most ${requirements.max} connection slots.`);
+        const ids = Array.from({ length: count }, (_, index) => {
+            const connection = lookupConnection(manifest, context, services, index);
+            const name = hasConnectionArrays(context) ? context.connectionNames?.[index] : index === 0 ? context.connectionName : undefined;
+            const id = context.connectionIds !== undefined ? context.connectionIds[index] : !hasConnectionArrays(context) && index === 0 ? context.connectionId : undefined;
+            if ((id || name || context.connectionUrls?.[index] || context.authTokens?.[index]) && !connection)
+                throw new Error(`No saved connection is available at slot ${index + 1} (${requirements.slots[index].label}).`);
+            return connection?.id ?? null;
+        });
+        const validated = validateConnectionAssignments(ids, manifest.features, (id) => services.connectionsManager?.getConnectionById(id));
+        // Canonicalize identity arrays before globals and the tool callback see them.
+        const assigned = validated.map((id) => (id ? services.connectionsManager!.getConnectionById(id)! : null));
+        context = {
+            ...context,
+            connectionIds: validated,
+            connectionNames: assigned.map((connection) => connection?.name ?? null),
+            connectionUrls: assigned.map((connection) => connection?.url ?? null),
+            authTokens: assigned.map((connection, index) => (connection ? context.authTokens?.[index] ?? (index === 0 ? context.authToken : null) ?? null : null)),
+            connectionId: assigned[0]?.id,
+            connectionName: assigned[0]?.name,
+            connectionUrl: assigned[0]?.url,
+        };
+    }
     for (let slot = 0; slot < getConnectionSlotCount(context); slot++) {
         resolveConnection(manifest, context, services, slot);
     }

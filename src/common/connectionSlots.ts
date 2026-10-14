@@ -58,13 +58,9 @@ export type ConnectionTarget = "primary" | "secondary" | number;
 export type ConnectionIds = Array<string | null>;
 
 export function resolveConnectionSlots(features?: ToolFeatures | null): ConnectionSlotRange {
-    // Count-only runtime consumers must migrate before explicit slots are enabled.
-    // Otherwise an optional slot before a required slot would launch incorrectly.
-    if (hasConnectionSlotDefinitions(features?.connections)) {
-        resolveConnectionRequirements(features);
-        throw new Error("Explicit connection slots are not enabled yet. Runtime slot enforcement is required before this tool can launch.");
-    }
-    return resolveLegacyConnectionSlots(features);
+    // Counts are summaries; assignment enforcement must use ordered requirements.
+    const { min, max } = resolveConnectionRequirements(features);
+    return { min, max };
 }
 
 function resolveLegacyConnectionSlots(features?: ToolFeatures | null): ConnectionSlotRange {

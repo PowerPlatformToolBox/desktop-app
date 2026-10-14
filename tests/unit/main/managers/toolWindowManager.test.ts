@@ -48,7 +48,7 @@ describe("ToolWindowManager connection slot routing", () => {
         const { manager, connectionsManager } = createManager();
         const view = new BrowserView();
         (manager as any).toolViews.set("tool-1", view);
-        (manager as any).toolConnectionFeatures.set("tool-1", { connectionTypes: ["dataverse", "financeOperations"] });
+        (manager as any).toolConnectionFeatures.set("tool-1", { connections: 3, connectionTypes: ["dataverse", "financeOperations"] });
         connectionsManager.getConnectionById.mockImplementation((id) => ({ id, name: id, url: `https://${id}.example`, connectionType: id === "finops" ? "financeOperations" : "dataverse" } as any));
         await manager.updateToolConnections("tool-1", ["primary-id", null, "finops"]);
         expect((manager as any).toolConnectionInfo.get("tool-1").connectionIds).toEqual(["primary-id", null, "finops"]);
@@ -124,6 +124,7 @@ describe("ToolWindowManager connection slot routing", () => {
         const { manager, connectionsManager } = createManager();
         const view = new BrowserView();
         (manager as any).toolViews.set("tool-1", view);
+        (manager as any).toolConnectionFeatures.set("tool-1", { connections: 3 });
         const impersonatedUser = { fullname: "Test User", azureactivedirectoryobjectid: "00000000-0000-0000-0000-000000000001" };
         (manager as any).toolConnectionInfo.set("tool-1", {
             connectionIds: ["primary-id", "secondary-id", "third-id"],
@@ -142,6 +143,17 @@ describe("ToolWindowManager connection slot routing", () => {
                 connectionUrls: ["https://primary-id.example", "https://replacement-id.example", "https://third-id.example"],
             }),
         );
+    });
+
+    it("bounds count/range reassignment just as launch does without resolving discarded IDs", async () => {
+        const { manager, connectionsManager } = createManager();
+        const view = new BrowserView();
+        (manager as any).toolViews.set("bounded", view);
+        (manager as any).toolConnectionFeatures.set("bounded", { connections: { min: 0, max: 2 } });
+        await manager.updateToolConnections("bounded", ["primary-id", null, "discarded-id"]);
+        expect((manager as any).toolConnectionInfo.get("bounded").connectionIds).toEqual(["primary-id", null]);
+        expect(connectionsManager.getConnectionById).not.toHaveBeenCalledWith("discarded-id");
+        expect(view.webContents.send).toHaveBeenCalledWith("toolbox:context", expect.objectContaining({ connectionIds: ["primary-id", null] }));
     });
 
     it("includes inherited later slots in the inter-tool connection prompt", async () => {

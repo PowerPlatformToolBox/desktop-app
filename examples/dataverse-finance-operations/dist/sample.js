@@ -1,31 +1,19 @@
 const runButton = document.getElementById("run");
 const status = document.getElementById("status");
 
-// Slots are zero-based. Never assume that the first slot is Dataverse.
-async function resolveTargets() {
+// The manifest declares fixed zero-based targets: Dataverse 0, F&O 1.
+async function refreshConnections() {
     const connections = await window.toolboxAPI.connections.getConnections();
-    const dataverse = [];
-    const finops = [];
-    connections.forEach((connection, slot) => {
-        if (!connection) return;
-        // Legacy connections without a product discriminator are Dataverse.
-        const type = connection.connectionType ?? "dataverse";
-        if (type === "dataverse") dataverse.push({ connection, slot });
-        if (type === "financeOperations") finops.push({ connection, slot });
-    });
-    for (const [product, matches] of [
-        ["dataverse", dataverse],
-        ["finops", finops],
+    for (const [product, slot, label] of [
+        ["dataverse", 0, "Dataverse accounts"],
+        ["finops", 1, "F&O customers"],
     ]) {
-        document.getElementById(`${product}-connection`).textContent =
-            matches.length === 1
-                ? `${matches[0].connection.name} · Slot ${matches[0].slot + 1} · ${matches[0].connection.url}`
-                : `Select exactly one ${product === "dataverse" ? "Dataverse" : "F&O"} connection.`;
+        const connection = connections[slot];
+        document.getElementById(`${product}-connection`).textContent = connection ? `${label} · ${connection.name} · Slot ${slot + 1} · ${connection.url}` : `Choose a connection for ${label}.`;
     }
-    if (connections.length !== 2 || dataverse.length !== 1 || finops.length !== 1) {
-        throw new Error("This example needs one Dataverse connection and one F&O connection. Change the tool connections, then try again.");
+    if (connections.length !== 2 || !connections[0] || (connections[0].connectionType ?? "dataverse") !== "dataverse" || connections[1]?.connectionType !== "financeOperations") {
+        throw new Error("Choose Dataverse accounts in slot 1 and F&O customers in slot 2, then try again.");
     }
-    return { dataverse: dataverse[0].slot, finops: finops[0].slot };
 }
 
 async function readProduct(product, operation) {
@@ -51,14 +39,14 @@ runButton.addEventListener("click", async () => {
     inputs.forEach((input) => (input.disabled = true));
     status.textContent = "Reading both systems…";
     try {
-        // Re-read slots on every run so connection reassignment is respected.
-        const targets = await resolveTargets();
+        // Refresh displayed names/URLs after compatible connection reassignment.
+        await refreshConnections();
         const dataverseQuery = document.getElementById("dataverse-query").value.trim();
         const finopsQuery = document.getElementById("finops-query").value.trim();
         if (!dataverseQuery || !finopsQuery) throw new Error("Enter a query for each system.");
         const results = await Promise.all([
-            readProduct("dataverse", () => window.dataverseAPI.queryData(dataverseQuery, targets.dataverse)),
-            readProduct("finops", () => window.financeOperationsAPI.queryData(finopsQuery, { connectionTarget: targets.finops })),
+            readProduct("dataverse", () => window.dataverseAPI.queryData(dataverseQuery, 0)),
+            readProduct("finops", () => window.financeOperationsAPI.queryData(finopsQuery, { connectionTarget: 1 })),
         ]);
         status.textContent = results.every(Boolean) ? "Both systems read successfully" : "Finished with errors · See the individual results";
     } catch (error) {
@@ -69,7 +57,7 @@ runButton.addEventListener("click", async () => {
     }
 });
 
-resolveTargets()
+refreshConnections()
     .then(() => {
         status.textContent = "Ready to read both systems";
     })

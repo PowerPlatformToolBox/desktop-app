@@ -1,6 +1,6 @@
 # Connection slot definitions implementation plan
 
-Status: foundation, registry/runtime enforcement, and the picker/labeling implementation are in place. Explicit slots now work through UI launch, runtime switching, inter-tool prompts, and session restoration. Product labels appear in connection lists, pickers, slot summaries, tool tabs/status, search, recent cards and native recent menus. MCP/headless remains gated pending migration. The remaining E2E matrix, example migration, author documentation, package publication and live acceptance are pending.
+Status: implementation and the automated E2E matrix are complete. Explicit slots work through UI launch, runtime switching, inter-tool prompts, session restoration, supported installation routes and windowed/headless MCP. Product labels appear in connection lists, pickers, slot summaries, tool tabs/status, search, recent cards and native recent menus. The mixed example declares Dataverse target 0 and F&O target 1; separate legacy coverage retains either-order behavior. The temporary runtime gate has been removed after migrating supported routes to per-slot enforcement. Release/API version and older-app compatibility gate verification, external intake support, package publication and live acceptance remain pending. Named automated coverage and exact results are recorded in the [E2E coverage inventory](CONNECTION_SLOT_E2E_COVERAGE.md).
 
 Phase 1 verification (2026-10-14): 120 targeted unit/type/validator tests passed; the validation package build, app type checks, and Vite Electron build passed; all 23 tests in the existing multi-connection, F&O, connection-edge-case, and mixed-example Electron suites passed. These are foundation/regression results, not completion of the new-slot E2E matrix below.
 
@@ -10,17 +10,23 @@ Phase 2 verification (2026-10-14): 201 distinct targeted unit/type/validator tes
 
 Phase 3 verification (2026-10-14): **212 targeted tests and 33 connection Electron tests passed**, plus app type checks and the Electron build. `connectionSlotPicker.spec.ts` adds nine UI scenarios: required typed slots, optional holes/escaped labels, a single required slot, all-optional launch, ten required slots, same-name product labels/search, narrow dark keyboard interaction, inter-tool prompts, and restoration after a slot product changes. Runtime replacement and recent-card/native-menu reopening preserve slot indexes. Light and narrow dark picker screenshots were inspected. These results cover the implemented picker/labeling stage; they do not complete the entire E2E matrix or MCP/headless acceptance.
 
+Phase 4 verification (2026-10-14): **285 distinct targeted unit/type/validator/runtime/protocol tests and 35 connection Electron tests passed**, plus app type checks and the Electron build. The 15-suite targeted run passed 284 tests; the subsequent protocol run passed all 27 tests after adding one expired-F&O-session case. The protocol integration suite covers typed schemas, null holes, trailing padding, ordered windowed assignments, missing/wrong-product assignments, token-only typed rejection, unknown/ambiguous names, expired authentication, legacy singular/string-array/token inputs and actual runtime API routing. Direct runtime tests additionally cover stale IDs, authoritative null IDs, serialized null token holes and rejection before globals are installed. `connectionSlotMcp.spec.ts` executes actual on-disk headless entries through the Electron MCP server, validates Dataverse/F&O request URLs and saved authentication, confirms no requests for rejected inputs, and verifies the actual windowed purpose-labeled picker retains `[null, F&O, null]`. This completes MCP/headless implementation acceptance; the wider scenario matrix and live verification remain pending.
+
+Phase 5 verification (2026-10-14): **All 36 connection Electron tests passed**, including the migrated actual mixed example and separate legacy either-order routing test. The example's picker enforces both required purposes/products, queries use fixed targets 0/1, and compatible reassignment reaches different Dataverse and F&O environment URLs with the corresponding saved authentication. Independent failures on either side preserve the other result; swapped, same-product and missing-required assignments are rejected without changing IDs or issuing requests. The rendered example screenshot was inspected. App type checks, validation-package build and Electron build passed; the actual example slot contract passed both local validator entry points, and three documented typed-slot manifests passed validation. The author guide, N-connection contract reference, types README, inter-tool/MCP guidance and manual testing instructions now describe the opt-in contract and unchanged default/fallback. No release version/minAPI or package publication is claimed; the full scenario matrix and live smoke test remain pending.
+
 Last reviewed: **2026-10-14**. **Complete** means implemented and verified for the stated scope; it does not mean committed, published, or released. **Partial** means some implementation or coverage exists but the item's acceptance checks are unfinished. **Pending** means the item has not been delivered. Only complete items are checked. Update this checklist and the verification evidence after each implementation stage.
+
+Phase 6 verification (2026-10-14): **46 additional Electron cases** close the automated scenario gaps: 26 default/integer/range/legacy declarations, seven actual cold restarts, seven typed/default/optional/Power Platform/invocation/impersonation workflows, four connection-management/authentication workflows and two installation workflows. Existing MCP tests additionally exercise singular/array/token inputs, connectionless calls, ambiguous names and expired sessions. The complete suite executed **121 tests** (120 initial passes; one closed-window discovery race in the new test helper was fixed and its restart case passed the focused retry and `--last-failed`). There are no skipped or unresolved failing scenarios. The actual marketplace Install-button case also passed a focused run after its UI assertion was added. **286 targeted tests**, application and strict E2E type checks, and the Electron build passed. Long-purpose, light and narrow dark picker screenshots were inspected. The declaration matrix exposed count/range reassignment retaining excess slots; runtime now bounds these arrays exactly as launch already does, while explicit excess assignments remain atomic rejections. All named mappings and external-boundary qualifications are in the [coverage inventory](CONNECTION_SLOT_E2E_COVERAGE.md).
 
 | Plan area | Current status |
 | --- | --- |
 | 1. Contract, types, validation, resolver | Complete |
-| 2. Registry and installation metadata | Partial — repository implementation verified; installation UI and external intake verification pending |
-| 3. Main-process enforcement and persistence | Partial — core enforcement verified; typed restoration/manifest-change workflows pending |
-| 4. Picker, runtime controls, purpose and product labels | Partial — implementation and representative UI coverage complete; full scenario matrix and marketplace verification pending |
-| 5. MCP and headless invocation | Pending |
-| 6. Example migration, author documentation and release compatibility | Pending |
-| 7. Full verification and live acceptance | Partial — current targeted/regression checks pass; full scenario matrix pending |
+| 2. Registry and installation metadata | Partial — supported repository loading/install routes and marketplace UI verified; external intake support pending |
+| 3. Main-process enforcement and persistence | Complete — runtime, remembered assignments and typed cold-restoration/manifest-change scenarios verified |
+| 4. Picker, runtime controls, purpose and product labels | Complete — automated scenario matrix, marketplace summaries and representative rendering verified |
+| 5. MCP and headless invocation | Complete — protocol, actual headless entry/API routing and windowed picker verified |
+| 6. Example migration, author documentation and release compatibility | Partial — typed example and author/manual/MCP documentation complete; release version, older-app gate verification and publication pending |
+| 7. Full verification and live acceptance | Partial — automated matrix and full-suite execution complete; live acceptance pending |
 
 ### Contract and shared logic
 
@@ -28,7 +34,7 @@ Last reviewed: **2026-10-14**. **Complete** means implemented and verified for t
 - [x] **Complete:** Validate slot defaults, bounds, products, required status, labels, conflicting declarations and invalid shapes in both package validators.
 - [x] **Complete:** Normalize ordered requirements and validate draft/complete assignments without compacting optional holes.
 - [x] **Complete:** Verify existing default/fallback behavior and reject malformed slots instead of falling back.
-- [x] **Complete:** Keep count-only consumers gated until their per-slot migration is complete.
+- [x] **Complete:** Migrate supported launch consumers to per-slot enforcement before removing the temporary count-only gate.
 
 ### Metadata and runtime enforcement
 
@@ -39,8 +45,8 @@ Last reviewed: **2026-10-14**. **Complete** means implemented and verified for t
 - [x] **Complete:** Enforce inherited/overridden invocation assignments and revalidate prompt results before recording invocation state.
 - [x] **Complete:** Validate remembered-assignment writes, including legacy primary/secondary setters.
 - [x] **Complete:** Revalidate saved IDs against current slot requirements before session authentication.
-- [ ] **Partial:** Verify session restoration and remembered assignments end to end after typed manifest changes; shared revalidation and existing restoration regression tests are in place.
-- [ ] **Partial:** Verify all supported installation paths end to end; actual registry installation/metadata persistence has unit/integration coverage.
+- [x] **Complete:** Verify session restoration and remembered assignments end to end after typed product/required/order/length changes, removal and authentication failure, including actual cold restarts.
+- [x] **Complete:** Verify supported local, npm and downloaded archive installation routes end to end, including marketplace installation UI, persisted package-slot precedence and malformed metadata rejection. The external package-manager process is simulated; the repository's archive extractor supports tar/gzip, not a separate ZIP route.
 - [ ] **Pending:** Confirm external catalog storage and intake validation support the new object.
 
 ### Picker and connection labeling
@@ -52,31 +58,34 @@ Last reviewed: **2026-10-14**. **Complete** means implemented and verified for t
 - [x] **Complete:** Apply purpose labels and slot-specific requirements to single-slot selection, runtime switching, invocation and restoration.
 - [x] **Complete:** Standardize Dataverse/F&O product labels across management/sidebar lists, both pickers, assigned summaries, runtime controls, global search, recent cards and native recent menus.
 - [x] **Complete:** Preserve ordered optional holes when reopening from recent cards or native recent menus; refresh recent cards when returning home.
-- [ ] **Partial:** Update marketplace summaries, empty states, accessibility and narrow/light/dark layouts. Implementation, empty-state behavior, keyboard interaction and picker rendering are verified; explicit-slot marketplace detail verification remains pending.
-- [ ] **Partial:** Complete picker and labeling E2E scenarios while retaining existing count/range controls. Representative typed, boundary, restoration, invocation and labeling tests exist; the full matrix below remains a completion requirement.
+- [x] **Complete:** Verify marketplace typed summaries, empty states, purpose/product accessible text and representative narrow/light/dark/long-label rendering.
+- [x] **Complete:** Complete the automated picker and labeling matrix while retaining count/range controls, optional holes, required indexes, cancellation and reopening.
 
 ### MCP, example and release
 
-- [ ] **Pending:** Migrate MCP schema/parsing, lookup, context arrays and worker serialization to preserve optional null holes.
-- [ ] **Pending:** Enforce typed assignments in windowed/headless invocation and retain legacy named/token input behavior.
-- [ ] **Pending:** Add real-protocol/headless routing and failure coverage for explicit slots.
-- [ ] **Pending:** Convert the mixed example to two typed required slots and update its queries/instructions/tests to declared-order behavior.
-- [ ] **Pending:** Update author guides, manual testing and MCP migration documentation.
+- [x] **Complete:** Migrate MCP schema/parsing, lookup and context arrays to preserve optional null holes, including JSON serialization. This implementation runs headless entries in-process; there is no MCP headless worker serialization boundary to migrate.
+- [x] **Complete:** Enforce typed assignments in windowed/headless invocation and retain legacy singular/string-array names and callback-only token input behavior.
+- [x] **Complete:** Add real-protocol/headless routing and failure coverage for explicit slots, plus Electron MCP tests executing actual disk entries and the windowed picker.
+- [x] **Complete:** Convert the mixed example to two typed required slots and update queries/instructions/tests to declared-order behavior. Keep a separate count-declaration either-order API-routing regression.
+- [x] **Complete:** Update author guides, the existing N-connection plan contract reference, types-package README, manual testing and inter-tool/MCP migration documentation with defaults, null holes, purpose/product labels, runtime reassignment and release dependencies.
 - [ ] **Pending:** Assign the release/API version introducing slots and verify older-app compatibility gates.
 - [ ] **Pending:** Coordinate app, types, validator and intake releases; package publication remains a separate release action.
-- [ ] **Pending:** Remove the remaining runtime gates only after all supported routes enforce explicit slots.
+- [x] **Complete:** Remove the remaining runtime gate after UI, main-process and MCP/headless routes enforce explicit slots.
 
 ### Verification and delivery
 
 - [x] **Complete:** Pass the current 212 targeted unit/type/validator/renderer checks, type checks and builds.
 - [x] **Complete:** Pass the current 33 connection Electron tests, including explicit runtime IPC enforcement and nine picker/labeling/restoration scenarios.
-- [ ] **Partial:** Map every required E2E scenario below to a named test; current runtime and existing regression coverage is recorded, but several new workflows remain pending.
-- [ ] **Pending:** Deliver every missing existing/new-slot E2E scenario, including boundary, legacy combination, labeling, typed restoration, installation and MCP cases.
-- [ ] **Pending:** Run the complete Electron E2E suite for final feature acceptance with no required connection scenario skipped.
+- [x] **Complete:** Pass the Phase 4 targeted checks (285 distinct tests), type checks, build, and all 35 connection Electron tests, including real MCP/headless and windowed picker scenarios.
+- [x] **Complete:** Pass all 36 Phase 5 connection Electron tests, including typed-example migration and legacy either-order API routing; pass type checks, validation-package/Electron builds and example/documented-slot contract validation; inspect the rendered example.
+- [x] **Complete:** Map every automated E2E scenario group below to named tests in `docs/CONNECTION_SLOT_E2E_COVERAGE.md`, recording external-boundary simulations and separate release/live dependencies.
+- [x] **Complete:** Deliver the missing default/boundary/range/legacy combination, typed variants, management, restoration, installation and MCP cases.
+- [x] **Complete:** Execute all 121 Electron tests with no skipped scenarios; fix and verify the single test-helper timing failure with a focused retry and `--last-failed`. All scenarios are verified; exact run/retry results are recorded above.
 - [x] **Complete:** Inspect current picker rendering in light/dark themes and narrow layouts; verify keyboard selection and purpose/product accessible text. Repeat after any further UI changes.
 - [ ] **Pending:** Complete and record the live mixed Dataverse/F&O smoke test.
 - [x] **Complete:** Commit the implementation plan (`8dc428b`).
 - [x] **Complete:** Commit the current foundation, runtime, picker, connection labeling, example, and test changes as an implementation checkpoint. Remaining stages retain their statuses below.
+- [x] **Complete:** Commit the MCP/headless, typed-example/documentation and E2E-matrix implementation checkpoint. Release preparation remains separate.
 - [ ] **Pending:** Publish/release when implementation, verification and release dependencies are complete.
 
 ## Outcome
@@ -151,9 +160,9 @@ Introduce one normalized connection-requirements resolver in `src/common/connect
 
 Retain `resolveConnectionSlots()` as a compatibility wrapper for consumers that only need counts. Counts are insufficient to enforce explicit definitions: all assignment validation must use the ordered slots.
 
-Implementation staging: until those consumers migrate, `resolveConnectionSlots()` deliberately rejects explicit definitions. The new `resolveConnectionRequirements()` and assignment validator are available for the migration. `packages/validation/src/connectionSlots.ts` is the validation source; `packages/lib/connectionSlots.js` is its CommonJS mirror generated by the validation-package TypeScript build with source maps disabled. Regenerate that mirror after changing the source, and retain parity tests for both package-validator entry points.
+Implementation staging is complete: `resolveConnectionSlots()` now returns count summaries for all valid forms; enforcement uses `resolveConnectionRequirements()` and the shared assignment validator. `packages/validation/src/connectionSlots.ts` is the validation source; `packages/lib/connectionSlots.js` is its CommonJS mirror generated by the validation-package TypeScript build with source maps disabled. Regenerate that mirror after changing the source, and retain parity tests for both package-validator entry points.
 
-The main-process and renderer launch/invocation paths now use `resolveConnectionRequirements()`; the count-only gate remains for MCP paths that have not migrated. Explicit-slot assignments are validated before view creation or context changes. Count/range and legacy behavior remains unchanged.
+The main-process, renderer and MCP launch/invocation paths now use `resolveConnectionRequirements()`. Explicit-slot assignments are validated before authentication, view creation, headless execution or context changes. Count/range and legacy behavior remains the default and fallback.
 
 Extend `src/common/connectionCompatibility.ts` with slot-aware checks and a shared assignment validator. Support two explicit validation purposes: validate populated assignments while assembling a selection, and validate a complete configuration before committing it. Reject extra slots, missing saved connections, wrong products, and unfilled required indexes. Normalize omitted optional entries to `null` without compaction. Keep previous count/range runtime behavior where it differs, rather than accidentally tightening it.
 
@@ -234,7 +243,7 @@ Update `src/main/mcp/mcpServer.ts`, `headlessToolRuntime.ts`, and their invocati
 
 Explicit optional holes require a representation that preserves indexes. Extend `__pptb.connectionNames` to accept `string | null` entries for explicit-slot tools, for example `[null, "F&O production"]`. Preserve existing string-array and singular `connectionName` behavior for old tools. Treat a singular name as slot 0; do not infer or reorder a connection from its product.
 
-Update schema generation, argument parsing, connection-name lookup, IDs/URLs/auth-token arrays, and worker serialization together. Keep placeholders through every stage, authenticate only populated slots, and validate product identity using saved connection records. Retain existing legacy token-only support; an explicit slot must not pass a product check merely because a token was supplied.
+Update schema generation, argument parsing, connection-name lookup, IDs/URLs/auth-token arrays, and any serialization boundaries together. The current MCP runtime executes entries in-process rather than a worker; there is no separate worker payload. Keep placeholders through every stage, authenticate only populated slots, and validate product identity using saved connection records. Retain legacy callback-only token support for tools requiring at most one connection; an explicit slot must not pass a product check merely because a token was supplied.
 
 Windowed invocation may open the picker for missing required assignments. Headless invocation must reject them with the missing slot's label/index. Neither path may accept a connection incompatible with its assigned slot.
 
@@ -288,11 +297,11 @@ E2E coverage is a completion requirement for both existing connection behavior a
 | API routing | Run the actual mixed example through real preload, IPC handlers, and API managers. Assert each request's environment, product API, target, and authentication context; cover independent failures and compatible reassignment. Include optional-hole numeric targeting and existing primary/secondary aliases. |
 | Presentation and accessibility | Light/dark themes, narrow layout, long/same-name connections, keyboard selection/confirmation/cancel, and accessible purpose/product labels. Use interaction assertions plus rendered screenshots; color alone cannot distinguish products. |
 
-Extend `tests/e2e/multiConnectionModal.spec.ts`, `financeOperations.spec.ts`, `connectionEdgeCases.spec.ts`, and `mixedConnectionExample.spec.ts`, adding focused slot-definition/session/invocation suites where needed. Keep the existing example's either-order test until its manifest is converted; replace that expectation with declared-order enforcement and wrong-slot rejection for the new form. Retain either-order coverage for old tool-wide mixed declarations.
+Extend `tests/e2e/multiConnectionModal.spec.ts`, `financeOperations.spec.ts`, `connectionEdgeCases.spec.ts`, and `mixedConnectionExample.spec.ts`, adding focused slot-definition/session/invocation suites where needed. The example's former either-order expectation has been replaced by **typed mixed example enforces declared order and routes compatible reassignment**. The separate **existing mixed-product count declarations still route both APIs in either slot order** test retains legacy tool-wide mixed coverage through actual preload/IPC/API-manager routing.
 
 Use isolated saved connections/tools/settings for each test. Stub authentication and external HTTP at their boundaries while retaining real Electron UI, preload, IPC, persistence, and API routing. Confirm requests and notifications rather than relying only on visible success text. Persistence/restore tests must actually reopen/restart the application; API-routing tests must execute within the tool view.
 
-For MCP, retain and extend real-protocol coverage in `tests/unit/main/mcp/mcpConnections.integration.test.ts` and add the worker/runtime integration needed for slot holes. Although that existing file resides under `unit`, track it as protocol integration coverage, separately from Electron UI E2E and live-environment verification.
+For MCP, retain and extend real-protocol coverage in `tests/unit/main/mcp/mcpConnections.integration.test.ts` and runtime integration for slot holes. Although that existing file resides under `unit`, track it as protocol integration coverage, separately from Electron UI E2E and live-environment verification. `tests/e2e/connectionSlotMcp.spec.ts` executes actual on-disk headless entries through the Electron MCP server, API managers and HTTP request construction, and opens the actual windowed invocation picker.
 
 Run type checks, validation-package build, targeted unit/integration suites, and the complete Electron E2E suite for final feature acceptance. Build the Electron app before E2E execution, avoiding unrelated repository-wide formatting changes. During development, run the relevant connection suites first. Record the scenario-to-test mapping, results, and any unrelated baseline failures; no required connection/slot scenario may remain skipped or untested at completion.
 

@@ -1412,7 +1412,10 @@ export class ToolWindowManager {
             return;
         }
 
-        connectionIds = this.validateConnectionCompatibility(connectionIds, this.toolConnectionFeatures.get(instanceId));
+        const features = this.toolConnectionFeatures.get(instanceId);
+        const requirements = resolveConnectionRequirements(features);
+        // Match count/range launch bounds; explicit contracts reject excess slots.
+        connectionIds = this.validateConnectionCompatibility(requirements.explicit ? connectionIds : connectionIds.slice(0, requirements.max), features);
         const previous = this.toolConnectionInfo.get(instanceId);
         const impersonatedUsers = [...(previous?.impersonatedUsers ?? [])];
         connectionIds.forEach((connectionId, index) => {

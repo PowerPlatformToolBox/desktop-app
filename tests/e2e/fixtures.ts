@@ -6,6 +6,7 @@ import os from "os";
 import path from "path";
 import type { ElectronApplication, Page } from "playwright";
 import { _electron as electron } from "playwright";
+import type { ToolFeatures } from "../../src/common/types/tool";
 
 /**
  * Extended Playwright test fixture that launches and tears down the Electron app.
@@ -20,6 +21,7 @@ interface AppFixtures {
     maturityData: boolean;
     multiConnectionData: boolean;
     connectionEdgeData: boolean;
+    connectionScenario: { features?: ToolFeatures } | null;
 }
 
 async function dismissTelemetryConsentModalIfPresent(electronApp: ElectronApplication): Promise<void> {
@@ -135,9 +137,10 @@ export const test = base.extend<AppFixtures>({
     maturityData: [false, { option: true }],
     multiConnectionData: [false, { option: true }],
     connectionEdgeData: [false, { option: true }],
+    connectionScenario: [null, { option: true }],
 
     // Playwright fixtures require object destructuring for the first argument.
-    electronApp: async ({ maturityData, multiConnectionData, connectionEdgeData }, use) => {
+    electronApp: async ({ maturityData, multiConnectionData, connectionEdgeData, connectionScenario }, use) => {
         const mainEntry = path.resolve(__dirname, "../../dist/main/index.js");
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), maturityData ? "pptb-maturity-e2e-" : multiConnectionData ? "pptb-multiconnection-e2e-" : "pptb-e2e-"));
         const userDataDirectory = path.join(tempRoot, "user-data");
@@ -177,7 +180,7 @@ export const test = base.extend<AppFixtures>({
 
         if (multiConnectionData) {
             const toolsDirectory = path.join(userDataDirectory, "tools");
-            const toolDefinitions = [
+            const toolDefinitions: Array<{ id: string; name: string; features?: ToolFeatures }> = [
                 { id: "e2e-required-connections", name: "E2E Required Connections", features: { connections: 2 } },
                 { id: "e2e-optional-connections", name: "E2E Optional Connections", features: { multiConnection: "optional" } },
                 { id: "e2e-optional-zero-to-three", name: "E2E Optional Zero To Three", features: { connections: { min: 0, max: 3 } } },
@@ -196,6 +199,7 @@ export const test = base.extend<AppFixtures>({
                 { id: "e2e-mixed-explorer", name: "Dataverse + F&O Explorer", features: JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../examples/dataverse-finance-operations/package.json"), "utf8")).features },
                 { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
             ];
+            if (connectionScenario) toolDefinitions.push({ id: "e2e-scenario", name: "E2E Scenario", features: connectionScenario.features });
             const installedTools = toolDefinitions.map((tool) => {
                 const installPath = path.join(toolsDirectory, tool.id);
                 fs.mkdirSync(path.join(installPath, "dist"), { recursive: true });
