@@ -462,7 +462,9 @@ export class DotNetToolManager {
         setStage("TOOL_SETTINGS");
         const executableName = dotNetToolSettings(await this.read(join(artifactRoot, "DotnetToolSettings.xml")), declaration.command);
         const entryPoint = join(artifactRoot, dotNetPackageRelativePath(executableName));
-        if (entry.PathToExecutable !== entryPoint) throw new Error("Entrypoint mismatch");
+        const normalizedEntryPath = resolve(entry.PathToExecutable);
+        const isEntryMatch = process.platform === "win32" ? normalizedEntryPath.toLowerCase() === entryPoint.toLowerCase() : normalizedEntryPath === entryPoint;
+        if (!isEntryMatch) throw new Error("Entrypoint mismatch");
         await this.safePath(entryPoint, false);
         const runtimeConfigPath = entryPoint.slice(0, -4) + ".runtimeconfig.json";
         const depsPath = entryPoint.slice(0, -4) + ".deps.json";
