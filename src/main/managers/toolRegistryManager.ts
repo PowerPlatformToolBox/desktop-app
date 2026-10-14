@@ -9,6 +9,7 @@ import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { resolveSupportedConnectionTypes } from "../../common/connectionCompatibility";
+import { hasConnectionSlotDefinitions, resolveConnectionRequirements } from "../../common/connectionSlots";
 import { captureException } from "../../common/sentryHelper";
 import {
     CapabilityTagEntry,
@@ -98,7 +99,7 @@ interface SupabaseTool {
     min_api?: string; // Minimum ToolBox API version required
     multi_connection?: string | null;
     connection_requirement?: string | null;
-    connections?: string | null;
+    connections?: unknown;
     connection_types?: unknown;
     enabled_for_power_platform_api?: boolean | null;
     mcp_enabled?: boolean | null;
@@ -148,6 +149,7 @@ function getValidConnectionsFeature(value: unknown): ToolFeatures["connections"]
         try {
             value = JSON.parse(value) as unknown;
         } catch {
+            if (typeof value === "string" && /"slots"\s*:/.test(value)) throw new Error("Malformed explicit connection slot declaration in catalog metadata.");
             return undefined;
         }
     }
@@ -155,12 +157,39 @@ function getValidConnectionsFeature(value: unknown): ToolFeatures["connections"]
         return Number.isInteger(value) && value >= 0 && value <= 10 ? value : undefined;
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    if (hasConnectionSlotDefinitions(value)) {
+        resolveConnectionRequirements({ connections: value });
+        return value;
+    }
     const range = value as Record<string, unknown>;
     if (Object.keys(range).some((key) => key !== "min" && key !== "max")) return undefined;
     const min = range.min ?? 1;
     const max = range.max ?? min;
     if (!Number.isInteger(min) || !Number.isInteger(max) || (min as number) < 0 || (max as number) > 10 || (min as number) > (max as number)) return undefined;
     return { min: min as number, max: max as number };
+}
+
+/** Package explicit slots are authoritative; catalog counts must not discard their contract. */
+export function mergeInstalledToolFeatures(catalog?: ToolFeatures, packaged?: ToolFeatures): ToolFeatures | undefined {
+    if (hasConnectionSlotDefinitions(packaged?.connections)) {
+        resolveConnectionRequirements(packaged);
+        if (catalog?.connections !== undefined && JSON.stringify(catalog.connections) !== JSON.stringify(packaged.connections)) {
+            logWarn("[ToolRegistry] Catalog connection requirements differ from package slots; using the package slot definitions.");
+        }
+        const merged = { ...packaged, ...catalog, connections: packaged.connections };
+        if (packaged.minAPI && (!catalog?.minAPI || compareVersions(packaged.minAPI, catalog.minAPI) > 0)) merged.minAPI = packaged.minAPI;
+        if (packaged.enabledForPowerPlatformAPI !== undefined || catalog?.enabledForPowerPlatformAPI !== undefined) {
+            merged.enabledForPowerPlatformAPI = packaged.enabledForPowerPlatformAPI === true || catalog?.enabledForPowerPlatformAPI === true;
+        }
+        delete merged.connectionTypes;
+        delete merged.multiConnection;
+        delete merged.connectionRequirement;
+        resolveConnectionRequirements(merged);
+        return merged;
+    }
+    const merged = catalog ? { ...catalog, connectionTypes: catalog.connectionTypes ?? packaged?.connectionTypes } : packaged;
+    if (hasConnectionSlotDefinitions(merged?.connections)) resolveConnectionRequirements(merged);
+    return merged;
 }
 
 export function mapSupabaseToolRow(tool: SupabaseTool): ToolRegistryEntry {
@@ -170,9 +199,7 @@ export function mapSupabaseToolRow(tool: SupabaseTool): ToolRegistryEntry {
     const minAPI = tool.min_api;
     const modernConnections = getValidConnectionsFeature(tool.connections);
     const declaredTypes = typeof tool.connection_types === "string" ? JSON.parse(tool.connection_types) : tool.connection_types;
-    const connectionTypes = declaredTypes === undefined || declaredTypes === null
-        ? undefined
-        : resolveSupportedConnectionTypes({ connectionTypes: declaredTypes });
+    const connectionTypes = declaredTypes === undefined || declaredTypes === null ? undefined : resolveSupportedConnectionTypes({ connectionTypes: declaredTypes });
     const features: ToolRegistryEntry["features"] = {
         connectionTypes,
         ...(modernConnections !== undefined
@@ -185,6 +212,7 @@ export function mapSupabaseToolRow(tool: SupabaseTool): ToolRegistryEntry {
         enabledForPowerPlatformAPI: typeof tool.enabled_for_power_platform_api === "boolean" ? tool.enabled_for_power_platform_api : undefined,
     };
     const hasFeatures = Object.values(features).some((value) => value !== undefined);
+    if (hasConnectionSlotDefinitions(features.connections)) resolveConnectionRequirements(features);
 
     return {
         id: tool.id,
@@ -912,7 +940,12 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Extract version information from registry (Supabase)
         // These are pre-processed during tool intake and stored in the database
-        const minAPI: string | undefined = workers ? packageJson.features.minAPI : tool.minAPI;
+        const installedFeatures = mergeInstalledToolFeatures(tool.features, packageJson.features);
+        const minAPI: string | undefined = workers
+            ? packageJson.features.minAPI
+            : hasConnectionSlotDefinitions(installedFeatures?.connections) && installedFeatures?.minAPI && (!tool.minAPI || compareVersions(installedFeatures.minAPI, tool.minAPI) > 0)
+            ? installedFeatures.minAPI
+            : tool.minAPI;
 
         // Log if version info is missing (informational only, tools will still work as legacy)
         if (!minAPI) {
@@ -945,9 +978,7 @@ export class ToolRegistryManager extends EventEmitter {
             sourceUrl: tool.downloadUrl,
             readmeUrl: tool.readmeUrl,
             cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
-            features: tool.features
-                ? { ...tool.features, connectionTypes: tool.features.connectionTypes ?? packageJson.features?.connectionTypes }
-                : packageJson.features,
+            features: installedFeatures,
             categories: tool.categories,
             license: tool.license || packageJson.license,
             size: tool.size,
@@ -1069,6 +1100,7 @@ export class ToolRegistryManager extends EventEmitter {
 
     private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
         const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string }; readme?: string };
+        if (hasConnectionSlotDefinitions(manifestEntry.features?.connections)) resolveConnectionRequirements(manifestEntry.features);
         const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
         let packageName = manifestEntry.packageName;
         let authors: string[] | undefined = this.normalizeAuthorList((manifestEntry as unknown as { authors?: unknown }).authors);

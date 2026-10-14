@@ -1,0 +1,15 @@
+{
+    "name": "pptb-dataverse-finance-operations-sample",
+    "version": "0.1.0",
+    "description": "Read Dataverse accounts and F&O customers in one multi-connection tool.",
+    "displayName": "Dataverse + F&O Explorer",
+    "author": "Power Platform ToolBox",
+    "license": "GPL-3.0",
+    "features": {
+        "connections": 2,
+        "connectionTypes": [
+            "dataverse",
+            "financeOperations"
+        ]
+    }
+}

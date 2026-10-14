@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { mapSupabaseToolRow, ToolRegistryManager } from "../../../../src/main/managers/toolRegistryManager";
+import { mapSupabaseToolRow, mergeInstalledToolFeatures, ToolRegistryManager } from "../../../../src/main/managers/toolRegistryManager";
 import { ToolManager } from "../../../../src/main/managers/toolsManager";
 
 const catalogRow = {
@@ -27,6 +27,35 @@ const catalogRow = {
 };
 
 describe("Supabase tools_catalog mapping", () => {
+    const explicitConnections = { slots: [{ label: "Accounts" }, { label: "Customers", connectionTypes: ["financeOperations" as const], required: false }] };
+    it.each([explicitConnections, JSON.stringify(explicitConnections), JSON.stringify(JSON.stringify(explicitConnections))])("preserves catalog explicit slots %p", (connections) => {
+        expect(mapSupabaseToolRow({ ...catalogRow, connections }).features?.connections).toEqual(explicitConnections);
+    });
+    it.each([{ slots: [] }, { slots: [{}], min: 0 }, { slots: [{ required: "yes" }] }])("rejects malformed catalog slots without legacy fallback %p", (connections) => {
+        expect(() => mapSupabaseToolRow({ ...catalogRow, connections })).toThrow();
+    });
+    it("rejects contradictory slot catalog types and Power Platform requirements", () => {
+        expect(() => mapSupabaseToolRow({ ...catalogRow, connections: explicitConnections, connection_types: ["dataverse"] })).toThrow("cannot be combined");
+        expect(() => mapSupabaseToolRow({ ...catalogRow, connections: explicitConnections, enabled_for_power_platform_api: true })).toThrow("only Dataverse");
+    });
+    it("rejects malformed JSON describing slots instead of reverting to legacy catalog requirements", () => {
+        expect(() => mapSupabaseToolRow({ ...catalogRow, connections: '{"slots":[' })).toThrow("Malformed explicit");
+    });
+    it("uses package slots over stale catalog counts without creating a hybrid contract", () => {
+        const catalog = { connections: 2, connectionTypes: ["dataverse" as const], minAPI: "1.2.0" };
+        const packaged = { connections: explicitConnections, minAPI: "1.2.1" };
+        expect(mergeInstalledToolFeatures(catalog, packaged)).toEqual({ connections: explicitConnections, minAPI: "1.2.1" });
+        expect(catalog.connectionTypes).toEqual(["dataverse"]);
+        expect(packaged.minAPI).toBe("1.2.1");
+    });
+    it("does not hide invalid package slots by deleting their conflicting fields", () => {
+        expect(() => mergeInstalledToolFeatures({ connections: 1 }, { connections: explicitConnections, connectionTypes: ["dataverse"] })).toThrow("cannot be combined");
+    });
+    it("does not relax package Power Platform API requirements when merging older catalog metadata", () => {
+        expect(mergeInstalledToolFeatures({ connections: 1, enabledForPowerPlatformAPI: false }, {
+            connections: { slots: [{}] }, enabledForPowerPlatformAPI: true,
+        })).toMatchObject({ connections: { slots: [{}] }, enabledForPowerPlatformAPI: true });
+    });
     it.each([["financeOperations"], ["dataverse", "financeOperations"]].map((types) => [types]))("preserves connection types in native and serialized registry values %p", (connectionTypes) => {
         for (const value of [connectionTypes, JSON.stringify(connectionTypes)]) {
             expect(mapSupabaseToolRow({ ...catalogRow, connection_types: value }).features?.connectionTypes).toEqual(connectionTypes);
@@ -234,10 +263,13 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         expect(rpc).toHaveBeenLastCalledWith("upvote_tool_idea", { p_idea_id: "idea-1", p_install_id: "install-123" });
     });
 
-    it("persists release metadata on install and uses registry install for updates", async () => {
+    it.each([false, true])("persists release metadata on install and uses registry install for updates (explicit slots: %p)", async (explicit) => {
         const extractedPath = path.join(toolsDirectory, "extracted");
         fs.mkdirSync(extractedPath, { recursive: true });
-        fs.writeFileSync(path.join(extractedPath, "package.json"), JSON.stringify({ name: "@contoso/catalog-tool", version: "2.3.0", features: { connections: 1, connectionTypes: ["financeOperations"] } }));
+        const packageFeatures = explicit
+            ? { connections: { slots: [{ label: "Accounts" }, { label: "Customers", connectionTypes: ["financeOperations"] }] }, minAPI: "1.2.1" }
+            : { connections: 1, connectionTypes: ["financeOperations"] };
+        fs.writeFileSync(path.join(extractedPath, "package.json"), JSON.stringify({ name: "@contoso/catalog-tool", version: "2.3.0", features: packageFeatures }));
 
         const release = mapSupabaseToolRow({ ...catalogRow, connections: '{"max":3,"min":0}' });
         const manager = new ToolRegistryManager(toolsDirectory, "https://supabase.example", "anon-key");
@@ -254,15 +286,16 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
             version: "2.3.0",
             sourceUrl: catalogRow.download,
             readmeUrl: catalogRow.readme_url,
-            features: { ...release.features, connectionTypes: ["financeOperations"] },
-            minAPI: "1.2.0",
+            features: explicit ? { connections: packageFeatures.connections, minAPI: "1.2.1" } : { ...release.features, connectionTypes: ["financeOperations"] },
+            minAPI: explicit ? "1.2.1" : "1.2.0",
             mcpHeadlessEnabled: true,
             maturity: "verified",
         });
         const persistedManifest = JSON.parse(fs.readFileSync(path.join(toolsDirectory, "manifest.json"), "utf-8")).tools[0];
         expect(persistedManifest.readmeUrl).toBe(catalogRow.readme_url);
-        expect(persistedManifest.features.connections).toEqual({ min: 0, max: 3 });
-        expect(persistedManifest.features.connectionTypes).toEqual(["financeOperations"]);
+        expect(persistedManifest.features.connections).toEqual(explicit ? packageFeatures.connections : { min: 0, max: 3 });
+        if (explicit) expect(persistedManifest.features).not.toHaveProperty("connectionTypes");
+        else expect(persistedManifest.features.connectionTypes).toEqual(["financeOperations"]);
         expect(persistedManifest).not.toHaveProperty("readme");
 
         const appManager = new ToolManager(toolsDirectory);

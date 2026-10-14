@@ -167,3 +167,6 @@ test-results/
 !examples/finance-operations-odata/dist/index.html
 !examples/finance-operations-odata/dist/sample.js
 !examples/finance-operations-odata/dist/headless.js
+!examples/dataverse-finance-operations/dist/
+!examples/dataverse-finance-operations/dist/index.html
+!examples/dataverse-finance-operations/dist/sample.js

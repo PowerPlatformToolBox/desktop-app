@@ -4,6 +4,8 @@
  */
 
 import { logError } from "../../common/logger";
+import { connectionProductLabel } from "../../common/connectionProduct";
+import type { Connection } from "../../common/types/connection";
 import type { LastUsedToolEntry } from "../../common/types";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { filterMarketplaceByNew } from "./marketplaceManagement";
@@ -101,6 +103,7 @@ export function showHomePage(): void {
         homeView.style.display = "block";
         homeView.classList.add("active");
     }
+    void loadQuickAccessTools();
 }
 
 /**
@@ -503,7 +506,7 @@ async function loadRecentlyUsedTools(allTools: any[], recentEntries: LastUsedToo
         return;
     }
 
-    renderRecentToolsList(recentlyUsedToolsList, recentTools);
+    renderRecentToolsList(recentlyUsedToolsList, recentTools, await window.toolboxAPI.connections.getAll());
 }
 
 /**
@@ -580,7 +583,7 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
     applyToolIconMasks(container);
 }
 
-function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry: LastUsedToolEntry }[]): void {
+function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry: LastUsedToolEntry }[], connections: Connection[]): void {
     container.innerHTML = "";
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
@@ -631,11 +634,19 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
         infoContainer.appendChild(nameRow);
         infoContainer.appendChild(versionDiv);
 
-        const connectionLabel = entry.primaryConnection?.name || entry.primaryConnection?.url || entry.primaryConnection?.id || null;
+        const recentConnections = entry.connections ?? [entry.primaryConnection, entry.secondaryConnection];
+        const descriptions = recentConnections
+            .filter((record) => Boolean(record))
+            .map((record) => {
+                const current = connections.find((connection) => connection.id === record?.id);
+                return `${current?.name || record?.name || record?.url || record?.id} · ${current ? connectionProductLabel(current.connectionType) : "Unavailable"}`;
+            });
+        const connectionLabel = descriptions.slice(0, 2).join(" / ") + (descriptions.length > 2 ? ` (+${descriptions.length - 2} more)` : "");
         if (connectionLabel) {
             const connectionDiv = document.createElement("div");
             connectionDiv.className = "quick-tool-connection";
             connectionDiv.textContent = `Connection: ${connectionLabel}`;
+            connectionDiv.title = descriptions.join(" / ");
             infoContainer.appendChild(connectionDiv);
         }
 
@@ -647,6 +658,7 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
                 source: "recent",
                 primaryConnectionId: entry.primaryConnection?.id ?? null,
                 secondaryConnectionId: entry.secondaryConnection?.id ?? null,
+                connectionIds: entry.connections?.map((record) => record?.id ?? null),
             });
         });
 

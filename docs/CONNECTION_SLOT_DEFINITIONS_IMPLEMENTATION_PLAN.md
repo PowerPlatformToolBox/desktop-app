@@ -1,6 +1,83 @@
 # Connection slot definitions implementation plan
 
-Status: proposed; no slot-definition behavior has been implemented.
+Status: foundation, registry/runtime enforcement, and the picker/labeling implementation are in place. Explicit slots now work through UI launch, runtime switching, inter-tool prompts, and session restoration. Product labels appear in connection lists, pickers, slot summaries, tool tabs/status, search, recent cards and native recent menus. MCP/headless remains gated pending migration. The remaining E2E matrix, example migration, author documentation, package publication and live acceptance are pending.
+
+Phase 1 verification (2026-10-14): 120 targeted unit/type/validator tests passed; the validation package build, app type checks, and Vite Electron build passed; all 23 tests in the existing multi-connection, F&O, connection-edge-case, and mixed-example Electron suites passed. These are foundation/regression results, not completion of the new-slot E2E matrix below.
+
+Phase 2 verification (2026-10-14): 201 distinct targeted unit/type/validator tests passed across the foundation, registry, tool runtime, tool loading, and session suites. All 24 connection Electron tests passed, including `connectionSlotRuntime.spec.ts`, which reloads an explicit-slot installed manifest and exercises real IPC launch, reassignment, and remembered-assignment writes. Rejected requests preserve assignments and send no tool-context update notifications. Existing connection edge cases, cold restart, count/range selection, and mixed-product reads remain passing. App type checks and the Electron build passed. Typed-picker, typed session-restoration interaction, installation UI, and MCP/headless E2E coverage remain pending.
+
+## Work checklist
+
+Phase 3 verification (2026-10-14): **212 targeted tests and 33 connection Electron tests passed**, plus app type checks and the Electron build. `connectionSlotPicker.spec.ts` adds nine UI scenarios: required typed slots, optional holes/escaped labels, a single required slot, all-optional launch, ten required slots, same-name product labels/search, narrow dark keyboard interaction, inter-tool prompts, and restoration after a slot product changes. Runtime replacement and recent-card/native-menu reopening preserve slot indexes. Light and narrow dark picker screenshots were inspected. These results cover the implemented picker/labeling stage; they do not complete the entire E2E matrix or MCP/headless acceptance.
+
+Last reviewed: **2026-10-14**. **Complete** means implemented and verified for the stated scope; it does not mean committed, published, or released. **Partial** means some implementation or coverage exists but the item's acceptance checks are unfinished. **Pending** means the item has not been delivered. Only complete items are checked. Update this checklist and the verification evidence after each implementation stage.
+
+| Plan area | Current status |
+| --- | --- |
+| 1. Contract, types, validation, resolver | Complete |
+| 2. Registry and installation metadata | Partial — repository implementation verified; installation UI and external intake verification pending |
+| 3. Main-process enforcement and persistence | Partial — core enforcement verified; typed restoration/manifest-change workflows pending |
+| 4. Picker, runtime controls, purpose and product labels | Partial — implementation and representative UI coverage complete; full scenario matrix and marketplace verification pending |
+| 5. MCP and headless invocation | Pending |
+| 6. Example migration, author documentation and release compatibility | Pending |
+| 7. Full verification and live acceptance | Partial — current targeted/regression checks pass; full scenario matrix pending |
+
+### Contract and shared logic
+
+- [x] **Complete:** Add public/internal explicit-slot types while retaining integer, min/max and legacy declarations.
+- [x] **Complete:** Validate slot defaults, bounds, products, required status, labels, conflicting declarations and invalid shapes in both package validators.
+- [x] **Complete:** Normalize ordered requirements and validate draft/complete assignments without compacting optional holes.
+- [x] **Complete:** Verify existing default/fallback behavior and reject malformed slots instead of falling back.
+- [x] **Complete:** Keep count-only consumers gated until their per-slot migration is complete.
+
+### Metadata and runtime enforcement
+
+- [x] **Complete:** Preserve native/serialized catalog slots and package slots over stale catalog counts.
+- [x] **Complete:** Retain stricter minimum API and Power Platform API requirements when merging explicit-slot metadata.
+- [x] **Complete:** Validate explicit metadata during installed/local/npm tool loading and reject malformed definitions.
+- [x] **Complete:** Enforce required indexes, products and bounds before main-process launch or reassignment; preserve state on rejection.
+- [x] **Complete:** Enforce inherited/overridden invocation assignments and revalidate prompt results before recording invocation state.
+- [x] **Complete:** Validate remembered-assignment writes, including legacy primary/secondary setters.
+- [x] **Complete:** Revalidate saved IDs against current slot requirements before session authentication.
+- [ ] **Partial:** Verify session restoration and remembered assignments end to end after typed manifest changes; shared revalidation and existing restoration regression tests are in place.
+- [ ] **Partial:** Verify all supported installation paths end to end; actual registry installation/metadata persistence has unit/integration coverage.
+- [ ] **Pending:** Confirm external catalog storage and intake validation support the new object.
+
+### Picker and connection labeling
+
+- [x] **Complete:** Pass normalized slot definitions through picker options and invocation prompts.
+- [x] **Complete:** Render fixed explicit slots with correct required/optional status and per-slot product filtering.
+- [x] **Complete:** Enforce confirmation for arbitrary required indexes; clear optional slots without removing or shifting them.
+- [x] **Complete:** Show the selected slot's purpose label in the dialog, preserving it through search/filtering and updating it when switching slots.
+- [x] **Complete:** Apply purpose labels and slot-specific requirements to single-slot selection, runtime switching, invocation and restoration.
+- [x] **Complete:** Standardize Dataverse/F&O product labels across management/sidebar lists, both pickers, assigned summaries, runtime controls, global search, recent cards and native recent menus.
+- [x] **Complete:** Preserve ordered optional holes when reopening from recent cards or native recent menus; refresh recent cards when returning home.
+- [ ] **Partial:** Update marketplace summaries, empty states, accessibility and narrow/light/dark layouts. Implementation, empty-state behavior, keyboard interaction and picker rendering are verified; explicit-slot marketplace detail verification remains pending.
+- [ ] **Partial:** Complete picker and labeling E2E scenarios while retaining existing count/range controls. Representative typed, boundary, restoration, invocation and labeling tests exist; the full matrix below remains a completion requirement.
+
+### MCP, example and release
+
+- [ ] **Pending:** Migrate MCP schema/parsing, lookup, context arrays and worker serialization to preserve optional null holes.
+- [ ] **Pending:** Enforce typed assignments in windowed/headless invocation and retain legacy named/token input behavior.
+- [ ] **Pending:** Add real-protocol/headless routing and failure coverage for explicit slots.
+- [ ] **Pending:** Convert the mixed example to two typed required slots and update its queries/instructions/tests to declared-order behavior.
+- [ ] **Pending:** Update author guides, manual testing and MCP migration documentation.
+- [ ] **Pending:** Assign the release/API version introducing slots and verify older-app compatibility gates.
+- [ ] **Pending:** Coordinate app, types, validator and intake releases; package publication remains a separate release action.
+- [ ] **Pending:** Remove the remaining runtime gates only after all supported routes enforce explicit slots.
+
+### Verification and delivery
+
+- [x] **Complete:** Pass the current 212 targeted unit/type/validator/renderer checks, type checks and builds.
+- [x] **Complete:** Pass the current 33 connection Electron tests, including explicit runtime IPC enforcement and nine picker/labeling/restoration scenarios.
+- [ ] **Partial:** Map every required E2E scenario below to a named test; current runtime and existing regression coverage is recorded, but several new workflows remain pending.
+- [ ] **Pending:** Deliver every missing existing/new-slot E2E scenario, including boundary, legacy combination, labeling, typed restoration, installation and MCP cases.
+- [ ] **Pending:** Run the complete Electron E2E suite for final feature acceptance with no required connection scenario skipped.
+- [x] **Complete:** Inspect current picker rendering in light/dark themes and narrow layouts; verify keyboard selection and purpose/product accessible text. Repeat after any further UI changes.
+- [ ] **Pending:** Complete and record the live mixed Dataverse/F&O smoke test.
+- [x] **Complete:** Commit the implementation plan (`8dc428b`).
+- [x] **Complete:** Commit the current foundation, runtime, picker, connection labeling, example, and test changes as an implementation checkpoint. Remaining stages retain their statuses below.
+- [ ] **Pending:** Publish/release when implementation, verification and release dependencies are complete.
 
 ## Outcome
 
@@ -73,6 +150,10 @@ Update `packages/validation/src/validate.ts` and the maintained validator entry 
 Introduce one normalized connection-requirements resolver in `src/common/connectionSlots.ts`. Its result should include whether the declaration is explicit, the effective minimum/maximum, and ordered normalized slot definitions. For count/range declarations, synthesize slot definitions using current types and the existing required-prefix rule. For explicit definitions, derive minimum as the number of required slots and maximum as the array length.
 
 Retain `resolveConnectionSlots()` as a compatibility wrapper for consumers that only need counts. Counts are insufficient to enforce explicit definitions: all assignment validation must use the ordered slots.
+
+Implementation staging: until those consumers migrate, `resolveConnectionSlots()` deliberately rejects explicit definitions. The new `resolveConnectionRequirements()` and assignment validator are available for the migration. `packages/validation/src/connectionSlots.ts` is the validation source; `packages/lib/connectionSlots.js` is its CommonJS mirror generated by the validation-package TypeScript build with source maps disabled. Regenerate that mirror after changing the source, and retain parity tests for both package-validator entry points.
+
+The main-process and renderer launch/invocation paths now use `resolveConnectionRequirements()`; the count-only gate remains for MCP paths that have not migrated. Explicit-slot assignments are validated before view creation or context changes. Count/range and legacy behavior remains unchanged.
 
 Extend `src/common/connectionCompatibility.ts` with slot-aware checks and a shared assignment validator. Support two explicit validation purposes: validate populated assignments while assembling a selection, and validate a complete configuration before committing it. Reject extra slots, missing saved connections, wrong products, and unfilled required indexes. Normalize omitted optional entries to `null` without compaction. Keep previous count/range runtime behavior where it differs, rather than accidentally tightening it.
 

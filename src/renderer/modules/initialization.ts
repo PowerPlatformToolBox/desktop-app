@@ -781,6 +781,7 @@ function setupToolboxEventListeners(): void {
                     source: payload.data?.source,
                     primaryConnectionId: payload.data?.primaryConnectionId ?? null,
                     secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
+                    connectionIds: Array.isArray(payload.data?.connectionIds) ? payload.data.connectionIds : undefined,
                 });
             } else {
                 logWarn("Menu launch event missing toolId", { payload });

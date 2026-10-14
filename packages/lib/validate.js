@@ -1,5 +1,6 @@
 // @ts-check
 "use strict";
+const { hasConnectionSlotDefinitions, validateConnectionSlotDefinitions } = require("./connectionSlots.js");
 
 /**
  * Tool validation logic for Power Platform ToolBox tools.
@@ -9,7 +10,8 @@
 /** @typedef {{ name: string; url?: string }} Contributor */
 /** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
-/** @typedef {{ connections?: number | { min?: number; max?: number }; multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
+/** @typedef {{ label?: string; connectionTypes?: Array<"dataverse" | "financeOperations">; required?: boolean }} ConnectionSlotDefinition */
+/** @typedef {{ connections?: number | { min?: number; max?: number } | { slots: ConnectionSlotDefinition[] }; connectionTypes?: Array<"dataverse" | "financeOperations">; multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
 /**
  * @typedef {{
  *   name: string;
@@ -354,6 +356,8 @@ async function validatePackageJson(packageJson, options = {}) {
                     }
                 } else if (connections === null || typeof connections !== "object" || Array.isArray(connections)) {
                     errors.push("features.connections must be an integer or an object with optional 'min' and 'max' properties");
+                } else if (hasConnectionSlotDefinitions(connections)) {
+                    errors.push(...validateConnectionSlotDefinitions(connections, features));
                 } else {
                     const invalidConnectionKeys = Object.keys(connections).filter((key) => key !== "min" && key !== "max");
                     if (invalidConnectionKeys.length > 0) {

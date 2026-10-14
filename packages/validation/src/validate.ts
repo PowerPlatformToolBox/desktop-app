@@ -1,5 +1,7 @@
 // @pptb/validate — core validation logic
 // Single source of truth for both the pptb-validate CLI and the web intake platform.
+import { hasConnectionSlotDefinitions, validateConnectionSlotDefinitions } from "./connectionSlots";
+import type { ConnectionSlotDeclaration } from "./connectionSlots";
 
 export interface Contributor {
     name: string;
@@ -25,7 +27,7 @@ export interface Configurations {
 
 export interface Features {
     connectionTypes?: Array<"dataverse" | "financeOperations">;
-    connections?: number | { min?: number; max?: number };
+    connections?: number | { min?: number; max?: number; slots?: never } | ConnectionSlotDeclaration;
     multiConnection?: "required" | "optional" | "none";
     connectionRequirement?: "required" | "optional";
     minAPI?: string;
@@ -474,6 +476,8 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
                     }
                 } else if (connections === null || typeof connections !== "object" || Array.isArray(connections)) {
                     errors.push("features.connections must be an integer or an object with optional 'min' and 'max' properties");
+                } else if (hasConnectionSlotDefinitions(connections)) {
+                    errors.push(...validateConnectionSlotDefinitions(connections, features));
                 } else {
                     const invalidConnectionKeys = Object.keys(connections).filter((key) => key !== "min" && key !== "max");
                     if (invalidConnectionKeys.length > 0) {

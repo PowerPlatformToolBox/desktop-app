@@ -1,4 +1,26 @@
-import type { ConnectionIds } from "../../common/connectionSlots";
+import { resolveConnectionRequirements, type ConnectionIds } from "../../common/connectionSlots";
+import { isConnectionCompatible } from "../../common/connectionCompatibility";
+import type { Connection } from "../../common/types/connection";
+import type { ToolFeatures } from "../../common/types/tool";
+
+/** Reconcile remembered IDs with the current manifest before attempting authentication. */
+export async function revalidateSavedConnectionSlots(
+    connectionIds: ConnectionIds,
+    features: ToolFeatures | undefined,
+    getConnection: (id: string) => Promise<Connection | null>,
+): Promise<ConnectionIds> {
+    const requirements = resolveConnectionRequirements(features);
+    const ids = connectionIds.slice(0, requirements.max);
+    if (requirements.explicit) while (ids.length < requirements.max) ids.push(null);
+    return Promise.all(
+        ids.map(async (id, index) => {
+            if (!id) return null;
+            const connection = await getConnection(id);
+            const slot = requirements.slots[index];
+            return connection && isConnectionCompatible(connection, { connectionTypes: slot.connectionTypes, enabledForPowerPlatformAPI: features?.enabledForPowerPlatformAPI }) ? id : null;
+        }),
+    );
+}
 
 interface StoredConnectionSlots {
     connectionIds?: ConnectionIds;

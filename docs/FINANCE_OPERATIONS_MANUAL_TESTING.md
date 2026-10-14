@@ -25,6 +25,12 @@ To probe server-driven paging with existing data, set **Requested page size** to
 
 The sample does not write data. For a negative check, query an unavailable entity and verify an HTTP error. A foreign-origin absolute next link must be rejected. Dataverse tools should continue to offer only Dataverse connections.
 
+## Read Dataverse and F&O in the same tool
+
+Load `examples/dataverse-finance-operations` using **Debug → Local Development → Browse → Load Tool**. Select one Dataverse connection and one F&O connection, then click **Read both systems**. Expect independent account and customer responses. Repeat with the connections in the opposite slot order, and reassign them while the tool is open before reading again. The tool identifies each product and passes its slot explicitly to the appropriate API.
+
+Selecting two connections of the same product should show a configuration message before any read. A failed query on either side should leave the other side's successful response visible. See the [example README](../examples/dataverse-finance-operations/README.md) for details. Automated regression coverage uses simulated HTTP responses; this mixed-tool live smoke test remains pending.
+
 ## Compare desktop and unattended reads
 
 1. Save a separate F&O **Client ID/Secret** connection, complete the F&O app-to-user mapping, and use **Test Connection** to confirm service access.

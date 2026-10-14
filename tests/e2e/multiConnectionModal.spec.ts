@@ -274,7 +274,7 @@ test.describe("Multi-connection selection modal", () => {
 
         const calleeTab = window.locator("#tool-tabs .tool-tab").filter({ hasText: "E2E Invocation Callee" });
         await expect(calleeTab).toBeVisible({ timeout: 10_000 });
-        await expect(calleeTab.locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development / E2E Test / E2E UAT / E2E Production");
+        await expect(calleeTab.locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development · Dataverse / E2E Test · Dataverse / E2E UAT · Dataverse / E2E Production · Dataverse");
         await calleeTab.locator(".tool-tab-close").click();
         await expect(window.locator("#tool-tabs")).toContainText("E2E Invocation Caller");
     });

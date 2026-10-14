@@ -188,6 +188,12 @@ export const test = base.extend<AppFixtures>({
                 { id: "e2e-single-connection", name: "E2E Single Connection" },
                 { id: "e2e-finops-connection", name: "E2E F&O Connection", features: { connections: 1, connectionTypes: ["financeOperations"] } },
                 { id: "e2e-mixed-connections", name: "E2E Mixed Connections", features: { connections: 2, connectionTypes: ["dataverse", "financeOperations"] } },
+                { id: "e2e-typed-connections", name: "E2E Typed Connections", features: { connections: { slots: [{ label: "Dataverse accounts" }, { label: "F&O customers", connectionTypes: ["financeOperations"] }] } } },
+                { id: "e2e-typed-optional", name: "E2E Typed Optional", features: { connections: { slots: [{ label: 'Accounts </script><img src=x onerror="window.slotLabelInjected=true">', required: false }, { label: "Required F&O customers", connectionTypes: ["financeOperations"] }, { label: "Optional comparison", required: false, connectionTypes: ["dataverse", "financeOperations"] }] } } },
+                { id: "e2e-typed-single", name: "E2E Typed Single", features: { connections: { slots: [{ label: "F&O customer lookup", connectionTypes: ["financeOperations"] }] } } },
+                { id: "e2e-typed-ten", name: "E2E Typed Ten", features: { connections: { slots: Array.from({ length: 10 }, (_, index) => ({ label: `Accounts environment ${index + 1}` })) } } },
+                { id: "e2e-typed-all-optional", name: "E2E Typed All Optional", features: { connections: { slots: [{ label: "Optional customer lookup", required: false, connectionTypes: ["financeOperations"] }] } } },
+                { id: "e2e-mixed-explorer", name: "Dataverse + F&O Explorer", features: JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../examples/dataverse-finance-operations/package.json"), "utf8")).features },
                 { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
             ];
             const installedTools = toolDefinitions.map((tool) => {
@@ -195,6 +201,9 @@ export const test = base.extend<AppFixtures>({
                 fs.mkdirSync(path.join(installPath, "dist"), { recursive: true });
                 fs.writeFileSync(path.join(installPath, "package.json"), JSON.stringify({ name: tool.id, version: "1.0.0", ...(tool.features ? { features: tool.features } : {}) }, null, 2));
                 fs.writeFileSync(path.join(installPath, "dist", "index.html"), `<!doctype html><html><body><main>${tool.id} E2E fixture</main></body></html>`);
+                if (tool.id === "e2e-mixed-explorer") {
+                    fs.cpSync(path.resolve(__dirname, "../../examples/dataverse-finance-operations/dist"), path.join(installPath, "dist"), { recursive: true });
+                }
                 return {
                     ...tool,
                     description: "Static tool fixture for multi-connection E2E tests.",

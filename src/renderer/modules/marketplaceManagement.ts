@@ -3,7 +3,8 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
-import { resolveConnectionSlots } from "../../common/connectionSlots";
+import { resolveConnectionRequirements as resolveConnectionSlots } from "../../common/connectionSlots";
+import { connectionProductLabel } from "../../common/connectionProduct";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import type { ToolRegistryEntry } from "../../common/types";
 import type { ToolDetail } from "../types/index";
@@ -317,7 +318,9 @@ export async function loadMarketplace(): Promise<void> {
             if (displayMode === "compact") {
                 // Compact mode: icon, name, version, author only
                 return `
-        <div class="marketplace-item-pptb marketplace-item-compact ${verifiedClass} ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb marketplace-item-compact ${verifiedClass} ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${
+                    isUnsupported ? "unsupported" : ""
+                }" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
@@ -330,7 +333,9 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? "disabled" : ""}>
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${
+                                  isUnsupported ? "disabled" : ""
+                              }>
                             <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
@@ -356,7 +361,9 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? "disabled" : ""}>
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${
+                                  isUnsupported ? "disabled" : ""
+                              }>
                             <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
@@ -583,6 +590,9 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const connectionSlots = resolveConnectionSlots(tool.features);
     const connectionSummary = connectionSlots.max === 0 ? "None" : connectionSlots.min === connectionSlots.max ? `${connectionSlots.min}` : `${connectionSlots.min}–${connectionSlots.max}`;
     metaBadges.push(`Connections: ${connectionSummary}`);
+    const connectionPurposeSummary = connectionSlots.explicit
+        ? connectionSlots.slots.map((slot) => `${slot.label}: ${slot.connectionTypes.map(connectionProductLabel).join(" / ")} (${slot.required ? "required" : "optional"})`).join("; ")
+        : "";
     const categories = tool.categories?.length ? tool.categories.map((c) => escapeHtml(c)) : [];
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
@@ -593,7 +603,14 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
 
     const categoryTagsMarkup = categories.length ? categories.map((tag) => `<span>${tag}</span>`).join("") : "";
     const tagsMarkup = `${mcpTagMarkup}${categoryTagsMarkup}`;
-    const badgeMarkup = metaBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
+    const badgeMarkup = metaBadges
+        .map(
+            (badge) =>
+                `<span${
+                    badge.startsWith("Connections:") && connectionPurposeSummary ? ` title="${escapeHtml(connectionPurposeSummary)}" aria-label="${escapeHtml(connectionPurposeSummary)}"` : ""
+                }>${escapeHtml(badge)}</span>`,
+        )
+        .join("");
     const ratingsHtml = formatRatingMarkup(tool.rating, { suffix: ' <span class="tool-detail-rating-star" aria-hidden="true">⭐</span>' });
     const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
 
@@ -623,7 +640,11 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                 </div>
                 <div class="tool-detail-tab-meta">
                     ${tagsMarkup ? `<div class="tool-detail-tab-tags">${tagsMarkup}</div>` : ""}
-                    <h2 class="tool-detail-tab-name">${escapeHtml(tool.name)}${verifiedBadgeHtml}<span id="tool-detail-installed-badge" class="marketplace-item-installed-icon tool-detail-tab-installed-badge" ${isInstalled ? "" : 'style="display:none"'} aria-label="Installed" title="Installed">✓</span></h2>
+                    <h2 class="tool-detail-tab-name">${escapeHtml(
+                        tool.name,
+                    )}${verifiedBadgeHtml}<span id="tool-detail-installed-badge" class="marketplace-item-installed-icon tool-detail-tab-installed-badge" ${
+        isInstalled ? "" : 'style="display:none"'
+    } aria-label="Installed" title="Installed">✓</span></h2>
                     <p class="tool-detail-tab-description">${escapeHtml(tool.description || "")}</p>
                     <p class="tool-detail-tab-authors">By ${escapeHtml(authorsDisplay)}</p>
                     ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list" id="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}

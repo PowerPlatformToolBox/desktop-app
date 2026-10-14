@@ -7,6 +7,7 @@ import { logDebug, logError, logInfo, logWarn } from "../../common/logger";
 import type { Connection, ConnectionsSortOption, DataverseUser, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { normalizeConnection, resolveConnectionType, parseConnectionString } from "../../common/types/connection";
 import { assertConnectionCompatible, isConnectionCompatible } from "../../common/connectionCompatibility";
+import { CONNECTION_PRODUCTS, connectionProductLabel } from "../../common/connectionProduct";
 import type { ConnectionType } from "../../common/types/connection";
 import darkImpersonationIcon from "../icons/dark/impersonate.svg?raw";
 import lightImpersonationIcon from "../icons/light/impersonate.svg?raw";
@@ -203,15 +204,18 @@ let highlightConnectionId: string | null = null;
 
 // Store the name of the tool requesting a connection (shown in the modal header)
 let requestingToolName: string | undefined = undefined;
+let requestingConnectionPurpose: string | undefined;
 
 // Store whether the tool requires Power Platform API connections
 let requirePowerPlatformApi: boolean = false;
 let supportedConnectionTypes: ConnectionType[] = ["dataverse"];
 
-async function assertSelectableConnection(connectionId: string): Promise<void> {
+async function assertSelectableConnection(connectionId: string, slotIndex?: number): Promise<void> {
     const connection = await window.toolboxAPI.connections.getById(connectionId);
     if (!connection) throw new Error("Selected connection no longer exists.");
-    assertConnectionCompatible(connection, { connectionTypes: supportedConnectionTypes, enabledForPowerPlatformAPI: requirePowerPlatformApi });
+    const slot = slotIndex === undefined ? undefined : selectMultiConnectionOptions?.slots?.[slotIndex];
+    if (slotIndex !== undefined && selectMultiConnectionOptions?.slots && !slot) throw new Error("Connection slot is not declared.");
+    assertConnectionCompatible(connection, { connectionTypes: slot?.connectionTypes ?? supportedConnectionTypes, enabledForPowerPlatformAPI: requirePowerPlatformApi });
     if (connection.hasIncompleteCredentials) throw new Error("Selected connection has incomplete credentials.");
 }
 let selectMultiConnectionOptions: SelectMultiConnectionModalOptions | null = null;
@@ -331,6 +335,7 @@ export async function openSelectConnectionModal(
     enabledForPowerPlatformAPI: boolean = false,
     allowClearSelection: boolean = false,
     connectionTypes: ConnectionType[] = ["dataverse"],
+    purposeLabel?: string,
 ): Promise<{ connectionId: string | null; impersonationUser: DataverseUser | null; cleared: boolean }> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
@@ -340,6 +345,7 @@ export async function openSelectConnectionModal(
 
         // Store the tool name to display in the modal header
         requestingToolName = toolName;
+        requestingConnectionPurpose = purposeLabel;
 
         // Store whether to require Power Platform API enabled connections
         requirePowerPlatformApi = enabledForPowerPlatformAPI;
@@ -401,7 +407,7 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 
 function buildSelectConnectionModalHtml(enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName, allowClearSelectedConnection);
+    const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName, allowClearSelectedConnection, requestingConnectionPurpose);
     const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS, enabledForPowerPlatformAPI, connectionModalDoubleClickConnectEnabled, allowClearSelectedConnection);
     return `${styles}\n${body}\n${script}`.trim();
 }
@@ -499,7 +505,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
         // Exclude connections with incomplete credentials from selection
-        const usableConnections = connections.filter((c: Connection) => !c.hasIncompleteCredentials && isConnectionCompatible(c, { connectionTypes: supportedConnectionTypes, enabledForPowerPlatformAPI: requirePowerPlatformApi }));
+        const usableConnections = connections.filter(
+            (c: Connection) => !c.hasIncompleteCredentials && isConnectionCompatible(c, { connectionTypes: supportedConnectionTypes, enabledForPowerPlatformAPI: requirePowerPlatformApi }),
+        );
         const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
@@ -606,7 +614,7 @@ async function promptForImpersonationUser(connectionId: string, context?: Impers
             }
             if (payload.channel !== SELECT_IMPERSONATION_USER_MODAL_CHANNELS.selectUser) return;
             const index = (payload.data as { index?: number | null } | undefined)?.index;
-            void finish(typeof index === "number" && Number.isInteger(index) ? (users[index] ?? null) : null);
+            void finish(typeof index === "number" && Number.isInteger(index) ? users[index] ?? null : null);
         };
         onBrowserWindowModalMessage(messageHandler);
         onBrowserWindowModalClosed(closedHandler);
@@ -669,7 +677,7 @@ export async function openSelectMultiConnectionModal(
         // Store the tool name to display in the modal header
         requestingToolName = options.toolName;
         selectMultiConnectionOptions = options;
-        supportedConnectionTypes = options.connectionTypes ? [...options.connectionTypes] : ["dataverse"];
+        supportedConnectionTypes = options.slots ? [...new Set(options.slots.flatMap((slot) => slot.connectionTypes))] : options.connectionTypes ? [...options.connectionTypes] : ["dataverse"];
 
         // Store whether to require Power Platform API enabled connections
         requirePowerPlatformApi = enabledForPowerPlatformAPI;
@@ -747,7 +755,8 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
     if (data && "action" in data && data.action === "authenticate") {
         try {
             // Authenticate the connection
-            await assertSelectableConnection(data.connectionId);
+            const slotIndex = data.listType.startsWith("slot-") ? Number(data.listType.slice(5)) : data.listType === "secondary" ? 1 : 0;
+            await assertSelectableConnection(data.connectionId, slotIndex);
             await window.toolboxAPI.connections.authenticate(data.connectionId);
 
             // Send success message back to modal
@@ -780,12 +789,15 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
         try {
             if (Array.isArray(data.connectionIds)) {
                 const connectionIds = [...data.connectionIds];
-                for (const connectionId of connectionIds) {
-                    if (connectionId) await assertSelectableConnection(connectionId);
+                for (const [index, connectionId] of connectionIds.entries()) {
+                    if (connectionId) await assertSelectableConnection(connectionId, index);
                 }
                 const options = selectMultiConnectionOptions;
                 const minConnections = options?.minConnections ?? 1;
-                if (connectionIds.slice(0, minConnections).filter(Boolean).length < minConnections) {
+                if (
+                    connectionIds.length > (options?.maxConnections ?? 2) ||
+                    (options?.slots ? options.slots.some((slot, index) => slot.required && !connectionIds[index]) : connectionIds.slice(0, minConnections).filter(Boolean).length < minConnections)
+                ) {
                     await signalSelectMultiConnectionReady();
                     return;
                 }
@@ -794,7 +806,9 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
                     const connectionId = connectionIds[slotIndex];
                     if (!connectionId) continue;
                     try {
-                        const context = await buildImpersonationPickerContext(connectionId, `Connection ${slotIndex + 1}`);
+                        const selected = await window.toolboxAPI.connections.getById(connectionId);
+                        if (selected?.connectionType === "financeOperations") continue;
+                        const context = await buildImpersonationPickerContext(connectionId, options?.slots?.[slotIndex]?.label ?? `Connection ${slotIndex + 1}`);
                         impersonationUsers[slotIndex] = await promptForImpersonationUser(connectionId, context);
                     } catch (usersError) {
                         logWarn(`Failed to fetch Dataverse users for connection slot ${slotIndex + 1} impersonation picker`, {
@@ -914,7 +928,9 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
         // Exclude connections with incomplete credentials from selection
-        const usableConnections = connections.filter((c: Connection) => !c.hasIncompleteCredentials && isConnectionCompatible(c, { connectionTypes: supportedConnectionTypes, enabledForPowerPlatformAPI: requirePowerPlatformApi }));
+        const usableConnections = connections.filter(
+            (c: Connection) => !c.hasIncompleteCredentials && isConnectionCompatible(c, { connectionTypes: supportedConnectionTypes, enabledForPowerPlatformAPI: requirePowerPlatformApi }),
+        );
         const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
@@ -1060,6 +1076,9 @@ export async function loadConnections(): Promise<void> {
                     <div>
                         <div class="connection-name">${conn.name}</div>
                         ${getEnvBadgeMarkup(conn as Connection)}
+                        <span class="auth-type-badge connection-product-badge" title="${escapeHtml(CONNECTION_PRODUCTS[resolveConnectionType(conn.connectionType)].description)}">${escapeHtml(
+                    connectionProductLabel(conn.connectionType),
+                )}</span>
                     </div>
                     <div class="connection-actions">
                         ${
@@ -1817,7 +1836,9 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
             buildConnectionFromPayload(formPayload, mode);
             return null;
         }
-    } catch (error) { return (error as Error).message; }
+    } catch (error) {
+        return (error as Error).message;
+    }
     const requiresPowerPlatformClientId = formPayload.enabledForPowerPlatformAPI === true;
 
     // Special validation for connection string
@@ -1900,7 +1921,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
 
         // Build connection from parsed data
         const connection: Connection = {
-            id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
+            id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
             name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
             url: parsed.url,
             environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
@@ -1938,7 +1959,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
 
     // Standard connection building for non-connection-string types
     const connection: Connection = {
-        id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
+        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
         environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
@@ -2306,7 +2327,7 @@ export async function loadSidebarConnections(): Promise<void> {
             if (selectedType && resolveConnectionType(conn.connectionType) !== selectedType) return false;
             // Search filter (name or URL)
             if (searchTerm) {
-                const haystacks: string[] = [conn.name || "", conn.url || ""];
+                const haystacks: string[] = [conn.name || "", conn.url || "", connectionProductLabel(conn.connectionType), CONNECTION_PRODUCTS[resolveConnectionType(conn.connectionType)].description];
                 if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
                     return false;
                 }
@@ -2398,7 +2419,11 @@ export async function loadSidebarConnections(): Promise<void> {
                     <div class="connection-item-footer-pptb">
                         <div class="connection-item-meta-left">
                             ${envBadgeMarkup}
-                            <span class="auth-type-badge">${conn.connectionType === "financeOperations" ? "F&amp;O" : "Dataverse"}</span>
+                            <span class="auth-type-badge connection-product-badge" title="${escapeHtml(
+                                CONNECTION_PRODUCTS[resolveConnectionType(conn.connectionType)].description,
+                            )}" aria-label="${escapeHtml(CONNECTION_PRODUCTS[resolveConnectionType(conn.connectionType)].description)}">${escapeHtml(
+                connectionProductLabel(conn.connectionType),
+            )}</span>
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
                             ${warningBadge}
                         </div>

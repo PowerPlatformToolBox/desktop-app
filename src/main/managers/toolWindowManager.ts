@@ -1,7 +1,7 @@
 import { BrowserView, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as path from "path";
-import { ConnectionIds, ConnectionTarget, legacyConnectionIds, normalizeConnectionTarget, resolveConnectionSlots } from "../../common/connectionSlots";
-import { assertConnectionCompatible } from "../../common/connectionCompatibility";
+import { ConnectionIds, ConnectionTarget, legacyConnectionIds, normalizeConnectionTarget, resolveConnectionRequirements } from "../../common/connectionSlots";
+import { assertConnectionCompatible, validateConnectionAssignments } from "../../common/connectionCompatibility";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { addConnectionSlotsBreadcrumb, captureException } from "../../common/sentryHelper";
@@ -426,9 +426,10 @@ export class ToolWindowManager {
     ): Promise<boolean> {
         let launchingView: BrowserView | null = null;
         try {
-            const connectionSlots = resolveConnectionSlots(tool.features);
-            const resolvedConnectionIds = (connectionIds ?? legacyConnectionIds(primaryConnectionId, secondaryConnectionId)).slice(0, connectionSlots.max);
-            this.validateConnectionCompatibility(resolvedConnectionIds, tool.features);
+            const connectionSlots = resolveConnectionRequirements(tool.features);
+            const aliasIds = legacyConnectionIds(primaryConnectionId, secondaryConnectionId);
+            const requestedIds = connectionIds ?? (connectionSlots.explicit && aliasIds.slice(connectionSlots.max).some(Boolean) ? aliasIds : aliasIds.slice(0, connectionSlots.max));
+            const resolvedConnectionIds = this.validateConnectionCompatibility(connectionSlots.explicit ? requestedIds : requestedIds.slice(0, connectionSlots.max), tool.features);
             primaryConnectionId = resolvedConnectionIds[0] ?? null;
             secondaryConnectionId = resolvedConnectionIds[1] ?? null;
             addConnectionSlotsBreadcrumb(connectionSlots.min, connectionSlots.max, resolvedConnectionIds.filter(Boolean).length);
@@ -736,13 +737,17 @@ export class ToolWindowManager {
         while (effectiveConnectionIds.length < 2) effectiveConnectionIds.push(null);
         effectiveConnectionIds[0] = primaryConnectionId ?? effectiveConnectionIds[0] ?? null;
         effectiveConnectionIds[1] = secondaryConnectionId ?? effectiveConnectionIds[1] ?? null;
-        const connectionSlots = resolveConnectionSlots(tool.features);
-        this.validateConnectionCompatibility(effectiveConnectionIds.slice(0, connectionSlots.max), tool.features);
+        const connectionSlots = resolveConnectionRequirements(tool.features);
+        // Inheritance may include more slots than the callee declares. Explicit overrides may not.
+        if (connectionSlots.explicit && ((connectionIds && connectionIds.length > connectionSlots.max) || (connectionSlots.max < 2 && secondaryConnectionId))) {
+            throw new Error(`Tool accepts at most ${connectionSlots.max} connection slots.`);
+        }
+        effectiveConnectionIds = this.validateConnectionCompatibility(effectiveConnectionIds.slice(0, connectionSlots.max), tool.features, false);
         while (effectiveConnectionIds.length < connectionSlots.min) effectiveConnectionIds.push(null);
-        const missingRequiredSlots = effectiveConnectionIds.slice(0, connectionSlots.min).some((connectionId) => !connectionId);
+        const missingRequiredSlots = connectionSlots.slots.some((slot, index) => slot.required && !effectiveConnectionIds[index]);
         const hasInheritedConnection = effectiveConnectionIds.slice(0, connectionSlots.max).some(Boolean);
 
-        if (connectionSlots.max > 0 && (missingRequiredSlots || !hasInheritedConnection)) {
+        if (connectionSlots.max > 0 && (missingRequiredSlots || (!connectionSlots.explicit && !hasInheritedConnection))) {
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
                 logInfo("[ToolWindowManager] Inter-tool invocation awaiting connection selection", invocationLogContext);
@@ -757,6 +762,8 @@ export class ToolWindowManager {
                 throw error;
             }
         }
+
+        effectiveConnectionIds = this.validateConnectionCompatibility(effectiveConnectionIds, tool.features);
 
         return new Promise((resolve, reject) => {
             this.pendingInvocations.set(calleeInstanceId, {
@@ -817,7 +824,14 @@ export class ToolWindowManager {
      * Returns a Promise that resolves with the selected connection IDs once the user confirms,
      * or rejects if the user cancels the dialog.
      */
-    private promptForInvocationConnections(requestId: string, toolName: string, minConnections: number, maxConnections: number, inheritedConnectionIds: ConnectionIds, features?: ToolFeatures): Promise<ConnectionIds> {
+    private promptForInvocationConnections(
+        requestId: string,
+        toolName: string,
+        minConnections: number,
+        maxConnections: number,
+        inheritedConnectionIds: ConnectionIds,
+        features?: ToolFeatures,
+    ): Promise<ConnectionIds> {
         return new Promise((resolve, reject) => {
             this.pendingConnectionPrompts.set(requestId, { resolve, reject });
             this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, {
@@ -1398,7 +1412,7 @@ export class ToolWindowManager {
             return;
         }
 
-        this.validateConnectionCompatibility(connectionIds, this.toolConnectionFeatures.get(instanceId));
+        connectionIds = this.validateConnectionCompatibility(connectionIds, this.toolConnectionFeatures.get(instanceId));
         const previous = this.toolConnectionInfo.get(instanceId);
         const impersonatedUsers = [...(previous?.impersonatedUsers ?? [])];
         connectionIds.forEach((connectionId, index) => {
@@ -1446,13 +1460,17 @@ export class ToolWindowManager {
         return null;
     }
 
-    private validateConnectionCompatibility(connectionIds: ConnectionIds, features?: ToolFeatures): void {
+    private validateConnectionCompatibility(connectionIds: ConnectionIds, features?: ToolFeatures, complete = true): ConnectionIds {
+        if (resolveConnectionRequirements(features).explicit) {
+            return validateConnectionAssignments(connectionIds, features, (id) => this.connectionsManager.getConnectionById(id), complete);
+        }
         for (const connectionId of connectionIds) {
             if (!connectionId) continue;
             const connection = this.connectionsManager.getConnectionById(connectionId);
             if (!connection) throw new Error(`Connection '${connectionId}' not found.`);
             assertConnectionCompatible(connection, features);
         }
+        return connectionIds;
     }
 
     /**

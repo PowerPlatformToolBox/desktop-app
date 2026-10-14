@@ -49,7 +49,7 @@ describe("ToolWindowManager connection slot routing", () => {
         const view = new BrowserView();
         (manager as any).toolViews.set("tool-1", view);
         (manager as any).toolConnectionFeatures.set("tool-1", { connectionTypes: ["dataverse", "financeOperations"] });
-        connectionsManager.getConnectionById.mockImplementation((id) => ({ id, name: id, url: `https://${id}.example`, connectionType: id === "finops" ? "financeOperations" : "dataverse" }) as any);
+        connectionsManager.getConnectionById.mockImplementation((id) => ({ id, name: id, url: `https://${id}.example`, connectionType: id === "finops" ? "financeOperations" : "dataverse" } as any));
         await manager.updateToolConnections("tool-1", ["primary-id", null, "finops"]);
         expect((manager as any).toolConnectionInfo.get("tool-1").connectionIds).toEqual(["primary-id", null, "finops"]);
         expect(() => manager.setImpersonation("tool-1", { azureactivedirectoryobjectid: "00000000-0000-0000-0000-000000000001" } as any, 2)).toThrow("requires a Dataverse connection");
@@ -206,6 +206,114 @@ describe("ToolWindowManager connection slot routing", () => {
         expect(manager.launchTool).toHaveBeenCalledWith("optional-callee-instance", tool, null, null, {}, [null, null, null]);
         manager.resolveInvocation("optional-callee-instance", null);
         await expect(launch).resolves.toBeNull();
+    });
+});
+
+describe("ToolWindowManager explicit slot enforcement", () => {
+    const features = {
+        connections: {
+            slots: [
+                { label: "Optional accounts", required: false },
+                { label: "F&O customers", connectionTypes: ["financeOperations" as const] },
+            ],
+        },
+    };
+    function explicitManager() {
+        const result = createManager();
+        (result.mainWindow.webContents as any).getZoomLevel = jest.fn(() => 0);
+        result.connectionsManager.getConnectionById.mockImplementation((id) =>
+            id === "missing" ? undefined : ({ id, name: id, url: `https://${id}.example`, connectionType: id === "fo" ? "financeOperations" : "dataverse" } as any),
+        );
+        (result.manager as any).settingsManager.addLastUsedTool = jest.fn();
+        (result.manager as any).toolManager.trackToolUsage = jest.fn().mockResolvedValue(undefined);
+        (result.manager as any).browserviewProtocolManager = { getToolBaseDirectory: jest.fn(() => null), buildToolUrl: jest.fn(() => "about:blank") };
+        jest.spyOn(result.manager, "switchToTool").mockResolvedValue(true);
+        return result;
+    }
+
+    it("launches with an optional first slot and required later slot, preserving context and saved indexes", async () => {
+        const { manager } = explicitManager();
+        await expect(manager.launchTool("typed-123-abc", { id: "typed", name: "Typed", features } as any, null, "fo", undefined, [null, "fo"])).resolves.toBe(true);
+        const view = (manager as any).toolViews.get("typed-123-abc");
+        expect(view.webContents.send).toHaveBeenCalledWith("toolbox:context", expect.objectContaining({ connectionIds: [null, "fo"], connectionUrls: [null, "https://fo.example"] }));
+        expect((manager as any).settingsManager.addLastUsedTool).toHaveBeenCalledWith(expect.objectContaining({ connections: [null, expect.objectContaining({ id: "fo" })] }));
+    });
+    it("rejects an extra secondary alias rather than discarding it for a single explicit slot", async () => {
+        const { manager } = explicitManager();
+        const tool = { id: "typed", name: "Typed", features: { connections: { slots: [{}] } } } as any;
+        await expect(manager.launchTool("typed-123-abc", tool, "dv", "fo")).resolves.toBe(false);
+        await expect(manager.launchToolWithContext("caller", "callee", tool, "dv", "fo", {})).rejects.toThrow("at most 1");
+        expect((manager as any).toolViews.size).toBe(0);
+    });
+
+    it.each([
+        ["dv", null],
+        [null, "dv"],
+        [null, "missing"],
+        [null, "fo", "dv"],
+    ])("rejects invalid explicit launch %p before view creation or saved-state changes", async (...ids) => {
+        const { manager } = explicitManager();
+        await expect(manager.launchTool("typed-123-abc", { id: "typed", name: "Typed", features } as any, null, null, undefined, ids as any)).resolves.toBe(false);
+        expect((manager as any).toolViews.size).toBe(0);
+        expect((manager as any).browserviewProtocolManager.getToolBaseDirectory).not.toHaveBeenCalled();
+        expect((manager as any).settingsManager.addLastUsedTool).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ["dv", null],
+        [null, "dv"],
+        [null, "missing"],
+        [null, "fo", "dv"],
+    ])("rejects reassignment %p atomically", async (...ids) => {
+        const { manager } = explicitManager();
+        const view = new BrowserView();
+        const user = { fullname: "Existing user" };
+        const previous = { connectionIds: ["dv", "fo"], impersonatedUsers: [user, null] };
+        (manager as any).toolViews.set("typed", view);
+        (manager as any).toolConnectionFeatures.set("typed", features);
+        (manager as any).toolConnectionInfo.set("typed", previous);
+        await expect(manager.updateToolConnections("typed", ids as any)).rejects.toThrow();
+        expect((manager as any).toolConnectionInfo.get("typed")).toBe(previous);
+        expect(view.webContents.send).not.toHaveBeenCalled();
+    });
+
+    it("allows clearing an optional slot without shifting a required F&O assignment", async () => {
+        const { manager } = explicitManager();
+        const view = new BrowserView();
+        (manager as any).toolViews.set("typed", view);
+        (manager as any).toolConnectionFeatures.set("typed", features);
+        (manager as any).toolConnectionInfo.set("typed", { connectionIds: ["dv", "fo"], impersonatedUsers: [{ fullname: "User" }, null] });
+        await manager.updateToolConnection("typed", null);
+        expect((manager as any).toolConnectionInfo.get("typed")).toEqual({ connectionIds: [null, "fo"], impersonatedUsers: [null, null] });
+        expect(view.webContents.send).toHaveBeenCalledWith("toolbox:context", expect.objectContaining({ connectionIds: [null, "fo"] }));
+        expect(() => manager.setImpersonation("typed", { fullname: "User" } as any, 1)).toThrow("requires a Dataverse connection");
+    });
+
+    it("prompts for the actual required index and rejects an invalid prompt result before recording invocation state", async () => {
+        const { manager, mainWindow } = explicitManager();
+        (manager as any).toolConnectionInfo.set("caller", { connectionIds: ["dv", null], impersonatedUsers: [null, null] });
+        const launch = jest.spyOn(manager, "launchTool");
+        const result = manager.launchToolWithContext("caller", "callee", { id: "typed", name: "Typed", features } as any, null, null, {});
+        const prompt = (mainWindow.webContents.send as jest.Mock).mock.calls.find(([channel]) => channel === TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS)?.[1];
+        expect(prompt).toMatchObject({ minConnections: 1, maxConnections: 2, inheritedConnectionIds: ["dv", null], features });
+        (manager as any).pendingConnectionPrompts.get(prompt.requestId).resolve(["dv", "dv"]);
+        await expect(result).rejects.toThrow("not compatible with slot 2");
+        expect(launch).not.toHaveBeenCalled();
+        expect((manager as any).pendingInvocations.size).toBe(0);
+        expect((manager as any).activeCallees.size).toBe(0);
+    });
+
+    it("passes valid inherited holes through invocation without prompting", async () => {
+        const { manager, mainWindow } = explicitManager();
+        (manager as any).toolConnectionInfo.set("caller", { connectionIds: [null, "fo", "obsolete"], impersonatedUsers: [null, null, null] });
+        const launchTool = jest.spyOn(manager, "launchTool").mockResolvedValue(true);
+        const tool = { id: "typed", name: "Typed", features } as any;
+        const result = manager.launchToolWithContext("caller", "callee", tool, null, null, {});
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(launchTool).toHaveBeenCalledWith("callee", tool, null, "fo", {}, [null, "fo"]);
+        expect(mainWindow.webContents.send).not.toHaveBeenCalledWith(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, expect.anything());
+        manager.resolveInvocation("callee", { ok: true });
+        await expect(result).resolves.toEqual({ ok: true });
     });
 });
 

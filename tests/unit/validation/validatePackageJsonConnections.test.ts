@@ -19,6 +19,60 @@ const validPackage = (features: ToolPackageJson["features"]): ToolPackageJson =>
 });
 
 describe("package.json features.connections validation", () => {
+    it.each([
+        { slots: [{}] },
+        {
+            slots: [
+                { label: "Accounts", required: false },
+                { label: "Customers", connectionTypes: ["financeOperations"] },
+            ],
+        },
+        { slots: Array.from({ length: 10 }, () => ({ required: false })) },
+    ])("accepts explicit slots %p in both validators", async (connections) => {
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            expect((await validate(validPackage({ connections } as ToolPackageJson["features"]), { skipUrlChecks: true })).valid).toBe(true);
+        }
+    });
+
+    it.each([
+        { slots: [] },
+        { slots: null },
+        { slots: "invalid" },
+        { slots: [null] },
+        { slots: [[]] },
+        { slots: Array.from({ length: 11 }, () => ({})) },
+        { slots: [{}], min: 0 },
+        { slots: [{}], max: 1 },
+        { slots: [{}], typo: 1 },
+        { slots: [{ label: " " }] },
+        { slots: [{ label: 1 }] },
+        { slots: [{ required: "true" }] },
+        { slots: [{ connectionTypes: [] }] },
+        { slots: [{ connectionTypes: null }] },
+        { slots: [{ connectionTypes: ["unknown"] }] },
+        { slots: [{ connectionTypes: ["dataverse", "dataverse"] }] },
+        { slots: [{ typo: true }] },
+        { slots: Array(1) },
+        { slots: [{ connectionTypes: Array(1) }] },
+    ])("rejects malformed explicit slots %p with matching validator errors", async (connections) => {
+        const pkg = validPackage({ connections } as unknown as ToolPackageJson["features"]);
+        const result = await validatePackageJson(pkg, { skipUrlChecks: true });
+        const mirrored = await mirroredValidator.validatePackageJson(pkg, { skipUrlChecks: true });
+        expect(result.valid).toBe(false);
+        expect(mirrored.errors).toEqual(result.errors);
+    });
+
+    it.each([
+        { connections: { slots: [{}] }, connectionTypes: ["dataverse"] },
+        { connections: { slots: [{}] }, multiConnection: "optional" },
+        { connections: { slots: [{}] }, connectionRequirement: "required" },
+        { connections: { slots: [{ connectionTypes: ["dataverse", "financeOperations"] }] }, enabledForPowerPlatformAPI: true },
+    ])("rejects conflicting slot features %p", async (features) => {
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            expect((await validate(validPackage(features as ToolPackageJson["features"]), { skipUrlChecks: true })).valid).toBe(false);
+        }
+    });
+
     it.each([["dataverse"], ["financeOperations"], ["dataverse", "financeOperations"]].map((types) => [types]))("accepts declared products %p", async (connectionTypes) => {
         const pkg = validPackage({ connections: 1, connectionTypes: connectionTypes as Array<"dataverse" | "financeOperations"> });
         for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
