@@ -23,17 +23,17 @@ CREATE TABLE public.community_links (
 
 ### Column descriptions
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `uuid` | Primary key, auto-generated. |
-| `group_id` | `text` | Stable slug that identifies the category group (e.g. `"newsletters"`). Rows that share a `group_id` are rendered as a single collapsible section. |
-| `group_title` | `text` | Human-readable title displayed as the group header (e.g. `"Newsletters"`). |
-| `label` | `text` | Display label for the individual link (e.g. `"PP Weekly"`). |
-| `url` | `text` | Full HTTPS URL of the link. Non-HTTPS URLs are rejected by the app. |
-| `sort_order` | `int` | Controls the order of links within a group. Lower values appear first. Group ordering is handled by the app. |
-| `is_active` | `boolean` | When `false` the link is excluded from the app without deleting the row. |
-| `created_at` | `timestamptz` | Row creation timestamp (auto-set). |
-| `updated_at` | `timestamptz` | Row last-updated timestamp. Update via trigger (see below). |
+| Column        | Type          | Description                                                                                                                                       |
+| ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | `uuid`        | Primary key, auto-generated.                                                                                                                      |
+| `group_id`    | `text`        | Stable slug that identifies the category group (e.g. `"newsletters"`). Rows that share a `group_id` are rendered as a single collapsible section. |
+| `group_title` | `text`        | Human-readable title displayed as the group header (e.g. `"Newsletters"`).                                                                        |
+| `label`       | `text`        | Display label for the individual link (e.g. `"PP Weekly"`).                                                                                       |
+| `url`         | `text`        | Full HTTPS URL of the link. Non-HTTPS URLs are rejected by the app.                                                                               |
+| `sort_order`  | `int`         | Controls the order of links within a group. Lower values appear first. Group ordering is handled by the app.                                      |
+| `is_active`   | `boolean`     | When `false` the link is excluded from the app without deleting the row.                                                                          |
+| `created_at`  | `timestamptz` | Row creation timestamp (auto-set).                                                                                                                |
+| `updated_at`  | `timestamptz` | Row last-updated timestamp. Update via trigger (see below).                                                                                       |
 
 ---
 

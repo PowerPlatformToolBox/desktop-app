@@ -67,10 +67,18 @@ function checkPreparation(control?: DotNetPreparationControl): void {
 }
 
 export class DotNetToolPreparationError extends Error {
-    constructor(readonly code: DotNetToolPreparationErrorCode) {
-        super(`DotNet preparation failed: ${code}`);
+    constructor(
+        readonly code: DotNetToolPreparationErrorCode,
+        message?: string,
+        readonly details?: string,
+    ) {
+        super(message ?? `DotNet preparation failed: ${code}`);
         this.name = "DotNetToolPreparationError";
     }
+}
+
+function safeWinEnv(val: string | undefined, fallback: string): string {
+    return val && !dotNetHasControlCharacters(val) ? val : fallback;
 }
 
 const nuGetConfig = (request: DotNetToolPreparationRequest): string => {
@@ -103,6 +111,7 @@ export function defaultExec(host: string, args: readonly string[], options: DotN
         let stopped = false;
         let settled = false;
         let output = "";
+        let errorDetails = "";
         let closeDeadline: ReturnType<typeof setTimeout> | undefined;
         const finish = (): void => {
             if (settled || !closed || !callbackReceived) return;
@@ -110,7 +119,7 @@ export function defaultExec(host: string, args: readonly string[], options: DotN
             clearTimeout(deadline);
             clearTimeout(closeDeadline);
             signal?.removeEventListener("abort", stop);
-            if (failed || stopped) reject(new DotNetToolPreparationError("RESTORE_FAILED"));
+            if (failed || stopped) reject(new DotNetToolPreparationError("RESTORE_FAILED", undefined, errorDetails || undefined));
             else complete(output);
         };
         const awaitClose = (): void => {
@@ -138,11 +147,15 @@ export function defaultExec(host: string, args: readonly string[], options: DotN
             closed = true;
             finish();
         };
-        const child = execFile(host, [...args], execOptions, (error, stdout) => {
+        const child = execFile(host, [...args], execOptions, (error, stdout, stderr) => {
             callbackReceived = true;
             failed = Boolean(error);
             output = stdout;
-            if (error) stop();
+            if (error) {
+                const combined = [stderr, stdout].filter(Boolean).join("\n").trim();
+                errorDetails = combined || error.message;
+                stop();
+            }
             awaitClose();
             finish();
         });
@@ -347,8 +360,21 @@ export class DotNetToolManager {
                 TMP: join(workspace, "tmp"),
                 TEMP: join(workspace, "tmp"),
                 DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: "true",
+                DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK: "1",
                 DOTNET_CLI_TELEMETRY_OPTOUT: "1",
                 DOTNET_GENERATE_ASPNET_CERTIFICATE: "false",
+                ...(osPlatform === "win32"
+                    ? {
+                          ProgramFiles: safeWinEnv(process.env.ProgramFiles, "C:\\Program Files"),
+                          "ProgramFiles(x86)": safeWinEnv(process.env["ProgramFiles(x86)"], "C:\\Program Files (x86)"),
+                          PROGRAMFILES: safeWinEnv(process.env.ProgramFiles, "C:\\Program Files"),
+                          "PROGRAMFILES(X86)": safeWinEnv(process.env["ProgramFiles(x86)"], "C:\\Program Files (x86)"),
+                          ProgramData: safeWinEnv(process.env.ProgramData, "C:\\ProgramData"),
+                          ALLUSERSPROFILE: safeWinEnv(process.env.ALLUSERSPROFILE, "C:\\ProgramData"),
+                          APPDATA: join(home, "AppData", "Roaming"),
+                          LOCALAPPDATA: join(home, "AppData", "Local"),
+                      }
+                    : {}),
             },
         };
     }
@@ -367,7 +393,8 @@ export class DotNetToolManager {
         } catch (error) {
             if (error instanceof DotNetToolPreparationError && error.code === "RESTORE_STOP_UNVERIFIED") throw error;
             checkPreparation(control);
-            throw new DotNetToolPreparationError("RESTORE_FAILED");
+            const details = error instanceof DotNetToolPreparationError ? error.details : error instanceof Error ? error.message : undefined;
+            throw new DotNetToolPreparationError("RESTORE_FAILED", undefined, details);
         }
     }
 
@@ -435,7 +462,9 @@ export class DotNetToolManager {
         setStage("TOOL_SETTINGS");
         const executableName = dotNetToolSettings(await this.read(join(artifactRoot, "DotnetToolSettings.xml")), declaration.command);
         const entryPoint = join(artifactRoot, dotNetPackageRelativePath(executableName));
-        if (entry.PathToExecutable !== entryPoint) throw new Error("Entrypoint mismatch");
+        const normalizedEntryPath = resolve(entry.PathToExecutable);
+        const isEntryMatch = process.platform === "win32" ? normalizedEntryPath.toLowerCase() === entryPoint.toLowerCase() : normalizedEntryPath === entryPoint;
+        if (!isEntryMatch) throw new Error("Entrypoint mismatch");
         await this.safePath(entryPoint, false);
         const runtimeConfigPath = entryPoint.slice(0, -4) + ".runtimeconfig.json";
         const depsPath = entryPoint.slice(0, -4) + ".deps.json";
@@ -584,7 +613,18 @@ export class DotNetToolManager {
                     }
                 }
                 stage = await this.fs.mkdtemp(join(this.root, `${fingerprint}.stage-`));
-                for (const directory of [".config", "cli-home", "packages", "http-cache", "plugin-cache", "tmp"]) await this.fs.mkdir(join(stage, directory), { mode: 0o700 });
+                for (const directory of [
+                    ".config",
+                    "cli-home",
+                    join("cli-home", "AppData"),
+                    join("cli-home", "AppData", "Roaming"),
+                    join("cli-home", "AppData", "Local"),
+                    "packages",
+                    "http-cache",
+                    "plugin-cache",
+                    "tmp",
+                ])
+                    await this.fs.mkdir(join(stage, directory), { mode: 0o700 });
                 await this.fs.writeFile(join(stage, "global.json"), dotNetStableJson(request.selection.sdkPin), { flag: "wx", mode: 0o600 });
                 await this.fs.writeFile(join(stage, "NuGet.Config"), nuGetConfig(request), { flag: "wx", mode: 0o600 });
                 await this.fs.writeFile(join(stage, ".config", "dotnet-tools.json"), dotNetStableJson(this.manifest(request)), { flag: "wx", mode: 0o600 });

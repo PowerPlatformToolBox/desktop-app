@@ -12,20 +12,20 @@ Be respectful and considerate of others. We aim to build a welcoming and inclusi
 
 If you find a bug, please create an issue with:
 
--   A clear title and description
--   Steps to reproduce the issue
--   Expected vs actual behavior
--   Screenshots if applicable
--   Your environment (OS, Node version, etc.)
+- A clear title and description
+- Steps to reproduce the issue
+- Expected vs actual behavior
+- Screenshots if applicable
+- Your environment (OS, Node version, etc.)
 
 ### Suggesting Features
 
 Feature suggestions are welcome! Please create an issue describing:
 
--   The problem you're trying to solve
--   Your proposed solution
--   Any alternatives you've considered
--   Why this would be valuable to users
+- The problem you're trying to solve
+- Your proposed solution
+- Any alternatives you've considered
+- Why this would be valuable to users
 
 ### Pull Requests
 
@@ -55,29 +55,29 @@ Checkout [TOOLBOX_DEV.md](TOOLBOX_DEV.md) for more information.
 
 ## Coding Standards
 
--   Use TypeScript for all new code
--   Follow existing code style and conventions
--   Add comments for complex logic
--   Use meaningful variable and function names
--   Keep functions small and focused
+- Use TypeScript for all new code
+- Follow existing code style and conventions
+- Add comments for complex logic
+- Use meaningful variable and function names
+- Keep functions small and focused
 
 ## TypeScript Guidelines
 
--   Enable strict mode
--   Avoid using `any` when possible
--   Define interfaces for complex objects
--   Export types that may be used by tools
+- Enable strict mode
+- Avoid using `any` when possible
+- Define interfaces for complex objects
+- Export types that may be used by tools
 
 ## Branch Naming Convention
 
 Use the following prefixes for branch names:
 
--   `feat/` - For new features (e.g., `feat/add-connection-export`)
--   `fix/` - For bug fixes (e.g., `fix/tool-loading-error`)
--   `docs/` - For documentation changes (e.g., `docs/update-api-guide`)
--   `refactor/` - For code refactoring (e.g., `refactor/tool-manager`)
--   `chore/` - For maintenance tasks (e.g., `chore/update-dependencies`)
--   `test/` - For test additions or updates (e.g., `test/add-unit-tests`)
+- `feat/` - For new features (e.g., `feat/add-connection-export`)
+- `fix/` - For bug fixes (e.g., `fix/tool-loading-error`)
+- `docs/` - For documentation changes (e.g., `docs/update-api-guide`)
+- `refactor/` - For code refactoring (e.g., `refactor/tool-manager`)
+- `chore/` - For maintenance tasks (e.g., `chore/update-dependencies`)
+- `test/` - For test additions or updates (e.g., `test/add-unit-tests`)
 
 ## Commit Message Guidelines
 
@@ -87,30 +87,30 @@ Format: `<type>(<scope>): <subject>`
 
 Examples:
 
--   `feat: add connection export functionality`
--   `feat(tools): add tool verification system`
--   `fix: resolve tool loading error on startup`
--   `fix(connections): handle invalid connection URLs`
--   `docs: update README with new API examples`
--   `docs(api): add missing type definitions`
--   `style: format code according to ESLint rules`
--   `refactor: restructure tool manager for better maintainability`
--   `refactor(auth): simplify authentication flow`
--   `test: add unit tests for settings manager`
--   `chore: update dependencies to latest versions`
--   `chore(build): update TypeScript configuration`
+- `feat: add connection export functionality`
+- `feat(tools): add tool verification system`
+- `fix: resolve tool loading error on startup`
+- `fix(connections): handle invalid connection URLs`
+- `docs: update README with new API examples`
+- `docs(api): add missing type definitions`
+- `style: format code according to ESLint rules`
+- `refactor: restructure tool manager for better maintainability`
+- `refactor(auth): simplify authentication flow`
+- `test: add unit tests for settings manager`
+- `chore: update dependencies to latest versions`
+- `chore(build): update TypeScript configuration`
 
 **Types:**
 
--   `feat` - New features
--   `fix` - Bug fixes
--   `docs` - Documentation changes
--   `style` - Code style changes (formatting, etc.)
--   `refactor` - Code refactoring without changing functionality
--   `test` - Test additions or updates
--   `chore` - Maintenance tasks, dependency updates, build changes
--   `perf` - Performance improvements
--   `ci` - CI/CD changes
+- `feat` - New features
+- `fix` - Bug fixes
+- `docs` - Documentation changes
+- `style` - Code style changes (formatting, etc.)
+- `refactor` - Code refactoring without changing functionality
+- `test` - Test additions or updates
+- `chore` - Maintenance tasks, dependency updates, build changes
+- `perf` - Performance improvements
+- `ci` - CI/CD changes
 
 ## Testing
 
@@ -134,15 +134,15 @@ All documentation files are located in the `docs/` directory.
 
 ## Release Process
 
--   PR --> dev branch --> automated nightly pre-release
--   Testing performed on the new changes
--   dev branch --> main branch --> automated release
+- PR --> dev branch --> automated nightly pre-release
+- Testing performed on the new changes
+- dev branch --> main branch --> automated release
 
 ## Questions?
 
 If you have questions, feel free to:
 
--   Open an issue for discussion
--   Reach out to maintainers
+- Open an issue for discussion
+- Reach out to maintainers
 
 Thank you for contributing!

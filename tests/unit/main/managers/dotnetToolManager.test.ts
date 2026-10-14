@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { EventEmitter } from "events";
 import * as fs from "fs/promises";
 import { tmpdir } from "os";
-import { dirname, join, relative, sep } from "path";
+import { basename, dirname, join, relative, sep } from "path";
 import { PassThrough } from "stream";
 import type { DotNetToolPreparationRequest } from "../../../../src/common/types/dotnetTool";
 import type { DotNetDiscoverySelection } from "../../../../src/common/types/dotnetWorker";
@@ -151,6 +151,17 @@ describe("DotNet default exec close barrier", () => {
         abort.abort();
         expect(child.kill).not.toHaveBeenCalled();
         expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test("captures stderr details on restore failure", async () => {
+        const result = defaultExec("/dotnet/dotnet", [], options);
+        const rejected = expect(result).rejects.toMatchObject({
+            code: "RESTORE_FAILED",
+            details: expect.stringContaining("Value cannot be null"),
+        });
+        callback(new Error("Command failed"), "", "Unhandled exception: Value cannot be null. (Parameter 'path1')");
+        child.close();
+        await rejected;
     });
 });
 
@@ -440,6 +451,7 @@ describe("DotNet pinned preparation", () => {
         expect(options.env).not.toHaveProperty("DOTNET_STARTUP_HOOKS");
         expect(options.env.NUGET_PACKAGES).toBe(join(options.cwd, "packages"));
         expect(options.env.DOTNET_CLI_HOME).toBe(join(options.cwd, "cli-home"));
+        expect(options.env.DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK).toBe("1");
         expect(JSON.parse(await fs.readFile(join(prepared.workspace, "global.json"), "utf8"))).toEqual(input.selection.sdkPin);
         expect(await fs.readFile(join(prepared.workspace, "NuGet.Config"), "utf8")).toContain('<clear /><add key="nuget.org" value="https://api.nuget.org/v3/index.json"');
         expect(JSON.parse(await fs.readFile(join(prepared.workspace, "cli-home", ".dotnet", "toolResolverCache", "1", "contoso.worker"), "utf8"))[0].PathToExecutable).toBe(prepared.entryPoint);
@@ -452,6 +464,24 @@ describe("DotNet pinned preparation", () => {
             await fs.rename(join(packageRoot, "contoso.worker.nuspec"), join(packageRoot, "Contoso.Worker.nuspec"));
         };
         await expect(manager.prepare(input)).resolves.toMatchObject({ packageId: "contoso.worker", packageVersion: "1.2.0" });
+    });
+
+    test("populates Windows environment variables when targeting windows platform", async () => {
+        input.selection.platform = "windows-x64";
+        input.selection.nativeRid = "win-x64";
+        let capturedOptions: DotNetToolExecOptions | undefined;
+        executor.mockImplementation(async (_host, args, opts) => {
+            if (args[0] === "--version") return input.selection.sdk.version;
+            capturedOptions = opts;
+            await restore(opts.cwd, input);
+            return "restored";
+        });
+        await manager.prepare(input);
+        expect(capturedOptions?.env.ProgramFiles).toBeDefined();
+        expect(capturedOptions?.env["ProgramFiles(x86)"]).toBeDefined();
+        expect(capturedOptions?.env.APPDATA).toBe(join(capturedOptions!.cwd, "cli-home", "AppData", "Roaming"));
+        expect(capturedOptions?.env.LOCALAPPDATA).toBe(join(capturedOptions!.cwd, "cli-home", "AppData", "Local"));
+        expect(capturedOptions?.env.DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK).toBe("1");
     });
 
     test("accepts local-feed sidecars containing NuGet contentHash when archive bytes match consent", async () => {
@@ -684,6 +714,16 @@ describe("DotNet pinned preparation", () => {
         };
         await expect(manager.prepare(input)).rejects.toMatchObject({ code: expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) });
         expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    test("accepts restored resolver PathToExecutable requiring path normalization", async () => {
+        afterRestore = async (workspace) => {
+            const resolver = join(workspace, "cli-home", ".dotnet", "toolResolverCache", "1", "contoso.worker");
+            const rows = JSON.parse(await fs.readFile(resolver, "utf8"));
+            rows[0].PathToExecutable = `${dirname(rows[0].PathToExecutable)}/./${basename(rows[0].PathToExecutable)}`;
+            await fs.writeFile(resolver, JSON.stringify(rows));
+        };
+        await expect(manager.prepare(input)).resolves.toMatchObject({ packageId: "contoso.worker", packageVersion: "1.2.0" });
     });
 
     test("package settings traversal fails even with a matching resolver", async () => {

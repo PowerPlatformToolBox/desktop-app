@@ -5,7 +5,7 @@ import { logInfo, logWarn } from "../../common/logger";
  * Manages filesystem access permissions for tools
  * Implements a user-consent model where tools can only access paths explicitly selected by users
  * Similar to VS Code Extension Host security model
- * 
+ *
  * Access is tracked per tool instance (instanceId) to support multiple instances of the same tool
  */
 export class ToolFileSystemAccessManager {
