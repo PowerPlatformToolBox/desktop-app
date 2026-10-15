@@ -52,7 +52,7 @@ const results = await dataverseAPI.executeTransaction([
 
 Transactions accept write operations only. Requests are not automatically split because splitting would change atomicity. URLs must be relative to the assigned Dataverse Web API connection; absolute URLs, traversal, nested `$batch` requests, duplicate content IDs, and oversized payloads are rejected.
 
-Each result is correlated to the original request and contains its content ID, status, status text, normalized response headers, and optional parsed or text body. Per-operation HTTP failures are returned as results. Validation, rejected consent, transport failures, malformed multipart responses, and outer `$batch` failures reject the promise.
+Each result is correlated to the original request and contains its content ID, status, status text, normalized response headers, and optional parsed or text body. The optional `batchHeaders` field contains selected headers from the outer HTTP response and is shared across all results: `x-ms-dop-hint`, `x-ms-ratelimit-burst-remaining-xrm-requests`, and `x-ms-ratelimit-time-remaining-xrm-requests`. For example, `results[0]?.batchHeaders?.["x-ms-dop-hint"]` reads the parallelism hint. Other envelope headers, such as `Content-Type` and `Content-Length`, are not exposed there. Per-operation HTTP failures are returned as results. Validation, rejected consent, transport failures, malformed multipart responses, and outer `$batch` failures reject the promise.
 
 ## Security model
 
