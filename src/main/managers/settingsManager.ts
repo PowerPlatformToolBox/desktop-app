@@ -152,7 +152,12 @@ export class SettingsManager {
 
     private normalizeProxySettings(proxy?: ProxySettings): ProxySettings {
         const normalizedMode = proxy?.mode === "manual" || proxy?.mode === "none" ? proxy.mode : "auto";
-        const normalizedNoProxyList = Array.isArray(proxy?.noProxyList) ? proxy?.noProxyList.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.trim()).filter((entry) => entry.length > 0) : [];
+        const normalizedNoProxyList = Array.isArray(proxy?.noProxyList)
+            ? proxy?.noProxyList
+                  .filter((entry): entry is string => typeof entry === "string")
+                  .map((entry) => entry.trim())
+                  .filter((entry) => entry.length > 0)
+            : [];
 
         return {
             mode: normalizedMode,

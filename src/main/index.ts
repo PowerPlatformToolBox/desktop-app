@@ -59,8 +59,8 @@ import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NativeWorkerConsentManager } from "./managers/nativeWorkerConsentManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
-import { applyProxyEnvironmentBootstrap, ProxyManager } from "./managers/proxyManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
+import { applyProxyEnvironmentBootstrap, ProxyManager } from "./managers/proxyManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { SplitLayoutManager } from "./managers/splitLayoutManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -240,7 +240,7 @@ class ToolBoxApp {
             this.protocolHandlerManager = new ProtocolHandlerManager();
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
-            this.authManager = new AuthManager(this.browserManager);
+            this.authManager = new AuthManager(this.browserManager, this.proxyManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.dataverseHeaderConsentManager = new DataverseHeaderConsentManager(
@@ -3948,35 +3948,35 @@ class ToolBoxApp {
                             agent: this.proxyManager.getAgentForUrl(url),
                         },
                         (res) => {
-                        if ((res.statusCode === 302 || res.statusCode === 301) && res.headers.location) {
-                            if (redirectDepth > 5) {
-                                reject(new Error("Too many redirects while downloading test tool"));
+                            if ((res.statusCode === 302 || res.statusCode === 301) && res.headers.location) {
+                                if (redirectDepth > 5) {
+                                    reject(new Error("Too many redirects while downloading test tool"));
+                                    return;
+                                }
+                                logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
+                                download(res.headers.location, redirectDepth + 1);
                                 return;
                             }
-                            logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
-                            download(res.headers.location, redirectDepth + 1);
-                            return;
-                        }
 
-                        if (res.statusCode !== 200) {
-                            reject(new Error(`Download failed: HTTP ${res.statusCode}`));
-                            return;
-                        }
-
-                        const fileStream = createWriteStream(downloadPath);
-                        res.pipe(fileStream);
-
-                        fileStream.on("finish", () => {
-                            fileStream.close();
-                            resolve();
-                        });
-
-                        fileStream.on("error", (err) => {
-                            if (fs.existsSync(downloadPath)) {
-                                fs.unlinkSync(downloadPath);
+                            if (res.statusCode !== 200) {
+                                reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+                                return;
                             }
-                            reject(err);
-                        });
+
+                            const fileStream = createWriteStream(downloadPath);
+                            res.pipe(fileStream);
+
+                            fileStream.on("finish", () => {
+                                fileStream.close();
+                                resolve();
+                            });
+
+                            fileStream.on("error", (err) => {
+                                if (fs.existsSync(downloadPath)) {
+                                    fs.unlinkSync(downloadPath);
+                                }
+                                reject(err);
+                            });
                         },
                     );
 

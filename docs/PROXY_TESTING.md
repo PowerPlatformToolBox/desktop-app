@@ -5,15 +5,15 @@
 ### Prerequisites
 
 1. Install mitmproxy:
-   - **Windows**: `winget install mitmproxy.mitmproxy`
-   - **macOS**: `brew install mitmproxy`
-   - **Linux**: `python3 -m pip install --user mitmproxy`
+    - **Windows**: `winget install mitmproxy.mitmproxy`
+    - **macOS**: `brew install mitmproxy`
+    - **Linux**: `python3 -m pip install --user mitmproxy`
 2. Verify install: `mitmproxy --version`
 
 ### Start local proxy
 
 1. Start mitmproxy on port `8888`:
-   - `mitmproxy --listen-host 127.0.0.1 --listen-port 8888`
+    - `mitmproxy --listen-host 127.0.0.1 --listen-port 8888`
 2. Keep this terminal open while testing.
 
 ### Configure ToolBox
@@ -28,22 +28,22 @@
 ## 2) PAC / WPAD auto-detection
 
 1. Create a PAC file (for example `/tmp/proxy.pac`) with:
-   ```javascript
-   function FindProxyForURL(url, host) {
-       if (host === "localhost" || shExpMatch(host, "*.local")) {
-           return "DIRECT";
-       }
-       return "PROXY 127.0.0.1:8888; DIRECT";
-   }
-   ```
+    ```javascript
+    function FindProxyForURL(url, host) {
+        if (host === "localhost" || shExpMatch(host, "*.local")) {
+            return "DIRECT";
+        }
+        return "PROXY 127.0.0.1:8888; DIRECT";
+    }
+    ```
 2. Serve PAC file:
-   - `python3 -m http.server 9000 --directory /tmp`
+    - `python3 -m http.server 9000 --directory /tmp`
 3. Start mitmproxy:
-   - `mitmproxy --listen-host 127.0.0.1 --listen-port 8888`
+    - `mitmproxy --listen-host 127.0.0.1 --listen-port 8888`
 4. Configure OS proxy auto-config:
-   - **Windows**: Settings → Network & Internet → Proxy → Use setup script.
-   - **macOS**: System Settings → Network → active adapter → Details → Proxies → Automatic Proxy Configuration.
-   - PAC URL: `http://127.0.0.1:9000/proxy.pac`
+    - **Windows**: Settings → Network & Internet → Proxy → Use setup script.
+    - **macOS**: System Settings → Network → active adapter → Details → Proxies → Automatic Proxy Configuration.
+    - PAC URL: `http://127.0.0.1:9000/proxy.pac`
 5. In ToolBox, set mode to **Auto-detect system proxy**.
 6. Restart the app.
 7. Use **Test Connection** and verify traffic routes according to PAC rules.
@@ -54,17 +54,17 @@
 1. Use `mitmproxy` with TLS interception enabled (`mitmproxy --listen-host 127.0.0.1 --listen-port 8888`).
 2. Do **not** rely on OS trust store alone for Node-side calls.
 3. Export mitmproxy CA bundle:
-   - Default path is usually `~/.mitmproxy/mitmproxy-ca-cert.pem`.
+    - Default path is usually `~/.mitmproxy/mitmproxy-ca-cert.pem`.
 4. In ToolBox settings (Manual proxy mode), set:
-   - Proxy URL: `http://127.0.0.1:8888`
-   - **Custom CA Bundle**: full path to `mitmproxy-ca-cert.pem`
+    - Proxy URL: `http://127.0.0.1:8888`
+    - **Custom CA Bundle**: full path to `mitmproxy-ca-cert.pem`
 5. Run **Test Connection** and marketplace/tool download operations.
 6. Confirm requests succeed without `UNABLE_TO_VERIFY_LEAF_SIGNATURE`.
 
 ## 4) Proxy authentication challenge (407)
 
 1. Start mitmproxy with authentication:
-   - `mitmproxy --listen-host 127.0.0.1 --listen-port 8888 --proxyauth user:pass`
+    - `mitmproxy --listen-host 127.0.0.1 --listen-port 8888 --proxyauth user:pass`
 2. Set ToolBox proxy mode to **Manual proxy** with that endpoint.
 3. Trigger a Node-side network call.
 4. Confirm a proxy credentials prompt appears only when the 407 challenge occurs.
@@ -76,14 +76,28 @@
 2. Run operations that target excluded hosts.
 3. Confirm excluded hosts bypass the proxy (no entries in proxy logs for those hosts).
 
-## 6) Troubleshooting
+## 6) Environment authentication
+
+1. Configure the proxy in Manual mode, keeping `localhost,127.0.0.1,.internal` in the no-proxy list where appropriate.
+2. Add an environment using Microsoft Login and complete browser sign-in.
+3. Verify the proxy sees MSAL discovery and token requests to `login.microsoftonline.com`, followed by the environment's Dataverse `WhoAmI` request.
+4. Confirm the local callback page reports **Authentication Successful** and the connection is saved.
+5. Repeat with Auto-detect mode on a machine with a system proxy configured.
+6. Repeat a connection test using client-secret authentication, if available, and reconnect an existing Microsoft Login connection to exercise silent token acquisition.
+7. Change the proxy settings and reconnect without restarting. New authentication requests should use the updated route.
+
+Browser sign-in, app-side token exchange, and Dataverse validation are separate network operations. A working marketplace or browser login does not by itself validate the other routes. Authentication requests use the shared proxy manager, including no-proxy exclusions and custom CA settings. Keep TLS verification enabled.
+
+If the callback shows `network_error: Network request failed`, inspect the application logs and outbound token requests. A separate `/favicon.ico` HTTP 400 from the localhost callback is not the authentication failure.
+
+## 7) Troubleshooting
 
 Check these log areas when routing is not as expected:
 
 - `src/main/managers/proxyManager.ts` log entries:
-  - `[ProxyManager] System proxy auto-detection completed`
-  - `[ProxyManager] System proxy auto-detection failed`
-  - `[ProxyManager] Failed to read custom CA bundle`
+    - `[ProxyManager] System proxy auto-detection completed`
+    - `[ProxyManager] System proxy auto-detection failed`
+    - `[ProxyManager] Failed to read custom CA bundle`
 - `src/main/managers/toolRegistryManager.ts` log entries for marketplace/download requests
 - Settings validation via **Test Connection** result text in the settings UI
 
@@ -97,8 +111,8 @@ If requests are still direct:
 If proxy test shows errors:
 
 1. `connect ECONNREFUSED 127.0.0.1:8888`
-   - Nothing is listening on `127.0.0.1:8888`.
-   - Start mitmproxy, or update ToolBox manual proxy URL to the actual port.
+    - Nothing is listening on `127.0.0.1:8888`.
+    - Start mitmproxy, or update ToolBox manual proxy URL to the actual port.
 2. `Connection reached endpoint (HTTP 404)`
-   - Network path is working, but that endpoint returned 404.
-   - This still confirms proxy routing and connectivity.
+    - Network path is working, but that endpoint returned 404.
+    - This still confirms proxy routing and connectivity.

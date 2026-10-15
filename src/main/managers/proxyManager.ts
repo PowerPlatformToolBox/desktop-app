@@ -1,9 +1,9 @@
-import * as http from "http";
-import * as https from "https";
-import * as fs from "fs";
-import Store from "electron-store";
 import { app, session, type AuthInfo } from "electron";
+import Store from "electron-store";
+import * as fs from "fs";
+import * as http from "http";
 import { HttpProxyAgent } from "http-proxy-agent";
+import * as https from "https";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { rootCertificates } from "tls";
 import { logInfo, logWarn } from "../../common/logger";
@@ -29,7 +29,12 @@ type CredentialPromptHandler = (authInfo: AuthInfo) => Promise<{ username: strin
 
 function normalizeProxySettings(input?: ProxySettings): ProxySettings {
     const mode = input?.mode === "manual" || input?.mode === "none" ? input.mode : "auto";
-    const noProxyList = Array.isArray(input?.noProxyList) ? input.noProxyList.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.trim()).filter((entry) => entry.length > 0) : [];
+    const noProxyList = Array.isArray(input?.noProxyList)
+        ? input.noProxyList
+              .filter((entry): entry is string => typeof entry === "string")
+              .map((entry) => entry.trim())
+              .filter((entry) => entry.length > 0)
+        : [];
 
     return {
         mode,
