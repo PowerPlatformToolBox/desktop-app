@@ -3078,6 +3078,12 @@ body.dark-theme .settings-vscode-item:hover {
     width: 80px;
 }
 
+.settings-vscode-number-input:disabled,
+.settings-vscode-number-input:disabled:hover {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
 .settings-vscode-btn {
     align-self: flex-start;
 }
