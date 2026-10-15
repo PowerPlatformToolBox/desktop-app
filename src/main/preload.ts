@@ -498,6 +498,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         stop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.STOP),
         configureClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP),
         configureVSCode: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE),
+        disconnectClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.DISCONNECT_CLAUDE_DESKTOP),
+        disconnectVSCode: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.DISCONNECT_VSCODE),
     },
 });
 

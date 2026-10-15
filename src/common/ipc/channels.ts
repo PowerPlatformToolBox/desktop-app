@@ -322,6 +322,8 @@ export const MCP_SERVER_CHANNELS = {
     STOP: "mcp-server:stop",
     CONFIGURE_CLAUDE_DESKTOP: "mcp-server:configure-claude-desktop",
     CONFIGURE_VSCODE: "mcp-server:configure-vscode",
+    DISCONNECT_CLAUDE_DESKTOP: "mcp-server:disconnect-claude-desktop",
+    DISCONNECT_VSCODE: "mcp-server:disconnect-vscode",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

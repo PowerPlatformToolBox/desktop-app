@@ -244,6 +244,18 @@ class ToolBoxApp {
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
+            this.mcpServerManager.setStatusChangeHandler((status, error) => {
+                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                    this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
+                        event: ToolBoxEvent.MCP_SERVER_STATUS_CHANGED,
+                        data: { status, error },
+                        timestamp: new Date().toISOString(),
+                    });
+                }
+                if (status !== "starting") {
+                    this.trayManager?.refreshContextMenu();
+                }
+            });
             this.mcpServerManager.setJobChangeHandler((jobId) => {
                 if (this.mainWindow) {
                     this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
@@ -610,6 +622,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.STOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.DISCONNECT_CLAUDE_DESKTOP);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.DISCONNECT_VSCODE);
     }
 
     /**
@@ -799,11 +813,23 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP, async () => {
-            return await this.mcpServerManager.configureClient("claude-desktop");
+            const result = await this.mcpServerManager.configureClient("claude-desktop");
+            this.trayManager?.refreshContextMenu();
+            return result;
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE, async () => {
-            return await this.mcpServerManager.configureClient("vscode");
+            const result = await this.mcpServerManager.configureClient("vscode");
+            this.trayManager?.refreshContextMenu();
+            return result;
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.DISCONNECT_CLAUDE_DESKTOP, async () => {
+            return await this.mcpServerManager.disconnectClient("claude-desktop");
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.DISCONNECT_VSCODE, async () => {
+            return await this.mcpServerManager.disconnectClient("vscode");
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {

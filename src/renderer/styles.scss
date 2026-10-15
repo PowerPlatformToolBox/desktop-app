@@ -552,6 +552,26 @@ body.macos .app-container {
     border-left-color: var(--activity-item-active-border);
     background: var(--activity-item-active-bg);
 }
+
+.mcp-activity-item .mcp-status-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 9px;
+    height: 9px;
+    border: 2px solid var(--sidebar-bg);
+    border-radius: 50%;
+    background: #8a8886;
+    box-sizing: content-box;
+}
+
+.mcp-activity-item[data-mcp-status="running"] .mcp-status-indicator {
+    background: #107c10;
+}
+
+.mcp-activity-item[data-mcp-status="error"] .mcp-status-indicator {
+    background: #d13438;
+}
 /* Removed empty .activity-icon ruleset */
 
 /* Sidebar collapsed state */
@@ -3139,6 +3159,137 @@ body.dark-theme .settings-vscode-item:hover {
 
 .mcp-client-connect-row + .mcp-client-connect-row {
     margin-top: 8px;
+}
+
+.settings-vscode-item.mcp-clients-section {
+    display: block;
+    min-width: 0;
+}
+
+.mcp-clients-section h3 {
+    margin: 0 0 12px;
+}
+
+.mcp-client-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mcp-client-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    min-width: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.mcp-client-identity {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    min-width: 0;
+}
+
+.mcp-client-name {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 160px;
+    overflow-wrap: anywhere;
+}
+
+.mcp-client-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary, #8a8886);
+}
+
+.mcp-client-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.mcp-client-status[data-state="connected"] {
+    color: var(--success-color, #107c10);
+}
+
+body.dark-theme .mcp-client-status[data-state="connected"] {
+    color: #6ccb5f;
+}
+
+.mcp-client-status[data-state="invalid"] {
+    color: var(--error-color, #d13438);
+}
+
+.mcp-client-actions {
+    display: grid;
+    grid-template-columns: 120px 32px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    min-width: 160px;
+}
+
+.mcp-client-actions .fluent-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    box-sizing: border-box;
+}
+
+.mcp-client-actions .mcp-client-configure {
+    min-width: 112px;
+}
+
+.mcp-client-actions .mcp-client-disconnect {
+    min-width: 32px;
+    width: 32px;
+    padding: 0;
+}
+
+.mcp-client-actions [hidden] {
+    display: none;
+}
+
+.mcp-client-actions svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    fill: currentColor;
+}
+
+@media (max-width: 700px) {
+    .mcp-client-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .mcp-client-identity {
+        flex: 1 1 180px;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .mcp-client-name {
+        min-width: 0;
+    }
+
+    .mcp-client-actions {
+        justify-content: flex-start;
+    }
 }
 
 .mcp-server-actions-row {

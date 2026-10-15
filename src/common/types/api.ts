@@ -147,6 +147,8 @@ export interface McpServerDetails {
     authHeaderName: string;
     authHeaderValue: string;
     isRunning: boolean;
+    status: "starting" | "running" | "stopped" | "error";
+    error?: string;
 }
 
 export interface McpClientConfigWriteResult {
@@ -174,6 +176,8 @@ export interface McpServerAPI {
     stop: () => Promise<McpServerDetails>;
     configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
     configureVSCode: () => Promise<McpClientConfigWriteResult>;
+    disconnectClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
+    disconnectVSCode: () => Promise<McpClientConfigWriteResult>;
 }
 
 /**
