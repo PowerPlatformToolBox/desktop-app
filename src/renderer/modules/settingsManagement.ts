@@ -459,9 +459,11 @@ export async function loadSettings(): Promise<void> {
         }
         if (categoryColorThicknessInput) {
             categoryColorThicknessInput.value = String(settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS);
+            categoryColorThicknessInput.disabled = !(showCategoryColorCheck?.checked ?? DEFAULT_SHOW_CATEGORY_COLOR);
         }
         if (environmentColorThicknessInput) {
             environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
+            environmentColorThicknessInput.disabled = !(showEnvironmentColorCheck?.checked ?? DEFAULT_SHOW_ENVIRONMENT_COLOR);
         }
         if (marketplaceBuiltinCheck) {
             const builtInSource = (settings.marketplaceSources ?? []).find((source) => source.id === "builtin-pptb");
@@ -1109,6 +1111,26 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 logError(err instanceof Error ? err : new Error(String(err)));
             });
         });
+    }
+
+    const showCategoryColorCheck = panel.querySelector("#sidebar-show-category-color-check") as HTMLInputElement | null;
+    const categoryColorThicknessInput = panel.querySelector("#sidebar-category-color-thickness") as HTMLInputElement | null;
+    if (showCategoryColorCheck && categoryColorThicknessInput) {
+        const updateCategoryColorThicknessEnabled = (): void => {
+            categoryColorThicknessInput.disabled = !showCategoryColorCheck.checked;
+        };
+        showCategoryColorCheck.addEventListener("change", updateCategoryColorThicknessEnabled);
+        updateCategoryColorThicknessEnabled();
+    }
+
+    const showEnvironmentColorCheck = panel.querySelector("#sidebar-show-environment-color-check") as HTMLInputElement | null;
+    const environmentColorThicknessInput = panel.querySelector("#sidebar-environment-color-thickness") as HTMLInputElement | null;
+    if (showEnvironmentColorCheck && environmentColorThicknessInput) {
+        const updateEnvironmentColorThicknessEnabled = (): void => {
+            environmentColorThicknessInput.disabled = !showEnvironmentColorCheck.checked;
+        };
+        showEnvironmentColorCheck.addEventListener("change", updateEnvironmentColorThicknessEnabled);
+        updateEnvironmentColorThicknessEnabled();
     }
 
     // Wire up check for updates button
