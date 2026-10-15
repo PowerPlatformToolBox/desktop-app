@@ -58,6 +58,29 @@ test.describe("Navigation", () => {
         await expect(window.locator("#sidebar-save-settings-btn")).toBeVisible({ timeout: 10_000 });
     });
 
+    test("color thickness controls follow their corresponding color settings", async ({ window }) => {
+        await window.locator("#settings-activity-btn").click();
+
+        const categoryColor = window.locator("#sidebar-show-category-color-check");
+        const categoryThickness = window.locator("#sidebar-category-color-thickness");
+        const environmentColor = window.locator("#sidebar-show-environment-color-check");
+        const environmentThickness = window.locator("#sidebar-environment-color-thickness");
+
+        await expect(categoryThickness).toBeEnabled({ timeout: 10_000 });
+        await expect(environmentThickness).toBeEnabled({ timeout: 10_000 });
+
+        await categoryColor.uncheck();
+        await expect(categoryThickness).toBeDisabled();
+        await expect(environmentThickness).toBeEnabled();
+
+        await environmentColor.uncheck();
+        await expect(environmentThickness).toBeDisabled();
+
+        await categoryColor.check();
+        await expect(categoryThickness).toBeEnabled();
+        await expect(environmentThickness).toBeDisabled();
+    });
+
     test("marketplace section is reachable", async ({ window }) => {
         const marketplaceButton = window.locator('[data-sidebar="marketplace"]');
         await expect(marketplaceButton).toBeVisible({ timeout: 10_000 });
