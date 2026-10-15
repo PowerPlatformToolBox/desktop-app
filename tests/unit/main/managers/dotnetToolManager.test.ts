@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { EventEmitter } from "events";
 import * as fs from "fs/promises";
 import { tmpdir } from "os";
-import { dirname, join, relative, sep } from "path";
+import { basename, dirname, join, relative, sep } from "path";
 import { PassThrough } from "stream";
 import type { DotNetToolPreparationRequest } from "../../../../src/common/types/dotnetTool";
 import type { DotNetDiscoverySelection } from "../../../../src/common/types/dotnetWorker";
@@ -714,6 +714,16 @@ describe("DotNet pinned preparation", () => {
         };
         await expect(manager.prepare(input)).rejects.toMatchObject({ code: expect.stringMatching(/^ARTIFACT_INVALID(?:_[A-Z_]+)?$/) });
         expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    test("accepts restored resolver PathToExecutable requiring path normalization", async () => {
+        afterRestore = async (workspace) => {
+            const resolver = join(workspace, "cli-home", ".dotnet", "toolResolverCache", "1", "contoso.worker");
+            const rows = JSON.parse(await fs.readFile(resolver, "utf8"));
+            rows[0].PathToExecutable = `${dirname(rows[0].PathToExecutable)}/./${basename(rows[0].PathToExecutable)}`;
+            await fs.writeFile(resolver, JSON.stringify(rows));
+        };
+        await expect(manager.prepare(input)).resolves.toMatchObject({ packageId: "contoso.worker", packageVersion: "1.2.0" });
     });
 
     test("package settings traversal fails even with a matching resolver", async () => {
