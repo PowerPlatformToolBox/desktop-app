@@ -39,7 +39,10 @@ describe("McpServerManager status", () => {
 
         await manager.start();
         expect(manager.getServerDetails()).toMatchObject({ isRunning: true, status: "running" });
-        expect(onStatusChange.mock.calls).toEqual([["starting", undefined], ["running", undefined]]);
+        expect(onStatusChange.mock.calls).toEqual([
+            ["starting", undefined],
+            ["running", undefined],
+        ]);
 
         await manager.stop();
         expect(manager.getServerDetails()).toMatchObject({ isRunning: false, status: "stopped" });
@@ -149,6 +152,106 @@ describe("McpServerManager client configuration status", () => {
             { client: "claude-desktop", status: "not-configured", filePath: claudePath },
             { client: "vscode", status: "not-configured", filePath: vscodePath },
         ]);
+    });
+});
+
+describe("McpServerManager connect starts the server", () => {
+    beforeEach(() => {
+        jest.resetAllMocks();
+        (os.homedir as jest.Mock).mockReturnValue("/test-home");
+        (fs.readFile as jest.Mock).mockResolvedValue("{}");
+    });
+
+    it.each(["claude-desktop", "vscode"] as const)("starts a stopped server when configuring %s", async (client) => {
+        const manager = createManager(0);
+        const onStatusChange = jest.fn();
+        manager.setStatusChangeHandler(onStatusChange);
+
+        try {
+            await expect(manager.configureClient(client)).resolves.toMatchObject({ client, serverName: "pptb" });
+            expect(manager.getServerDetails()).toMatchObject({ isRunning: true, status: "running" });
+            expect(onStatusChange.mock.calls.map(([status]) => status)).toEqual(["starting", "running"]);
+            expect(fs.writeFile).toHaveBeenCalledTimes(1);
+        } finally {
+            await manager.stop();
+        }
+    });
+
+    it.each(["claude-desktop", "vscode"] as const)("does not restart a running server when configuring %s", async (client) => {
+        const manager = createManager(0);
+        await manager.start();
+        const start = jest.spyOn(manager, "start");
+        try {
+            await manager.configureClient(client);
+            await manager.configureClient(client);
+            expect(start).not.toHaveBeenCalled();
+            expect(manager.isRunning()).toBe(true);
+        } finally {
+            await manager.stop();
+        }
+    });
+
+    it.each(["claude-desktop", "vscode"] as const)("reports startup failure without writing %s config", async (client) => {
+        const manager = createManager();
+        jest.spyOn(manager, "start").mockRejectedValue(new Error("Address already in use"));
+        await expect(manager.configureClient(client)).rejects.toThrow("Unable to start the PPTB MCP server");
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it("does not start the server when the client config cannot be parsed", async () => {
+        const manager = createManager();
+        const start = jest.spyOn(manager, "start");
+        (fs.readFile as jest.Mock).mockResolvedValue("{broken");
+        await expect(manager.configureClient("vscode")).rejects.toThrow();
+        expect(start).not.toHaveBeenCalled();
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+});
+
+describe("McpServerManager client disconnection", () => {
+    beforeEach(() => {
+        jest.resetAllMocks();
+        (os.homedir as jest.Mock).mockReturnValue("/test-home");
+    });
+
+    it.each(["claude-desktop", "vscode"] as const)("removes only PPTB from %s and updates status", async (client) => {
+        const manager = createManager();
+        const collectionKey = client === "claude-desktop" ? "mcpServers" : "servers";
+        const { claudePath, vscodePath } = getClientConfigPaths();
+        const filePath = client === "claude-desktop" ? claudePath : vscodePath;
+        let config = JSON.stringify({ [collectionKey]: { pptb: { url: "old-endpoint" }, other: { command: "other-server" } }, preferences: { enabled: true } });
+        (fs.readFile as jest.Mock).mockResolvedValue(config);
+        (fs.writeFile as jest.Mock).mockImplementation(async (_filePath, content: string) => {
+            config = content;
+            (fs.readFile as jest.Mock).mockResolvedValue(config);
+        });
+
+        await expect(manager.disconnectClient(client)).resolves.toMatchObject({ client, filePath, serverName: "pptb" });
+
+        expect(fs.writeFile).toHaveBeenCalledWith(filePath, expect.any(String), "utf-8");
+        expect(JSON.parse(config)).toEqual({ [collectionKey]: { other: { command: "other-server" } }, preferences: { enabled: true } });
+        expect(await manager.getClientConfigStatuses()).toContainEqual({ client, filePath, status: "not-configured" });
+        await manager.disconnectClient(client);
+        expect(fs.writeFile).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(["claude-desktop", "vscode"] as const)("does not create a missing %s config", async (client) => {
+        (fs.readFile as jest.Mock).mockRejectedValue(Object.assign(new Error("Not found"), { code: "ENOENT" }));
+        await expect(createManager().disconnectClient(client)).resolves.toMatchObject({ client });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+        expect(fs.mkdir).not.toHaveBeenCalled();
+    });
+
+    it.each(["{broken", "[]", "null"])("preserves malformed config %s", async (config) => {
+        (fs.readFile as jest.Mock).mockResolvedValue(config);
+        await expect(createManager().disconnectClient("vscode")).rejects.toThrow();
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it("propagates write failures", async () => {
+        (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ servers: { pptb: {} } }));
+        (fs.writeFile as jest.Mock).mockRejectedValue(new Error("Permission denied"));
+        await expect(createManager().disconnectClient("vscode")).rejects.toThrow("Permission denied");
     });
 });
 

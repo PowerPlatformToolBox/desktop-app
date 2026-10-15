@@ -1,3 +1,6 @@
+import reconnectIcon from "@fluentui/svg-icons/icons/arrow_sync_20_regular.svg?raw";
+import connectIcon from "@fluentui/svg-icons/icons/plug_connected_20_regular.svg?raw";
+import disconnectIcon from "@fluentui/svg-icons/icons/plug_disconnected_20_regular.svg?raw";
 import { logError } from "../../common/logger";
 import { McpClientConfigStatus, ToolBoxEvent } from "../../common/types";
 import {
@@ -8,6 +11,7 @@ import {
     showMcpInvocationDetailsModal,
 } from "../modals/mcpInvocationDetails/controller";
 import { getMcpInvocationDetailsContent, getMcpInvocationDetailsModalView } from "../modals/mcpInvocationDetails/view";
+import { getMcpClientPresentation, MCP_CLIENTS } from "./mcpClients";
 import { openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 
 const MCP_REFRESH_INTERVAL_MS = 2000;
@@ -117,22 +121,29 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                     </div>
                 </div>
 
-                <div class="settings-vscode-item mcp-settings-item-spaced">
-                    <div class="settings-vscode-item-info">
-                        <span class="settings-vscode-item-label">Quick Connect</span>
-                        <p class="settings-vscode-item-description">Create or update local MCP config files for supported clients using this server's URL and auth header/token.</p>
-                    </div>
-                    <div class="settings-vscode-item-control mcp-server-item-control">
-                        <div class="mcp-client-connect-row">
-                            <button id="connect-claude-desktop-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to Claude Desktop</button>
-                            <span id="claude-desktop-config-status" class="settings-vscode-item-description"></span>
-                        </div>
-                        <div class="mcp-client-connect-row">
-                            <button id="connect-vscode-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to VSCode</button>
-                            <span id="vscode-config-status" class="settings-vscode-item-description"></span>
-                        </div>
-                    </div>
-                </div>
+                <section class="settings-vscode-item mcp-clients-section" aria-labelledby="mcp-clients-heading">
+                    <h3 id="mcp-clients-heading" class="settings-vscode-item-label">AI Clients</h3>
+                    <ul class="mcp-client-list">
+                        ${MCP_CLIENTS.map(
+                            (client) => `
+                            <li class="mcp-client-row">
+                                <div class="mcp-client-identity">
+                                    <span id="${client.id}-client-name" class="mcp-client-name">${client.name}</span>
+                                    <span id="${client.id}-config-status" class="mcp-client-status" role="status">Checking configuration...</span>
+                                </div>
+                                <div class="mcp-client-actions" role="group" aria-labelledby="${client.id}-client-name">
+                                    <button id="connect-${client.id}-btn" class="fluent-button fluent-button-secondary mcp-client-configure" title="Connect ${client.name}" disabled>
+                                        ${connectIcon}<span>Connect</span>
+                                    </button>
+                                    <button id="disconnect-${client.id}-btn" class="fluent-button fluent-button-secondary mcp-client-disconnect" aria-label="Disconnect ${client.name}" title="Remove PPTB's MCP registration from ${client.name}" hidden>
+                                        ${disconnectIcon}
+                                    </button>
+                                </div>
+                            </li>
+                        `,
+                        ).join("")}
+                    </ul>
+                </section>
 
                 <div class="settings-vscode-item mcp-settings-item-spaced">
                     <div class="settings-vscode-item-info">
@@ -470,93 +481,96 @@ function wireKeepMcpServerRunningToggle(isServerRunning: boolean, initialKeepRun
 }
 
 function wireClientConfigButtons(): void {
-    const claudeBtn = document.getElementById("connect-claude-desktop-btn") as HTMLButtonElement | null;
-    const vscodeBtn = document.getElementById("connect-vscode-btn") as HTMLButtonElement | null;
-
-    if (!claudeBtn || !vscodeBtn) {
+    const list = document.querySelector<HTMLElement>(".mcp-client-list");
+    if (!list) {
         return;
     }
 
     const setButtonsEnabled = (enabled: boolean): void => {
-        claudeBtn.disabled = !enabled;
-        vscodeBtn.disabled = !enabled;
+        list.dataset.busy = String(!enabled);
+        list.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+            button.disabled = !enabled;
+        });
     };
 
-    const showStatus = (target: "claude" | "vscode", message: string, isError: boolean): void => {
-        const statusEl = document.getElementById(target === "claude" ? "claude-desktop-config-status" : "vscode-config-status");
+    const showStatus = (clientId: McpClientConfigStatus["client"], message: string, isError: boolean): void => {
+        const statusEl = document.getElementById(`${clientId}-config-status`);
         if (!statusEl) {
             return;
         }
         statusEl.textContent = message;
-        statusEl.style.color = isError ? "var(--error-color, #d13438)" : "var(--text-muted, rgba(0,0,0,0.65))";
+        statusEl.dataset.state = isError ? "invalid" : "pending";
     };
 
-    const writeConfig = async (target: "claude" | "vscode"): Promise<void> => {
+    const writeConfig = async (client: (typeof MCP_CLIENTS)[number], disconnect = false): Promise<void> => {
         try {
             setButtonsEnabled(false);
-            showStatus(target, "Updating config...", false);
+            showStatus(client.id, disconnect ? "Removing..." : "Configuring...", false);
 
-            const result = target === "claude" ? await window.toolboxAPI.mcpServer.configureClaudeDesktop() : await window.toolboxAPI.mcpServer.configureVSCode();
+            const clientApi = window.toolboxAPI.mcpServer;
+            const result = await clientApi[disconnect ? client.disconnect : client.configure]();
 
             updateClientConfigStatusUi(await window.toolboxAPI.mcpServer.getClientConfigStatuses());
             await window.toolboxAPI.utils.showNotification({
-                title: "MCP Config Updated",
-                body: `${target === "claude" ? "Claude Desktop" : "VSCode"} is now configured for ${result.serverName} at ${result.filePath}.`,
+                title: disconnect ? "MCP Client Registration Removed" : "MCP Client Configured",
+                body: disconnect
+                    ? `${result.serverName} was removed from ${client.name}. Restart or reload the client to close any cached connection.`
+                    : `${client.name} is configured and the PPTB MCP server is running. ${
+                          client.id === "vscode"
+                              ? "In VS Code, enable and start pptb from MCP: List Servers, and approve trust if prompted."
+                              : "Restart Claude Desktop to load the updated MCP configuration."
+                      }`,
                 type: "success",
             });
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            showStatus(target, `Config update failed: ${message}`, true);
+            showStatus(client.id, "Update failed", true);
             await window.toolboxAPI.utils.showNotification({
                 title: "MCP Config Failed",
-                body: `Unable to configure ${target === "claude" ? "Claude Desktop" : "VSCode"}.`,
+                body: `Unable to ${disconnect ? "disconnect" : "configure"} ${client.name}: ${message}`,
                 type: "error",
             });
-            logError("Failed to write MCP client config", error);
+            logError(disconnect ? "Failed to remove MCP client config" : "Failed to write MCP client config", error);
         } finally {
             setButtonsEnabled(true);
         }
     };
 
-    if (claudeBtn.dataset.bound !== "true") {
-        claudeBtn.dataset.bound = "true";
-        claudeBtn.addEventListener("click", () => {
-            void writeConfig("claude");
-        });
-    }
-
-    if (vscodeBtn.dataset.bound !== "true") {
-        vscodeBtn.dataset.bound = "true";
-        vscodeBtn.addEventListener("click", () => {
-            void writeConfig("vscode");
-        });
+    for (const client of MCP_CLIENTS) {
+        for (const action of ["connect", "disconnect"] as const) {
+            const button = document.getElementById(`${action}-${client.id}-btn`);
+            if (button && button.dataset.bound !== "true") {
+                button.dataset.bound = "true";
+                button.addEventListener("click", () => {
+                    void writeConfig(client, action === "disconnect");
+                });
+            }
+        }
     }
 }
 
 function updateClientConfigStatusUi(statuses: McpClientConfigStatus[]): void {
     for (const status of statuses) {
-        const isClaude = status.client === "claude-desktop";
-        const button = document.getElementById(isClaude ? "connect-claude-desktop-btn" : "connect-vscode-btn") as HTMLButtonElement | null;
-        const statusEl = document.getElementById(isClaude ? "claude-desktop-config-status" : "vscode-config-status");
-        if (!button || !statusEl) {
+        const client = MCP_CLIENTS.find((entry) => entry.id === status.client);
+        const button = document.getElementById(`connect-${status.client}-btn`) as HTMLButtonElement | null;
+        const statusEl = document.getElementById(`${status.client}-config-status`);
+        const disconnectButton = document.getElementById(`disconnect-${status.client}-btn`);
+        if (!client || !button || !statusEl || !disconnectButton) {
             continue;
         }
 
-        if (status.status === "connected") {
-            statusEl.textContent = "Connected";
-            statusEl.style.color = "#107c10";
-            button.textContent = `Reconnect ${isClaude ? "Claude Desktop" : "VSCode"}`;
-        } else if (status.status === "invalid") {
-            statusEl.textContent = "Config is wrong";
-            statusEl.style.color = "var(--error-color, #d13438)";
-            button.textContent = `Fix ${isClaude ? "Claude Desktop" : "VSCode"} config`;
-        } else {
-            statusEl.textContent = "Not configured";
-            statusEl.style.color = "var(--text-muted, rgba(0,0,0,0.65))";
-            button.textContent = `Connect to ${isClaude ? "Claude Desktop" : "VSCode"}`;
-        }
-
+        const presentation = getMcpClientPresentation(status.status);
+        statusEl.textContent = presentation.label;
+        statusEl.dataset.state = status.status;
         statusEl.title = status.filePath;
+        disconnectButton.hidden = !presentation.canDisconnect;
+        button.title = `${presentation.action} ${client.name}`;
+        button.setAttribute("aria-label", button.title);
+        const label = button.querySelector("span");
+        if (label?.textContent !== presentation.action) {
+            button.innerHTML = `${presentation.canDisconnect ? reconnectIcon : connectIcon}<span>${presentation.action}</span>`;
+        }
+        button.disabled = document.querySelector<HTMLElement>(".mcp-client-list")?.dataset.busy === "true";
     }
 }
 

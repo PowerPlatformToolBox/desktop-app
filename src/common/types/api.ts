@@ -176,6 +176,8 @@ export interface McpServerAPI {
     stop: () => Promise<McpServerDetails>;
     configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
     configureVSCode: () => Promise<McpClientConfigWriteResult>;
+    disconnectClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
+    disconnectVSCode: () => Promise<McpClientConfigWriteResult>;
 }
 
 /**
