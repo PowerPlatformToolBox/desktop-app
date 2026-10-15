@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 
 import { promises as fs } from "fs";
+import { createServer } from "http";
 import os from "os";
 import path from "path";
 import { McpServerManager, parseInvocationMeta } from "../../../../src/main/mcp/mcpServer";
@@ -20,13 +21,53 @@ jest.mock("os", () => ({
     },
 }));
 
-function createManager(): McpServerManager {
+function createManager(port = 7339): McpServerManager {
     const settingsManager = {
         getMcpAccessToken: jest.fn().mockReturnValue("expected-token"),
     } as any;
 
-    return new McpServerManager(7339, "127.0.0.1", settingsManager, { on: jest.fn() } as any, { on: jest.fn() } as any);
+    return new McpServerManager(port, "127.0.0.1", settingsManager, { on: jest.fn() } as any, { on: jest.fn() } as any);
 }
+
+describe("McpServerManager status", () => {
+    it("reports and emits starting, running, and stopped states", async () => {
+        const manager = createManager(0);
+        const onStatusChange = jest.fn();
+        manager.setStatusChangeHandler(onStatusChange);
+
+        expect(manager.getServerDetails()).toMatchObject({ isRunning: false, status: "stopped" });
+
+        await manager.start();
+        expect(manager.getServerDetails()).toMatchObject({ isRunning: true, status: "running" });
+        expect(onStatusChange.mock.calls).toEqual([["starting", undefined], ["running", undefined]]);
+
+        await manager.stop();
+        expect(manager.getServerDetails()).toMatchObject({ isRunning: false, status: "stopped" });
+        expect(onStatusChange).toHaveBeenLastCalledWith("stopped", undefined);
+    });
+
+    it("retains and reports a server startup error", async () => {
+        const occupiedServer = createServer();
+        await new Promise<void>((resolve) => occupiedServer.listen(0, "127.0.0.1", resolve));
+        const address = occupiedServer.address();
+        if (!address || typeof address === "string") {
+            throw new Error("Expected an occupied TCP port");
+        }
+
+        const manager = createManager(address.port);
+        const onStatusChange = jest.fn();
+        manager.setStatusChangeHandler(onStatusChange);
+
+        try {
+            await expect(manager.start()).rejects.toMatchObject({ code: "EADDRINUSE" });
+            expect(manager.getServerDetails()).toMatchObject({ isRunning: false, status: "error" });
+            expect(onStatusChange.mock.calls.at(-1)?.[0]).toBe("error");
+            expect(onStatusChange.mock.calls.at(-1)?.[1]).toEqual(expect.any(String));
+        } finally {
+            await new Promise<void>((resolve, reject) => occupiedServer.close((error) => (error ? reject(error) : resolve())));
+        }
+    });
+});
 
 function getClientConfigPaths(): { claudePath: string; vscodePath: string } {
     if (process.platform === "darwin") {

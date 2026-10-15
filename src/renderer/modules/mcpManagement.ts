@@ -200,13 +200,15 @@ function getOutcomeBadgeStyle(outcome: string): string {
     }
 }
 
-function updateMcpServerStatusUi(isRunning: boolean): void {
+function updateMcpServerStatusUi(isRunning: boolean, status: "starting" | "running" | "stopped" | "error" = isRunning ? "running" : "stopped"): void {
     const statusLabel = document.getElementById("mcp-server-status");
     const toggleButton = document.getElementById("mcp-server-toggle-btn") as HTMLButtonElement | null;
 
     if (statusLabel) {
-        statusLabel.textContent = isRunning ? "Running" : "Stopped";
-        statusLabel.setAttribute("style", `font-weight: 600; color: ${isRunning ? "#107c10" : "#d13438"};`);
+        const label = status === "running" ? "Running" : status === "error" ? "Error" : status === "starting" ? "Starting" : "Stopped";
+        const color = status === "running" ? "#107c10" : status === "error" ? "#d13438" : "#8a8886";
+        statusLabel.textContent = label;
+        statusLabel.setAttribute("style", `font-weight: 600; color: ${color};`);
     }
 
     if (toggleButton) {
@@ -262,7 +264,7 @@ async function loadAndRenderLogs(): Promise<void> {
         if (headerValueInput) {
             headerValueInput.value = serverDetails.authHeaderValue;
         }
-        updateMcpServerStatusUi(serverDetails.isRunning);
+        updateMcpServerStatusUi(serverDetails.isRunning, serverDetails.status);
 
         wireCopyButton("copy-mcp-server-address-btn", () => serverDetails.address, "MCP server address copied");
         wireCopyButton("copy-mcp-auth-header-name-btn", () => serverDetails.authHeaderName, "MCP auth header name copied");
@@ -435,7 +437,7 @@ function wireKeepMcpServerRunningToggle(isServerRunning: boolean, initialKeepRun
 
                 if (enabled && !isServerRunning) {
                     const details = await window.toolboxAPI.mcpServer.start();
-                    updateMcpServerStatusUi(details.isRunning);
+                    updateMcpServerStatusUi(details.isRunning, details.status);
                     isServerRunning = details.isRunning;
                     setStatus("Enabled. MCP server started.", false);
                     await window.toolboxAPI.utils.showNotification({
@@ -585,7 +587,7 @@ function wireMcpServerToggleButton(): void {
 
             try {
                 const details = isRunning ? await window.toolboxAPI.mcpServer.stop() : await window.toolboxAPI.mcpServer.start();
-                updateMcpServerStatusUi(details.isRunning);
+                updateMcpServerStatusUi(details.isRunning, details.status);
                 setActionStatus(details.isRunning ? "MCP server is running." : "MCP server is stopped.", false);
                 await window.toolboxAPI.utils.showNotification({
                     title: details.isRunning ? "MCP Server Started" : "MCP Server Stopped",

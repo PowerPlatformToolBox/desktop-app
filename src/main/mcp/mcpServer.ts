@@ -8,7 +8,7 @@ import path from "path";
 import { isDeepStrictEqual } from "util";
 import { resolveConnectionSlots } from "../../common/connectionSlots";
 import { logError, logInfo } from "../../common/logger";
-import { Connection, McpClientConfigStatus, ToolManifest, ToolMetadata } from "../../common/types";
+import { Connection, McpClientConfigStatus, McpServerStatus, ToolManifest, ToolMetadata } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
@@ -276,6 +276,9 @@ function validateAgainstSchema(value: unknown, schema: unknown, path = "$"): str
 
 export class McpServerManager {
     private httpServer: ReturnType<typeof createServer> | null = null;
+    private status: McpServerStatus = "stopped";
+    private lastError: string | null = null;
+    private statusChangeHandler: ((status: McpServerStatus, error?: string) => void) | null = null;
     private port: number;
     private host: string;
     private settingsManager: SettingsManager;
@@ -340,6 +343,10 @@ export class McpServerManager {
         this.headlessInvocationManager.setJobChangeHandler(handler);
     }
 
+    setStatusChangeHandler(handler: ((status: McpServerStatus, error?: string) => void) | null): void {
+        this.statusChangeHandler = handler;
+    }
+
     isRunning(): boolean {
         return this.httpServer !== null;
     }
@@ -349,12 +356,16 @@ export class McpServerManager {
         authHeaderName: string;
         authHeaderValue: string;
         isRunning: boolean;
+        status: McpServerStatus;
+        error?: string;
     } {
         return {
             address: `http://${this.host}:${this.port}`,
             authHeaderName: MCP_AUTH_HEADER_DISPLAY_NAME,
             authHeaderValue: this.expectedToken,
             isRunning: this.isRunning(),
+            status: this.status,
+            ...(this.lastError ? { error: this.lastError } : {}),
         };
     }
 
@@ -762,29 +773,66 @@ export class McpServerManager {
             return;
         }
 
-        this.httpServer = createServer(this.handleRequest.bind(this));
+        this.lastError = null;
+        this.notifyStatusChange("starting");
+        const server = createServer(this.handleRequest.bind(this));
+        this.httpServer = server;
 
         await new Promise<void>((resolve, reject) => {
-            this.httpServer!.listen(this.port, this.host, () => {
-                logInfo(`[MCP] Server listening on http://${this.host}:${this.port}`);
-                resolve();
+            let hasStarted = false;
+            server.on("error", (error) => {
+                const message = error instanceof Error ? error.message : String(error);
+                if (this.httpServer === server) {
+                    this.httpServer = null;
+                }
+                logError(error instanceof Error ? error : new Error(message));
+                this.notifyStatusChange("error", message);
+
+                if (!hasStarted) {
+                    reject(error);
+                }
             });
-            this.httpServer!.on("error", (error) => {
-                logError(error instanceof Error ? error : new Error(String(error)));
-                reject(error);
+
+            server.listen(this.port, this.host, () => {
+                hasStarted = true;
+                logInfo(`[MCP] Server listening on http://${this.host}:${this.port}`);
+                this.notifyStatusChange("running");
+                resolve();
             });
         });
     }
 
     async stop(): Promise<void> {
-        if (!this.httpServer) {
+        const server = this.httpServer;
+        if (!server) {
             return;
         }
 
-        await this.httpServer.close();
-        this.httpServer = null;
+        await new Promise<void>((resolve, reject) => {
+            server.close((error) => {
+                if (error) {
+                    const message = error.message;
+                    logError(error);
+                    this.notifyStatusChange("error", message);
+                    reject(error);
+                    return;
+                }
+
+                if (this.httpServer === server) {
+                    this.httpServer = null;
+                }
+                this.notifyStatusChange("stopped");
+                resolve();
+            });
+        });
         this.headlessInvocationManager.dispose();
         logInfo("[MCP] Server stopped");
+    }
+
+    private notifyStatusChange(status: McpServerStatus, error?: string): void {
+        this.status = status;
+        this.lastError = status === "error" ? error ?? "MCP server failed." : null;
+        this.statusChangeHandler?.(status, error);
     }
 
     private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {

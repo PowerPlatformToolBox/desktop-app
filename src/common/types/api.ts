@@ -147,6 +147,8 @@ export interface McpServerDetails {
     authHeaderName: string;
     authHeaderValue: string;
     isRunning: boolean;
+    status: "starting" | "running" | "stopped" | "error";
+    error?: string;
 }
 
 export interface McpClientConfigWriteResult {
