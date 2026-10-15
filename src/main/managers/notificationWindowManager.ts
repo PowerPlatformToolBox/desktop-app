@@ -127,9 +127,7 @@ export class NotificationHistoryWindowManager {
         this.history = [];
         this.unreadCount = 0;
         this.sendBadgeUpdate();
-        if (this.isPanelOpen) {
-            this.updateWindowContent();
-        }
+        this.closeHistoryPanel();
     }
 
     private sendBadgeUpdate(): void {

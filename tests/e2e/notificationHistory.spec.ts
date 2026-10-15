@@ -116,6 +116,16 @@ test.describe("Notification history panel", () => {
         await expect(clearBtn).toBeVisible({ timeout: 5_000 });
     });
 
+    test("Clear All closes the history window", async ({ electronApp, window }) => {
+        const historyWindow = await openHistoryWindow(electronApp, window);
+
+        await historyWindow.locator("#notification-clear-all-btn").click();
+        await expect(window.locator("#footer-notification-bell-btn")).toHaveAttribute("aria-pressed", "false", { timeout: 5_000 });
+
+        const isVisible = await isHistoryWindowVisible(electronApp);
+        expect(isVisible).toBe(false);
+    });
+
     test("bell button aria-pressed reflects window open state", async ({ electronApp, window }) => {
         const bellBtn = window.locator("#footer-notification-bell-btn");
         await expect(bellBtn).toBeVisible({ timeout: 15_000 });
