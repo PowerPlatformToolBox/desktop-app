@@ -290,7 +290,7 @@ launchTool(
 
 > **Important:** The target tool must be **installed** in PPTB. If the tool is not found, `launchTool` throws an error.
 
-> **Connection selection:** The callee's `features.connections` range (or legacy equivalent) controls required slots. PPTB prompts when required assignments are missing, or optional capacity exists but no connection is inherited. Exact zero skips selection. Cancelling selection rejects the invocation.
+> **Connection selection:** The callee's `features.connections` declaration controls required slots. Integer/min-max and legacy declarations remain the default/fallback: PPTB prompts when required assignments are missing, or optional capacity exists but no connection is inherited. Explicit `slots` instead enforce each declared index and product, with purpose labels in the picker; an all-optional explicit tool can launch empty. Exact zero skips selection. Cancelling selection rejects the invocation.
 
 ---
 
@@ -344,6 +344,8 @@ const result = await toolboxAPI.invocation.launchTool(
 ```
 
 Never compact null entries: `[sourceId, null, thirdId]` keeps the third environment at index 2. Do not rely on the legacy `primaryConnectionId: null` override to force a connectionless launch; primary auto-inheritance can still apply. Use a target declaring `connections: 0` for guaranteed connectionless execution. See [Connection Slots for Tool Authors](N_CONNECTION_TOOL_AUTHOR_GUIDE.md) and [MCP invocation metadata](MCP_IMPLEMENTATION.md#mcp-invocation-envelope).
+
+For a callee declaring `connections: { slots: [...] }`, pass IDs in its declared order. An optional leading null is preserved, including after a picker prompt; a populated optional slot cannot satisfy a required later index. Product compatibility is checked per slot before launch, and incompatible inherited/overridden assignments are rejected rather than reordered by product. An explicit `connectionIds` array exceeding the callee's maximum is rejected; inherited excess capacity is bounded by that maximum. Use the slot's allowed products and purpose when choosing overrides, and test null holes and missing required indexes.
 
 ---
 

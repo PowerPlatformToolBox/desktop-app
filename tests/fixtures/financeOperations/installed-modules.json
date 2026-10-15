@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; odata.metadata=minimal",
+    "odata-version": "4.0"
+  },
+  "body": {
+    "@odata.context": "https://erp.example/data/$metadata#Collection(Edm.String)",
+    "value": [
+      "Name: ApplicationFoundation | Version: 0.0.0.0 | Module: ApplicationFoundation | Publisher: Microsoft Corporation | DisplayName: Application Foundation",
+      "Name: Currency | Version: 0.0.0.0 | Module: Currency | Publisher: Microsoft Corporation | DisplayName: Currency"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "",
+    "message": "An error has occurred.",
+    "innererror": {
+      "message": "User is not authorized to read view CustCustomerV3Entity.  Request denied.",
+      "type": "Microsoft.Dynamics.Platform.Integration.Services.OData.ODataSecurityException",
+      "stacktrace": "[redacted server stack trace]"
+    }
+  }
+}

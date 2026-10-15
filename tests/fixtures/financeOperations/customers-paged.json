@@ -1,0 +1,14 @@
+{
+  "@odata.context": "https://erp.example/data/$metadata#CustomersV3(dataAreaId,CustomerAccount)",
+  "value": [
+    {
+      "dataAreaId": "test",
+      "CustomerAccount": "TEST_0001"
+    },
+    {
+      "dataAreaId": "test",
+      "CustomerAccount": "TEST_0002"
+    }
+  ],
+  "@odata.nextLink": "https://erp.example/data/CustomersV3?cross-company=true&$select=dataAreaId%2CCustomerAccount&$skip=2&$top=2"
+}

@@ -9,7 +9,7 @@ export interface ModalViewTemplate {
 /**
  * Returns the view markup (styles + body) for the select connection modal BrowserWindow.
  */
-export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string, allowClearSelection: boolean = false): ModalViewTemplate {
+export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string, allowClearSelection: boolean = false, purposeLabel?: string): ModalViewTemplate {
     const styles =
         getModalStyles(isDarkTheme) +
         `
@@ -25,7 +25,7 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
     <div class="modal-header">
         <div>
             ${toolNameHtml}
-            <h3>Select Connection</h3>
+            <h3>${purposeLabel ? `Choose a connection for ${escapeHtml(purposeLabel)}` : "Select Connection"}</h3>
         </div>
         <button id="close-select-connection-modal" class="icon-button" aria-label="Close">&times;</button>
     </div>

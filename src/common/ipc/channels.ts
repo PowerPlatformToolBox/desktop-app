@@ -375,3 +375,5 @@ export const SPLIT_LAYOUT_CHANNELS = {
 
 // Type helper to extract channel names
 export type ChannelName<T> = T[keyof T];
+
+export const FINANCE_OPERATIONS_CHANNELS = { REQUEST: "finance-operations:request" } as const;

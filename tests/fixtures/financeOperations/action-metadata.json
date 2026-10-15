@@ -1,0 +1,11 @@
+{
+  "name": "GetInstalledModules",
+  "namespace": "Microsoft.Dynamics.DataEntities",
+  "bound": "true",
+  "parameters": [
+    {
+      "name": "SystemNotification",
+      "type": "Collection(Microsoft.Dynamics.DataEntities.SystemNotification)"
+    }
+  ]
+}

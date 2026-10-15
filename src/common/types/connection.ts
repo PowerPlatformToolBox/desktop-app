@@ -7,6 +7,65 @@
  */
 export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
 
+export type ConnectionType = "dataverse" | "financeOperations";
+
+/** Legacy connections without a discriminator are Dataverse connections. */
+export function resolveConnectionType(value: unknown): ConnectionType {
+    if (value === undefined) return "dataverse";
+    if (value === "dataverse" || value === "financeOperations") return value;
+    throw new Error(`Invalid connection type: ${String(value)}`);
+}
+
+export function assertDataverseConnection(connection: Pick<Connection, "connectionType">): void {
+    if (resolveConnectionType(connection.connectionType) !== "dataverse") {
+        throw new Error("This operation requires a Dataverse connection. Finance & Operations support is not available for this API.");
+    }
+}
+
+/** Normalize hosted F&O environment roots, including pasted service roots. */
+export function normalizeFinanceOperationsUrl(value: string): string {
+    const trimmed = value.trim();
+    // Check before URL parsing can remove dot segments or backslashes.
+    if (!/^https:\/\/[^/?#\\]+(?:\/data\/?)?\/?$/.test(trimmed)) {
+        throw new Error("Finance & Operations URL must be an HTTPS environment root or /data service root.");
+    }
+    const url = new URL(trimmed);
+    if (url.username || url.password || url.search || url.hash || !["/", "/data", "/data/"].includes(url.pathname)) {
+        throw new Error("Finance & Operations URL must be an HTTPS environment root or /data service root.");
+    }
+    return url.origin;
+}
+
+/** Shared validation for persistence and imports, including incomplete exports. */
+export function normalizeConnection(connection: Connection): NormalizedConnection {
+    const connectionType = resolveConnectionType(connection.connectionType);
+    if (!["interactive", "clientSecret", "usernamePassword", "connectionString"].includes(connection.authenticationType)) {
+        throw new Error(`Invalid authentication type: ${String(connection.authenticationType)}`);
+    }
+    if (connectionType === "dataverse") return { ...connection, connectionType };
+    if (connection.authenticationType !== "interactive" && connection.authenticationType !== "clientSecret") {
+        throw new Error("Finance & Operations supports interactive and client-secret authentication only.");
+    }
+    if (!connection.clientId?.trim() || !connection.tenantId?.trim()) {
+        throw new Error("Finance & Operations requires a client ID and tenant ID.");
+    }
+    if (connection.enabledForPowerPlatformAPI || connection.powerPlatformAccessToken !== undefined || connection.powerPlatformTokenExpiry !== undefined || connection.scopesForPowerPlatformAPI !== undefined) {
+        throw new Error("Finance & Operations connections cannot enable Power Platform API access.");
+    }
+    return {
+        ...connection,
+        connectionType,
+        authenticationType: connection.authenticationType,
+        clientId: connection.clientId,
+        tenantId: connection.tenantId,
+        enabledForPowerPlatformAPI: false,
+        powerPlatformAccessToken: undefined,
+        powerPlatformTokenExpiry: undefined,
+        scopesForPowerPlatformAPI: undefined,
+        url: normalizeFinanceOperationsUrl(connection.url),
+    };
+}
+
 /**
  * Browser type for interactive authentication
  *
@@ -22,6 +81,8 @@ export type BrowserType = "default" | "chrome" | "edge";
  * added transiently when needed for rendering (e.g., in modals or lists).
  */
 export interface Connection {
+    /** Omitted for legacy Dataverse records; normalized when persisted. */
+    connectionType?: ConnectionType;
     id: string;
     name: string;
     url: string;
@@ -70,8 +131,32 @@ export function isConnection(obj: unknown): obj is Connection {
         typeof conn.name === "string" &&
         typeof conn.url === "string" &&
         (conn.environment === "Dev" || conn.environment === "Test" || conn.environment === "UAT" || conn.environment === "Production") &&
-        (conn.authenticationType === "interactive" || conn.authenticationType === "clientSecret" || conn.authenticationType === "usernamePassword")
+        (conn.authenticationType === "interactive" || conn.authenticationType === "clientSecret" || conn.authenticationType === "usernamePassword" || conn.authenticationType === "connectionString") &&
+        isSupportedConnectionConfiguration(conn)
     );
+}
+
+/** Validated records narrow authentication and configuration by product. */
+export type NormalizedConnection =
+    | (Connection & { connectionType: "dataverse" })
+    | (Connection & {
+          connectionType: "financeOperations";
+          authenticationType: "interactive" | "clientSecret";
+          clientId: string;
+          tenantId: string;
+          enabledForPowerPlatformAPI: false;
+          powerPlatformAccessToken?: never;
+          powerPlatformTokenExpiry?: never;
+          scopesForPowerPlatformAPI?: never;
+      });
+
+function isSupportedConnectionConfiguration(connection: Record<string, unknown>): boolean {
+    try {
+        normalizeConnection(connection as unknown as Connection);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -79,6 +164,7 @@ export function isConnection(obj: unknown): obj is Connection {
  * Use this type when rendering connections in lists, modals, or other UI components
  */
 export interface UIConnectionData {
+    connectionType?: ConnectionType;
     id: string;
     name: string;
     url: string;

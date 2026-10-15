@@ -1,4 +1,5 @@
 import { UIConnectionData } from "../../../common/types/connection";
+import { connectionProductScript } from "../../../common/connectionProduct";
 import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
 import type { SelectMultiConnectionModalOptions } from "./view";
@@ -109,6 +110,7 @@ export function getSelectMultiConnectionModalControllerScript(
         return \`<span class="browser-profile-badge" title="\${safeTitle}">\${iconMarkup}<span class="browser-profile-label">\${safeProfile}</span></span>\`;
     };
 ${sortingUtilities}
+${connectionProductScript()}
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";
@@ -119,7 +121,7 @@ ${sortingUtilities}
         let filtered = allConnections.filter(conn => {
             // Search filter
             if (searchTerm) {
-                const haystacks = [conn.name || "", conn.url || ""];
+                const haystacks = [conn.name || "", conn.url || "", productLabel(conn.connectionType), productDescription(conn.connectionType)];
                 if (!haystacks.some(h => h.toLowerCase().includes(searchTerm))) {
                     return false;
                 }
@@ -242,13 +244,14 @@ ${sortingUtilities}
                 <div class="connection-item-footer">
                     <div class="connection-item-meta-left">
                         <span class="\${envBadgeClass}"\${envBadgeStyle}>\${escapeHtml(conn.environment)}</span>
+                        \${productBadge(conn.connectionType)}
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                         \${ppApiBadgeMarkup}
                         \${catBadgeMarkup}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
-                <label class="impersonate-checkbox-row" onclick="event.stopPropagation()">
+                <label class="impersonate-checkbox-row" style="display: \${conn.connectionType === 'financeOperations' ? 'none' : ''}" onclick="event.stopPropagation()">
                     <input type="checkbox" class="impersonate-checkbox" data-connection-id="\${safeId}" data-list="\${idPrefix}" \${impersonateConnectionKeys.has(idPrefix + ':' + conn.id) ? 'checked' : ''} />
                     Impersonate as another user
                 </label>
@@ -570,6 +573,13 @@ function getConnectionSlotsModalControllerScript(
     const CHANNELS = ${serializedChannels};
     const MIN_CONNECTIONS = ${options.minConnections};
     const MAX_CONNECTIONS = ${options.maxConnections};
+    const SLOT_DEFINITIONS = ${JSON.stringify(options.slots ?? null).replace(/</g, "\\u003c")};
+    const isRequired = index => SLOT_DEFINITIONS ? SLOT_DEFINITIONS[index].required : index < MIN_CONNECTIONS;
+    const requiredAssigned = () => SLOT_DEFINITIONS ? SLOT_DEFINITIONS.every((slot, index) => {
+        if (!slotIds[index]) return !slot.required;
+        const connection = allConnections.find(item => item.id === slotIds[index]);
+        return connection && slot.connectionTypes.includes(connection.connectionType ?? "dataverse");
+    }) : slotIds.slice(0, MIN_CONNECTIONS).filter(Boolean).length >= MIN_CONNECTIONS;
     const INITIAL_CONNECTION_IDS = ${initialConnectionIds};
     const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
     const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
@@ -590,8 +600,8 @@ function getConnectionSlotsModalControllerScript(
     const filterButton = document.getElementById("multi-connection-filter-btn");
     const filterDropdown = document.getElementById("multi-connection-filter-dropdown");
     let slotIds = [...INITIAL_CONNECTION_IDS];
-    while (slotIds.length > MIN_CONNECTIONS && !slotIds[slotIds.length - 1]) slotIds.pop();
-    while (slotIds.length < MIN_CONNECTIONS) slotIds.push(null);
+    if (!SLOT_DEFINITIONS) while (slotIds.length > MIN_CONNECTIONS && !slotIds[slotIds.length - 1]) slotIds.pop();
+    while (slotIds.length < (SLOT_DEFINITIONS ? MAX_CONNECTIONS : MIN_CONNECTIONS)) slotIds.push(null);
     slotIds.length = Math.min(slotIds.length, MAX_CONNECTIONS);
     const connectedSlots = new Set(slotIds.flatMap((connectionId, index) => connectionId ? [index] : []));
     let activeSlot = 0;
@@ -606,25 +616,31 @@ function getConnectionSlotsModalControllerScript(
     const formatAuthType = (authType) => ({ interactive: "Microsoft Login", clientSecret: "Client Secret", usernamePassword: "Username/Password" }[authType] || authType);
 ${sortingUtilities}
 
+${connectionProductScript()}
+
     const renderRail = () => {
         if (!rail) return;
         const rows = slotIds.map((connectionId, index) => {
-            const required = index < MIN_CONNECTIONS;
+            const required = isRequired(index);
             const connection = allConnections.find((item) => item.id === connectionId);
             const label = connection ? connection.name : "Not selected";
+            const purpose = SLOT_DEFINITIONS?.[index]?.label;
             const slotIndicators = '<span class="connection-slot-indicators">' +
                 (connectedSlots.has(index) ? '<span class="connection-slot-connected-check" role="img" aria-label="Connected" title="Connected">&#10003;</span>' : '') +
                 (impersonateSlots.has(index) ? '<img class="connection-slot-impersonation-icon" src="' + escapeHtml(IMPERSONATION_ICON_URL) + '" alt="" title="Dataverse impersonation enabled" aria-label="Dataverse impersonation enabled" />' : '') +
                 '</span>';
             return '<div class="connection-slot-row" data-slot-row="' + index + '">' +
                 '<button type="button" class="connection-slot-button" data-slot-index="' + index + '" aria-pressed="' + (activeSlot === index) + '">' +
-                '<span class="connection-slot-number">' + (index + 1) + '</span><span class="connection-slot-copy"><strong title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</strong>' +
+                '<span class="connection-slot-number">' + (index + 1) + '</span><span class="connection-slot-copy">' + (purpose ? '<small class="connection-slot-purpose">' + escapeHtml(purpose) + '</small>' : '') + '<strong title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</strong>' +
                 (connection ? '<small title="' + escapeHtml(connection.url) + '">' + escapeHtml(connection.url) + '</small>' : '') + '</span>' +
+                (connection ? productBadge(connection.connectionType) : (SLOT_DEFINITIONS ? '<small>' + SLOT_DEFINITIONS[index].connectionTypes.map(productLabel).map(escapeHtml).join(' / ') + '</small>' : '')) +
                 slotIndicators + '<span class="connection-badge ' + (required ? "required" : "optional") + '">' + (required ? "Required" : "Optional") + '</span></button>' +
-                (required ? "" : '<button type="button" class="connection-slot-clear" data-clear-slot="' + index + '" aria-label="Remove connection slot ' + (index + 1) + '" title="Remove slot">&times;</button>') + '</div>';
+                (required ? "" : '<button type="button" class="connection-slot-clear" data-clear-slot="' + index + '" aria-label="' + (SLOT_DEFINITIONS ? 'Clear ' + escapeHtml(purpose) : 'Remove connection slot ' + (index + 1)) + '" title="' + (SLOT_DEFINITIONS ? 'Clear connection' : 'Remove slot') + '">&times;</button>') + '</div>';
         }).join("");
         const existingAdd = document.getElementById("add-connection-slot-btn");
-        rail.innerHTML = rows + '<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ' + (slotIds.length >= MAX_CONNECTIONS ? "disabled" : "") + '>+ Add connection</button>';
+        rail.innerHTML = rows + (SLOT_DEFINITIONS ? '' : '<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ' + (slotIds.length >= MAX_CONNECTIONS ? "disabled" : "") + '>+ Add connection</button>');
+        const purposeHeading = document.getElementById("connection-slot-purpose");
+        if (purposeHeading) purposeHeading.textContent = "Choose a connection for " + (SLOT_DEFINITIONS?.[activeSlot]?.label ?? "Connection " + (activeSlot + 1));
         rail.querySelectorAll("[data-slot-index]").forEach((button) => button.addEventListener("click", () => {
             activeSlot = Number(button.getAttribute("data-slot-index"));
             updateState();
@@ -633,7 +649,17 @@ ${sortingUtilities}
         }));
         rail.querySelectorAll("[data-clear-slot]").forEach((button) => button.addEventListener("click", () => {
             const index = Number(button.getAttribute("data-clear-slot"));
-            if (index < MIN_CONNECTIONS || index >= slotIds.length) return;
+            if (isRequired(index) || index >= slotIds.length) return;
+            if (SLOT_DEFINITIONS) {
+                slotIds[index] = null;
+                connectedSlots.delete(index);
+                impersonateSlots.delete(index);
+                for (const [id, slot] of pendingSlotByConnectionId) if (slot === index) {
+                    pendingSlotByConnectionId.delete(id);
+                    pendingConnectionIds.delete(id);
+                }
+                updateState(); renderRail(); renderConnections(); return;
+            }
             slotIds.splice(index, 1);
             const remapSlotSet = (slots) => new Set([...slots].flatMap((slot) => slot === index ? [] : [slot > index ? slot - 1 : slot]));
             const remappedConnectedSlots = remapSlotSet(connectedSlots);
@@ -679,7 +705,8 @@ ${sortingUtilities}
         const category = categoryFilter?.value || "";
         const sortOption = sanitizeSortOption(sortSelect?.value);
         return allConnections.filter((connection) => {
-            if (query && ![connection.name || "", connection.url || ""].some((value) => value.toLowerCase().includes(query))) return false;
+            if (SLOT_DEFINITIONS && !SLOT_DEFINITIONS[activeSlot].connectionTypes.includes(connection.connectionType ?? "dataverse")) return false;
+            if (query && ![connection.name || "", connection.url || "", productLabel(connection.connectionType), productDescription(connection.connectionType)].some((value) => value.toLowerCase().includes(query))) return false;
             if (env && connection.environment !== env) return false;
             if (auth && connection.authenticationType !== auth) return false;
             if (category === "__default__" && connection.category) return false;
@@ -692,7 +719,7 @@ ${sortingUtilities}
         if (!list) return;
         const connections = getFilteredConnections();
         if (!connections.length) {
-            list.innerHTML = '<div class="empty-state"><p>' + (allConnections.length ? "No matching connections" : "No connections configured yet. Add connections from the Connections page.") + '</p></div>';
+            list.innerHTML = '<div class="empty-state"><p>' + (SLOT_DEFINITIONS ? "No matching " + SLOT_DEFINITIONS[activeSlot].connectionTypes.map(productLabel).map(escapeHtml).join(" / ") + " connections. Adjust the filters or add a compatible connection from the Connections page." : allConnections.length ? "No matching connections" : "No connections configured yet. Add connections from the Connections page.") + '</p></div>';
             return;
         }
         list.innerHTML = connections.map((connection) => {
@@ -707,8 +734,8 @@ ${sortingUtilities}
                 : '<button class="connect-button fluent-button fluent-button-primary" data-connection-id="' + escapeHtml(connection.id) + '" type="button" ' + (connecting ? 'disabled aria-busy="true"' : "") + '>' + (connecting ? "Connecting…" : "Connect") + '</button>';
             return '<div class="connection-item ' + (selected ? "authenticated" : "") + '" data-connection-id="' + escapeHtml(connection.id) + '">' +
                 '<div class="connection-header"><div class="connection-name">' + escapeHtml(connection.name) + '</div><div class="connection-actions">' + selectionControl + '</div></div>' +
-                '<div class="connection-url">' + escapeHtml(connection.url) + '</div><div class="connection-item-footer"><div class="connection-item-meta-left"><span class="' + envClass + '">' + escapeHtml(connection.environment) + '</span><span class="auth-type-badge">' + escapeHtml(formatAuthType(connection.authenticationType)) + '</span>' + ppApi + category + '</div></div>' +
-                '<label class="impersonate-checkbox-row"><input type="checkbox" class="slot-impersonate-checkbox" data-connection-id="' + escapeHtml(connection.id) + '" ' + (impersonateSlots.has(activeSlot) ? "checked" : "") + ' />Impersonate as another user</label>' +
+                '<div class="connection-url">' + escapeHtml(connection.url) + '</div><div class="connection-item-footer"><div class="connection-item-meta-left"><span class="' + envClass + '">' + escapeHtml(connection.environment) + '</span>' + productBadge(connection.connectionType) + '<span class="auth-type-badge">' + escapeHtml(formatAuthType(connection.authenticationType)) + '</span>' + ppApi + category + '</div></div>' +
+                '<label class="impersonate-checkbox-row" style="display: ' + (connection.connectionType === 'financeOperations' ? 'none' : '') + '"><input type="checkbox" class="slot-impersonate-checkbox" data-connection-id="' + escapeHtml(connection.id) + '" ' + (impersonateSlots.has(activeSlot) ? "checked" : "") + ' />Impersonate as another user</label>' +
                 (duplicate ? '<small class="slot-duplicate-card-note"><span aria-hidden="true">&#9888;</span><span>Also assigned to another slot</span></small>' : "") + '</div>';
         }).join("");
         list.querySelectorAll(".connect-button").forEach((button) => {
@@ -742,11 +769,11 @@ ${sortingUtilities}
             const assignedId = slotIds[activeSlot];
             duplicateWarning.hidden = !assignedId || !slotIds.some((id, index) => index !== activeSlot && id === assignedId);
         }
-        if (confirmButton) confirmButton.disabled = slotIds.slice(0, MIN_CONNECTIONS).filter(Boolean).length < MIN_CONNECTIONS;
+        if (confirmButton) confirmButton.disabled = !requiredAssigned();
     };
 
     const confirm = () => {
-        if (slotIds.slice(0, MIN_CONNECTIONS).filter(Boolean).length < MIN_CONNECTIONS) return;
+        if (!requiredAssigned()) return;
         modalBridge.send(CHANNELS.selectConnections, { action: "confirm", connectionIds: slotIds, impersonateSlots: [...impersonateSlots] });
     };
     confirmButton?.addEventListener("click", confirm);
@@ -781,6 +808,7 @@ ${sortingUtilities}
             pendingSlotByConnectionId.delete(payload.data.connectionId);
             pendingConnectionIds.delete(payload.data.connectionId);
             slotIds[slotIndex] = payload.data.connectionId;
+            if (allConnections.find((connection) => connection.id === payload.data.connectionId)?.connectionType === "financeOperations") impersonateSlots.delete(slotIndex);
             connectedSlots.add(slotIndex);
             activeSlot = slotIndex;
             renderRail();

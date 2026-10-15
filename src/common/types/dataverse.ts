@@ -27,6 +27,7 @@ export interface DataverseBatchResult {
 }
 
 export interface DataverseHeaderConsentRequest {
+    api?: "financeOperations";
     requestId: string;
     toolId: string;
     toolName: string;

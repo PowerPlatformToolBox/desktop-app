@@ -23,6 +23,7 @@ import type {
     DataverseHeaderConsentRequest,
     EntityRelatedMetadataPath,
     EntityRelatedMetadataResponse,
+    InvocationConnectionsPrompt,
     LastUsedToolUpdate,
     NativeWorkerConsentDecision,
     NativeWorkerConsentRequest,
@@ -102,7 +103,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
     },
     /** Listen for multi-connection prompts triggered by an invocation that requires a secondary connection. */
-    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; minConnections: number; maxConnections: number; inheritedConnectionIds: ConnectionIds }) => void) => {
+    onInvocationConnectionsPrompt: (callback: (prompt: InvocationConnectionsPrompt) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, (_event, prompt) => callback(prompt));
     },
     /** Reply to a multi-connection prompt with the selected connection IDs (or null to cancel). */

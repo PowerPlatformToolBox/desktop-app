@@ -10,8 +10,17 @@ import { Connection } from "./connection";
 import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, DataverseUser, DataverseUserPage } from "./dataverse";
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
+import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolFeatures, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
 import { ToolIdea, ToolIdeaSubmission, ToolIdeaUpvoteResult } from "./toolIdea";
+
+export interface InvocationConnectionsPrompt {
+    requestId: string;
+    toolName: string;
+    minConnections: number;
+    maxConnections: number;
+    inheritedConnectionIds: ConnectionIds;
+    features?: ToolFeatures;
+}
 
 /**
  * Connections API namespace
@@ -335,7 +344,7 @@ export interface ToolboxAPI {
     /** Subscribe to invocation banner state changes (main → renderer push). */
     onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => void;
     /** Subscribe to multi-connection prompts triggered when an invoked callee requires a secondary connection. */
-    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; minConnections: number; maxConnections: number; inheritedConnectionIds: ConnectionIds }) => void) => void;
+    onInvocationConnectionsPrompt: (callback: (prompt: InvocationConnectionsPrompt) => void) => void;
     /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
     provideInvocationConnections: (requestId: string, result: { connectionIds: ConnectionIds; primaryConnectionId?: string | null; secondaryConnectionId?: string | null } | null) => Promise<void>;
     /**

@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "",
+    "message": "An error has occurred.",
+    "innererror": {
+      "message": "Field validation failed on table of type 'CustCustomerV3Entity' for the following fields: CustomerAccount. Infolog: Warning: Field 'Customer account' does not allow editing.; Warning: Number TEST_INVALID does not match format TEST_####..",
+      "type": "Microsoft.Dynamics.Platform.Integration.Services.OData.AxODataFieldValidationException",
+      "stacktrace": "[redacted server stack trace]"
+    }
+  }
+}

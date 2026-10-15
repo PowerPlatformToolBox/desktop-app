@@ -157,6 +157,7 @@ export class BrowserView {
         loadURL: jest.fn(() => Promise.resolve()),
         executeJavaScript: jest.fn(() => Promise.resolve()),
         setWindowOpenHandler: jest.fn(),
+        setZoomLevel: jest.fn(),
         isDestroyed: jest.fn(() => false),
         destroy: jest.fn(),
     };

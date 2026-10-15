@@ -1,5 +1,7 @@
 import { escapeHtml } from "../../utils/toolIconResolver";
 import { getModalStyles } from "../sharedStyles";
+import type { ConnectionType } from "../../../common/types/connection";
+import type { ResolvedConnectionSlot } from "../../../common/connectionSlots";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -11,6 +13,9 @@ export interface SelectMultiConnectionModalOptions {
     maxConnections: number;
     toolName?: string;
     initialConnectionIds?: Array<string | null>;
+    connectionTypes?: ConnectionType[];
+    /** Fixed explicit slots; absent for existing count/range tools. */
+    slots?: ResolvedConnectionSlot[];
 }
 
 /**
@@ -137,8 +142,8 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, optionsO
     <div class="modal-body">
         <div class="info-message">
             This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${
-                isSecondaryRequired ? "both connections" : "at least a primary connection"
-            } to continue.
+        isSecondaryRequired ? "both connections" : "at least a primary connection"
+    } to continue.
         </div>
         <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
             <span>This tool uses Power Platform API. Selecting a connection that is not enabled for PP API may cause issues while using this tool.</span>
@@ -232,14 +237,16 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, optionsO
 function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiConnectionModalOptions): ModalViewTemplate {
     const { minConnections, maxConnections } = options;
     const lastAssignedSlot = options.initialConnectionIds?.reduce((lastIndex, connectionId, index) => (connectionId ? index : lastIndex), -1) ?? -1;
-    const initialSlotCount = Math.min(maxConnections, Math.max(minConnections, lastAssignedSlot + 1));
+    const initialSlotCount = options.slots ? options.slots.length : Math.min(maxConnections, Math.max(minConnections, lastAssignedSlot + 1));
     const slots = Array.from({ length: initialSlotCount }, (_, index) => {
-        const required = index < minConnections;
+        const required = options.slots?.[index].required ?? index < minConnections;
         const assigned = options.initialConnectionIds?.[index];
         return `<div class="connection-slot-row" data-slot-row="${index}">
             <button type="button" class="connection-slot-button" data-slot-index="${index}" aria-pressed="${index === 0 ? "true" : "false"}">
                 <span class="connection-slot-number">${index + 1}</span>
-                <span class="connection-slot-copy"><strong data-slot-name="${index}" title="${escapeHtml(assigned || "Not selected")}">${assigned ? escapeHtml(assigned) : "Not selected"}</strong></span>
+                <span class="connection-slot-copy"><strong data-slot-name="${index}" title="${escapeHtml(assigned || "Not selected")}">${
+            assigned ? escapeHtml(assigned) : "Not selected"
+        }</strong></span>
                 <span class="connection-badge ${required ? "required" : "optional"}">${required ? "Required" : "Optional"}</span>
             </button>
             ${required ? "" : `<button type="button" class="connection-slot-clear" data-clear-slot="${index}" aria-label="Remove connection slot ${index + 1}" title="Remove slot">&times;</button>`}
@@ -254,9 +261,13 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
     .modal-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     .modal-body > .info-message, .modal-body > .modal-warning { flex: 0 0 auto; }
     .slot-selection-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; min-height: 0; flex: 1; overflow: hidden; }
-    .connection-slot-rail { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; border-right: 1px solid ${isDarkTheme ? "#454545" : "#d1d1d1"}; padding-right: 12px; }
+    .connection-slot-rail { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; border-right: 1px solid ${
+        isDarkTheme ? "#454545" : "#d1d1d1"
+    }; padding-right: 12px; }
     .connection-slot-row { display: flex; gap: 4px; align-items: stretch; }
-    .connection-slot-button { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; text-align: left; padding: 9px; color: inherit; border: 1px solid ${isDarkTheme ? "#454545" : "#d1d1d1"}; background: transparent; cursor: pointer; }
+    .connection-slot-button { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; text-align: left; padding: 9px; color: inherit; border: 1px solid ${
+        isDarkTheme ? "#454545" : "#d1d1d1"
+    }; background: transparent; cursor: pointer; }
     .connection-slot-button[aria-pressed="true"] { border-color: #0f6cbd; background: ${isDarkTheme ? "#202d38" : "#edf6fc"}; }
     .connection-slot-number { display: grid; place-items: center; width: 26px; height: 26px; flex: 0 0 26px; border-radius: 2px; background: ${isDarkTheme ? "#3a3a3a" : "#e8e8e8"}; font-weight: 600; }
     .connection-slot-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
@@ -264,20 +275,25 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
     .connection-slot-copy strong { font-weight: 700; }
     .connection-slot-copy small { opacity: .75; }
     .connection-slot-indicators { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: 0 0 auto; min-width: 16px; }
-    .connection-slot-connected-check { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border-radius: 50%; background: ${isDarkTheme ? "#39734d" : "#d7f0dd"}; color: ${isDarkTheme ? "#a5e0b5" : "#176b35"}; font-size: 11px; }
+    .connection-slot-connected-check { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border-radius: 50%; background: ${
+        isDarkTheme ? "#39734d" : "#d7f0dd"
+    }; color: ${isDarkTheme ? "#a5e0b5" : "#176b35"}; font-size: 11px; }
     .connection-slot-impersonation-icon { display: block; width: 16px; height: 16px; flex: 0 0 16px; }
     .connection-badge { font-size: 10px; text-transform: uppercase; }
     .connection-badge.required { color: ${isDarkTheme ? "#ff8a8a" : "#a4262c"}; font-weight: 700; }
     .connection-badge.optional { color: ${isDarkTheme ? "#c8c8c8" : "#4b4b4b"}; font-weight: 700; }
     .connection-slot-clear { width: 30px; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 18px; }
     .connection-slot-add { min-height: 38px; border: 1px dashed ${isDarkTheme ? "#666" : "#999"}; background: transparent; color: inherit; cursor: pointer; }
+    #connection-slot-purpose { margin: 0 0 12px; font-size: 15px; overflow-wrap: anywhere; }
     .connection-slot-add:disabled { opacity: .45; cursor: default; }
     .connect-button { padding: 5px 10px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
     .connect-button:disabled { opacity: .65; cursor: wait; }
     .slot-connections-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
     .slot-connections-pane .modal-search-container { flex: 0 0 auto; margin-bottom: 12px; }
     .slot-connections-pane .connection-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    .connection-selected-indicator { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 9px; border-radius: 3px; background: ${isDarkTheme ? "#24402f" : "#e6f4ea"}; color: ${isDarkTheme ? "#9bd4aa" : "#176b35"}; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .connection-selected-indicator { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 9px; border-radius: 3px; background: ${
+        isDarkTheme ? "#24402f" : "#e6f4ea"
+    }; color: ${isDarkTheme ? "#9bd4aa" : "#176b35"}; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .connection-selected-check { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: ${isDarkTheme ? "#39734d" : "#cce8d3"}; font-size: 11px; }
     .slot-duplicate-warning { color: #9a6700; margin: 8px 0 14px; line-height: 1.4; }
     .slot-duplicate-card-note { display: flex; align-items: center; gap: 6px; margin: 7px 0 0 22px; line-height: 1.4; color: #9a6700; }
@@ -287,11 +303,18 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
 <div class="modal-panel">
     <div class="modal-header"><div>${toolNameHtml}<h3>Select Connections</h3></div><button id="close-select-multi-connection-modal" class="icon-button" aria-label="Close">&times;</button></div>
     <div class="modal-body">
-        <div class="info-message">Choose at least ${minConnections} connection${minConnections === 1 ? "" : "s"}. You can assign up to ${maxConnections} slots.</div>
+        <div class="info-message">${
+            options.slots
+                ? "Assign each required connection for its labeled purpose. Optional slots can remain empty."
+                : `Choose at least ${minConnections} connection${minConnections === 1 ? "" : "s"}. You can assign up to ${maxConnections} slots.`
+        }</div>
         <div id="power-platform-api-info-multi" class="modal-warning" style="display:none;margin-bottom:12px"><span>This tool uses Power Platform API. Select connections enabled for PP API.</span></div>
         <div class="slot-selection-layout">
-            <div id="connection-slot-rail" class="connection-slot-rail">${slots}<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ${initialSlotCount >= maxConnections ? "disabled" : ""}>+ Add connection</button></div>
+            <div id="connection-slot-rail" class="connection-slot-rail">${slots}${
+        options.slots ? "" : `<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ${initialSlotCount >= maxConnections ? "disabled" : ""}>+ Add connection</button>`
+    }</div>
             <div class="slot-connections-pane">
+                <h4 id="connection-slot-purpose" role="status" aria-live="polite">${options.slots ? `Choose a connection for ${escapeHtml(options.slots[0].label)}` : "Choose a connection"}</h4>
                 <div class="modal-search-container">
                     <div class="modal-search-bar"><div class="modal-search-input-wrapper"><input type="text" id="multi-connection-search" class="modal-search-input" placeholder="Search connections..." /><button type="button" id="multi-connection-search-clear" class="modal-search-clear-btn" aria-label="Clear connection search" title="Clear search">&times;</button></div><button type="button" id="multi-connection-filter-btn" class="modal-search-filter-btn" aria-label="Filters and sorting" aria-haspopup="true" aria-expanded="false" aria-controls="multi-connection-filter-dropdown"><svg class="modal-filter-icon" viewBox="0 0 24 24" focusable="false"><path d="M4 5h16l-6 7v5l-4 2v-7z" stroke-linejoin="round"></path></svg></button></div>
                     <div class="modal-filter-dropdown" id="multi-connection-filter-dropdown" style="display:none">

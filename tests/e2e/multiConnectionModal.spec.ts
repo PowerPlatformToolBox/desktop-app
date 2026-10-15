@@ -82,6 +82,27 @@ async function executeInToolView<T>(electronApp: ElectronApplication, instanceId
 }
 
 test.describe("Multi-connection selection modal", () => {
+    test("shows both declared products for a mixed tool", async ({ electronApp, window }) => {
+        const modal = await launchFixtureTool(window, electronApp, "e2e-mixed-connections");
+        await expect(modal.locator("#slot-connection-list .connection-item")).toHaveCount(5);
+        await expect(modal.locator("#slot-connection-list")).toContainText("E2E Finance Operations");
+        await expect(modal.locator("#slot-connection-list")).toContainText("E2E Development");
+        await modal.locator("#cancel-select-multi-connection-btn").click();
+    });
+
+    test("filters the single picker to F&O for an F&O-only tool", async ({ electronApp, window }) => {
+        await expandToolsSidebar(window);
+        await window.locator('#sidebar-tools-list .tool-item-pptb[data-tool-id="e2e-finops-connection"]').click();
+        let modal: Page | null = null;
+        await expect.poll(async () => {
+            modal = await findWindowWithSelector(electronApp.windows(), "#connections-list-container");
+            return modal !== null;
+        }).toBe(true);
+        await expect(modal!.locator(".connection-item")).toHaveCount(1);
+        await expect(modal!.locator("#connections-list-container")).toContainText("E2E Finance Operations");
+        await expect(modal!.locator("#connections-list-container")).not.toContainText("E2E Development");
+        await modal!.close();
+    });
     test("shows the required slots for an existing two-connection declaration", async ({ electronApp, window }) => {
         const modal = await launchFixtureTool(window, electronApp, "e2e-required-connections");
 
@@ -253,7 +274,7 @@ test.describe("Multi-connection selection modal", () => {
 
         const calleeTab = window.locator("#tool-tabs .tool-tab").filter({ hasText: "E2E Invocation Callee" });
         await expect(calleeTab).toBeVisible({ timeout: 10_000 });
-        await expect(calleeTab.locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development / E2E Test / E2E UAT / E2E Production");
+        await expect(calleeTab.locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development · Dataverse / E2E Test · Dataverse / E2E UAT · Dataverse / E2E Production · Dataverse");
         await calleeTab.locator(".tool-tab-close").click();
         await expect(window.locator("#tool-tabs")).toContainText("E2E Invocation Caller");
     });

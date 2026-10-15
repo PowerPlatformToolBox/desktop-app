@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="Microsoft.Dynamics.DataEntities" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="CustomerV3">
+        <Key>
+          <PropertyRef Name="dataAreaId" />
+          <PropertyRef Name="CustomerAccount" />
+        </Key>
+        <Property Name="dataAreaId" Type="Edm.String" Nullable="false" />
+        <Property Name="CustomerAccount" Type="Edm.String" Nullable="false" />
+        <Property Name="CustomerGroupId" Type="Edm.String" />
+        <Property Name="SalesCurrencyCode" Type="Edm.String" />
+        <Property Name="OrganizationName" Type="Edm.String" />
+      </EntityType>
+      <EntityType Name="SystemNotification">
+        <Key>
+          <PropertyRef Name="RuleId" />
+        </Key>
+        <Property Name="RuleId" Type="Edm.String" Nullable="false" />
+      </EntityType>
+      <Action Name="GetInstalledModules" IsBound="true">
+        <Parameter Name="SystemNotification" Type="Collection(Microsoft.Dynamics.DataEntities.SystemNotification)" />
+        <ReturnType Type="Collection(Edm.String)" />
+      </Action>
+      <EntityContainer Name="Default">
+        <EntitySet Name="CustomersV3" EntityType="Microsoft.Dynamics.DataEntities.CustomerV3" />
+        <EntitySet Name="SystemNotifications" EntityType="Microsoft.Dynamics.DataEntities.SystemNotification" />
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

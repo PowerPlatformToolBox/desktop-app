@@ -132,7 +132,7 @@ test.describe("Navigation", () => {
         await expect(cspTab).toHaveAttribute("aria-selected", "true");
         await expect(cspTab).toHaveCSS("font-size", "12px");
         await expect(cspTab).toHaveCSS("border-top-style", "solid");
-        const dataverseTab = window.getByRole("tab", { name: /Dataverse Headers/ });
+        const dataverseTab = window.getByRole("tab", { name: /API Headers/ });
         await expect(dataverseTab).toBeVisible();
         await dataverseTab.click();
         await expect(dataverseTab).toHaveAttribute("aria-selected", "true");

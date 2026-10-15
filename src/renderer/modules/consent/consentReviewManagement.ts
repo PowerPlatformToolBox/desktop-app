@@ -22,6 +22,7 @@ interface CspEntry {
 }
 
 interface DataverseEntry {
+    apiName: string;
     type: "dataverse";
     toolId: string;
     toolName: string;
@@ -75,11 +76,13 @@ function buildDataverseEntries(tools: Tool[], consents: Record<string, Dataverse
     const toolsById = new Map(tools.map((tool) => [tool.id, tool]));
     return Object.entries(consents)
         .map(([toolId, consent]) => {
-            const tool = toolsById.get(toolId);
+            const finops = toolId.startsWith("financeOperations:");
+            const tool = toolsById.get(finops ? toolId.slice("financeOperations:".length) : toolId);
             return {
                 type: "dataverse" as const,
+                apiName: finops ? "F&O" : "Dataverse",
                 toolId,
-                toolName: tool?.name ?? toolId,
+                toolName: (tool?.name ?? toolId) + (finops ? " (F&O)" : ""),
                 contributors: tool?.authors ?? [],
                 granted: consent.status === "granted",
                 grantedAt: consent.grantedAt,
@@ -169,7 +172,7 @@ function createEntryRow(entry: ConsentEntry, context: ConsentReviewContext): HTM
     if (entry.type === "csp") {
         summary.textContent = `${entry.requiredDomains.length} required, ${entry.optionalDomains.length} optional, ${entry.approvedOptionalDomains.length} optional approved`;
     } else {
-        summary.textContent = entry.granted ? "Any additional Dataverse request header" : `Revoked ${formatTimestamp(entry.revokedAt)}`;
+        summary.textContent = entry.granted ? `Any additional ${entry.apiName} request header` : `Revoked ${formatTimestamp(entry.revokedAt)}`;
     }
 
     const controls = document.createElement("div");
@@ -208,8 +211,8 @@ function createEntryRow(entry: ConsentEntry, context: ConsentReviewContext): HTM
             const scope = document.createElement("p");
             scope.className = "consent-review-scope-note";
             scope.textContent = entry.granted
-                ? "This tool may send any additional header name and value through Dataverse API methods until access is revoked."
-                : "The next Dataverse API request with additional headers will ask for consent again and show the exact values.";
+                ? `This tool may send any additional header name and value through ${entry.apiName} API methods until access is revoked.`
+                : `The next ${entry.apiName} API request with additional headers will ask for consent again and show the exact values.`;
             const timestamps = document.createElement("dl");
             timestamps.className = "consent-review-timestamps";
             const grantedLabel = document.createElement("dt");
@@ -295,7 +298,7 @@ function render(context: ConsentReviewContext): void {
             allEntries.length === 0
                 ? context.activeType === "csp"
                     ? "No installed tools request CSP exceptions."
-                    : "No tools have requested persistent Dataverse header access."
+                    : "No tools have requested persistent API header access."
                 : "No tools match the current filters.";
         context.listContainer.appendChild(empty);
         return;
@@ -333,8 +336,8 @@ async function handleDataverseRevoke(context: ConsentReviewContext, toolId: stri
     try {
         await window.toolboxAPI.revokeDataverseHeaderConsent(toolId);
         await window.toolboxAPI.utils.showNotification({
-            title: "Dataverse Header Access Revoked",
-            body: "The tool will be prompted again the next time it requests additional Dataverse headers.",
+            title: "API Header Access Revoked",
+            body: "The tool will be prompted again the next time it requests additional API headers.",
             type: "warning",
         });
         await loadEntries(context);
@@ -398,7 +401,7 @@ function renderConsentTabContent(panel: HTMLElement): void {
                 </header>
                 <div class="consent-review-type-tabs" role="tablist" aria-label="Consent type">
                     <button id="consent-csp-tab" class="consent-review-type-tab active" type="button" role="tab" aria-selected="true" aria-controls="consent-tab-list-container" data-consent-type="csp">CSP Exceptions <span class="consent-review-tab-count">0</span></button>
-                    <button id="consent-dataverse-tab" class="consent-review-type-tab" type="button" role="tab" aria-selected="false" aria-controls="consent-tab-list-container" data-consent-type="dataverse">Dataverse Headers <span class="consent-review-tab-count">0</span></button>
+                    <button id="consent-dataverse-tab" class="consent-review-type-tab" type="button" role="tab" aria-selected="false" aria-controls="consent-tab-list-container" data-consent-type="dataverse">API Headers <span class="consent-review-tab-count">0</span></button>
                     <button id="consent-native-tab" class="consent-review-type-tab" type="button" role="tab" aria-selected="false" aria-controls="consent-native-panel" data-consent-type="native">Native Workers <span class="consent-review-tab-count">0</span></button>
                 </div>
                 <div class="consent-review-tab-toolbar">

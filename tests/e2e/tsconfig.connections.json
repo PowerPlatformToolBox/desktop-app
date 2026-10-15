@@ -1,0 +1,19 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "lib": ["ES2022", "DOM"],
+        "noEmit": true,
+        "declaration": false,
+        "declarationMap": false
+    },
+    "include": [
+        "../../src/renderer/types/renderer.d.ts",
+        "connectionDeclarationMatrix.spec.ts",
+        "connectionManagementRegression.spec.ts",
+        "connectionSlotInstallation.spec.ts",
+        "connectionSlotMcp.spec.ts",
+        "connectionSlotRestart.spec.ts",
+        "connectionSlotVariants.spec.ts"
+    ],
+    "exclude": ["../../node_modules", "../../dist"]
+}

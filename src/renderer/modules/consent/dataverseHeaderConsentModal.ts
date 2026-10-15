@@ -14,6 +14,7 @@ function escapeHtml(value: string): string {
 
 function buildModalHtml(request: DataverseHeaderConsentRequest): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
+    const apiName = request.api === "financeOperations" ? "Finance &amp; Operations" : "Dataverse";
     const headerRows = request.headers
         .map(
             (header) => `
@@ -30,7 +31,7 @@ function buildModalHtml(request: DataverseHeaderConsentRequest): string {
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dataverse header permission</title>
+    <title>${apiName} header permission</title>
     ${getModalStyles(isDarkTheme)}
     <style>
         .modal-panel { gap: 12px; }
@@ -52,14 +53,14 @@ function buildModalHtml(request: DataverseHeaderConsentRequest): string {
     <main class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="consent-title">
         <header class="modal-header">
             <div>
-                <p class="modal-eyebrow">Dataverse permission request</p>
+                <p class="modal-eyebrow">${apiName} permission request</p>
                 <h3 id="consent-title">Allow additional request headers?</h3>
             </div>
             <button class="icon-button" type="button" data-decision="reject" aria-label="Reject and close">&times;</button>
         </header>
         <p class="request-summary"><strong>${escapeHtml(request.toolName)}</strong> wants to ${escapeHtml(request.operation.toLowerCase())} using the headers below.</p>
         <div class="scope-warning">
-            Approval permits different Dataverse header names and values. <strong>Approve for this tool instance</strong> lasts until this instance closes.
+            Approval permits different ${apiName} header names and values. <strong>Approve for this tool instance</strong> lasts until this instance closes.
             <strong>Approve for this tool</strong> includes future executions until you revoke access in Consent Review.
         </div>
         <section class="modal-body" aria-label="Requested headers">

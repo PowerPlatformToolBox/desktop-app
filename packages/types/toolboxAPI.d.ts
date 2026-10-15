@@ -97,6 +97,8 @@ declare namespace ToolBoxAPI {
      * Power Platform ToolBox connection configuration
      */
     export interface Connection {
+        /** Product type; optional for compatibility with older hosts. */
+        connectionType?: "dataverse" | "financeOperations";
         id: string;
         name: string;
         url: string;

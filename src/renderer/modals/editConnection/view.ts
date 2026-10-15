@@ -17,11 +17,19 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
     <div class="modal-header">
         <div>
             <p class="modal-eyebrow">Connections</p>
-            <h3>Edit Dataverse Connection</h3>
+            <h3>Edit Connection</h3>
         </div>
         <button id="close-connection-modal" class="icon-button" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
+        <div class="form-group">
+            <label for="connection-type">Connection Type</label>
+            <select id="connection-type" class="modal-input" disabled>
+                <option value="dataverse">Dataverse</option>
+                <option value="financeOperations">Dynamics 365 Finance &amp; Operations</option>
+            </select>
+            <p class="helper-text" id="finance-operations-help" style="display: none">Use the HTTPS environment root or /data URL. Both authentication methods require your own Entra Client ID and Tenant ID. For Microsoft Login, register http://localhost as a mobile/desktop redirect URI and configure Dynamics ERP delegated permissions. For client secret, map the app to a user in F&amp;O with the required security roles.</p>
+        </div>
         <div class="form-row-two-col">
             <div class="form-group">
                 <label for="connection-name">Connection Name</label>
@@ -110,10 +118,10 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                     <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
                     <label for="connection-optional-client-id" id="connection-optional-client-id-label">Client ID (Optional)</label>
                     <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
-                    <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
-                    <label for="connection-tenant-id">Tenant ID (Optional)</label>
+                    <p class="helper-text" id="interactive-client-id-help">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
+                    <label id="connection-tenant-id-label" for="connection-tenant-id">Tenant ID (Optional)</label>
                     <input type="text" id="connection-tenant-id" class="modal-input" placeholder="organizations" />
-                    <p class="helper-text">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
+                    <p class="helper-text" id="interactive-tenant-id-help">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
                 </div>
                 <div id="client-secret-fields" class="field-group" style="display: none">
                     <span class="section-label">Client Secret Authentication</span>

@@ -45,7 +45,7 @@ async function assignConnections(electronApp: ElectronApplication, window: Page)
     }
     await modal.locator("#confirm-multi-connection-btn").click();
     await expect(toolTabs(window)).toHaveCount(1);
-    await expect(toolTabs(window).locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development / E2E Test / E2E UAT");
+    await expect(toolTabs(window).locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development · Dataverse / E2E Test · Dataverse / E2E UAT · Dataverse");
 }
 
 test("startup repairs missing IDs on disk without shifting later slots", async ({ electronApp, window }) => {
@@ -64,7 +64,7 @@ test("duplicate action and renderer session restore preserve all three connectio
     });
     await toolTabs(window).first().click({ button: "right" });
     await expect(toolTabs(window)).toHaveCount(2);
-    await expect(toolTabs(window).nth(1).locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development / E2E Test / E2E UAT");
+    await expect(toolTabs(window).nth(1).locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development · Dataverse / E2E Test · Dataverse / E2E UAT · Dataverse");
     const saved = await window.evaluate(() => JSON.parse(localStorage.getItem("toolbox-session")!).openTools);
     expect(saved.map((entry: { connectionIds: Array<string | null> }) => entry.connectionIds)).toEqual([assignedIds, assignedIds]);
     await window.evaluate(() => window.toolboxAPI.setSetting("restoreSessionOnStartup", true));
@@ -72,7 +72,7 @@ test("duplicate action and renderer session restore preserve all three connectio
     await expect(window.locator("body[data-pptb-initialized='true']")).toBeVisible({ timeout: 30_000 });
     await expect(toolTabs(window)).toHaveCount(2, { timeout: 15_000 });
     for (const tab of await toolTabs(window).all()) {
-        await expect(tab.locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development / E2E Test / E2E UAT");
+        await expect(tab.locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development · Dataverse / E2E Test · Dataverse / E2E UAT · Dataverse");
     }
 });
 
@@ -144,7 +144,7 @@ test("cold app restart restores all three saved slots", async ({ electronApp, wi
             .toBe(true);
         await expect(mainWindow!.locator("body[data-pptb-initialized='true']")).toBeVisible({ timeout: 30_000 });
         await expect(toolTabs(mainWindow!)).toHaveCount(1);
-        await expect(toolTabs(mainWindow!).locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development / E2E Test / E2E UAT");
+        await expect(toolTabs(mainWindow!).locator(".tool-tab-subtext")).toHaveAttribute("title", "E2E Development · Dataverse / E2E Test · Dataverse / E2E UAT · Dataverse");
         expect(await mainWindow!.evaluate(() => JSON.parse(localStorage.getItem("toolbox-session")!).openTools[0].connectionIds)).toEqual(assignedIds);
     } finally {
         await restarted.close();

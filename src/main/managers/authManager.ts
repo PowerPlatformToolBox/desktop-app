@@ -1,10 +1,12 @@
 import { AccountInfo, ConfidentialClientApplication, LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { BrowserWindow } from "electron";
+import { createHash } from "crypto";
+import { buildFinanceOperationsUrl, financeOperationsHttp } from "../utilities/financeOperationsHttp";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { Connection } from "../../common/types";
+import { assertDataverseConnection, Connection, normalizeConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
 
@@ -44,7 +46,7 @@ export class AuthManager {
      * This prevents issues when multiple connections share the same clientId/tenantId
      */
     private getConfidentialApp(connectionId: string, clientId: string, clientSecret: string, tenantId: string): ConfidentialClientApplication {
-        const key = connectionId; // Use connection ID for isolation
+        const key = `${connectionId}:${tenantId}:${clientId}:${createHash("sha256").update(clientSecret).digest("hex")}`;
 
         if (!this.confidentialApps.has(key)) {
             const msalConfig = {
@@ -74,13 +76,16 @@ export class AuthManager {
         return this.confidentialApps.get(key)!;
     }
 
-    /**
-     * Get or create MSAL instance for a given connection
-     * Uses connection ID to ensure each connection has its own isolated MSAL instance
-     * This prevents account cache collisions when testing with multiple users
-     */
+    /** Clear account/application caches after authentication settings are edited. */
+    clearConnectionCache(connectionId: string): void {
+        for (const cache of [this.msalApps, this.confidentialApps]) {
+            for (const key of cache.keys()) if (key.startsWith(`${connectionId}:`)) cache.delete(key);
+        }
+    }
+
+    /** Keep account caches isolated by connection and app/tenant configuration. */
     private getMsalApp(connectionId: string, clientId: string, tenantId: string): PublicClientApplication {
-        const key = connectionId; // Use connection ID for isolation
+        const key = `${connectionId}:${tenantId}:${clientId}`;
 
         if (!this.msalApps.has(key)) {
             const msalConfig = {
@@ -113,6 +118,7 @@ export class AuthManager {
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
     async authenticateInteractive(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
+        connection = normalizeConnection(connection);
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -435,7 +441,9 @@ export class AuthManager {
         connection: Connection,
         scopes?: string[],
         skipValidateEnvAccess: boolean = false,
+        forceRefresh: boolean = false,
     ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; scopes?: string[] }> {
+        connection = normalizeConnection(connection);
         if (!connection.clientId || !connection.clientSecret || !connection.tenantId) {
             throw new Error("Client ID, Client Secret, and Tenant ID are required for client secret authentication");
         }
@@ -448,6 +456,7 @@ export class AuthManager {
             // and only acquires new ones when expired
             const response = await confidentialApp.acquireTokenByClientCredential({
                 scopes: requestedScopes,
+                skipCache: forceRefresh,
             });
 
             if (!response) {
@@ -486,6 +495,7 @@ export class AuthManager {
      * Note: Only delegated access is supported - uses user_impersonation scope
      */
     async authenticateUsernamePassword(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
+        assertDataverseConnection(connection);
         if (!connection.username || !connection.password) {
             throw new Error("Username and password are required for password authentication");
         }
@@ -564,6 +574,7 @@ export class AuthManager {
      * Test connection by verifying the URL and attempting a simple authenticated request
      */
     async testConnection(connection: Connection): Promise<boolean> {
+        connection = normalizeConnection(connection);
         try {
             // First, validate the URL format
             if (!connection.url || !connection.url.startsWith("https://")) {
@@ -596,17 +607,8 @@ export class AuthManager {
                     throw new Error("Invalid authentication type");
             }
 
-            // Make a simple API call to verify the connection
-            const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
-            const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
-            const data = JSON.parse(response);
-
-            // If we get a UserId back, the connection is successful
-            if (data.UserId) {
-                return true;
-            }
-
-            throw new Error("Connection test failed: Unable to verify identity");
+            await this.validateEnvironmentAccess(connection, accessToken);
+            return true;
         } catch (error) {
             logError("Test connection failed", error);
             throw error;
@@ -702,6 +704,11 @@ export class AuthManager {
      */
     private async validateEnvironmentAccess(connection: Connection, accessToken: string): Promise<void> {
         try {
+            if (connection.connectionType === "financeOperations") {
+                const response = await financeOperationsHttp(buildFinanceOperationsUrl(connection.url, ""), "GET", accessToken);
+                if (!Array.isArray((response.body as { value?: unknown })?.value)) throw new Error("Invalid F&O OData service document");
+                return;
+            }
             const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
             const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
             const data = JSON.parse(response);
@@ -716,6 +723,7 @@ export class AuthManager {
             // Enhance error message for permission-related failures
             const errorMessage = (error as Error).message;
             if (errorMessage.includes("401") || errorMessage.includes("403")) {
+                if (connection.connectionType === "financeOperations") throw new Error("F&O access was denied. Check Dynamics ERP permissions and consent, the F&O user security roles, and the Microsoft Entra application-to-user mapping for client-secret authentication.");
                 throw new Error("You do not have permission to access this environment. Please verify the user account matches the selected environment.");
             }
             throw new Error(`Environment access validation failed: ${errorMessage}`);
@@ -756,7 +764,8 @@ export class AuthManager {
      * @param connection The connection to acquire token for
      * @returns Promise with access token (MSAL handles refresh internally)
      */
-    async acquireTokenSilently(connection: Connection): Promise<{ accessToken: string; expiresOn: Date }> {
+    async acquireTokenSilently(connection: Connection, forceRefresh: boolean = false): Promise<{ accessToken: string; expiresOn: Date }> {
+        connection = normalizeConnection(connection);
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -777,6 +786,7 @@ export class AuthManager {
             // 2. Refresh using refresh token if access token expired
             // 3. Throw error if refresh token also expired
             const response = await msalApp.acquireTokenSilent({
+                forceRefresh,
                 account: account,
                 scopes: scopes,
             });
@@ -799,6 +809,7 @@ export class AuthManager {
      * @returns Promise with access token (MSAL handles refresh internally)
      */
     async acquirePowerPlatformToken(connection: Connection): Promise<{ accessToken: string; expiresOn: Date; scopes?: string[] }> {
+        assertDataverseConnection(connection);
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -860,6 +871,7 @@ export class AuthManager {
      * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
     async refreshAccessToken(connection: Connection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; scopes?: string[] }> {
+        assertDataverseConnection(connection);
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
         const scope = scopes ? scopes.join(" ") : `${connection.url}/.default`;

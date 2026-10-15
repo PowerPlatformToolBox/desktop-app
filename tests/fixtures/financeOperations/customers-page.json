@@ -1,0 +1,11 @@
+{
+  "@odata.context": "https://erp.example/data/$metadata#CustomersV3(dataAreaId,CustomerAccount,CustomerGroupId,SalesCurrencyCode)",
+  "value": [
+    {
+      "dataAreaId": "test",
+      "CustomerAccount": "TEST_0001",
+      "CustomerGroupId": "TEST",
+      "SalesCurrencyCode": "TST"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { UIConnectionData } from "../../../common/types/connection";
+import { connectionProductScript } from "../../../common/connectionProduct";
 import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
 
@@ -100,6 +101,7 @@ export function getSelectConnectionModalControllerScript(
         return \`<span class="browser-profile-badge" title="\${safeTitle}">\${iconMarkup}<span class="browser-profile-label">\${safeProfile}</span></span>\`;
     };
 ${sortingUtilities}
+${connectionProductScript()}
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";
@@ -110,7 +112,7 @@ ${sortingUtilities}
         let filtered = allConnections.filter(conn => {
             // Search filter
             if (searchTerm) {
-                const haystacks = [conn.name || "", conn.url || ""];
+                const haystacks = [conn.name || "", conn.url || "", productLabel(conn.connectionType), productDescription(conn.connectionType)];
                 if (!haystacks.some(h => h.toLowerCase().includes(searchTerm))) {
                     return false;
                 }
@@ -211,6 +213,7 @@ ${sortingUtilities}
                 <div class="connection-item-footer">
                     <div class="connection-item-meta-left">
                         <span class="\${envBadgeClass}"\${envBadgeStyle}>\${escapeHtml(conn.environment)}</span>
+                        \${productBadge(conn.connectionType)}
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                         \${ppApiBadgeMarkup}
                         \${catBadgeMarkup}
@@ -218,7 +221,7 @@ ${sortingUtilities}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
-                <label class="impersonate-checkbox-row" onclick="event.stopPropagation()">
+                <label class="impersonate-checkbox-row" style="display: \${conn.connectionType === 'financeOperations' ? 'none' : ''}" onclick="event.stopPropagation()">
                     <input type="checkbox" class="impersonate-checkbox" data-connection-id="\${escapeHtml(conn.id)}" \${impersonateConnectionIds.has(conn.id) ? 'checked' : ''} />
                     Impersonate as another user
                 </label>

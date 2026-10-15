@@ -53,6 +53,33 @@ Guidance:
 - `toolboxAPI.invocation.getLaunchContext()` should still be used for local tool state.
 - `toolboxAPI.invocation.returnData()` remains the handoff mechanism for returning values.
 
+## Explicit connection slots
+
+Integer, `{ min, max }`, and legacy connection declarations remain the default/fallback. Tools can opt into fixed typed slots in `package.json`:
+
+```json
+{
+    "features": {
+        "connections": {
+            "slots": [
+                { "label": "Optional accounts", "required": false },
+                { "label": "F&O customers", "connectionTypes": ["financeOperations"] }
+            ]
+        }
+    }
+}
+```
+
+Call this tool with `__pptb.connectionNames: [null, "F&O production"]`. Index 1 stays target 1; `null` leaves the optional slot unassigned. Omitted trailing optional entries are padded with nulls. Slot labels describe purpose and are not connection names. A missing product defaults to Dataverse; `required` defaults to true.
+
+MCP advertises nullable names and each slot's purpose, products and required status for explicit declarations. Names match saved connections case-insensitively after trimming; missing or ambiguous names fail. `connectionName` always assigns slot 0 and must match the first array entry when both fields are supplied. No path infers order from products.
+
+Headless calls reject missing required assignments and wrong products before authentication or execution. Windowed calls can open the purpose-labeled picker for missing required assignments. Callback tokens do not satisfy explicit required slots or establish product identity. Existing single-connection callback-only tools can continue using `authToken` without a saved name; built-in product APIs still need saved credentials.
+
+Use `financeOperationsAPI.queryData("CustomersV3?$top=5", { connectionTarget: 1 })` for the declared F&O slot. IDs, names, URLs and callback token arrays preserve holes; `toolboxAPI.connections.getConnections()` returns null for empty slots. Public tool context and connection metadata omit tokens. Count/range/legacy tools continue using string-only name arrays and the existing numeric and primary/secondary aliases.
+
+Slots require the coordinated app/types/validator release described in the [implementation plan](CONNECTION_SLOT_DEFINITIONS_IMPLEMENTATION_PLAN.md). Its minimum supported API version is still a release dependency; do not claim compatibility with older apps that only understand counts/ranges.
+
 ## What to test in MCP Inspector
 
 1. Open the MCP Inspector and connect to the PPTB MCP server.
@@ -62,6 +89,8 @@ Guidance:
 5. Invoke the tool with `__pptb.mode = "one-way"` and confirm the call is accepted immediately.
 6. Invoke the tool with `__pptb.mode = "two-way"` and confirm the returned payload matches the declared schema.
 7. Try an unsupported mode and confirm the server returns a deterministic error.
+8. For explicit slots, invoke with a leading null and a required later connection, and verify API requests still use the declared target index.
+9. Try wrong products, missing required slots, token-only typed input, and unknown/ambiguous saved names; confirm useful errors without opening a headless picker.
 
 ## Common mistakes
 

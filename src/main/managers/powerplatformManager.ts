@@ -1,6 +1,6 @@
 import * as https from "https";
 import { logError, logWarn } from "../../common/logger";
-import { Connection } from "../../common/types";
+import { assertDataverseConnection, Connection } from "../../common/types";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
 
@@ -103,6 +103,7 @@ export class PowerPlatformManager {
 
     private async getConnectionWithToken(connectionId: string): Promise<{ connection: Connection; accessToken: string }> {
         const connection = this.connectionsManager.getConnectionById(connectionId);
+        if (connection) assertDataverseConnection(connection);
         if (!connection) {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }

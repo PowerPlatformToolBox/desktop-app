@@ -1,0 +1,15 @@
+{
+  "@odata.context": "https://erp.example/data/$metadata",
+  "value": [
+    {
+      "name": "SystemNotifications",
+      "kind": "EntitySet",
+      "url": "SystemNotifications"
+    },
+    {
+      "name": "CustomersV3",
+      "kind": "EntitySet",
+      "url": "CustomersV3"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 
 import type { Connection } from "../../../../src/common/types";
+import Store from "electron-store";
 import { ConnectionsManager } from "../../../../src/main/managers/connectionsManager";
 
 // electron and electron-store are mocked via tests/__mocks__/
@@ -22,6 +23,71 @@ describe("ConnectionsManager", () => {
 
     beforeEach(() => {
         manager = new ConnectionsManager();
+    });
+
+    describe("connection products", () => {
+        const finops = () => makeConnection({
+            connectionType: "financeOperations", url: "https://example.operations.dynamics.com/data/",
+            authenticationType: "clientSecret", clientId: "app-id", tenantId: "tenant-id", clientSecret: "secret",
+        });
+
+        it("migrates stored legacy records once without changing secrets or identity", () => {
+            manager.addConnection(makeConnection({ clientSecret: "already-stored-secret", category: "Existing" }));
+            const storage = (manager as unknown as { store: Store<{ connections: Connection[] }> }).store;
+            const legacy = { ...storage.get("connections")[0] };
+            delete legacy.connectionType;
+            const get = jest.spyOn(Store.prototype, "get").mockReturnValue([legacy]);
+            const set = jest.spyOn(Store.prototype, "set");
+            try {
+                new ConnectionsManager();
+                const writes = set.mock.calls as unknown as Array<[string, Connection[]]>;
+                const migrated = writes.find(([, records]) => Array.isArray(records) && records[0]?.connectionType === "dataverse")?.[1];
+                expect(migrated).toBeDefined();
+                expect(migrated![0]).toMatchObject({ id: legacy.id, category: "Existing", clientSecret: legacy.clientSecret, connectionType: "dataverse" });
+                // Reuse the encrypted persisted output to exercise a second startup.
+                get.mockReturnValue(migrated!);
+                set.mockClear();
+                new ConnectionsManager();
+                expect(set).not.toHaveBeenCalled();
+            } finally {
+                get.mockRestore();
+                set.mockRestore();
+            }
+        });
+
+        it("persists a discriminator for legacy Dataverse connections", () => {
+            manager.addConnection(makeConnection());
+            expect(manager.getConnectionById("conn-1")?.connectionType).toBe("dataverse");
+            expect(manager.exportConnections().connections[0].connectionType).toBe("dataverse");
+        });
+
+        it("round-trips F&O exports with normalized URLs and incomplete credentials", () => {
+            manager.addConnection(finops());
+            const exported = manager.exportConnections();
+            expect(exported.connections[0]).toMatchObject({ connectionType: "financeOperations", url: "https://example.operations.dynamics.com" });
+            expect(exported.connections[0]).not.toHaveProperty("clientSecret");
+            const importedManager = new ConnectionsManager();
+            expect(importedManager.importConnections(exported).imported).toBe(1);
+            expect(importedManager.getConnections()[0]).toMatchObject({ connectionType: "financeOperations", hasIncompleteCredentials: true });
+        });
+
+        it("rejects invalid imported product/auth combinations without discarding valid entries", () => {
+            const result = manager.importConnections({ version: 1, connections: [
+                { ...finops(), connectionType: "unknown" },
+                { ...finops(), authenticationType: "usernamePassword" },
+                { ...finops(), powerPlatformAccessToken: "untrusted-token" },
+                makeConnection({ id: "valid" }),
+            ] });
+            expect(result).toMatchObject({ imported: 1, skipped: 3 });
+            expect(manager.getConnections()[0].connectionType).toBe("dataverse");
+        });
+
+        it("validates writes and prevents changing a connection's product", () => {
+            manager.addConnection(makeConnection());
+            expect(() => manager.updateConnection("conn-1", finops())).toThrow("creating a new connection");
+            expect(() => manager.addConnection({ ...finops(), enabledForPowerPlatformAPI: true })).toThrow("Power Platform API");
+            expect(manager.getConnections()).toHaveLength(1);
+        });
     });
 
     // -----------------------------------------------------------------------
@@ -69,6 +135,13 @@ describe("ConnectionsManager", () => {
     // updateConnection
     // -----------------------------------------------------------------------
     describe("updateConnection", () => {
+        it("retains tokens for display edits and clears them after authentication edits", () => {
+            manager.addConnection(makeConnection({ accessToken: "token", tokenExpiry: "2030-01-01", msalAccountId: "account" }));
+            manager.updateConnection("conn-1", { name: "Renamed" });
+            expect(manager.getConnectionById("conn-1")?.accessToken).toBe("token");
+            manager.updateConnection("conn-1", { clientId: "new-app" });
+            expect(manager.getConnectionById("conn-1")).toMatchObject({ name: "Renamed", clientId: "new-app", accessToken: undefined, tokenExpiry: undefined, msalAccountId: undefined });
+        });
         it("updates an existing connection field", () => {
             manager.addConnection(makeConnection({ id: "c1", name: "Old Name" }));
             manager.updateConnection("c1", { name: "New Name" });

@@ -3,6 +3,7 @@
 import { pathToFileURL } from "url";
 import type { ConnectionTarget } from "../../../../src/common/connectionSlots";
 import type { Connection, ToolManifest } from "../../../../src/common/types";
+import type { FinanceOperationsAPI } from "../../../../src/common/financeOperationsApi";
 import { invokeHeadlessTool, type HeadlessInvokeContext, type HeadlessRuntimeServices } from "../../../../src/main/mcp/headlessToolRuntime";
 
 jest.mock("fs", () => ({
@@ -12,6 +13,7 @@ jest.mock("../../../../src/common/logger", () => ({ logInfo: jest.fn(), logError
 
 type SafeConnection = Record<string, unknown> | null;
 interface RuntimeGlobals {
+    financeOperationsAPI: FinanceOperationsAPI;
     toolboxAPI: {
         getToolContext: () => Promise<Record<string, unknown>>;
         connections: {
@@ -50,6 +52,7 @@ describe("headless runtime connection slots", () => {
     const getAllEntitiesMetadata = jest.fn().mockResolvedValue([]);
     const executeBatch = jest.fn().mockResolvedValue([]);
     const request = jest.fn().mockResolvedValue({ ok: true });
+    const financeRequest = jest.fn().mockResolvedValue({ status: 200, headers: {}, body: { value: [] } });
     const services = {
         connectionsManager: { getConnectionById, getConnections: jest.fn(() => connections) },
         dataverseManager: {
@@ -59,9 +62,14 @@ describe("headless runtime connection slots", () => {
             withAdditionalHeaders: jest.fn((_headers: unknown, operation: () => Promise<unknown>) => operation()),
         },
         powerPlatformManager: { request },
+        financeOperationsManager: { request: financeRequest },
     } as unknown as HeadlessRuntimeServices;
 
-    function invoke(overrides: Partial<HeadlessInvokeContext>, operation: (apis: RuntimeGlobals, context: HeadlessInvokeContext) => Promise<Record<string, unknown>>) {
+    function invoke(
+        overrides: Partial<HeadlessInvokeContext>,
+        operation: (apis: RuntimeGlobals, context: HeadlessInvokeContext) => Promise<Record<string, unknown>>,
+        features?: ToolManifest["features"],
+    ) {
         const context: HeadlessInvokeContext = {
             toolId: manifest.id,
             toolName: "Headless Test",
@@ -71,10 +79,116 @@ describe("headless runtime connection slots", () => {
             ...overrides,
         };
         mockInvokeHeadless.mockImplementation((_input: unknown, invokeContext: HeadlessInvokeContext) => operation(globalThis as unknown as RuntimeGlobals, invokeContext));
-        return invokeHeadlessTool(manifest, {}, context, services);
+        return invokeHeadlessTool(features ? { ...manifest, features } : manifest, {}, context, services);
     }
 
     beforeEach(() => jest.clearAllMocks());
+
+    const typedFeatures: ToolManifest["features"] = {
+        connections: { slots: [{ label: "Optional source", required: false }, { label: "Required accounts" }, { label: "Optional audit", required: false }] },
+    };
+
+    it("normalizes explicit named assignments and serialized null token holes before executing", async () => {
+        const overrides = JSON.parse(JSON.stringify({ connectionNames: [null, "Environment 1"], authTokens: [undefined, "callback-token"] }));
+        await invoke(
+            overrides,
+            async ({ toolboxAPI, dataverseAPI }, context) => {
+                expect(context.connectionIds).toEqual([null, "conn-1", null]);
+                expect(context.connectionNames).toEqual([null, "Environment 1", null]);
+                expect(context.authTokens).toEqual([null, "callback-token", null]);
+                expect(context.connectionId).toBeUndefined();
+                expect(await toolboxAPI.getToolContext()).toMatchObject({ connectionIds: [null, "conn-1", null], connectionNames: [null, "Environment 1", null], connectionId: null });
+                await dataverseAPI.queryData("accounts", 1);
+                return {};
+            },
+            typedFeatures,
+        );
+        expect(queryData).toHaveBeenCalledWith("conn-1", "accounts");
+    });
+
+    it.each([
+        [{ connectionIds: ["conn-0"] }, "Required accounts"],
+        [{ connectionIds: [null, "deleted"] }, "Required accounts"],
+        [{ connectionIds: [null, null], connectionNames: [null, "Environment 1"] }, "Required accounts"],
+        [{ authToken: "token-only" }, "Required accounts"],
+        [{ connectionUrls: [null, "https://untrusted.example"], authTokens: [null, "token-only"] }, "Required accounts"],
+        [{ connectionIds: [null, "conn-1", null, null] }, "at most 3"],
+    ])("rejects invalid explicit contexts before installing globals: %j", async (overrides, message) => {
+        const previousApi = (globalThis as unknown as RuntimeGlobals).toolboxAPI;
+        await expect(invoke(overrides, async () => ({}), typedFeatures)).rejects.toThrow(message);
+        expect(mockInvokeHeadless).not.toHaveBeenCalled();
+        expect(queryData).not.toHaveBeenCalled();
+        expect((globalThis as unknown as RuntimeGlobals).toolboxAPI).toBe(previousApi);
+    });
+
+    it("rejects a product allowed elsewhere when it is assigned to the wrong explicit slot", async () => {
+        await expect(
+            invoke({ connectionIds: ["conn-0", "conn-1"] }, async () => ({}), { connections: { slots: [{}, { label: "Customers", connectionTypes: ["financeOperations"] }] } }),
+        ).rejects.toThrow("slot 2 (Customers)");
+        expect(mockInvokeHeadless).not.toHaveBeenCalled();
+    });
+
+    it("supports all-optional explicit slots without identity and rejects undeclared API targets", async () => {
+        await invoke(
+            {},
+            async ({ toolboxAPI, dataverseAPI }, context) => {
+                expect(context.connectionIds).toEqual([null]);
+                expect(await toolboxAPI.connections.getConnections()).toEqual([null]);
+                await expect(dataverseAPI.queryData("accounts", 1)).rejects.toThrow("No connection");
+                return {};
+            },
+            { connections: { slots: [{ required: false }] } },
+        );
+        expect(queryData).not.toHaveBeenCalled();
+    });
+
+    it("rejects incompatible assigned slots before executing a headless tool", async () => {
+        getConnectionById.mockReturnValueOnce({ ...connections[0], connectionType: "financeOperations" });
+        await expect(invoke({ connectionIds: ["conn-0"] }, async () => ({}))).rejects.toThrow("not compatible");
+        expect(mockInvokeHeadless).not.toHaveBeenCalled();
+        expect(queryData).not.toHaveBeenCalled();
+    });
+
+    it("accepts a declared F&O slot and returns safe product metadata", async () => {
+        const previousFeatures = manifest.features;
+        const previousType = connections[0].connectionType;
+        manifest.features = { connections: 1, connectionTypes: ["financeOperations"] };
+        connections[0].connectionType = "financeOperations";
+        try {
+            await invoke({ connectionIds: ["conn-0"] }, async ({ toolboxAPI }) => {
+                const connection = await toolboxAPI.connections.getConnection(0);
+                expect(connection).toMatchObject({ connectionType: "financeOperations" });
+                expect(connection).not.toHaveProperty("accessToken");
+                return {};
+            });
+            expect(mockInvokeHeadless).toHaveBeenCalled();
+        } finally {
+            manifest.features = previousFeatures;
+            connections[0].connectionType = previousType;
+        }
+    });
+
+    it("routes F&O through indexed slots, denies unapproved headers, and restores globals", async () => {
+        const previousFeatures = manifest.features;
+        const previousType = connections[2].connectionType;
+        const previousApi = (globalThis as unknown as RuntimeGlobals).financeOperationsAPI;
+        manifest.features = { connections: 3, connectionTypes: ["dataverse", "financeOperations"] };
+        connections[2].connectionType = "financeOperations";
+        try {
+            await invoke({ connectionIds: ["conn-0", null, "conn-2"] }, async ({ financeOperationsAPI }) => {
+                await expect(financeOperationsAPI.queryData("Rows", { connectionTarget: 2 })).resolves.toEqual({ value: [] });
+                await expect(financeOperationsAPI.queryData("Rows", { connectionTarget: 1 })).rejects.toThrow();
+                await expect(financeOperationsAPI.queryData("Rows", { connectionTarget: 2, headers: { Prefer: "return=minimal" } })).rejects.toThrow("prior desktop consent");
+                return {};
+            });
+            expect(financeRequest).toHaveBeenCalledTimes(1);
+            expect(financeRequest).toHaveBeenCalledWith("conn-2", "GET", "Rows", undefined, { connectionTarget: 2, headers: {} });
+            expect((globalThis as unknown as RuntimeGlobals).financeOperationsAPI).toBe(previousApi);
+        } finally {
+            manifest.features = previousFeatures;
+            connections[2].connectionType = previousType;
+        }
+    });
 
     it("routes numeric slots 2+ and secondary through the actual runtime APIs", async () => {
         await invoke({ connectionIds: connections.map((connection) => connection.id) }, async ({ toolboxAPI, dataverseAPI, powerplatformAPI }) => {
@@ -133,6 +247,8 @@ describe("headless runtime connection slots", () => {
 
     it.each([-1, 0.5, NaN, Infinity, "tertiary"])("rejects invalid target %s without invoking managers", async (target) => {
         await invoke({ connectionIds: ["conn-0", "conn-1", "conn-2"] }, async ({ toolboxAPI, dataverseAPI, powerplatformAPI }) => {
+            // Startup validates assignments; invalid API targets must do no further lookups.
+            getConnectionById.mockClear();
             const invalidTarget = target as ConnectionTarget;
             await expect(toolboxAPI.connections.getConnection(invalidTarget)).rejects.toThrow("Invalid connection target");
             await expect(dataverseAPI.queryData("accounts", invalidTarget)).rejects.toThrow("Invalid connection target");
