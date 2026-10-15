@@ -26,6 +26,7 @@ import type {
     LastUsedToolUpdate,
     NativeWorkerConsentDecision,
     NativeWorkerConsentRequest,
+    ProxySettings,
 } from "../common/types";
 
 /**
@@ -254,6 +255,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
         checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
         checkInternetConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY),
+        testProxyConnection: (settings?: ProxySettings) => ipcRenderer.invoke(UTIL_CHANNELS.TEST_PROXY_CONNECTION, settings),
     },
 
     // FileSystem namespace - filesystem operations

@@ -25,6 +25,12 @@ describe("SettingsManager", () => {
             expect(settings.installedTools).toEqual([]);
             expect(settings.favoriteTools).toEqual([]);
             expect(settings.sentryTelemetryConsent).toBeNull();
+            expect(settings.proxy).toEqual({
+                mode: "auto",
+                manualProxyUrl: "",
+                noProxyList: [],
+                caBundlePath: "",
+            });
             expect(settings).not.toHaveProperty("dotnetLocalFeedPath");
         });
     });
@@ -42,6 +48,24 @@ describe("SettingsManager", () => {
             manager.updateUserSettings({ theme: "light", autoUpdate: false });
             expect(manager.getSetting("theme")).toBe("light");
             expect(manager.getSetting("autoUpdate")).toBe(false);
+        });
+
+        it("normalizes proxy settings when updated", () => {
+            manager.updateUserSettings({
+                proxy: {
+                    mode: "manual",
+                    manualProxyUrl: " http://proxy.local:8080 ",
+                    noProxyList: [" localhost ", "", "127.0.0.1"],
+                    caBundlePath: " /tmp/custom.pem ",
+                },
+            });
+
+            expect(manager.getUserSettings().proxy).toEqual({
+                mode: "manual",
+                manualProxyUrl: "http://proxy.local:8080",
+                noProxyList: ["localhost", "127.0.0.1"],
+                caBundlePath: "/tmp/custom.pem",
+            });
         });
 
         it("persists connection modal double-click setting", () => {

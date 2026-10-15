@@ -10,6 +10,7 @@ import {
     MarketplaceSource,
     MyToolRating,
     NativeWorkerConsentRecord,
+    ProxySettings,
     TelemetryConsentChoice,
     ToolSettings,
     UserSettings,
@@ -65,6 +66,12 @@ export class SettingsManager {
                 enablePreviewFeatures: false, // Show preview/experimental features in the UI
                 previewFeatures: buildPreviewFeatureFlags(), // Per-feature preview toggles
                 marketplaceSources: this.getDefaultMarketplaceSources(),
+                proxy: {
+                    mode: "auto",
+                    manualProxyUrl: "",
+                    noProxyList: [],
+                    caBundlePath: "",
+                },
             },
         });
 
@@ -143,6 +150,23 @@ export class SettingsManager {
         return this.normalizeMarketplaceSources(storedSources as MarketplaceSource[] | undefined);
     }
 
+    private normalizeProxySettings(proxy?: ProxySettings): ProxySettings {
+        const normalizedMode = proxy?.mode === "manual" || proxy?.mode === "none" ? proxy.mode : "auto";
+        const normalizedNoProxyList = Array.isArray(proxy?.noProxyList)
+            ? proxy?.noProxyList
+                  .filter((entry): entry is string => typeof entry === "string")
+                  .map((entry) => entry.trim())
+                  .filter((entry) => entry.length > 0)
+            : [];
+
+        return {
+            mode: normalizedMode,
+            manualProxyUrl: typeof proxy?.manualProxyUrl === "string" ? proxy.manualProxyUrl.trim() : "",
+            noProxyList: normalizedNoProxyList,
+            caBundlePath: typeof proxy?.caBundlePath === "string" ? proxy.caBundlePath.trim() : "",
+        };
+    }
+
     private persistMarketplaceSources(sources: MarketplaceSource[]): void {
         this.store.set("marketplaceSources", this.normalizeMarketplaceSources(sources));
     }
@@ -184,6 +208,7 @@ export class SettingsManager {
             ...settings,
             marketplaceSources: this.getMarketplaceSourcesFromStore(),
             sentryTelemetryConsent: normalizeTelemetryConsent(settings.sentryTelemetryConsent),
+            proxy: this.normalizeProxySettings(settings.proxy as ProxySettings | undefined),
         };
     }
 
@@ -199,6 +224,11 @@ export class SettingsManager {
 
             if (key === "sentryTelemetryConsent") {
                 this.setSentryTelemetryConsent(normalizeTelemetryConsent(value));
+                return;
+            }
+
+            if (key === "proxy") {
+                this.store.set("proxy", this.normalizeProxySettings(value as ProxySettings | undefined));
                 return;
             }
 
@@ -219,6 +249,11 @@ export class SettingsManager {
     setSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): void {
         if (key === "sentryTelemetryConsent") {
             this.setSentryTelemetryConsent(normalizeTelemetryConsent(value));
+            return;
+        }
+
+        if (key === "proxy") {
+            this.store.set("proxy", this.normalizeProxySettings(value as ProxySettings | undefined));
             return;
         }
 

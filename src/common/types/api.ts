@@ -6,9 +6,9 @@
 import type { ConnectionIds, ConnectionTarget } from "../connectionSlots";
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
-import { Connection } from "./connection";
 import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, DataverseUser, DataverseUserPage } from "./dataverse";
-import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { Connection } from "./connection";
+import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, ProxySettings, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
 import { ToolIdea, ToolIdeaSubmission, ToolIdeaUpvoteResult } from "./toolIdea";
@@ -191,6 +191,7 @@ export interface TroubleshootingAPI {
     checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
     checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
+    testProxyConnection: (settings?: ProxySettings) => Promise<{ success: boolean; message?: string }>;
 }
 
 /**
