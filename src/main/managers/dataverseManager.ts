@@ -23,6 +23,7 @@ import {
     mergeDataverseHeaders,
     overrideDataverseHeaders,
     parseDataverseBatchResponse,
+    selectDataverseBatchResponseHeaders,
     validateAndSnapshotHeaders,
     validateBatchRequests,
 } from "../utilities/dataverseBatch";
@@ -2057,11 +2058,13 @@ export class DataverseManager {
         if (!responseContentType?.toLowerCase().includes("multipart/mixed")) {
             throw new Error("Malformed Dataverse batch response: expected multipart/mixed");
         }
-        return parseDataverseBatchResponse(
+        const results = parseDataverseBatchResponse(
             response.rawBody,
             responseContentType,
             validatedRequests.map((request) => request.contentId as string),
             transaction,
         );
+        const batchHeaders = selectDataverseBatchResponseHeaders(response.headers);
+        return Object.keys(batchHeaders).length > 0 ? results.map((result) => ({ ...result, batchHeaders })) : results;
     }
 }

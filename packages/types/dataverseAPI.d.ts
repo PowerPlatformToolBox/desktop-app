@@ -23,6 +23,8 @@ declare namespace DataverseAPI {
         status: number;
         statusText?: string;
         headers: Record<string, string>;
+        /** Selected headers from the outer HTTP batch response, shared by every operation result. */
+        batchHeaders?: Record<string, string>;
         body?: unknown;
     }
     /**

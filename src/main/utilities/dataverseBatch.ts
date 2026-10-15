@@ -10,6 +10,8 @@ export const MAX_DATAVERSE_BATCH_REQUEST_BYTES = 16 * 1024 * 1024;
 export const MAX_DATAVERSE_BATCH_RESPONSE_BYTES = 16 * 1024 * 1024;
 export const MAX_DATAVERSE_BATCH_TOTAL_HEADERS = 4096;
 
+const DATAVERSE_BATCH_RESPONSE_HEADERS = ["x-ms-dop-hint", "x-ms-ratelimit-burst-remaining-xrm-requests", "x-ms-ratelimit-time-remaining-xrm-requests"] as const;
+
 const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const CONTENT_ID_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
 function hasControlCharacters(value: string): boolean {
@@ -23,6 +25,15 @@ export interface EncodedDataverseBatch {
     body: string;
     contentType: string;
     boundary: string;
+}
+
+export function selectDataverseBatchResponseHeaders(headers: Record<string, string>): Record<string, string> {
+    const selected: Record<string, string> = {};
+    for (const name of DATAVERSE_BATCH_RESPONSE_HEADERS) {
+        const value = headers[name];
+        if (value !== undefined) selected[name] = value;
+    }
+    return selected;
 }
 
 export function validateAndSnapshotHeaders(headers?: Record<string, string>): DataverseAdditionalHeaders {
