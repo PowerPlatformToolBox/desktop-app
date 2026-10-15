@@ -45,7 +45,7 @@ Consequences of this principle:
 | G6  | Power Platform terminology stays consistent across the ToolBox and all tools (shared glossary, with do-not-translate terms such as _Dataverse_ and _Power Automate_). |
 | G7  | All translations live in **one dedicated GitHub repository** with full history. The community contributes through pull requests.                                      |
 | G8  | Translations are produced **automatically** whenever the ToolBox (dev or main) or a tool changes, and published to Azure Blob Storage.                                 |
-| G9  | The ToolBox's **Insider** (dev) and **Stable** (main) channels each get translations that match their own text.                                                       |
+| G9  | The ToolBox's **Insider** (dev) and **Stable** (main) channels share **one** set of translations, and each build shows only translations that match its own English text. |
 | G10 | Every supported **tool version** gets translations that match its text.                                                                                               |
 | G11 | Switching language at runtime does not require restarting the app.                                                                                                    |
 
@@ -68,7 +68,7 @@ Consequences of this principle:
 | **Effective locale**        | The single BCP 47 tag (for example `zh-CN`) the app actually uses after resolution. It is the same value everywhere in the app.                                                                                                  |
 | **Source catalog**          | The English strings to translate. For the ToolBox it is the key-based message catalog (`key → English`). For a tool it is the list of **static UI strings** extracted automatically from that tool version's bundle.          |
 | **Source hash**             | A hash of a normalized English string. Translations are stored **against the source hash**, not against a version, so one translation serves every version and channel that uses the same English text.                     |
-| **Translation pack**        | A data-only JSON file holding the translations for one target (ToolBox channel or tool) in one language. Built in CI, stored in Blob, cached by the app.                                                                        |
+| **Translation pack**        | A data-only JSON file holding the translations for one target (the ToolBox, or one tool) in one language. Built in CI, stored in Blob, cached by the app.                                                                        |
 | **Pack index**              | A small JSON file in Blob per target that lists the current pack for each language and its coverage. The app checks it cheaply (ETag) to see if anything changed.                                                                |
 | **Coverage**                | The share of a target's source strings that have a translation in a given language. For tools it is computed **per tool version**.                                                                                              |
 | **Coverage threshold**      | **60%.** A tool version below 60% coverage for the user's language is not translated, and the user gets a notification explaining why.                                                                                          |
@@ -76,7 +76,7 @@ Consequences of this principle:
 | **Translation tiers**       | Where a tool's translation comes from: **Native** (the author's own, complete), **Pack** (from the translations repo), or **Original** (English).                                                                              |
 | **Glossary**                | A shared terminology list per language: preferred translations and do-not-translate terms. Fed to the translation service and used by reviewers.                                                                              |
 | **Protected region**        | Part of a tool's page that must never be translated. Marked by the HTML-standard `translate="no"` attribute, by a PPTB attribute, or detected by heuristics (inputs, editable content, code blocks, and so on).                |
-| **Channel**                 | The ToolBox release line: **Insider** (built from `dev`) or **Stable** (built from `main`).                                                                                                                                    |
+| **Channel**                 | The ToolBox release line: **Insider** (built from `dev`) or **Stable** (built from `main`). Both share one set of translations; the channel is only a tag (§7).                                                                 |
 
 ---
 
@@ -106,12 +106,44 @@ Consequences of this principle:
 3. The choice is saved with the other user settings and survives updates.
 4. The **effective locale** (the internal code) is resolved once in the main process, which is the only place that holds this value. Every other part of the app (renderer, modal windows, notifications, tray, tool views, workers) receives it from there. Codes only appear in developer-facing places: the tool manifest, the API, and troubleshooting exports.
 
-### 5.2 How translations reach the app
+### 5.2 How and when translations reach the app
 
-1. Each ToolBox build ships with **English plus a snapshot of its channel's translation packs**. This snapshot covers the first run, offline use, and the case where Blob cannot be reached.
-2. On startup and periodically, the app checks the **pack index** for its channel in Blob. If a newer pack exists for the effective locale, it is downloaded, verified against the hash in the index, cached on disk, and used in place of the bundled snapshot.
-3. For tools, the app checks the tool's pack index when the tool is **installed, updated, or opened** (cached result, ETag check). Packs are downloaded once and cached.
-4. If anything fails (offline, Blob unreachable, corrupt file), the app uses the last good cached or bundled pack. If there is none, it shows English. The app never shows blank text or raw keys.
+Translations are downloaded **only when an update happens or the user asks**. The app makes **no translation network calls** at start-up, on a timer, when a tool opens, or in the background. This keeps start-up and tool launch fast and puts no load on background workers.
+
+- Each ToolBox build ships with **English plus the ToolBox packs for every supported language and `languages.json`**. Both Insider and Stable builds wait for their own version's translations before bundling (§6.5 A), so a fresh build is complete without any download.
+- When a tool is installed or updated, the app downloads that tool's index and its packs for **every supported language** (excluding the tool's native languages). Packs are text-only and small, so switching language later never needs the network.
+- Every download is verified against the hash in its index and saved to the local cache. Requests are conditional (ETag), so a refresh where nothing changed is a tiny "not modified" response.
+- If a download fails (offline, Blob unreachable, corrupt file), the app keeps the last good cached or bundled pack and tells the user the refresh failed. If it has nothing, it shows English. It never shows blank text or raw keys.
+
+#### When the ToolBox's translations are updated
+
+| Trigger                                                    | What happens                                                                                          | When the new text appears                                         |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **App update**                                             | The new build includes the latest ToolBox packs and `languages.json`. No network call.               | On first launch of the new version                                |
+| **"Refresh translations"** in Settings › Language (on demand) | Checks `languages.json` and the ToolBox index; downloads any changed packs                          | Right away: the shell re-renders in place, as for a language change |
+| **Language change**                                        | Nothing to download: every language is already bundled                                               | Right away                                                        |
+
+#### When a tool's translations are updated
+
+| Trigger                                                                 | What happens                                                                                           | When the new text appears                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| **Tool install or update**                                              | Downloads the tool's index and its packs for every supported language                                  | The first time the tool opens                                                   |
+| **"Refresh translations"** on the installed tool's card (context menu, on demand) | Checks that tool's index; downloads any changed packs                                         | Right away. If the tool is open, it is re-translated in place.                  |
+| **Language change**                                                     | Nothing to download: packs for every language were saved at install or update                         | Open tools: right away (re-translated in place, §5.7). Other tools: when they open. |
+| **Tool open**                                                           | **No network call.** Uses the saved packs and coverage.                                                | —                                                                               |
+
+**Marketplace text** (translated descriptions, categories, tags) is fetched together with the marketplace's existing tool-list request, so it adds no new trigger.
+
+#### How quickly a change reaches users
+
+| Change                                                     | Reaches users                                                                                                                                                                 |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **New tool version**                                       | Translations are published during intake, **before** the version goes live, so they are downloaded with the tool on install or update.                                       |
+| **New or changed ToolBox strings** (push to `dev` or `main`) | Included in the next build of that channel: the nightly Insider build, or the next Stable release.                                                                         |
+| **Correction merged in the translations repo**             | ToolBox: the next app update (Insider nightly, Stable at each release), or sooner with Settings › Refresh translations. Tool: the next tool update, or sooner with the card's Refresh translations. |
+| **New language**                                           | Appears in the language picker after the next app update, or after Settings › Refresh translations.                                                                          |
+
+**Trade-off accepted:** a correction to a tool that doesn't get updated reaches users only when they refresh it. That is the price of no background network activity. The below-threshold notification (§5.5) and the "translated" indicator (§5.8) both point users to the refresh option.
 
 ### 5.3 The ToolBox shell is localized
 
@@ -145,7 +177,7 @@ When a tool is shown in English because coverage is too low, the user sees a non
 
 - It is shown **once per tool, version, and language**, not every time the tool opens.
 - _Help translate_ opens the translations repo's contribution guide for that tool and language.
-- When coverage is unknown (no translation data for this version yet), the message says the translation is still being prepared.
+- When coverage is unknown (no translation data for this version yet), the message says the translation is still being prepared and suggests **Refresh translations** on the tool's card later. The app doesn't retry on its own.
 
 ### 5.6 How zero-touch translation stays safe
 
@@ -158,7 +190,7 @@ Templated strings such as `` `Found ${n} records` `` are captured as **patterns*
 ### 5.7 Switching language at runtime
 
 1. The user picks a new language in Settings.
-2. The main process resolves the new effective locale, loads the matching packs (from the cache, or downloads them), and broadcasts the change.
+2. The main process resolves the new effective locale, loads the matching packs from the local cache or the bundled snapshot (no download is needed, §5.2), and broadcasts the change.
 3. The ToolBox shell re-renders its strings. Native menus and the tray menu are rebuilt.
 4. Each open tool gets a `locale:changed` event, and its tier is worked out again for the new language:
    - **Native** tools handle it themselves (re-render or reload).
@@ -168,7 +200,7 @@ Templated strings such as `` `Found ${n} records` `` are captured as **patterns*
 
 ### 5.8 Improving translations over time
 
-1. A small "translated" indicator on the tool tab offers three actions: **Show original**, **Report a bad translation**, and **Turn off for this tool**.
+1. A small "translated" indicator on the tool tab offers four actions: **Show original**, **Refresh translations**, **Report a bad translation**, and **Turn off for this tool**. The installed tool's card has the same **Refresh translations** option in its context menu.
 2. _Report a bad translation_ opens a pre-filled issue in the translations repo. It contains the tool, version, language, English string, and current translation. It never includes surrounding page content.
 3. Community pull requests correct entries. A corrected entry becomes **reviewed** and is never overwritten by machine output again.
 4. Every merge to the translations repo republishes the affected packs to Blob automatically (§6.6), so users get the fix on their next index check.
@@ -183,7 +215,7 @@ This section describes where translations are stored, how they are produced, and
 
 | Repository                                   | Role in localization                                                                                                                                                                                                           |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **desktop-app**                              | Owns the ToolBox's English message catalog. On push to `dev` or `main`, CI extracts the catalog and submits it to the translations repo for the matching channel.                                                              |
+| **desktop-app**                              | Owns the ToolBox's English message catalog. On push to `dev` or `main`, CI extracts the catalog and submits it to the translations repo, tagged with its channel.                                                              |
 | **Tool management repo** (intake & updates)  | Owns tool intake and update automation. When a tool version is approved, intake **triggers the translation job and waits for it**, so the tool version and its translations go live together.                                  |
 | **Translations repo** (new, e.g. `pptb-translations`) | **Single source of truth and history** for all translations, the glossary, and the language list. It is the **only** place that calls the translation service and the **only** place that publishes to Blob. |
 | **Azure Blob Storage**                       | Delivery. Holds immutable packs and the pack indexes the app reads. Nothing is edited here by hand.                                                                                                                            |
@@ -196,8 +228,8 @@ Centralizing extraction, translation, and publishing in the translations repo me
 languages.json                   supported languages, status, maintainers
 glossary/<lang>.json             preferred terms + do-not-translate list
 toolbox/
-  source/insider.json            English catalog from desktop-app `dev`   (generated, never hand-edited)
-  source/stable.json             English catalog from desktop-app `main`  (generated, never hand-edited)
+  source.json                    English catalog from desktop-app, both channels; each variant tagged
+                                 with the channels + app versions it appears in (generated, never hand-edited)
   <lang>.json                    translations keyed by source hash, each marked machine / reviewed
 tools/<tool-id>/
   source.json                    extracted English strings keyed by source hash,
@@ -214,7 +246,7 @@ Translations are **not** stored per app version, per channel, or per tool versio
 
 - When the same English text appears in Insider and Stable, or in tool v1.3 and v1.4, it is **translated once and reviewed once**.
 - When the English text changes, its hash changes, so a new translation is produced. A translation written for old wording is **never shown** next to new wording.
-- Versions and channels only decide **which hashes go into a pack**. They never duplicate translations.
+- Versions and channel tags only decide **which hashes go into a pack**. They never duplicate translations.
 
 ### 6.4 Merge policy
 
@@ -230,10 +262,11 @@ There are four triggers. All of them end in the same publish step.
 #### A. ToolBox change — push to desktop-app `dev` or `main`
 
 1. desktop-app CI extracts the English message catalog.
-2. It submits the catalog to the translations repo as `toolbox/source/insider.json` (from `dev`) or `toolbox/source/stable.json` (from `main`).
-3. The translations repo finds the new or changed hashes and translates **only those**, using the translation service and the glossary. Unchanged strings reuse their existing translations.
-4. It validates, commits automatically, and publishes that channel's packs (§6.6).
-5. **Release builds** from `main` wait for step 4 before bundling the snapshot, so a Stable release ships fully translated. Insider builds do not wait; any new keys come from Blob shortly afterwards.
+2. It submits the catalog to the translations repo, stating the channel (`insider` for `dev`, `stable` for `main`), the commit, and the app version.
+3. The translations repo merges it into the single `toolbox/source.json`. Each English variant of each key is tagged with the channels and app versions it appears in.
+4. It finds the new or changed hashes and translates **only those**, using the translation service and the glossary. Unchanged strings reuse their existing translations.
+5. It validates, commits automatically, and publishes the ToolBox packs and index (§6.6). The index records the app version and commit it now covers.
+6. **Both Insider (nightly) and Stable release builds** wait, with a timeout, until the index lists their app version and commit before bundling the snapshot. Because the app doesn't download ToolBox translations by itself (§5.2), the bundled snapshot is what users get, so every build must ship fully translated.
 
 #### B. Tool intake or update — tool management repo
 
@@ -262,7 +295,7 @@ A job in the translations repo with two modes:
 Runs on every push to the translations repo's main branch, whether from pipelines A–C or from a merged community PR.
 
 1. Validate all changed files.
-2. Find the packs affected by the change (ToolBox channels, tools, languages).
+2. Find the packs affected by the change (ToolBox, tools, languages).
 3. Rebuild only those packs. Upload each pack to Blob under a **content-based name**; packs are immutable once uploaded.
 4. Update the pack index for each affected target to point at the new packs, with new coverage figures.
 5. Rollback means pointing the index back at the previous pack.
@@ -281,7 +314,7 @@ flowchart LR
     end
 
     subgraph TR["Translations repo (source of truth)"]
-        SRC["Source catalogs<br/>toolbox/source/insider · stable<br/>tools/&lt;id&gt;/source"]
+        SRC["Source catalogs<br/>toolbox/source<br/>tools/&lt;id&gt;/source"]
         EXT["Extractor<br/>(tools: static UI strings)"]
         DIFF["Find untranslated hashes"]
         MT["Translation service<br/>+ glossary"]
@@ -293,7 +326,7 @@ flowchart LR
     end
 
     subgraph BLOB["Azure Blob Storage"]
-        IDX[("Pack indexes<br/>toolbox/insider · toolbox/stable<br/>tools/&lt;id&gt;")]
+        IDX[("Pack indexes<br/>toolbox · tools/&lt;id&gt;")]
         PK[("Immutable packs")]
     end
 
@@ -319,8 +352,7 @@ flowchart LR
 ```
 translations/
   languages.json                       supported languages + status (read by Settings)
-  toolbox/insider/index.json           current pack per language for Insider
-  toolbox/stable/index.json            current pack per language for Stable
+  toolbox/index.json                   current pack per language + the app versions it covers (both channels)
   tools/<tool-id>/index.json           current pack per language + coverage per tool version
   marketplace/<lang>.json              translated marketplace text for all tools (one fetch)
   packs/<content-hash>.json            immutable pack files
@@ -328,21 +360,33 @@ translations/
 
 ---
 
-## 7. ToolBox Channels — Insider (dev) and Stable (main)
+## 7. ToolBox Channels — One Shared Translation Set
 
-- Each channel has its **own source catalog** in the translations repo and its **own pack index** in Blob.
-- An **Insider** build reads the Insider index and a **Stable** build reads the Stable index. The channel is fixed at build time.
-- A push to `dev` only republishes **Insider** packs. Stable users are never affected by work in progress on `dev`.
-- A push to `main` only republishes **Stable** packs.
+Insider (built from `dev`) and Stable (built from `main`) use **the same ToolBox translations**: one source file in the translations repo, and one index and one pack per language in Blob. This is the same model as tools (§8), where one pack serves every version.
+
+### 7.1 How one set serves both channels and older builds
+
+- A ToolBox pack can hold **more than one translation for a key**, one per English variant (source hash). This covers a key whose English differs between `dev` and `main`, or between releases.
+- Every build picks the variant whose hash matches the English text **it shipped with**. Keys a build doesn't have (for example Insider-only keys in a Stable build) are simply never looked up. If no variant matches, that key falls back to English, so a build never shows a translation written for different wording.
 - When a feature moves from `dev` to `main`, its strings are **already translated** (same English, same hash), so Stable gets them at no extra cost.
+- A correction to a string both channels share reaches **both** at once.
 
-### 7.1 Users on older app versions of the same channel
+### 7.2 What the channel is still used for
 
-Not every Stable user updates right away, and a key's English text can change between releases. To keep older builds correct:
+The channel is a **tag**, not a separate set of files:
 
-- A channel pack can hold **more than one translation for a key**, one per English variant (source hash).
-- The pack keeps the **last three English variants** of each key (a retention window), which covers users a few releases behind.
-- The app picks the variant whose hash matches the English text **it shipped with**. If no variant matches, that key falls back to English. An old build never shows a translation written for different wording.
+- **Retention:** an English variant stays in the pack while it is used by the current `dev` catalog or by any of the **last three Stable releases**. This is counted in Stable releases rather than app versions because Insider ships nightly, so "last N versions" would only cover a few days.
+- **Release gating:** the index lists the app versions and commits it covers, so a Stable release build can wait until its own version is translated (§6.5 A).
+- **Review priority:** reviewers can filter to strings that are in Stable, so released UI gets reviewed first.
+- **Coverage reporting:** coverage is reported per channel and app version.
+
+### 7.3 Trade-off accepted
+
+With one set, a publish triggered by a push to `dev` rebuilds the pack that Stable users download. A pipeline bug triggered by churn on `dev` could therefore reach Stable users. Tools already accept the same risk (one tool update rebuilds the pack every version uses). It is limited by:
+
+- validation on every commit;
+- packs that are never overwritten once published;
+- rollback by pointing the index back at the previous pack.
 
 ---
 
@@ -355,7 +399,7 @@ Each tool has **one pack per language** covering the strings of **all its suppor
 - **Corrections apply to all versions** immediately, and nothing is stored twice.
 - **Coverage is tracked per version** in the tool's pack index (for example `1.3.0 → 95%`, `1.4.0 → 88%`). The app uses the coverage of the **installed** version to apply the 60% threshold.
 - **Retention:** the pack keeps strings used by the **latest five versions** of the tool (configurable). Strings used only by older versions are removed from the pack, but their translations stay in the translations repo and come back automatically if the text appears again.
-- **A version with no translation data** (pipeline failed, or not processed yet) has unknown coverage. It is treated as below threshold: the tool shows in English with the "still being prepared" notification. Because translation runs during intake, this should be rare and short.
+- **A version with no translation data** (pipeline failed, or not processed yet) has unknown coverage. It is treated as below threshold: the tool shows in English with the "still being prepared" notification. Because translation runs during intake, this should be rare. Once nightly reconciliation has published the data, the user gets it with the card's **Refresh translations** or the next tool update.
 - **A version older than the retention window** may fall below 60% coverage as strings are pruned, and then shows in English with the notification. Users can fix this by updating the tool.
 
 ---
@@ -405,7 +449,7 @@ flowchart LR
 
 | Actor                    | Capability                                                                                                                                                                         |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **End user**             | Pick a language or System default · see each language's quality level · switch without restarting · per-tool _Show original_ / _Turn off_ · report bad translations · see why a tool was not translated. |
+| **End user**             | Pick a language or System default · see each language's quality level · switch without restarting · per-tool _Show original_ / _Turn off_ · _Refresh translations_ (Settings for the ToolBox, tool card for a tool) · report bad translations · see why a tool was not translated. |
 | **Tool author (none)**   | Nothing is required. The tool is translated automatically when it is published.                                                                                                     |
 | **Tool author (light)**  | Mark data areas with `translate="no"` to improve accuracy · read the effective locale for formatting.                                                                               |
 | **Tool author (full)**   | Ship **complete** native translations for chosen locales, declare them in the manifest, and react to `locale:changed`.                                                             |
@@ -429,7 +473,7 @@ flowchart TB
         WRK["Worker launcher<br/>passes culture to .NET / Node workers"]
         SET[("Settings<br/>preferredLanguage · per-tool overrides<br/>dismissed warnings")]
         CACHE[("Local cache<br/>packs + indexes")]
-        SNAP[("Bundled snapshot<br/>English + channel packs")]
+        SNAP[("Bundled snapshot<br/>English + ToolBox packs")]
     end
 
     subgraph Renderer["ToolBox renderer + modal windows"]
@@ -470,7 +514,7 @@ flowchart TB
 | Component                    | Lives in                      | Responsibility                                                                                                                                                                                                                                                                                                    |
 | ---------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Locale Service**           | Main                          | Resolves the effective locale (user choice → OS → `en`) using BCP 47 matching. Persists the preference. Broadcasts changes to every window and tool view. The **only** place locale is decided.                                                                                                                   |
-| **Translation Sync Service** | Main                          | The only component that talks to Blob for translations. Checks indexes using ETags (on startup, periodically, and on tool install, update, or open). Downloads packs, verifies them against the index hash, caches them on disk, and keeps the last good copy. Never sends any text to the network.               |
+| **Translation Sync Service** | Main                          | The only component that talks to Blob for translations. Makes network calls **only** on tool install or update and on the user's Refresh translations actions (Settings for the ToolBox, the tool card for a tool). Never at start-up, on a timer, or on tool open. Uses ETag conditional requests. Downloads packs, verifies them against the index hash, caches them on disk, and keeps the last good copy. Never sends any text to the network.               |
 | **ToolBox Catalog Service**  | Main                          | Merges English with the best available pack (cached, or the bundled snapshot). Picks the hash variant that matches the build's English text. Serves messages to the renderer, modal windows, and main-process surfaces.                                                                                         |
 | **i18n runtime**             | Renderer & modals             | Lightweight `t(key, args)` with ICU MessageFormat, plus locale-aware `Intl` formatters. Sets `lang` (and later `dir`) on the document. Re-renders when the locale changes.                                                                                                                                         |
 | **Tool Pack Manager**        | Main                          | Decides the tier per tool, installed version, and locale: native locales from the manifest, coverage from the tool's index, the 60% threshold, user overrides, and author opt-out. Raises the below-threshold notification, once per tool, version, and language.                                                |
@@ -510,15 +554,18 @@ sequenceDiagram
     LOC->>LOC: BCP 47 match → "zh-CN" (fallback "en")
     LOC->>CAT: load "zh-CN" (cached pack, else bundled snapshot)
     CAT-->>R: messages → render immediately
-    TS->>BLOB: GET toolbox/stable/index.json (If-None-Match)
-    alt index changed and newer pack for zh-CN
-        BLOB-->>TS: index (pack name + hash)
-        TS->>BLOB: GET packs/{hash}.json
-        TS->>TS: verify hash, cache
-        TS->>CAT: new pack available
-        CAT-->>R: refreshed messages
-    else unchanged / offline
-        BLOB-->>TS: 304 / error → keep current pack
+    Note over TS,BLOB: No network call at start-up
+    opt User clicks Settings › Refresh translations
+        TS->>BLOB: GET languages.json + toolbox/index.json (If-None-Match)
+        alt index changed
+            BLOB-->>TS: index (pack names + hashes)
+            TS->>BLOB: GET changed packs/{hash}.json
+            TS->>TS: verify hash, cache
+            TS->>CAT: new packs available
+            CAT-->>R: refreshed messages
+        else unchanged / offline
+            BLOB-->>TS: 304 / error → keep current packs, tell the user
+        end
     end
 ```
 
@@ -538,7 +585,7 @@ sequenceDiagram
 
     U->>TW: open tool (installed v1.4.0)
     TW->>PM: resolveTier(tool, v1.4.0, "zh-CN")
-    PM->>TS: tool index + pack (cached, ETag refresh)
+    PM->>TS: saved tool index + pack (local only, no network)
     alt manifest declares native "zh-CN"
         PM-->>TW: Native
     else user / author turned translation off
@@ -631,15 +678,15 @@ sequenceDiagram
 
     DEVS->>DA: push to dev (Insider) or main (Stable)
     DA->>DA: extract English message catalog
-    DA->>TR: submit catalog for channel
-    TR->>TR: update toolbox/source/{channel}.json
+    DA->>TR: submit catalog (channel, commit, app version)
+    TR->>TR: merge into toolbox/source.json, tag variants with channel + version
     TR->>TR: find new / changed hashes
     TR->>TSVC: translate only those (with glossary)
     TSVC-->>TR: machine translations
     TR->>TR: validate → auto-commit
-    TR->>BLOB: publish toolbox/{channel} packs + index
+    TR->>BLOB: publish ToolBox packs + toolbox/index.json (lists version + commit)
     opt Stable release build
-        DA->>BLOB: wait for publish, then bundle snapshot
+        DA->>BLOB: wait until index lists this version + commit, then bundle snapshot
     end
 ```
 
@@ -756,7 +803,7 @@ Tools with native translations use whatever i18n library they prefer, and read t
 
 | Area                       | Approach                                                                                                                                                                                       |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Catalog structure**      | One English source catalog, split into namespaces by feature area (common, settings, marketplace, connections, modals, notifications, errors, menus). Translations come from channel packs. |
+| **Catalog structure**      | One English source catalog, split into namespaces by feature area (common, settings, marketplace, connections, modals, notifications, errors, menus). Translations come from the ToolBox packs. |
 | **Message format**         | ICU MessageFormat: plurals, select, and named placeholders. No concatenation in code.                                                                                                          |
 | **Modals & notifications** | Modal and notification windows are separate browser windows. They get the locale and messages from the main process, the same way they already get the theme.                                 |
 | **Main-process strings**   | Menus, tray, OS dialogs, and protocol-handler prompts use the same catalog.                                                                                                                    |
@@ -821,7 +868,7 @@ stateDiagram-v2
 | **2** | Shell localization promoted to Stable · quality gates · pseudo-locale.                                                                                                                      | ToolBox shell localized for everyone.                         |
 | **3** | Tool author contract: `ToolContext.locale`, `toolboxAPI.i18n`, `locale:changed`, manifest `localization` + complete-translation validation.                                                 | Tools *can* localize natively.                                |
 | **4** | Extractor · pipeline B in intake · backfill (pipeline C) · marketplace text translation.                                                                                                    | Packs exist for every marketplace tool.                       |
-| **5** | Translation Engine · Tool Pack Manager with the 60% threshold and notification · tab indicator with Show original / Turn off / Report. Behind the existing **preview feature** flag mechanism at first. | **Zero-touch translation of tools.**                          |
+| **5** | Translation Engine · Tool Pack Manager with the 60% threshold and notification · tab indicator with Show original / Refresh / Turn off / Report · Refresh translations on the installed tool card. Behind the existing **preview feature** flag mechanism at first. | **Zero-touch translation of tools.**                          |
 | **6** | Community review workflow, language promotion, coverage dashboards, additional languages.                                                                                                  | Quality improves over time; more languages.                   |
 
 ---
@@ -836,18 +883,19 @@ stateDiagram-v2
 | D4  | Machine translation is expected to use a **translation service** that supports a custom glossary (for example Azure AI Translator). The pipeline calls it through a provider interface, so the choice can change without affecting the design. | §6.5      |
 | D5  | Tool translation runs **as part of the existing intake and update process**, which waits for it. A translation failure does not block a tool release.  | §6.5 B    |
 | D6  | A one-time, re-runnable backfill translates all existing tools and is reused when a language is added.                                                  | §6.5 C    |
-| D7  | Pushes to desktop-app `dev` and `main` re-evaluate and publish Insider and Stable ToolBox translations respectively.                                   | §6.5 A, §7 |
+| D7  | Pushes to desktop-app `dev` and `main` both re-evaluate and publish the ToolBox translations. Insider and Stable share **one** translation set; the channel is a tag used for retention, release gating, and review priority. | §6.5 A, §7 |
 | D8  | Translations are stored by source hash; one pack per tool per language covers all supported versions, with coverage tracked per version.             | §6.3, §8  |
 | D9  | Tool authors' native translations must be **complete**. Partial native translations fail validation. No source maps or string manifests are needed.     | §12.4, §13.3 |
 | D10 | Tool versions below **60%** coverage are not translated. The user gets a warning notification explaining why.                                            | §5.4, §5.5 |
 | D11 | Publishing terms for derived translations of tool UI text are handled separately by the maintainers, with a notice to tool developers.                  | —         |
 | D12 | Initial languages: **English, Chinese (Simplified), Spanish, Hindi.**                                                                                    | §5.1      |
 | D13 | Users pick languages **by name** (in the current UI language, with the native name alongside). Codes are internal and developer-facing only.            | §5.1      |
+| D14 | No background or start-up translation downloads. ToolBox translations arrive with **app updates** (bundled) or via **Settings › Refresh translations**. Tool translations arrive on **tool install/update** (all languages) or via **Refresh translations** on the installed tool's card. | §5.2      |
 
 ## 19. Remaining Open Questions
 
 1. **Translation service selection:** which specific service, and its budget for the initial backfill across three languages.
-2. **Retention windows:** confirm the defaults of the **latest five tool versions** (§8) and the **last three English variants per key** (§7.1, Appendix A).
+2. **Retention windows:** confirm the defaults of the **latest five tool versions** (§8) and the **last three Stable releases** for ToolBox variants (§7.2).
 3. **Language maintainers:** who reviews Chinese (Simplified), Spanish, and Hindi, and the review turnaround expected for community PRs.
 
 ---
@@ -870,7 +918,7 @@ The translations repo publishes a **test-vector file** (input → normalized tex
 
 | From                 | Mechanism                                           | Inputs                                                                                          | Caller waits?                                                                                                                                                         |
 | -------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| desktop-app push     | `repository_dispatch`, event `toolbox-catalog`      | `channel` (`insider` \| `stable`), `sha`, `appVersion`, `catalogPath` (folder of English catalog files in desktop-app) | No. The translations repo checks out desktop-app at `sha` and reads the catalog. Stable **release** builds wait separately by polling the Stable index for `sourceSha == sha` (timeout, then bundle whatever is there). |
+| desktop-app push     | `repository_dispatch`, event `toolbox-catalog`      | `channel` (`insider` \| `stable`), `sha`, `appVersion`, `catalogPath` (folder of English catalog files in desktop-app) | No. The translations repo checks out desktop-app at `sha` and reads the catalog. Stable **release** builds wait separately by polling `toolbox/index.json` until `versions[appVersion].sha == sha` (timeout, then bundle whatever is there). |
 | Tool intake / update | `workflow_dispatch` on the translate-tool workflow | `tool_id`, `version`, `package_url`, `package_sha256`, `correlation_id`                         | Yes. The run is named with `correlation_id`. Intake finds the run by that name and polls until it completes or times out (default 20 min). On failure or timeout intake continues, and nightly reconciliation picks it up. |
 | Schedule             | cron, nightly                                       | none (backfill in _missing only_ mode)                                                          | —                                                                                                                                                                     |
 | Manual               | `workflow_dispatch` on the backfill workflow       | `mode` (`full` \| `missing`), optional `languages`, optional `tool_ids`                         | —                                                                                                                                                                     |
@@ -880,10 +928,14 @@ Callers need only a **dispatch token** for the translations repo. No translation
 ### A.3 Translations repo files
 
 ```jsonc
-// toolbox/source/<channel>.json — generated from desktop-app, never hand-edited
-{ "schemaVersion": 1, "channel": "stable", "sha": "…", "appVersion": "1.8.0",
-  "keys": { "settings.language.label": { "text": "Language", "hash": "a1b2…", "previousHashes": ["…"] } } }
-  // previousHashes keeps the last 3 English variants of a key (§7.1)
+// toolbox/source.json — generated from desktop-app (both channels), never hand-edited
+{ "schemaVersion": 1,
+  "builds": { "insider": { "sha": "…", "appVersion": "1.9.0-insider.20261015" },
+              "stableReleases": [ { "sha": "…", "appVersion": "1.8.0" }, { "sha": "…", "appVersion": "1.7.2" } ] },
+  "keys": { "settings.language.label": { "variants": {
+      "a1b2…": { "text": "Language",           "channels": ["stable"],            "appVersions": ["1.7.2", "1.8.0"] },
+      "e5f6…": { "text": "Interface language", "channels": ["insider"],           "appVersions": ["1.9.0-insider.20261015"] } } } } }
+  // a variant is kept while it is in the current insider catalog or any of the last 3 stable releases (§7.2)
 
 // tools/<tool-id>/source.json — written by the extractor
 { "schemaVersion": 1, "toolId": "…", "native": ["es"], "autoTranslate": true,
@@ -904,12 +956,16 @@ Callers need only a **dispatch token** for the translations repo. No translation
     "osMatch": ["zh-CN", "zh-Hans", "zh-SG"] } ] }
   // "name" in English; the app shows a translated name from its own catalog when available
 
-// toolbox/<channel>/index.json
-{ "schemaVersion": 1, "channel": "stable", "sourceSha": "…", "appVersion": "1.8.0", "updatedAt": "…",
-  "languages": { "es": { "pack": "packs/<sha256>.json", "sha256": "…", "coverage": 1.0, "reviewed": 0.12 } } }
+// toolbox/index.json — one index for both channels
+{ "schemaVersion": 1, "updatedAt": "…",
+  "languages": { "es": { "pack": "packs/<sha256>.json", "sha256": "…" } },
+  "versions": {
+    "1.8.0":                  { "channel": "stable",  "sha": "…", "coverage": { "es": 1.0, "zh-CN": 1.0, "hi": 0.98 }, "reviewed": { "es": 0.12 } },
+    "1.9.0-insider.20261015": { "channel": "insider", "sha": "…", "coverage": { "es": 0.97, "zh-CN": 0.97, "hi": 0.95 } } } }
+  // only the current insider build and the retained stable releases are listed
 
 // toolbox pack (packs/<sha256>.json)
-{ "schemaVersion": 1, "kind": "toolbox", "channel": "stable", "language": "es",
+{ "schemaVersion": 1, "kind": "toolbox", "language": "es",
   "messages": { "settings.language.label": { "a1b2…": "Idioma", "e5f6…": "Idioma de la interfaz" } } }
   // key → { English-variant hash → translation }; the app picks the variant matching its own English
 
