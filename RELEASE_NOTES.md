@@ -1,41 +1,42 @@
-# Power Platform ToolBox 1.2.4
+# Power Platform ToolBox 1.2.7
 
 ## Highlights
 
-- Side-by-Side Tool View enables working with two tools in parallel in a single session.
-- Power Platform API integration expands available operations for tool and workflow development.
-- Notification Hub centralizes app and tool notifications with improved visibility and history.
-- MCP Server preview adds agentic AI-driven tool invocation support for attended and unattended scenarios.
-- Agent interoperability preview is available for clients such as Claude and GitHub Copilot integrations.
-- Tool execution flows include small UX and reliability improvements across common user paths.
+- Select a Dataverse user to impersonate for a tool instance and see when impersonation is active.
+- Assign tools up to ten positional connection slots, including optional slots, and route requests to the selected environment.
+- Send additional Dataverse request headers after consent, with persistent approvals available for review and revocation.
+- Run independent Dataverse operations in one batch or group writes in an atomic transaction.
+- Connect declared .NET worker processes through a typed API with managed startup, requests, cancellation, and shutdown.
+- Use the refreshed workspace layout with a custom title bar, sidebar controls, full-screen mode, and split-pane tool placement.
 
 ## Fixes
 
-- Tool windows: improved layout and state handling in Side-by-Side view interactions.
-- Notifications: resolved edge cases with delivery timing and display consistency.
-- API surface: fixed issues in Power Platform API request/response handling paths.
-- MCP preview: improved stability for agent-triggered tool invocation sequences.
-- Connections: addressed minor reliability issues during repeated connection operations.
-- General UI: fixed several small behavior regressions and polish issues.
+- Improved multi-connection selection responsiveness and clarified connection assignment in the picker.
+- Preserved positional connection assignments, including empty slots, across restore, duplication, deletion, and tool updates.
+- Added paged Dataverse user search for impersonation selection.
+- Kept modal dialogs above the main window on Linux and constrained long notification messages.
+- Restored missing log recording and improved telemetry scrubbing of sensitive fields.
+- Corrected Dataverse header consent so instance approvals remain limited to the active tool instance.
 
 ## Developer & Build
 
-- Added preview MCP Server pathway for agentic AI tool invocation in attended/unattended modes.
-- Extended internal APIs and integration points to support new Power Platform API scenarios.
-- Updated notification and tool orchestration internals to support Hub and parallel tool workflows.
-- Included incremental build and maintenance updates for release packaging and developer workflows.
+- Added `features.connections` declarations, numeric connection targets, slot-aware APIs, and positional MCP `connectionNames`.
+- Added `dataverseAPI.executeBatch` and `executeTransaction`, with request validation, consent checks, and per-operation results.
+- Added the typed `toolboxAPI.workers.connect` interface, .NET runtime/package handling, native-execution consent, and JSON-RPC process lifecycle.
+- Added Dataverse impersonation APIs and user-search support for tool authors.
+- Updated title-bar, full-screen, and split-layout controls across the renderer and main-process IPC bridge.
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-v1.2.4-Setup.exe
-- macOS: Power-Platform-ToolBox-v1.2.4.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-v1.2.4.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-v1.2.7-Setup.exe
+- macOS: Power-Platform-ToolBox-v1.2.7.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-v1.2.7.AppImage (chmod +x, then run)
 
 ## Notes
 
-- No manual migration needed.
-- MCP Server agentic AI support is a preview feature and may evolve in upcoming releases.
+- No manual migration needed; existing connection declarations and primary/secondary APIs remain supported.
+- .NET worker support is opt-in; Windows/Linux and packaged-app qualification remains outstanding.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.3...v1.2.4
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.6...v1.2.7

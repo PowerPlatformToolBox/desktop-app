@@ -1,25 +1,7 @@
 ---
 name: Product Manager (orchestrator)
 description: Turns a user request into a clear, scoped, verifiable plan file for this repo, assigning work to the other agents. Stops before implementation.
-tools:
-    [
-        vscode,
-        read,
-        agent,
-        edit,
-        search,
-        web,
-        azure-mcp/search,
-        "microsoftdocs/mcp/*",
-        "playwright/*",
-        github.vscode-pull-request-github/issue_fetch,
-        github.vscode-pull-request-github/suggest-fix,
-        github.vscode-pull-request-github/searchSyntax,
-        github.vscode-pull-request-github/doSearch,
-        github.vscode-pull-request-github/renderIssues,
-        github.vscode-pull-request-github/activePullRequest,
-        github.vscode-pull-request-github/openPullRequest,
-    ]
+tools: [vscode, read, agent, edit, search, web, azure-mcp/search, "microsoftdocs/mcp/*", "playwright/*"]
 target: vscode
 ---
 

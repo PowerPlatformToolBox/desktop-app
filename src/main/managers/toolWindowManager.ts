@@ -1,9 +1,13 @@
-import { BrowserView, BrowserWindow, ipcMain, shell } from "electron";
+import { BrowserView, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as path from "path";
+import { ConnectionIds, ConnectionTarget, legacyConnectionIds, normalizeConnectionTarget, resolveConnectionSlots } from "../../common/connectionSlots";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
+import { addConnectionSlotsBreadcrumb, captureException } from "../../common/sentryHelper";
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
+import type { DataverseUser } from "../../common/types/dataverse";
 import { ToolBoxEvent } from "../../common/types/events";
+import type { LoadedToolIdentity } from "../utilities/nativeWorkerIdentity";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
@@ -55,9 +59,10 @@ export class ToolWindowManager {
      *   cosmetic only and must be done consistently across all usages.
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
-    private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
+    private toolConnectionInfo: Map<string, { connectionIds: ConnectionIds; impersonatedUsers: Array<DataverseUser | null> }> = new Map();
     /** Maps instanceId → tool display name (used for the "Return to [CallerToolName]" banner). */
     private toolInstanceNames: Map<string, string> = new Map();
+    private loadedToolIdentities = new Map<string, LoadedToolIdentity>();
     /**
      * Pending invocation contexts – created when one tool launches another with prefill data.
      * The entry is keyed by the *callee* instanceId and holds:
@@ -86,7 +91,7 @@ export class ToolWindowManager {
     private pendingConnectionPrompts: Map<
         string, // requestId
         {
-            resolve: (result: { primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void;
+            resolve: (connectionIds: ConnectionIds) => void;
             reject: (reason: Error) => void;
         }
     > = new Map();
@@ -97,6 +102,7 @@ export class ToolWindowManager {
      * from pendingInvocations, which already stores callerInstanceId per callee entry.
      */
     private activeCallees: Map<string, string> = new Map();
+    private preventCloseTools: Set<string> = new Set();
     // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
     // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
     private activeToolId: string | null = null;
@@ -113,6 +119,31 @@ export class ToolWindowManager {
     private showListener: () => void;
     private rendererInitializedListener: () => void;
     private onActiveToolChanged: ((activeToolId: string | null) => void) | null = null;
+    private onToolLaunched: ((instanceId: string, tool: Tool) => void | Promise<void>) | null = null;
+    private onOwnerDisposing: ((owner: { toolId: string; instanceId: string }) => Promise<void>) | null = null;
+    private ownerDisposals = new Map<string, Promise<void>>();
+
+    setOnOwnerDisposing(callback: (owner: { toolId: string; instanceId: string }) => Promise<void>): void {
+        this.onOwnerDisposing = callback;
+    }
+
+    private async disposeToolOwner(instanceId: string): Promise<void> {
+        const pending = this.ownerDisposals.get(instanceId);
+        if (pending) return pending;
+        const identity = this.loadedToolIdentities.get(instanceId);
+        if (!identity) return;
+        const disposal = Promise.resolve(this.onOwnerDisposing?.({ toolId: identity.toolId, instanceId }));
+        this.ownerDisposals.set(instanceId, disposal);
+        try {
+            await disposal;
+        } finally {
+            this.ownerDisposals.delete(instanceId);
+        }
+    }
+
+    private async drainToolOwners(): Promise<void> {
+        await Promise.all([...this.loadedToolIdentities.keys()].map((instanceId) => this.disposeToolOwner(instanceId)));
+    }
 
     constructor(
         mainWindow: BrowserWindow,
@@ -171,7 +202,11 @@ export class ToolWindowManager {
         };
         this.rendererInitializedListener = () => {
             logInfo("[ToolWindowManager] Renderer initialized signal received – cleaning up stale tool views.");
-            this.closeAllToolViews();
+            if (this.onOwnerDisposing)
+                void this.drainToolOwners()
+                    .then(() => this.closeAllToolViews())
+                    .catch((error) => logError("[ToolWindowManager] Worker cleanup failed", error));
+            else this.closeAllToolViews();
         };
         this.setupIpcHandlers();
     }
@@ -191,6 +226,11 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_IMPERSONATION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SET_IMPERSONATION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RESET_IMPERSONATION);
     }
 
     /**
@@ -203,9 +243,12 @@ export class ToolWindowManager {
 
         // Launch tool (create BrowserView and load tool)
         // Now accepts instanceId instead of toolId, plus connection IDs
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
-            return this.launchTool(instanceId, tool, primaryConnectionId, secondaryConnectionId);
-        });
+        ipcMain.handle(
+            TOOL_WINDOW_CHANNELS.LAUNCH,
+            async (event, instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null, connectionIds?: ConnectionIds) => {
+                return this.launchTool(instanceId, tool, primaryConnectionId, secondaryConnectionId, undefined, connectionIds);
+            },
+        );
 
         // Launch a tool with inter-tool context (called by a tool's preload bridge)
         // The caller passes its own instanceId, the target tool, connection IDs, and prefill data.
@@ -221,8 +264,13 @@ export class ToolWindowManager {
                 secondaryConnectionId: string | null,
                 prefillData: Record<string, unknown>,
                 noReturn?: boolean,
+                connectionIds?: ConnectionIds,
             ) => {
-                return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn);
+                if (this.getInstanceIdByWebContents(event.sender.id) !== callerInstanceId) {
+                    throw new Error("Invocation caller does not match the sending tool instance");
+                }
+
+                return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn, undefined, connectionIds);
             },
         );
 
@@ -230,12 +278,12 @@ export class ToolWindowManager {
         // (in response to an INVOCATION_PROMPT_CONNECTIONS push to the main renderer).
         ipcMain.handle(
             TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS,
-            async (_event, requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => {
+            async (_event, requestId: string, result: { connectionIds?: ConnectionIds; primaryConnectionId?: string | null; secondaryConnectionId?: string | null } | null) => {
                 const prompt = this.pendingConnectionPrompts.get(requestId);
                 if (!prompt) return;
                 this.pendingConnectionPrompts.delete(requestId);
                 if (result) {
-                    prompt.resolve(result);
+                    prompt.resolve(result.connectionIds ?? legacyConnectionIds(result.primaryConnectionId, result.secondaryConnectionId));
                 } else {
                     prompt.reject(new Error("Connection selection cancelled"));
                 }
@@ -272,6 +320,24 @@ export class ToolWindowManager {
         ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE, async (event, instanceId: string) => {
             return this.closeTool(instanceId);
         });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE, async (event) => {
+            const instanceId = this.getInstanceIdByWebContents(event.sender.id);
+            if (!instanceId) {
+                return false;
+            }
+
+            this.preventCloseTools.add(instanceId);
+            return true;
+        });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE, async (event) => {
+            const instanceId = this.getInstanceIdByWebContents(event.sender.id);
+            if (!instanceId) {
+                return false;
+            }
+
+            this.preventCloseTools.delete(instanceId);
+            return true;
+        });
 
         // Get active instance ID (activeToolId variable now stores instanceId values)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_ACTIVE, async () => {
@@ -287,6 +353,12 @@ export class ToolWindowManager {
         ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
             return this.updateToolConnection(instanceId, primaryConnectionId, secondaryConnectionId);
         });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTIONS, async (_event, instanceId: string, connectionIds: ConnectionIds) => this.updateToolConnections(instanceId, connectionIds));
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_IMPERSONATION, (_event, instanceId: string, connectionTarget?: ConnectionTarget) => this.getImpersonation(instanceId, connectionTarget));
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SET_IMPERSONATION, (_event, instanceId: string, user: DataverseUser, connectionTarget?: ConnectionTarget) =>
+            this.setImpersonation(instanceId, user, connectionTarget),
+        );
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RESET_IMPERSONATION, (_event, instanceId: string, connectionTarget?: ConnectionTarget) => this.resetImpersonation(instanceId, connectionTarget));
 
         // Hide all tool windows (used when showing tool detail tabs)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.HIDE_ALL, async () => {
@@ -327,6 +399,7 @@ export class ToolWindowManager {
         // When terminal is shown/hidden, we need to adjust BrowserView bounds
         ipcMain.on("terminal-visibility-changed", this.terminalVisibilityListener);
         ipcMain.on("invocation-banner-visibility-changed", this.bannerVisibilityListener);
+        ipcMain.on("impersonation-banner-visibility-changed", this.bannerVisibilityListener);
         ipcMain.on("sidebar-layout-changed", this.sidebarLayoutListener);
 
         // Periodic frame scheduling helper
@@ -341,9 +414,28 @@ export class ToolWindowManager {
      * @param primaryConnectionId Primary connection ID for this instance (passed from frontend)
      * @param secondaryConnectionId Secondary connection ID for multi-connection tools (optional)
      */
-    async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null, prefillData?: Record<string, unknown>): Promise<boolean> {
+    async launchTool(
+        instanceId: string,
+        tool: Tool,
+        primaryConnectionId: string | null,
+        secondaryConnectionId: string | null = null,
+        prefillData?: Record<string, unknown>,
+        connectionIds?: ConnectionIds,
+    ): Promise<boolean> {
+        let launchingView: BrowserView | null = null;
         try {
-            logInfo(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
+            const connectionSlots = resolveConnectionSlots(tool.features);
+            const resolvedConnectionIds = (connectionIds ?? legacyConnectionIds(primaryConnectionId, secondaryConnectionId)).slice(0, connectionSlots.max);
+            primaryConnectionId = resolvedConnectionIds[0] ?? null;
+            secondaryConnectionId = resolvedConnectionIds[1] ?? null;
+            addConnectionSlotsBreadcrumb(connectionSlots.min, connectionSlots.max, resolvedConnectionIds.filter(Boolean).length);
+            logInfo("[ToolWindowManager] Tool launch started", {
+                instanceId,
+                toolId: tool.id,
+                hasPrimaryConnection: primaryConnectionId !== null,
+                hasSecondaryConnection: secondaryConnectionId !== null,
+                hasPrefillData: prefillData !== undefined && Object.keys(prefillData).length > 0,
+            });
 
             // Extract actual toolId from instanceId (format: toolId-timestamp-random)
             const toolId = instanceId.split("-").slice(0, -2).join("-");
@@ -353,6 +445,14 @@ export class ToolWindowManager {
                 await this.switchToTool(instanceId);
                 return true;
             }
+
+            const sourcePath = this.browserviewProtocolManager.getToolBaseDirectory(tool);
+            const loadedIdentity: LoadedToolIdentity = Object.freeze({
+                toolId: tool.id,
+                toolName: tool.name,
+                toolVersion: tool.version,
+                sourcePath: sourcePath ? path.resolve(sourcePath) : null,
+            });
 
             // Create BrowserView for the tool
             const toolView = new BrowserView({
@@ -369,6 +469,54 @@ export class ToolWindowManager {
                     // Allow tools to load external resources
                     allowRunningInsecureContent: false,
                 },
+            });
+            launchingView = toolView;
+            this.toolViews.set(instanceId, toolView);
+            this.loadedToolIdentities.set(instanceId, loadedIdentity);
+            this.toolInstanceNames.set(instanceId, tool.name);
+            this.toolConnectionInfo.set(instanceId, {
+                connectionIds: resolvedConnectionIds,
+                impersonatedUsers: resolvedConnectionIds.map(() => null),
+            });
+            toolView.webContents.on("destroyed", async () => {
+                if (this.toolViews.get(instanceId) !== toolView) return;
+                const cleanup = this.disposeToolOwner(instanceId);
+                this.finalizeToolClose(instanceId, toolView);
+                try {
+                    await cleanup;
+                } catch (error) {
+                    logError("[ToolWindowManager] Worker cleanup failed", error);
+                }
+            });
+
+            toolView.webContents.on("render-process-gone", async () => {
+                await this.closeTool(instanceId, { force: true });
+            });
+            let initialNavigationStarted = false;
+            toolView.webContents.on("did-start-navigation", async (_event, _url, isInPlace, isMainFrame) => {
+                if (isInPlace || !isMainFrame) return;
+                if (!initialNavigationStarted) {
+                    initialNavigationStarted = true;
+                    return;
+                }
+                const cleanup = this.disposeToolOwner(instanceId);
+                this.loadedToolIdentities.delete(instanceId);
+                try {
+                    await cleanup;
+                } catch (error) {
+                    logError("[ToolWindowManager] Worker navigation cleanup failed", error);
+                }
+            });
+            toolView.webContents.on("will-redirect", async (event, _url, _isInPlace, isMainFrame) => {
+                if (!isMainFrame || !this.onOwnerDisposing) return;
+                event.preventDefault();
+                const cleanup = this.disposeToolOwner(instanceId);
+                this.loadedToolIdentities.delete(instanceId);
+                try {
+                    await cleanup;
+                } catch (error) {
+                    logError("[ToolWindowManager] Worker redirect cleanup failed", error);
+                }
             });
 
             // Get tool URL from custom protocol using the base toolId
@@ -389,6 +537,14 @@ export class ToolWindowManager {
                     } else {
                         logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId });
                     }
+                } else if (this.onOwnerDisposing) {
+                    event.preventDefault();
+                    void this.disposeToolOwner(instanceId)
+                        .then(async () => {
+                            this.loadedToolIdentities.delete(instanceId);
+                            if (!toolView.webContents.isDestroyed()) await toolView.webContents.loadURL(url);
+                        })
+                        .catch((error) => logError("[ToolWindowManager] Worker navigation cleanup failed", error));
                 }
             });
 
@@ -408,52 +564,35 @@ export class ToolWindowManager {
 
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
+            if (toolView.webContents.isDestroyed() || this.toolViews.get(instanceId) !== toolView) {
+                throw new Error("Tool instance closed while loading");
+            }
 
             // Apply current zoom level so the new tool matches the main window zoom
             toolView.webContents.setZoomLevel(this.mainWindow.webContents.getZoomLevel());
-
-            // Store the view with instanceId as key
-            this.toolViews.set(instanceId, toolView);
-            // Store the tool display name for the "Return to [CallerToolName]" banner
-            this.toolInstanceNames.set(instanceId, tool.name);
 
             // Get connection information for this tool instance
             // Connections are passed from frontend (per-instance), not retrieved from settings
             let connectionUrl: string | null = null;
             let secondaryConnectionUrl: string | null = null;
+            const connectionUrls: Array<string | null> = resolvedConnectionIds.map(() => null);
+            const connectionDetails: Array<LastUsedToolConnectionInfo | null> = resolvedConnectionIds.map(() => null);
 
             let primaryConnectionDetails: LastUsedToolConnectionInfo | undefined;
             let secondaryConnectionDetails: LastUsedToolConnectionInfo | undefined;
 
-            if (primaryConnectionId) {
-                // Get the actual connection object to retrieve the URL
-                const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
-                if (connection) {
-                    connectionUrl = connection.url;
-                    primaryConnectionDetails = {
-                        id: connection.id,
-                        name: connection.name,
-                        environment: connection.environment,
-                        url: connection.url,
-                    };
-                } else {
-                    primaryConnectionDetails = { id: primaryConnectionId };
-                }
-            }
-
-            // Check if tool has a secondary connection (for multi-connection tools)
-            if (secondaryConnectionId) {
-                const secondaryConnection = this.connectionsManager.getConnectionById(secondaryConnectionId);
-                if (secondaryConnection) {
-                    secondaryConnectionUrl = secondaryConnection.url;
-                    secondaryConnectionDetails = {
-                        id: secondaryConnection.id,
-                        name: secondaryConnection.name,
-                        environment: secondaryConnection.environment,
-                        url: secondaryConnection.url,
-                    };
-                } else {
-                    secondaryConnectionDetails = { id: secondaryConnectionId };
+            for (const [index, connectionId] of resolvedConnectionIds.entries()) {
+                if (!connectionId) continue;
+                const connection = this.connectionsManager.getConnectionById(connectionId);
+                const details: LastUsedToolConnectionInfo = connection ? { id: connection.id, name: connection.name, environment: connection.environment, url: connection.url } : { id: connectionId };
+                connectionDetails[index] = details;
+                if (connection) connectionUrls[index] = connection.url;
+                if (index === 0) {
+                    primaryConnectionDetails = details;
+                    connectionUrl = connection?.url ?? null;
+                } else if (index === 1) {
+                    secondaryConnectionDetails = details;
+                    secondaryConnectionUrl = connection?.url ?? null;
                 }
             }
 
@@ -469,6 +608,8 @@ export class ToolWindowManager {
                 connectionId: primaryConnectionId,
                 secondaryConnectionUrl: secondaryConnectionUrl,
                 secondaryConnectionId: secondaryConnectionId,
+                connectionIds: resolvedConnectionIds,
+                connectionUrls,
                 // Inter-tool launch context (only present when launched by another tool)
                 ...(pending
                     ? {
@@ -482,12 +623,6 @@ export class ToolWindowManager {
             toolView.webContents.send("toolbox:context", toolContext);
             logInfo(`[ToolWindowManager] Sent tool context for ${instanceId} with connection: ${connectionUrl ? "yes" : "no"}, secondary: ${secondaryConnectionUrl ? "yes" : "no"}`);
 
-            // Store connection info for this instance so IPC handlers can use it
-            this.toolConnectionInfo.set(instanceId, {
-                primaryConnectionId: primaryConnectionId,
-                secondaryConnectionId: secondaryConnectionId,
-            });
-
             // Show this tool instance
             await this.switchToTool(instanceId);
 
@@ -499,14 +634,36 @@ export class ToolWindowManager {
             // Add to recently used tools list
             this.settingsManager.addLastUsedTool({
                 toolId,
+                connections: connectionDetails,
                 primaryConnection: primaryConnectionDetails,
                 secondaryConnection: secondaryConnectionDetails,
             });
 
+            if (this.onToolLaunched) {
+                void Promise.resolve(this.onToolLaunched(instanceId, tool)).catch((error) => {
+                    logError("[ToolWindowManager] Tool launch callback failed", error);
+                });
+            }
+
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
+            if (launchingView && this.toolViews.get(instanceId) === launchingView) {
+                await this.closeTool(instanceId, { force: true });
+            }
             logError(`[ToolWindowManager] Error launching tool instance ${instanceId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: {
+                    operation: "launchTool",
+                    tool_id: tool.id,
+                },
+                extra: {
+                    instanceId,
+                    hasPrimaryConnection: primaryConnectionId !== null,
+                    hasSecondaryConnection: secondaryConnectionId !== null,
+                    hasPrefillData: prefillData !== undefined && Object.keys(prefillData).length > 0,
+                },
+            });
 
             return false;
         }
@@ -542,30 +699,57 @@ export class ToolWindowManager {
         prefillData: Record<string, unknown>,
         noReturn?: boolean,
         invocationContext?: InvocationContextMetadata,
+        connectionIds?: ConnectionIds,
     ): Promise<unknown> {
+        const invocationLogContext = {
+            callerInstanceId,
+            calleeInstanceId,
+            targetToolId: tool.id,
+            mode: noReturn ? "one-way" : "two-way",
+            source: invocationContext?.source ?? "tool",
+            correlationId: invocationContext?.correlationId,
+            hasPrimaryConnectionOverride: primaryConnectionId !== null,
+            hasSecondaryConnectionOverride: secondaryConnectionId !== null,
+            hasPrefillData: Object.keys(prefillData).length > 0,
+        };
+
+        logInfo("[ToolWindowManager] Inter-tool invocation requested", invocationLogContext);
+
         // One-at-a-time enforcement
         if (this.activeCallees.has(callerInstanceId)) {
-            throw new Error("A callee invocation is already in progress");
+            const error = new Error("A callee invocation is already in progress");
+            logError("[ToolWindowManager] Inter-tool invocation rejected", { ...invocationLogContext, error: error.message });
+            captureException(error, {
+                tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "validation" },
+                extra: invocationLogContext,
+            });
+            throw error;
         }
 
-        // FXS connection auto-inheritance: use caller's primary connection when none is specified
-        let effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
+        // Use caller's primary connection when none is specified
+        const inheritedConnectionIds = this.toolConnectionInfo.get(callerInstanceId)?.connectionIds ?? [];
+        let effectiveConnectionIds = connectionIds ? [...connectionIds] : [...inheritedConnectionIds];
+        while (effectiveConnectionIds.length < 2) effectiveConnectionIds.push(null);
+        effectiveConnectionIds[0] = primaryConnectionId ?? effectiveConnectionIds[0] ?? null;
+        effectiveConnectionIds[1] = secondaryConnectionId ?? effectiveConnectionIds[1] ?? null;
+        const connectionSlots = resolveConnectionSlots(tool.features);
+        while (effectiveConnectionIds.length < connectionSlots.min) effectiveConnectionIds.push(null);
+        const missingRequiredSlots = effectiveConnectionIds.slice(0, connectionSlots.min).some((connectionId) => !connectionId);
+        const hasInheritedConnection = effectiveConnectionIds.slice(0, connectionSlots.max).some(Boolean);
 
-        // Multi-connection: if the callee requires a secondary connection but none was provided,
-        // ask the main renderer to show the multi-connection selector before launching the tool.
-        const multiConnectionMode = tool.features?.multiConnection ?? "none";
-        const needsSecondary = multiConnectionMode === "required" || multiConnectionMode === "optional";
-        let effectiveSecondaryConnectionId = secondaryConnectionId;
-
-        if (needsSecondary && !effectiveSecondaryConnectionId) {
-            const isSecondaryRequired = multiConnectionMode === "required";
+        if (connectionSlots.max > 0 && (missingRequiredSlots || !hasInheritedConnection)) {
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
-                const connectionResult = await this.promptForInvocationConnections(requestId, tool.name, isSecondaryRequired, effectivePrimaryConnectionId);
-                effectivePrimaryConnectionId = connectionResult.primaryConnectionId;
-                effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
+                logInfo("[ToolWindowManager] Inter-tool invocation awaiting connection selection", invocationLogContext);
+                effectiveConnectionIds = await this.promptForInvocationConnections(requestId, tool.name, connectionSlots.min, connectionSlots.max, effectiveConnectionIds);
             } catch (err) {
-                throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+                const error = new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+                logError("[ToolWindowManager] Inter-tool invocation connection selection failed", { ...invocationLogContext, error: error.message });
+                captureException(error, {
+                    tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "connection_selection" },
+                    extra: invocationLogContext,
+                });
+                throw error;
             }
         }
 
@@ -580,29 +764,44 @@ export class ToolWindowManager {
                 invocationContext,
             });
             this.activeCallees.set(callerInstanceId, calleeInstanceId);
+            logInfo("[ToolWindowManager] Inter-tool invocation launching target", {
+                ...invocationLogContext,
+                resolvedSlotCount: connectionSlots.max,
+                filledSlotCount: effectiveConnectionIds.filter(Boolean).length,
+            });
 
-            this.launchTool(calleeInstanceId, tool, effectivePrimaryConnectionId, effectiveSecondaryConnectionId, prefillData)
+            this.launchTool(calleeInstanceId, tool, effectiveConnectionIds[0] ?? null, effectiveConnectionIds[1] ?? null, prefillData, effectiveConnectionIds)
                 .then((launched) => {
                     if (!launched) {
                         this.pendingInvocations.delete(calleeInstanceId);
                         this.activeCallees.delete(callerInstanceId);
-                        reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                        const error = new Error(`Failed to launch tool instance ${calleeInstanceId}`);
+                        logError("[ToolWindowManager] Inter-tool invocation target launch failed", { ...invocationLogContext, error: error.message });
+                        reject(error);
                         return;
                     }
+                    logInfo("[ToolWindowManager] Inter-tool invocation target launched", invocationLogContext);
                     // Notify the renderer to create a tab for the callee so it appears as a
                     // separate instance (its own tab) rather than replacing the caller's view.
                     this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_OPENED, {
                         calleeInstanceId,
                         callerInstanceId,
                         tool,
-                        primaryConnectionId: effectivePrimaryConnectionId,
-                        secondaryConnectionId: effectiveSecondaryConnectionId,
+                        primaryConnectionId: effectiveConnectionIds[0] ?? null,
+                        secondaryConnectionId: effectiveConnectionIds[1] ?? null,
+                        connectionIds: effectiveConnectionIds,
                     });
                 })
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
                     this.activeCallees.delete(callerInstanceId);
-                    reject(error as Error);
+                    const launchError = error instanceof Error ? error : new Error(String(error));
+                    logError("[ToolWindowManager] Inter-tool invocation target launch rejected", { ...invocationLogContext, error: launchError.message });
+                    captureException(launchError, {
+                        tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "target_launch" },
+                        extra: invocationLogContext,
+                    });
+                    reject(launchError);
                 });
         });
     }
@@ -613,19 +812,15 @@ export class ToolWindowManager {
      * Returns a Promise that resolves with the selected connection IDs once the user confirms,
      * or rejects if the user cancels the dialog.
      */
-    private promptForInvocationConnections(
-        requestId: string,
-        toolName: string,
-        isSecondaryRequired: boolean,
-        inheritedPrimaryConnectionId: string | null,
-    ): Promise<{ primaryConnectionId: string | null; secondaryConnectionId: string | null }> {
+    private promptForInvocationConnections(requestId: string, toolName: string, minConnections: number, maxConnections: number, inheritedConnectionIds: ConnectionIds): Promise<ConnectionIds> {
         return new Promise((resolve, reject) => {
             this.pendingConnectionPrompts.set(requestId, { resolve, reject });
             this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, {
                 requestId,
                 toolName,
-                isSecondaryRequired,
-                inheritedPrimaryConnectionId,
+                minConnections,
+                maxConnections,
+                inheritedConnectionIds,
             });
         });
     }
@@ -780,67 +975,32 @@ export class ToolWindowManager {
      * Close a tool (destroy its BrowserView)
      * @param instanceId The instance identifier to close
      */
-    async closeTool(instanceId: string): Promise<boolean> {
+    async closeTool(instanceId: string, options?: { force?: boolean }): Promise<boolean> {
         try {
             const toolView = this.toolViews.get(instanceId);
             if (!toolView) {
                 return false;
             }
 
-            // If this is the active tool instance, clear it from window
-            if (this.activeToolId === instanceId) {
-                this.mainWindow.setBrowserView(null);
-                this.activeToolId = null;
-                this.invokeActiveToolChangedCallback();
-            }
-
-            // Destroy the BrowserView's web contents
-            if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                // @ts-expect-error - destroy method exists but might not be in types
-                toolView.webContents.destroy();
-            }
-
-            // Remove from maps - also clean up connection info
-            this.toolViews.delete(instanceId);
-            this.toolConnectionInfo.delete(instanceId);
-            this.toolInstanceNames.delete(instanceId);
-
-            // If the tool was launched by another tool (inter-tool invocation) and it closes
-            // without calling returnData, resolve the caller's Promise with null so the caller
-            // doesn't hang indefinitely.
-            // Guard: skip resolve if resolveInvocation already handled it (auto-close path).
-            const pending = this.pendingInvocations.get(instanceId);
-            if (pending) {
-                this.pendingInvocations.delete(instanceId);
-                this.activeCallees.delete(pending.callerInstanceId);
-                if (!pending.resolved) {
-                    // Notify the caller view (if still alive)
-                    const callerView = this.toolViews.get(pending.callerInstanceId);
-                    if (callerView && !callerView.webContents.isDestroyed()) {
-                        callerView.webContents.send("toolbox:invocation-result", {
-                            calleeInstanceId: instanceId,
-                            returnData: null,
-                        });
-                    }
-                    pending.resolve(null);
+            if (!options?.force && this.preventCloseTools.has(instanceId)) {
+                const toolName = this.toolInstanceNames.get(instanceId) ?? "this tool";
+                const response = dialog.showMessageBoxSync(this.mainWindow, {
+                    type: "warning",
+                    title: "Tool closure blocked",
+                    message: `${toolName} is preventing closure.`,
+                    detail: "This tool needs to complete an operation. Are you sure you want to close it?",
+                    buttons: ["Cancel", "Ignore & Close"],
+                    defaultId: 0,
+                    cancelId: 0,
+                    noLink: true,
+                });
+                if (response !== 1) {
+                    return false;
                 }
             }
 
-            // If this was the active tool, hide the banner in the renderer
-            if (this.activeToolId === null) {
-                this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
-            }
-
-            // Dispose any terminals created by this tool instance
-            this.terminalManager.closeToolInstanceTerminals(instanceId);
-
-            // Revoke filesystem access for this specific tool instance
-            this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
-
-            // Notify split layout manager so it can deactivate split if a pane tool closed
-            this.splitLayoutManager?.handleToolClosed(instanceId);
-
-            logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
+            await this.disposeToolOwner(instanceId);
+            this.finalizeToolClose(instanceId, toolView);
             return true;
         } catch (error) {
             logError(`[ToolWindowManager] Error closing tool instance ${instanceId}`, error);
@@ -849,21 +1009,112 @@ export class ToolWindowManager {
         }
     }
 
+    private finalizeToolClose(instanceId: string, toolView: BrowserView): void {
+        if (this.toolViews.get(instanceId) !== toolView) return;
+        this.toolViews.delete(instanceId);
+        this.loadedToolIdentities.delete(instanceId);
+        this.toolConnectionInfo.delete(instanceId);
+        this.toolInstanceNames.delete(instanceId);
+        this.preventCloseTools.delete(instanceId);
+        const runCleanup = (action: () => void): void => {
+            try {
+                action();
+            } catch (error) {
+                logError(`[ToolWindowManager] Tool closure cleanup failed: ${instanceId}`, error);
+            }
+        };
+        if (this.activeToolId === instanceId) {
+            this.activeToolId = null;
+            runCleanup(() => this.mainWindow.setBrowserView(null));
+            runCleanup(() => this.invokeActiveToolChangedCallback());
+        }
+        runCleanup(() => this.mainWindow.removeBrowserView(toolView));
+        for (const [calleeInstanceId, pending] of this.pendingInvocations) {
+            if (calleeInstanceId !== instanceId && pending.callerInstanceId !== instanceId) continue;
+            this.pendingInvocations.delete(calleeInstanceId);
+            this.activeCallees.delete(pending.callerInstanceId);
+            if (!pending.resolved) {
+                pending.resolved = true;
+                pending.resolve(null);
+                const callerView = this.toolViews.get(pending.callerInstanceId);
+                if (callerView && !callerView.webContents.isDestroyed()) {
+                    runCleanup(() => callerView.webContents.send("toolbox:invocation-result", { calleeInstanceId, returnData: null }));
+                }
+            }
+        }
+        this.activeCallees.delete(instanceId);
+        if (this.activeToolId === null) {
+            runCleanup(() => this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false }));
+        }
+        runCleanup(() => this.terminalManager.closeToolInstanceTerminals(instanceId));
+        runCleanup(() => this.toolFilesystemAccessManager.revokeAllAccess(instanceId));
+        runCleanup(() => this.splitLayoutManager?.handleToolClosed(instanceId));
+        if (!toolView.webContents.isDestroyed()) {
+            runCleanup(() => {
+                // @ts-expect-error - destroy method exists but might not be in types
+                toolView.webContents.destroy();
+            });
+        }
+        logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
+    }
+
     /**
      * Get the primary connectionId for a tool instance by its WebContents
      * This is used by IPC handlers to determine which connection to use
      * @param webContentsId The ID of the WebContents making the request
      * @returns The connectionId or null if not found
      */
-    getConnectionIdByWebContents(webContentsId: number): string | null {
+    getConnectionIdByWebContents(webContentsId: number, connectionTarget: ConnectionTarget = "primary"): string | null {
+        const targetIndex = normalizeConnectionTarget(connectionTarget);
         // Find the instance that owns this WebContents
         for (const [instanceId, toolView] of this.toolViews.entries()) {
             if (toolView.webContents.id === webContentsId) {
                 const connectionInfo = this.toolConnectionInfo.get(instanceId);
-                return connectionInfo?.primaryConnectionId || null;
+                return connectionInfo?.connectionIds[targetIndex] ?? null;
             }
         }
         return null;
+    }
+
+    getConnectionDeletionBlocker(connectionId: string): string | null {
+        const usingToolNames = Array.from(this.toolConnectionInfo.entries())
+            .filter(([, connectionInfo]) => connectionInfo.connectionIds.includes(connectionId))
+            .map(([instanceId]) => this.toolInstanceNames.get(instanceId) ?? instanceId);
+        const uniqueToolNames = Array.from(new Set(usingToolNames));
+        if (uniqueToolNames.length === 0) return null;
+        return `Cannot delete this connection because it is assigned to open tools: ${uniqueToolNames.join(", ")}. Close those tools or remove the connection from them first.`;
+    }
+
+    getImpersonatedUserByWebContents(webContentsId: number, connectionTarget: ConnectionTarget = "primary"): DataverseUser | null {
+        const targetIndex = normalizeConnectionTarget(connectionTarget);
+        for (const [instanceId, toolView] of this.toolViews.entries()) {
+            if (toolView.webContents.id === webContentsId) return this.toolConnectionInfo.get(instanceId)?.impersonatedUsers[targetIndex] ?? null;
+        }
+        return null;
+    }
+
+    getImpersonation(instanceId: string, connectionTarget: ConnectionTarget = "primary"): { user: DataverseUser | null } {
+        const targetIndex = normalizeConnectionTarget(connectionTarget);
+        return { user: this.toolConnectionInfo.get(instanceId)?.impersonatedUsers[targetIndex] ?? null };
+    }
+
+    getPrimaryConnectionIdByInstance(instanceId: string): string | null {
+        return this.toolConnectionInfo.get(instanceId)?.connectionIds[0] ?? null;
+    }
+
+    setImpersonation(instanceId: string, user: DataverseUser, connectionTarget: ConnectionTarget = "primary"): void {
+        const info = this.toolConnectionInfo.get(instanceId);
+        const targetIndex = normalizeConnectionTarget(connectionTarget);
+        const connectionId = info?.connectionIds[targetIndex];
+        if (!info || !connectionId) throw new Error(`The tool has no ${connectionTarget} connection.`);
+        if (!user || !user.azureactivedirectoryobjectid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.azureactivedirectoryobjectid))
+            throw new Error("Selected Dataverse user has no valid Azure AD object ID.");
+        info.impersonatedUsers[targetIndex] = user;
+    }
+
+    resetImpersonation(instanceId: string, connectionTarget: ConnectionTarget = "primary"): void {
+        const info = this.toolConnectionInfo.get(instanceId);
+        if (info) info.impersonatedUsers[normalizeConnectionTarget(connectionTarget)] = null;
     }
 
     /**
@@ -873,30 +1124,22 @@ export class ToolWindowManager {
      * @returns The secondary connectionId or null if not found
      */
     getSecondaryConnectionIdByWebContents(webContentsId: number): string | null {
-        // Find the instance that owns this WebContents
-        for (const [instanceId, toolView] of this.toolViews.entries()) {
-            if (toolView.webContents.id === webContentsId) {
-                const connectionInfo = this.toolConnectionInfo.get(instanceId);
-                return connectionInfo?.secondaryConnectionId || null;
-            }
-        }
-        return null;
+        return this.getConnectionIdByWebContents(webContentsId, "secondary");
     }
 
     /**
      * Get the instanceId for a tool instance by its WebContents
      * This is used for per-instance operations like filesystem access control
      * @param webContentsId The ID of the WebContents making the request
-     * @returns The instanceId or null if not found (null means it's from main window, not a tool)
+     * @returns The instanceId or null if no live tool owns the sender
      */
     getInstanceIdByWebContents(webContentsId: number): string | null {
         // Find the instance that owns this WebContents
         for (const [instanceId, toolView] of this.toolViews.entries()) {
-            if (toolView.webContents.id === webContentsId) {
+            if (toolView.webContents.id === webContentsId && !toolView.webContents.isDestroyed()) {
                 return instanceId;
             }
         }
-        // Not a tool window - likely the main window
         return null;
     }
 
@@ -913,6 +1156,21 @@ export class ToolWindowManager {
         }
         // Extract toolId from instanceId (format: toolId-timestamp-random)
         return instanceId.split("-").slice(0, -2).join("-");
+    }
+
+    getToolIdentityByWebContents(webContentsId: number): { toolId: string; toolName: string } | null {
+        const instanceId = this.getInstanceIdByWebContents(webContentsId);
+        if (!instanceId) return null;
+        return {
+            toolId: instanceId.split("-").slice(0, -2).join("-"),
+            toolName: this.toolInstanceNames.get(instanceId) ?? "Unknown tool",
+        };
+    }
+
+    getLoadedToolIdentityByWebContents(webContentsId: number): LoadedToolIdentity | null {
+        const instanceId = this.getInstanceIdByWebContents(webContentsId);
+        if (!instanceId || this.toolViews.get(instanceId)?.webContents.isDestroyed()) return null;
+        return this.loadedToolIdentities.get(instanceId) ?? null;
     }
 
     /**
@@ -1077,32 +1335,13 @@ export class ToolWindowManager {
         this.invokeActiveToolChangedCallback();
 
         for (const [instanceId, toolView] of this.toolViews) {
-            try {
-                if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                    // @ts-expect-error - destroy method exists but might not be in types
-                    toolView.webContents.destroy();
-                }
-            } catch (error) {
-                logError(`[ToolWindowManager] Error destroying tool view ${instanceId} during closeAllToolViews`, error);
-            }
-
-            // Dispose any terminals created by this tool instance
-            try {
-                this.terminalManager.closeToolInstanceTerminals(instanceId);
-            } catch (error) {
-                logError(`[ToolWindowManager] Error closing terminals for instance ${instanceId} during closeAllToolViews`, error);
-            }
-
-            // Revoke filesystem access for this specific tool instance
-            try {
-                this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
-            } catch (error) {
-                logError(`[ToolWindowManager] Error revoking filesystem access for instance ${instanceId} during closeAllToolViews`, error);
-            }
+            this.finalizeToolClose(instanceId, toolView);
         }
 
         this.toolViews.clear();
+        this.loadedToolIdentities.clear();
         this.toolConnectionInfo.clear();
+        this.preventCloseTools.clear();
         logInfo("[ToolWindowManager] All stale tool views closed and state reset.");
     }
 
@@ -1134,57 +1373,50 @@ export class ToolWindowManager {
      * Sends updated connection information to a specific tool instance
      */
     async updateToolConnection(instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null): Promise<void> {
+        const currentConnectionIds = this.toolConnectionInfo.get(instanceId)?.connectionIds ?? [];
+        const connectionIds = [...currentConnectionIds];
+        connectionIds[0] = primaryConnectionId;
+        if (secondaryConnectionId !== undefined) connectionIds[1] = secondaryConnectionId;
+        await this.updateToolConnections(instanceId, connectionIds);
+    }
+
+    async updateToolConnections(instanceId: string, connectionIds: ConnectionIds): Promise<void> {
         const toolView = this.toolViews.get(instanceId);
         if (!toolView || toolView.webContents.isDestroyed()) {
             logWarn(`[ToolWindowManager] Tool instance ${instanceId} not found or destroyed`);
             return;
         }
 
-        // Update stored connection info
-        const connectionInfo = this.toolConnectionInfo.get(instanceId);
-        if (connectionInfo) {
-            connectionInfo.primaryConnectionId = primaryConnectionId;
-            if (secondaryConnectionId !== undefined) {
-                connectionInfo.secondaryConnectionId = secondaryConnectionId;
-            }
-        } else {
-            this.toolConnectionInfo.set(instanceId, {
-                primaryConnectionId,
-                secondaryConnectionId: secondaryConnectionId || null,
-            });
-        }
+        const previous = this.toolConnectionInfo.get(instanceId);
+        const impersonatedUsers = [...(previous?.impersonatedUsers ?? [])];
+        connectionIds.forEach((connectionId, index) => {
+            if (previous?.connectionIds[index] !== connectionId) impersonatedUsers[index] = null;
+        });
+        this.toolConnectionInfo.set(instanceId, {
+            connectionIds: [...connectionIds],
+            impersonatedUsers: connectionIds.map((_, index) => impersonatedUsers[index] ?? null),
+        });
 
-        // Get connection URLs
-        let connectionUrl: string | null = null;
-        let secondaryConnectionUrl: string | null = null;
+        const connectionUrls: Array<string | null> = connectionIds.map((connectionId) => {
+            if (!connectionId) return null;
+            return this.connectionsManager.getConnectionById(connectionId)?.url ?? null;
+        });
+        const primaryConnectionId = connectionIds[0] ?? null;
+        const secondaryConnectionId = connectionIds[1] ?? null;
+        const connectionUrl = connectionUrls[0] ?? null;
+        const secondaryConnectionUrl = connectionUrls[1] ?? null;
 
-        if (primaryConnectionId) {
-            const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
-            if (connection) {
-                connectionUrl = connection.url;
-            }
-        }
-
-        if (secondaryConnectionId) {
-            const connection = this.connectionsManager.getConnectionById(secondaryConnectionId);
-            if (connection) {
-                secondaryConnectionUrl = connection.url;
-            }
-        }
-
-        // Send updated context to the tool FIRST before any events
-        // This ensures the context is updated before any event handlers run
         const updatedContext = {
             connectionUrl,
             connectionId: primaryConnectionId,
             secondaryConnectionUrl,
             secondaryConnectionId,
+            connectionIds: [...connectionIds],
+            connectionUrls,
         };
 
         toolView.webContents.send("toolbox:context", updatedContext);
 
-        // Emit connection:updated event to the tool AFTER context is updated
-        // This allows the tool's event handler to call getActiveConnection() and get the updated connection
         const eventPayload = {
             event: ToolBoxEvent.CONNECTION_UPDATED,
             data: { id: primaryConnectionId },
@@ -1192,7 +1424,14 @@ export class ToolWindowManager {
         };
         toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
 
-        logInfo(`[ToolWindowManager] Updated connection for tool instance ${instanceId}: primaryConnectionId=${primaryConnectionId}, secondaryConnectionId=${secondaryConnectionId}`);
+        logInfo(`[ToolWindowManager] Updated connections for tool instance ${instanceId}: count=${connectionIds.length}`);
+    }
+
+    private getConnectionInfoByWebContents(webContentsId: number): { connectionIds: ConnectionIds; impersonatedUsers: Array<DataverseUser | null> } | null {
+        for (const [instanceId, toolView] of this.toolViews.entries()) {
+            if (toolView.webContents.id === webContentsId) return this.toolConnectionInfo.get(instanceId) ?? null;
+        }
+        return null;
     }
 
     /**
@@ -1208,10 +1447,13 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
         if (this.bannerVisibilityListener) ipcMain.removeListener("invocation-banner-visibility-changed", this.bannerVisibilityListener);
+        if (this.bannerVisibilityListener) ipcMain.removeListener("impersonation-banner-visibility-changed", this.bannerVisibilityListener);
         if (this.sidebarLayoutListener) ipcMain.removeListener("sidebar-layout-changed", this.sidebarLayoutListener);
         if (this.rendererInitializedListener) ipcMain.removeListener(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED, this.rendererInitializedListener);
 
@@ -1231,7 +1473,37 @@ export class ToolWindowManager {
             this.mainWindow.removeListener("show", this.showListener);
         }
 
-        this.closeAllToolViews();
+        if (this.onOwnerDisposing)
+            void this.drainToolOwners()
+                .then(() => this.closeAllToolViews())
+                .catch((error) => logError("[ToolWindowManager] Worker cleanup failed", error));
+        else this.closeAllToolViews();
+    }
+
+    hasPreventCloseTools(): boolean {
+        return this.preventCloseTools.size > 0;
+    }
+
+    confirmAppCloseIfPrevented(parentWindow?: BrowserWindow): boolean {
+        if (!this.hasPreventCloseTools()) {
+            return true;
+        }
+
+        const toolNames = Array.from(this.preventCloseTools)
+            .map((instanceId) => this.toolInstanceNames.get(instanceId))
+            .filter((name): name is string => Boolean(name));
+        const response = dialog.showMessageBoxSync(parentWindow ?? this.mainWindow, {
+            type: "warning",
+            title: "App closure blocked",
+            message: "One or more tools are preventing app closure.",
+            detail: `${toolNames.length > 0 ? `Tools: ${toolNames.join(", ")}.\n\n` : ""}Close anyway?`,
+            buttons: ["Cancel", "Ignore & Close"],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+
+        return response === 1;
     }
 
     /**
@@ -1293,6 +1565,15 @@ export class ToolWindowManager {
         }
 
         this.onActiveToolChanged = callback ?? null;
+    }
+
+    setOnToolLaunched(callback: ((instanceId: string, tool: Tool) => void | Promise<void>) | null | undefined): void {
+        if (callback !== null && callback !== undefined && typeof callback !== "function") {
+            logWarn("[ToolWindowManager] setOnToolLaunched called with non-function callback");
+            return;
+        }
+
+        this.onToolLaunched = callback ?? null;
     }
 
     /**

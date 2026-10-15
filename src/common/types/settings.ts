@@ -4,6 +4,7 @@
 
 import { Theme } from "./common";
 import { Connection } from "./connection";
+import { MyToolRating } from "./tool";
 
 /**
  * Sort options for installed tools
@@ -83,12 +84,14 @@ export interface LastUsedToolConnectionInfo {
 export interface LastUsedToolEntry {
     toolId: string;
     lastUsedAt: string;
+    connections?: Array<LastUsedToolConnectionInfo | null>;
     primaryConnection?: LastUsedToolConnectionInfo | null;
     secondaryConnection?: LastUsedToolConnectionInfo | null;
 }
 
 export interface LastUsedToolUpdate {
     toolId: string;
+    connections?: Array<LastUsedToolConnectionInfo | null>;
     primaryConnection?: LastUsedToolConnectionInfo | null;
     secondaryConnection?: LastUsedToolConnectionInfo | null;
     lastUsedAt?: string;
@@ -116,6 +119,12 @@ export interface CspConsentRecord {
     seenOptional: string[];
 }
 
+export interface DataverseHeaderConsentRecord {
+    status: "granted" | "revoked";
+    grantedAt: string;
+    revokedAt?: string;
+}
+
 /**
  * User settings for the ToolBox application
  */
@@ -133,12 +142,18 @@ export interface UserSettings {
     installedTools: string[]; // List of installed tool package names
     favoriteTools: string[]; // List of favorite tool IDs
     cspConsents: { [toolId: string]: CspConsentRecord }; // CSP consent records per tool
+    dataverseHeaderConsents: { [toolId: string]: DataverseHeaderConsentRecord }; // Dataverse additional-header consent records per tool
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
+    toolConnectionSlots?: { [toolId: string]: Array<string | null> };
     installId?: string; // Unique install identifier for analytics
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
+    sentryLastTrackedRelease?: string; // Last app release reported to Sentry for this install
+    sentryLastDisabledRelease?: string; // Last release with a one-time telemetry-disabled lifecycle entry
     pendingWhatsNewVersion?: string | null; // Version whose What's New should be shown after restart (auto-update)
     restoreSessionOnStartup?: boolean; // Whether to reopen previously open tools on app start
+    enableConnectionDoubleClickConnect?: boolean; // Enable double-click to trigger connection in connection selection modals
+    keepMcpServerRunning?: boolean; // Keep MCP server running by auto-starting it when tools open/reopen
     // Sort preferences
     installedToolsSort?: InstalledToolsSortOption;
     connectionsSort?: ConnectionsSortOption;
@@ -155,4 +170,6 @@ export interface UserSettings {
     marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
     sentryTelemetryConsent?: TelemetryConsentChoice | null; // User consent choice for Sentry warning/error telemetry
     proxy?: ProxySettings; // Node-side proxy settings for network calls in the main process
+    toolRatings?: { [toolId: string]: MyToolRating }; // This install's own submitted rating/comment per tool
+    reportedToolConcernIds?: string[]; // Tool IDs this install has already submitted a concern report for (local dedupe)
 }

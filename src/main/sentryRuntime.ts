@@ -1,9 +1,9 @@
 import * as Sentry from "@sentry/electron/main";
 import { app } from "electron";
 import { logWarn } from "../common/logger";
-import type { TelemetryConsentChoice } from "../common/types";
-import { getSentryConfig, scrubSentryEvent } from "../common/sentry";
+import { getSentryConfig, sanitizeSentryLog, scrubSentryEvent } from "../common/sentry";
 import { hasSentryTelemetryConsent, initializeSentryHelper, setSentryMachineId, setSentryTelemetryConsent } from "../common/sentryHelper";
+import type { TelemetryConsentChoice } from "../common/types";
 
 let isMainSentryInitialized = false;
 
@@ -28,16 +28,10 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
                 dsn: sentryConfig.dsn,
                 environment: sentryConfig.environment,
                 release: sentryConfig.release,
+                sampleRate: 1.0,
                 tracesSampleRate: sentryConfig.tracesSampleRate,
-                enableLogs: sentryConfig.environment === "development",
-                integrations: [
-                    Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }),
-                    Sentry.httpIntegration(),
-                    Sentry.nodeContextIntegration(),
-                    Sentry.contextLinesIntegration(),
-                    Sentry.localVariablesIntegration(),
-                    Sentry.modulesIntegration(),
-                ],
+                enableLogs: true,
+                integrations: [Sentry.httpIntegration(), Sentry.nodeContextIntegration(), Sentry.contextLinesIntegration(), Sentry.localVariablesIntegration(), Sentry.modulesIntegration()],
                 beforeSend(event) {
                     if (!hasSentryTelemetryConsent()) {
                         return null;
@@ -60,6 +54,12 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
 
                     return scrubbed;
                 },
+                beforeSendTransaction(event) {
+                    return hasSentryTelemetryConsent() ? scrubSentryEvent(event) : null;
+                },
+                beforeSendLog(log) {
+                    return sanitizeSentryLog(log, hasSentryTelemetryConsent());
+                },
             });
 
             initializeSentryHelper(Sentry);
@@ -68,14 +68,14 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
     }
 
     if (consent !== "yes") {
-        return false;
+        return consent === "no" ? false : isMainSentryInitialized;
     }
 
     if (!sentryConfig) {
         return false;
     }
 
-    if (installId) {
+    if (consent === "yes" && installId) {
         setSentryMachineId(installId);
     }
 

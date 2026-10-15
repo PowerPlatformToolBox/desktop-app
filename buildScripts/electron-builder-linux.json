@@ -4,9 +4,7 @@
         "target": [
             {
                 "target": "AppImage",
-                "arch": [
-                    "x64"
-                ]
+                "arch": ["x64"]
             }
         ],
         "category": "Development",
@@ -15,9 +13,7 @@
     "protocols": [
         {
             "name": "Power Platform ToolBox Protocol",
-            "schemes": [
-                "pptb"
-            ]
+            "schemes": ["pptb"]
         }
     ]
 }

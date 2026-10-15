@@ -4,7 +4,22 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { CapabilityTagEntry, CommunityLinksCollection, CspExceptions, MarketplaceSource, Tool, ToolFeatures, ToolManifest } from "../../common/types";
+import {
+    CapabilityTagEntry,
+    CommunityLinksCollection,
+    CspExceptions,
+    MarketplaceSource,
+    Tool,
+    ToolConcernReportResult,
+    ToolConcernReportSubmission,
+    ToolFeatures,
+    ToolIdea,
+    ToolIdeaSubmission,
+    ToolIdeaUpvoteResult,
+    ToolManifest,
+    ToolRegistryEntry,
+} from "../../common/types";
+import { readWorkerMetadata } from "../utilities/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
 import { ProxyManager } from "./proxyManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
@@ -82,24 +97,28 @@ export class ToolManager extends EventEmitter {
             features: manifest.features,
             categories: manifest.categories,
             license: manifest.license,
+            size: manifest.size,
             downloads: manifest.downloads,
             rating: manifest.rating,
             mau: manifest.mau,
             status: manifest.status,
             repository: manifest.repository,
             website: manifest.website,
-            readmeUrl: manifest.readme,
+            readmeUrl: manifest.readmeUrl,
             publishedAt: manifest.publishedAt,
             createdAt: manifest.createdAt,
             minAPI: manifest.minAPI,
-            maxAPI: manifest.maxAPI,
-            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            isSupported: VersionManager.isToolSupported(manifest.minAPI),
             mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
+            workers: manifest.workers,
             marketplaceSourceId: manifest.marketplaceSourceId,
             marketplaceSourceLabel: manifest.marketplaceSourceLabel,
             marketplaceSourceType: manifest.marketplaceSourceType,
+            maturity: manifest.maturity,
         };
+        if (manifest.source === "local") tool.localPath = manifest.installPath;
+        if (manifest.source === "npm" || manifest.source === "local") tool.npmPackageName = manifest.packageName;
 
         const cached = this.analyticsCache.get(tool.id);
         if (cached) {
@@ -131,6 +150,11 @@ export class ToolManager extends EventEmitter {
             if (!manifest) {
                 throw new Error(`Tool ${toolId} not found in registry`);
             }
+            if (manifest.source === "local") return this.loadLocalTool(manifest.installPath);
+            if (manifest.source === "npm") {
+                if (!manifest.packageName) throw new Error(`Npm tool ${toolId} is missing its package name`);
+                return this.loadNpmTool(manifest.packageName);
+            }
             const tool = this.loadToolFromManifest(manifest);
 
             // Refresh analytics for this tool only (non-blocking)
@@ -148,41 +172,7 @@ export class ToolManager extends EventEmitter {
      * Load tool from registry manifest
      */
     private loadToolFromManifest(manifest: ToolManifest): Tool {
-        const tool: Tool = {
-            id: manifest.id,
-            name: manifest.name,
-            version: manifest.version,
-            description: manifest.description,
-            authors: manifest.authors,
-            icon: manifest.icon,
-            cspExceptions: manifest.cspExceptions,
-            features: manifest.features,
-            categories: manifest.categories,
-            license: manifest.license,
-            downloads: manifest.downloads,
-            rating: manifest.rating,
-            mau: manifest.mau,
-            status: manifest.status,
-            repository: manifest.repository,
-            website: manifest.website,
-            readmeUrl: manifest.readme,
-            minAPI: manifest.minAPI,
-            maxAPI: manifest.maxAPI,
-            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
-            mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
-            capabilities: manifest.capabilities,
-            marketplaceSourceId: manifest.marketplaceSourceId,
-            marketplaceSourceLabel: manifest.marketplaceSourceLabel,
-            marketplaceSourceType: manifest.marketplaceSourceType,
-        };
-
-        const cached = this.analyticsCache.get(tool.id);
-        if (cached) {
-            tool.downloads = cached.downloads;
-            tool.rating = cached.rating;
-            tool.mau = cached.mau;
-        }
-
+        const tool = this.createToolFromInstalledManifest(manifest);
         this.tools.set(tool.id, tool);
         this.emit("tool:loaded", tool);
 
@@ -228,7 +218,7 @@ export class ToolManager extends EventEmitter {
         const tool = this.tools.get(toolId);
         if (tool) {
             // Always recompute isSupported in case ToolBox version changed
-            tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
+            tool.isSupported = VersionManager.isToolSupported(tool.minAPI);
             return tool;
         }
 
@@ -238,6 +228,31 @@ export class ToolManager extends EventEmitter {
         }
 
         return undefined;
+    }
+
+    resolveInvocationTarget(targetIdentifier: string): Tool | undefined {
+        const toolById = this.getTool(targetIdentifier);
+        if (toolById) {
+            return toolById;
+        }
+
+        const matchingTools = new Map<string, Tool>();
+        this.tools.forEach((tool) => {
+            if (tool.npmPackageName === targetIdentifier) {
+                matchingTools.set(tool.id, tool);
+            }
+        });
+        this.registryManager.getInstalledToolsSync().forEach((manifest) => {
+            if (manifest.packageName === targetIdentifier && !matchingTools.has(manifest.id)) {
+                matchingTools.set(manifest.id, this.createToolFromInstalledManifest(manifest));
+            }
+        });
+
+        if (matchingTools.size > 1) {
+            throw new Error(`Multiple installed tools match package name: ${targetIdentifier}`);
+        }
+
+        return matchingTools.values().next().value;
     }
 
     getInstalledManifestSync(toolId: string): ToolManifest | null {
@@ -257,7 +272,7 @@ export class ToolManager extends EventEmitter {
             const loaded = this.tools.get(manifest.id);
             if (loaded) {
                 // Always recompute isSupported in case ToolBox version changed
-                loaded.isSupported = VersionManager.isToolSupported(loaded.minAPI, loaded.maxAPI);
+                loaded.isSupported = VersionManager.isToolSupported(loaded.minAPI);
                 toolsById.set(manifest.id, loaded);
             } else {
                 toolsById.set(manifest.id, this.createToolFromInstalledManifest(manifest));
@@ -269,7 +284,7 @@ export class ToolManager extends EventEmitter {
         this.tools.forEach((tool, id) => {
             if (!toolsById.has(id)) {
                 // Recompute isSupported for these tools too
-                tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
+                tool.isSupported = VersionManager.isToolSupported(tool.minAPI);
                 toolsById.set(id, tool);
             }
         });
@@ -296,17 +311,42 @@ export class ToolManager extends EventEmitter {
     /**
      * Fetch available tools from registry
      */
-    async fetchAvailableTools(): Promise<Tool[]> {
+    async fetchAvailableTools(): Promise<ToolRegistryEntry[]> {
         const registryTools = await this.registryManager.fetchRegistry();
 
-        // Convert ToolRegistryEntry[] to Tool[] and add isSupported field
-        return registryTools.map((registryTool) => {
-            const tool: Tool = {
-                ...registryTool,
-                isSupported: VersionManager.isToolSupported(registryTool.minAPI, registryTool.maxAPI),
-            };
-            return tool;
-        });
+        return registryTools.map((registryTool) => ({
+            id: registryTool.id,
+            name: registryTool.name,
+            version: registryTool.version,
+            description: registryTool.description,
+            authors: registryTool.authors,
+            icon: registryTool.icon,
+            cspExceptions: registryTool.cspExceptions,
+            categories: registryTool.categories,
+            license: registryTool.license,
+            size: registryTool.size,
+            downloads: registryTool.downloads,
+            rating: registryTool.rating,
+            ratingCount: registryTool.ratingCount,
+            mau: registryTool.mau,
+            features: registryTool.features,
+            status: registryTool.status,
+            repository: registryTool.repository,
+            website: registryTool.website,
+            publishedAt: registryTool.publishedAt,
+            createdAt: registryTool.createdAt,
+            minAPI: registryTool.minAPI,
+            readmeUrl: registryTool.readmeUrl,
+            downloadUrl: registryTool.downloadUrl,
+            checksum: registryTool.checksum,
+            npmPackageName: registryTool.npmPackageName,
+            mcpHeadlessEnabled: registryTool.mcpHeadlessEnabled,
+            marketplaceSourceId: registryTool.marketplaceSourceId,
+            marketplaceSourceLabel: registryTool.marketplaceSourceLabel,
+            marketplaceSourceType: registryTool.marketplaceSourceType,
+            maturity: registryTool.maturity,
+            isSupported: VersionManager.isToolSupported(registryTool.minAPI),
+        }));
     }
 
     /**
@@ -381,20 +421,23 @@ export class ToolManager extends EventEmitter {
      */
     async uninstallTool(toolId: string): Promise<void> {
         const tool = this.tools.get(toolId);
+        const manifest = this.registryManager.getInstalledManifestSync(toolId);
 
         if (tool) {
             this.tools.delete(toolId);
             this.emit("tool:unloaded", tool);
         }
 
-        if (tool?.npmPackageName) {
-            const packageDir = this.resolvePackageDirectoryName(tool.npmPackageName);
-            const toolPath = path.join(this.toolsDirectory, "node_modules", packageDir);
-            if (fs.existsSync(toolPath)) {
+        const source = manifest?.source ?? (tool?.localPath ? "local" : tool?.npmPackageName ? "npm" : "registry");
+        if (source === "local") {
+            await this.registryManager.removeInstalledManifest(toolId);
+        } else if (source === "npm") {
+            const packageName = manifest?.packageName ?? tool?.npmPackageName;
+            const toolPath = manifest?.installPath ?? (packageName ? path.join(this.toolsDirectory, "node_modules", this.resolvePackageDirectoryName(packageName)) : undefined);
+            if (toolPath && fs.existsSync(toolPath)) {
                 fs.rmSync(toolPath, { recursive: true, force: true });
             }
-        } else if (tool?.localPath) {
-            // Do not delete local development tools, just unload them
+            await this.registryManager.removeInstalledManifest(toolId);
         } else {
             await this.registryManager.uninstallTool(toolId);
         }
@@ -412,7 +455,37 @@ export class ToolManager extends EventEmitter {
      * This should be called when a tool is launched/opened
      */
     async trackToolUsage(toolId: string): Promise<void> {
+        if (toolId.startsWith("local-") || toolId.startsWith("npm-")) {
+            return;
+        }
+
         await this.registryManager.trackToolUsage(toolId);
+    }
+
+    /**
+     * Submit (or update) this install's star rating/comment for a tool
+     */
+    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
+        return this.registryManager.submitToolRating(toolId, rating, comment);
+    }
+
+    /**
+     * Submit a "Report a Concern" for a tool
+     */
+    async submitConcernReport(report: ToolConcernReportSubmission): Promise<ToolConcernReportResult> {
+        return this.registryManager.submitConcernReport(report);
+    }
+
+    async fetchToolIdeas(): Promise<ToolIdea[]> {
+        return this.registryManager.fetchToolIdeas();
+    }
+
+    async submitToolIdea(idea: ToolIdeaSubmission): Promise<void> {
+        return this.registryManager.submitToolIdea(idea);
+    }
+
+    async upvoteToolIdea(ideaId: string): Promise<ToolIdeaUpvoteResult> {
+        return this.registryManager.upvoteToolIdea(ideaId);
     }
 
     // ========================================================================
@@ -639,6 +712,36 @@ export class ToolManager extends EventEmitter {
      * @param packageName - npm package name (may include a version/tag specifier like "@beta" or "@1.0.0")
      */
     async loadNpmTool(packageName: string): Promise<Tool> {
+        const toolPath = path.join(this.toolsDirectory, "node_modules", this.resolvePackageDirectoryName(packageName));
+        try {
+            return await this.loadNpmToolMetadata(packageName);
+        } catch (error) {
+            await this.removeRejectedWorkerMetadata(toolPath, "npm");
+            throw error;
+        }
+    }
+
+    private async removeRejectedWorkerMetadata(toolPath: string, source: "npm" | "local"): Promise<void> {
+        const rejectedIds = new Set<string>();
+        for (const manifest of this.registryManager.getInstalledToolsSync()) {
+            if (manifest.source === source && manifest.workers && path.resolve(manifest.installPath) === path.resolve(toolPath)) rejectedIds.add(manifest.id);
+        }
+        for (const tool of this.tools.values()) {
+            const cachedPath =
+                source === "local"
+                    ? tool.localPath
+                    : !tool.localPath && tool.npmPackageName
+                      ? path.join(this.toolsDirectory, "node_modules", this.resolvePackageDirectoryName(tool.npmPackageName))
+                      : undefined;
+            if (tool.workers && cachedPath && path.resolve(cachedPath) === path.resolve(toolPath)) rejectedIds.add(tool.id);
+        }
+        for (const toolId of rejectedIds) {
+            this.tools.delete(toolId);
+            await this.registryManager.removeInstalledManifest(toolId);
+        }
+    }
+
+    private async loadNpmToolMetadata(packageName: string): Promise<Tool> {
         logInfo(`[ToolManager] [DEBUG] Loading npm tool: ${packageName}`);
 
         // Resolve the actual directory name in node_modules — strip any version/tag specifier.
@@ -687,6 +790,7 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with npm path metadata
         const toolId = `npm-${sanitizedToolId}`;
+        const workers = readWorkerMetadata(toolPath, packageJson);
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
@@ -730,9 +834,12 @@ export class ToolManager extends EventEmitter {
             name: packageJson.displayName || packageJson.name,
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Tool installed from npm",
+            workers,
+            minAPI: packageJson.features?.minAPI,
+            isSupported: VersionManager.isToolSupported(packageJson.features?.minAPI),
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
             icon: packageJson.icon,
-            npmPackageName: packageName, // Store the npm package name for loading
+            npmPackageName: packageJson.name, // Store the canonical npm package name for loading and invocation lookup
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
@@ -742,6 +849,7 @@ export class ToolManager extends EventEmitter {
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
+        if (workers || this.registryManager.getInstalledManifestSync(toolId)?.source === "npm") await this.registryManager.saveDevelopmentTool(tool, toolPath, "npm");
         this.tools.set(toolId, tool);
         this.emit("tool:loaded", tool);
 
@@ -862,6 +970,15 @@ export class ToolManager extends EventEmitter {
      * @param localPath - Absolute path to the tool directory
      */
     async loadLocalTool(localPath: string): Promise<Tool> {
+        try {
+            return await this.loadLocalToolMetadata(localPath);
+        } catch (error) {
+            await this.removeRejectedWorkerMetadata(localPath, "local");
+            throw error;
+        }
+    }
+
+    private async loadLocalToolMetadata(localPath: string): Promise<Tool> {
         logInfo(`[ToolManager] [DEBUG] Loading local tool from: ${localPath}`);
 
         // Validate path safety
@@ -915,6 +1032,7 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with local path metadata
         const toolId = `local-${sanitizedToolId}`;
+        const workers = readWorkerMetadata(localPath, packageJson);
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
@@ -958,9 +1076,13 @@ export class ToolManager extends EventEmitter {
             name: packageJson.displayName || packageJson.name,
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Local development tool",
+            workers,
+            minAPI: packageJson.features?.minAPI,
+            isSupported: VersionManager.isToolSupported(packageJson.features?.minAPI),
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
             icon: packageJson.icon,
             localPath: localPath, // Store the local path for loading
+            npmPackageName: packageJson.name, // Store the canonical npm package name for invocation lookup
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
@@ -970,6 +1092,7 @@ export class ToolManager extends EventEmitter {
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
+        if (workers || this.registryManager.getInstalledManifestSync(toolId)?.source === "local") await this.registryManager.saveDevelopmentTool(tool, localPath, "local");
         this.tools.set(toolId, tool);
         this.emit("tool:loaded", tool);
 

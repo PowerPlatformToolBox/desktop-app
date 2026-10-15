@@ -16,7 +16,7 @@ describe("sentry consent modal view", () => {
         expect(body).toContain("Installed version");
         expect(body).toContain("Operating system");
         expect(body).toContain("CPU architecture");
-        expect(body).toContain("Warnings and errors only (no user data)");
+        expect(body).toContain("Error information");
     });
 });
 

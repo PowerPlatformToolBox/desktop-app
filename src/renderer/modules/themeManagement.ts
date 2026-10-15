@@ -27,6 +27,9 @@ export function applyTheme(theme: string): void {
     // Update pin icons in tabs when theme changes
     updatePinIconsForTheme();
 
+    // Update impersonation icons in tabs when theme changes
+    updateImpersonationIconsForTheme();
+
     // Update activity bar icons when theme changes
     updateActivityBarIconsForTheme();
 
@@ -41,6 +44,9 @@ export function applyTheme(theme: string): void {
 
     // Update tool detail tab icons when theme changes
     updateToolDetailIconsForTheme();
+
+    // Update verified badge icons when theme changes
+    updateVerifiedBadgeIconsForTheme();
 
     // Update homepage icon when theme changes
     updateHomepageIconForTheme();
@@ -65,6 +71,20 @@ export function updatePinIconsForTheme(): void {
             } else {
                 pinBtn.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
             }
+        }
+    });
+}
+
+/**
+ * Update impersonation icons to match current theme
+ */
+export function updateImpersonationIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+        const icon = tab.querySelector(".tool-tab-impersonation img") as HTMLImageElement;
+        if (icon) {
+            icon.src = isDarkTheme ? "icons/dark/impersonate.svg" : "icons/light/impersonate.svg";
         }
     });
 }
@@ -104,11 +124,6 @@ export function updateConnectionIconsForTheme(): void {
         exportIcon.src = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
     }
 
-    const consentsOpenTabIcon = document.getElementById("consents-open-tab-icon") as HTMLImageElement | null;
-    if (consentsOpenTabIcon) {
-        consentsOpenTabIcon.src = isDarkTheme ? "icons/dark/expand.svg" : "icons/light/expand.svg";
-    }
-
     // Update category group export icons
     const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
     document.querySelectorAll(".connection-group-export-icon").forEach((img) => {
@@ -143,6 +158,12 @@ export function updateToolSidebarIconsForTheme(): void {
     const starFilledIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
     const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
     const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+
+    // Update "Update all tools" header button icon (lives outside the tools list container)
+    const updateAllToolsIcon = document.getElementById("update-all-tools-icon") as HTMLImageElement | null;
+    if (updateAllToolsIcon) {
+        updateAllToolsIcon.src = (isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg") + cacheBuster;
+    }
 
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
@@ -295,6 +316,25 @@ export function updateToolDetailIconsForTheme(): void {
             (img as HTMLImageElement).src = defaultToolIcon + cacheBuster;
         }
     });
+}
+
+/**
+ * Update verified badge icons to match current theme
+ */
+export function updateVerifiedBadgeImageSources(isDarkTheme: boolean, badgeImages: ArrayLike<{ src: string }>): void {
+    const verifiedIconPath = isDarkTheme ? "icons/dark/verified.svg" : "icons/light/verified.svg";
+
+    for (const img of Array.from(badgeImages)) {
+        img.src = verifiedIconPath;
+    }
+}
+
+/**
+ * Update verified badge icons to match current theme
+ */
+export function updateVerifiedBadgeIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    updateVerifiedBadgeImageSources(isDarkTheme, document.querySelectorAll<HTMLImageElement>(".tool-verified-badge-icon"));
 }
 
 /**

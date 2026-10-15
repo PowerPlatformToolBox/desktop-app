@@ -1,4 +1,4 @@
-import { buildPreviewFeatureFlags, PREVIEW_FEATURE_IDS, PreviewFeatureId, UserSettings } from "../../common/types";
+import { buildPreviewFeatureFlags, PreviewFeatureId, UserSettings } from "../../common/types";
 
 interface PreviewFeatureDefinition {
     id: PreviewFeatureId;
@@ -9,21 +9,9 @@ interface PreviewFeatureDefinition {
 
 const PREVIEW_FEATURE_SETTINGS_ID_PREFIX = "sidebar-preview-feature-";
 
-const PREVIEW_FEATURE_DEFINITIONS: PreviewFeatureDefinition[] = [
-    {
-        id: PREVIEW_FEATURE_IDS.MCP_SERVER,
-        label: "Agentic AI capabilities (MCP Server)",
-        description:
-            "Enables MCP Server management in the sidebar for configuring and managing agentic AI capabilities. The server runs in the background to power your agentic AI tools. <br> Needs a restart of ToolBox to fully take effect.",
-        targetElementIds: ["mcp-btn"],
-    },
-];
+const PREVIEW_FEATURE_DEFINITIONS: PreviewFeatureDefinition[] = [];
 
 let activePreviewFeatureFlags: Record<PreviewFeatureId, boolean> = buildPreviewFeatureFlags();
-
-// Keep MCP-specific UI behind preview while the feature is in preview.
-// When MCP is generally available, set this to false (or remove checks that call isMcpPreviewUiEnabled).
-const GATE_MCP_UI_BEHIND_PREVIEW = true;
 
 function toggleElementVisibilityById(elementId: string, isVisible: boolean): void {
     const element = document.getElementById(elementId) as HTMLElement | null;
@@ -71,12 +59,4 @@ export function applyPreviewFeaturesVisibility(features: Record<PreviewFeatureId
 
 export function isPreviewFeatureEnabled(featureId: PreviewFeatureId): boolean {
     return activePreviewFeatureFlags[featureId] === true;
-}
-
-export function isMcpPreviewUiEnabled(): boolean {
-    if (!GATE_MCP_UI_BEHIND_PREVIEW) {
-        return true;
-    }
-
-    return isPreviewFeatureEnabled(PREVIEW_FEATURE_IDS.MCP_SERVER);
 }

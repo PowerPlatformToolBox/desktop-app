@@ -29,7 +29,7 @@ async function main(): Promise<void> {
     const pptbConfigPath = path.join(cwd, "pptb.config.json");
     if (fs.existsSync(pptbConfigPath)) {
         const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
-        const configResult = validatePPTBConfig(pptbConfig);
+        const configResult = validatePPTBConfig(pptbConfig, packageJson);
         console.log("\n⚙️  pptb.config.json validation");
         printResult(configResult);
 

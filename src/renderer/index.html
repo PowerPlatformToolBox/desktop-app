@@ -5,12 +5,58 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; img-src 'self' data: pptb-webview: https://github.com https://*.githubusercontent.com https://*.supabase.co https://*.blob.core.windows.net __PPTB_UPDATES_ORIGIN__; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co https://*.blob.core.windows.net __PPTB_UPDATES_ORIGIN__; frame-src 'self' pptb-webview:"
+            content="default-src 'self'; img-src 'self' data: pptb-webview: https://github.com https://*.githubusercontent.com https://*.supabase.co https://*.blob.core.windows.net __PPTB_UPDATES_ORIGIN__; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://www.powerplatformtoolbox.com https://*.crm.dynamics.com https://*.supabase.co https://*.blob.core.windows.net __PPTB_UPDATES_ORIGIN__; frame-src 'self' pptb-webview:"
         />
         <title>Power Platform ToolBox</title>
         <link rel="stylesheet" href="styles.scss" />
     </head>
     <body>
+        <header class="app-titlebar" id="app-titlebar">
+            <div class="app-titlebar-brand">
+                <img class="app-titlebar-app-icon" src="icons/dark/app-icon.svg" alt="" aria-hidden="true" />
+                <span>Power Platform ToolBox</span>
+                <button type="button" class="app-titlebar-button app-titlebar-sidebar-toggle" id="toggle-sidebar-btn" title="Hide sidebar" aria-label="Hide sidebar" aria-pressed="true">
+                    <svg class="sidebar-toggle-icon sidebar-toggle-icon-visible" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M5.25 2.75V13.25" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M9.5 6L7.5 8L9.5 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <svg class="sidebar-toggle-icon sidebar-toggle-icon-hidden" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M10.75 2.75V13.25" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M6.5 6L8.5 8L6.5 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+            <div class="app-titlebar-content" aria-label="Application toolbar">
+                <button type="button" class="app-titlebar-search" id="titlebar-search-btn" aria-label="Open global search">
+                    <svg class="app-titlebar-search-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M10.25 10.25L13.5 13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                    </svg>
+                    <span class="app-titlebar-search-placeholder">Search tools, connections, settings...</span>
+                    <kbd class="app-titlebar-search-shortcut">Ctrl+Shift+P</kbd>
+                </button>
+            </div>
+            <div class="app-titlebar-controls" aria-label="Window controls">
+                <button type="button" class="app-titlebar-button" id="window-minimize-btn" title="Minimize" aria-label="Minimize">
+                    <span class="window-control-glyph window-control-minimize" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="app-titlebar-button" id="window-maximize-btn" title="Maximize" aria-label="Maximize">
+                    <span class="window-control-glyph window-control-maximize" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="app-titlebar-button app-titlebar-close" id="window-close-btn" title="Close" aria-label="Close">
+                    <span class="window-control-glyph window-control-close" aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+        <nav class="app-menubar" id="app-menubar" aria-label="Application menu">
+            <button type="button" class="app-menubar-item" data-menu-label="File">File</button>
+            <button type="button" class="app-menubar-item" data-menu-label="Edit">Edit</button>
+            <button type="button" class="app-menubar-item" data-menu-label="View">View</button>
+            <button type="button" class="app-menubar-item" data-menu-label="Window">Window</button>
+            <button type="button" class="app-menubar-item" data-menu-label="Help">Help</button>
+        </nav>
         <div class="app-container">
             <!-- Activity Bar (PPTB-style narrow sidebar) -->
             <aside class="activity-bar" id="activity-bar">
@@ -40,10 +86,11 @@
                     </button>
                 </nav>
                 <nav class="activity-bar-footer">
-                    <button class="activity-item" id="mcp-btn" title="MCP Server (Preview)">
+                    <button class="activity-item mcp-activity-item" id="mcp-btn" title="MCP Server: Checking status" aria-label="MCP Server: Checking status" data-mcp-status="starting">
                         <img id="logs-icon" src="icons/dark/mcp.svg" alt="MCP Icon" class="activity-icon" />
+                        <span class="mcp-status-indicator" aria-hidden="true"></span>
                     </button>
-                    <button class="activity-item" data-sidebar="consents" title="Consent Review">
+                    <button class="activity-item" id="consent-review-activity-btn" title="Consent Review">
                         <img id="consent-icon" src="icons/dark/consent-shield.svg" alt="Consent Review Icon" class="activity-icon" />
                     </button>
                     <button class="activity-item" id="settings-activity-btn" title="Settings">
@@ -58,6 +105,11 @@
                 <div class="sidebar-content active" id="sidebar-tools">
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">INSTALLED</h2>
+                        <div class="sidebar-header-actions">
+                            <button id="sidebar-update-all-tools-btn" class="sidebar-icon-btn" title="Update all tools" aria-label="Update all tools" style="display: none">
+                                <img id="update-all-tools-icon" width="16" height="16" alt="" aria-hidden="true" />
+                            </button>
+                        </div>
                     </div>
                     <div class="sidebar-search-bar">
                         <div class="sidebar-search-input-wrapper">
@@ -90,6 +142,7 @@
                                 <option value="popularity">Popularity</option>
                                 <option value="rating">Highly Rated</option>
                                 <option value="downloads">Most Downloaded</option>
+                                <option value="maturity">Maturity (Verified first)</option>
                             </select>
                         </div>
                         <div class="filter-divider"></div>
@@ -119,6 +172,10 @@
                             <label class="filter-checkbox-label" for="tools-mcp-enabled-filter" id="tools-mcp-enabled-filter-row">
                                 <input type="checkbox" id="tools-mcp-enabled-filter" class="filter-checkbox-input" />
                                 <span>MCP Enabled</span>
+                            </label>
+                            <label class="filter-checkbox-label" for="tools-verified-only-filter">
+                                <input type="checkbox" id="tools-verified-only-filter" class="filter-checkbox-input" />
+                                <span>Verified only</span>
                             </label>
                         </div>
                     </div>
@@ -214,6 +271,7 @@
                 <div class="sidebar-content" id="sidebar-marketplace">
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">MARKETPLACE</h2>
+                        <button id="marketplace-suggest-tool-btn" class="sidebar-header-suggest-btn" type="button" title="Suggest a Tool" aria-label="Suggest a Tool">Suggest</button>
                     </div>
                     <div class="sidebar-search-bar">
                         <div class="sidebar-search-input-wrapper">
@@ -275,41 +333,16 @@
                                 <input type="checkbox" id="marketplace-mcp-enabled-filter" class="filter-checkbox-input" />
                                 <span>MCP Enabled</span>
                             </label>
+                            <label class="filter-checkbox-label" for="marketplace-verified-only-filter">
+                                <input type="checkbox" id="marketplace-verified-only-filter" class="filter-checkbox-input" />
+                                <span>Verified only</span>
+                            </label>
                         </div>
                     </div>
                     <div class="sidebar-body">
                         <div class="marketplace-tools-list-pptb" id="marketplace-tools-list">
                             <!-- Marketplace tools will be populated here -->
                         </div>
-                    </div>
-                </div>
-
-                <!-- Consent Review Sidebar -->
-                <div class="sidebar-content" id="sidebar-consents">
-                    <div class="sidebar-header">
-                        <h2 class="sidebar-title">CONSENT REVIEW</h2>
-                        <div class="sidebar-header-actions">
-                            <button id="sidebar-consents-open-tab-btn" class="fluent-button fluent-button-secondary" title="Open full view" aria-label="Open full view">
-                                <img id="consents-open-tab-icon" width="16" height="16" alt="" aria-hidden="true" />
-                                <span>Full View</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="sidebar-search-bar">
-                        <div class="sidebar-search-input-wrapper">
-                            <input type="text" id="consents-search-input" class="search-input" placeholder="Search tools..." />
-                            <button type="button" class="search-clear-btn" data-clear-target="consents-search-input" aria-label="Clear consent review search" title="Clear search">&times;</button>
-                        </div>
-                        <div class="filter-btn-group">
-                            <select id="consents-status-filter" class="filter-dropdown-select" aria-label="Filter consent status">
-                                <option value="all">All</option>
-                                <option value="granted">Granted</option>
-                                <option value="revoked">Revoked</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="sidebar-body">
-                        <div class="settings-container-sidebar" id="sidebar-consent-review-container"></div>
                     </div>
                 </div>
 
@@ -442,6 +475,10 @@
                                 <button id="invocation-banner-dismiss" class="invocation-banner-dismiss-btn" title="Dismiss banner (does not cancel invocation)" aria-label="Dismiss banner">✕</button>
                             </div>
                         </div>
+                        <!-- Impersonation Banner: sits above tool content when the active tool instance is impersonating a Dataverse user -->
+                        <div id="impersonation-banner" class="impersonation-banner" style="display: none" role="status" aria-live="polite">
+                            <span id="impersonation-banner-text" class="impersonation-banner-text"></span>
+                        </div>
                     </div>
                     <!-- Terminal Panel -->
                     <div class="terminal-panel" id="terminal-panel" style="display: none">
@@ -564,6 +601,15 @@
                                     <div class="sponsor-tier-price">$100/mo</div>
                                 </div>
                             </div>
+                            <div class="sponsor-list-section" id="homepage-sponsors-section" hidden>
+                                <div class="sponsor-list-header">
+                                    <h3 class="sponsor-list-title">Our Sponsors</h3>
+                                    <span class="sponsor-list-count" id="homepage-sponsors-count"></span>
+                                </div>
+                                <div class="sponsor-list" id="homepage-sponsors-list">
+                                    <div class="sponsor-list-loading">Loading sponsors...</div>
+                                </div>
+                            </div>
                             <!--TODO Add later when we have few sponsors-->
                             <!-- <div class="sponsor-stats">
                                 <div class="sponsor-count"><strong id="sponsor-count">23</strong> current sponsors</div>
@@ -640,6 +686,14 @@
                                 </div>
                                 <p class="quick-action-label">GitHub</p>
                             </div>
+                            <div class="quick-action-card" id="quick-action-suggest-tool">
+                                <div class="quick-action-icon">
+                                    <svg width="24" height="24" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true">
+                                        <path d="M10 2a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H3a1 1 0 1 1 0-2h6V3a1 1 0 0 1 1-1Z" />
+                                    </svg>
+                                </div>
+                                <p class="quick-action-label">Suggest a Tool</p>
+                            </div>
                         </section>
 
                         <!-- Homepage Footer -->
@@ -670,7 +724,7 @@
                     </svg>
                     <span class="footer-terminal-toggle-label">Show Terminal</span>
                 </button>
-                <span id="secondary-connection-status" class="secondary-connection-status"></span>
+                <div id="connection-slot-squares" class="connection-slot-squares" role="toolbar" aria-label="Additional connections" aria-live="polite"></div>
                 <button type="button" class="footer-bell-btn" id="footer-notification-bell-btn" title="Notifications" aria-label="Notifications" aria-pressed="false" aria-haspopup="true">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M10 2a6 6 0 0 0-6 6v2.586l-.707.707A1 1 0 0 0 4 13h12a1 1 0 0 0 .707-1.707L16 10.586V8a6 6 0 0 0-6-6zM10 18a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2z" />

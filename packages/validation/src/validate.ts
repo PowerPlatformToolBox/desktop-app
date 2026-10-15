@@ -24,7 +24,9 @@ export interface Configurations {
 }
 
 export interface Features {
+    connections?: number | { min?: number; max?: number };
     multiConnection?: "required" | "optional" | "none";
+    connectionRequirement?: "required" | "optional";
     minAPI?: string;
     enabledForPowerPlatformAPI?: boolean;
 }
@@ -67,6 +69,7 @@ export type AgentInvocationMode = "one-way" | "two-way";
 
 export interface AgentsConfig {
     version: string;
+    headless: boolean;
     invokable?: boolean;
     modes?: AgentInvocationMode[];
     defaultMode?: AgentInvocationMode;
@@ -83,6 +86,108 @@ export interface InvocationConfig {
 export interface PPTBConfig {
     invocation?: InvocationConfig;
     agents?: AgentsConfig;
+    workers?: Record<string, WorkerDeclaration>;
+}
+
+export type WorkerRollForward = "Disable" | "Latest" | "Minor" | "Major";
+export type WorkerTargetFramework = "net8.0" | "net9.0" | "net10.0";
+export type WorkerPlatform = "all" | "windows-x64" | "windows-arm64" | "macos-x64" | "macos-arm64" | "linux-x64" | "linux-arm64";
+export interface WorkerDeclaration {
+    kind: "dotnet-tool";
+    packageId: string;
+    packageVersion: string;
+    command: string;
+    dotnet: { targetFramework: WorkerTargetFramework; minimumRuntimeVersion: string; rollForward?: WorkerRollForward };
+    platforms: WorkerPlatform[];
+}
+export interface NormalizedWorkerDeclaration extends WorkerDeclaration {
+    dotnet: WorkerDeclaration["dotnet"] & { rollForward: WorkerRollForward };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function matchesEntireString(value: unknown, pattern: RegExp): value is string {
+    return typeof value === "string" && pattern.exec(value)?.[0] === value;
+}
+
+function isExactNuGetVersion(value: unknown): value is string {
+    if (!matchesEntireString(value, /^\d+(?:\.\d+){0,3}(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/)) return false;
+    return value
+        .split(/[+-]/, 1)[0]
+        .split(".")
+        .every((component) => Number(component) <= 2_147_483_647);
+}
+
+function rejectUnknownKeys(value: Record<string, unknown>, allowed: string[], field: string, errors: string[]): void {
+    for (const key of Object.keys(value)) {
+        if (!allowed.includes(key)) errors.push(`${field}.${key} is not supported`);
+    }
+}
+
+export function validateWorkers(value: unknown): { workers?: Record<string, NormalizedWorkerDeclaration>; errors: string[] } {
+    const errors: string[] = [];
+    if (!isRecord(value) || Object.keys(value).length === 0) return { errors: ["workers must be a non-empty object keyed by declaration ID"] };
+    const workers: Record<string, NormalizedWorkerDeclaration> = {};
+    for (const [workerId, declaration] of Object.entries(value).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))) {
+        const field = `workers.${workerId}`;
+        if (!matchesEntireString(workerId, /^[A-Za-z][A-Za-z0-9_-]{0,63}$/) || ["__proto__", "constructor", "prototype"].includes(workerId)) {
+            errors.push(`${field} has an invalid declaration ID`);
+        }
+        if (!isRecord(declaration)) {
+            errors.push(`${field} must be an object`);
+            continue;
+        }
+        rejectUnknownKeys(declaration, ["kind", "packageId", "packageVersion", "command", "dotnet", "platforms"], field, errors);
+        if (declaration.kind !== "dotnet-tool") errors.push(`${field}.kind must be dotnet-tool`);
+        if (!matchesEntireString(declaration.packageId, /^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*$/) || declaration.packageId.length > 100) {
+            errors.push(`${field}.packageId must be a NuGet package ID`);
+        }
+        if (!isExactNuGetVersion(declaration.packageVersion)) errors.push(`${field}.packageVersion must be an exact NuGet version`);
+        if (!matchesEntireString(declaration.command, /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/)) errors.push(`${field}.command must be a safe registered command name`);
+        if (!isRecord(declaration.dotnet)) {
+            errors.push(`${field}.dotnet must be an object`);
+        } else {
+            const dotnet = declaration.dotnet;
+            rejectUnknownKeys(dotnet, ["targetFramework", "minimumRuntimeVersion", "rollForward"], `${field}.dotnet`, errors);
+            if (!["net8.0", "net9.0", "net10.0"].includes(dotnet.targetFramework as string)) {
+                errors.push(`${field}.dotnet.targetFramework must be net8.0, net9.0 or net10.0`);
+            }
+            if (
+                !matchesEntireString(dotnet.minimumRuntimeVersion, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/) ||
+                dotnet.minimumRuntimeVersion.split(".").some((component) => Number(component) > 2_147_483_647) ||
+                `net${dotnet.minimumRuntimeVersion.split(".").slice(0, 2).join(".")}` !== dotnet.targetFramework
+            ) {
+                errors.push(`${field}.dotnet.minimumRuntimeVersion must be major.minor.patch matching targetFramework`);
+            }
+            if (Object.prototype.hasOwnProperty.call(dotnet, "rollForward") && !["Disable", "Latest", "Minor", "Major"].includes(dotnet.rollForward as string)) {
+                errors.push(`${field}.dotnet.rollForward must be Disable, Latest, Minor or Major`);
+            }
+        }
+        const platforms = declaration.platforms;
+        if (
+            !Array.isArray(platforms) ||
+            platforms.length === 0 ||
+            platforms.some((platform) => !["all", "windows-x64", "windows-arm64", "macos-x64", "macos-arm64", "linux-x64", "linux-arm64"].includes(platform)) ||
+            new Set(platforms).size !== platforms.length ||
+            (platforms.includes("all") && platforms.length !== 1)
+        ) {
+            errors.push(`${field}.platforms must be a non-empty unique list of supported PPTB platform aliases; all must appear alone`);
+        }
+        if (errors.length === 0) {
+            const worker = declaration as unknown as WorkerDeclaration;
+            workers[workerId] = {
+                kind: worker.kind,
+                packageId: worker.packageId,
+                packageVersion: worker.packageVersion,
+                command: worker.command,
+                dotnet: { targetFramework: worker.dotnet.targetFramework, minimumRuntimeVersion: worker.dotnet.minimumRuntimeVersion, rollForward: worker.dotnet.rollForward ?? "Major" },
+                platforms: [...worker.platforms].sort(),
+            };
+        }
+    }
+    return errors.length ? { errors } : { errors, workers };
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +197,8 @@ export interface PPTBConfig {
 export const APPROVED_LICENSES = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "GPL-2.0", "GPL-3.0", "LGPL-3.0", "ISC", "AGPL-3.0-only"];
 
 export const VALID_MULTI_CONNECTION_VALUES = ["required", "optional", "none"] as const;
+
+export const VALID_CONNECTION_REQUIREMENT_VALUES = ["required", "optional"] as const;
 
 /**
  * Keep in sync with BUILT_IN_CAPABILITY_TAGS in
@@ -329,17 +436,60 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
     if (packageJson.features !== undefined) {
         const features = packageJson.features;
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
-            errors.push("features must be a non-array object with optional 'multiConnection', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
+            errors.push("features must be a non-array object with optional 'connections', 'multiConnection', 'connectionRequirement', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI", "enabledForPowerPlatformAPI"];
+            const VALID_FEATURE_KEYS = ["connections", "multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
             const invalidKeys = Object.keys(features).filter((k) => !VALID_FEATURE_KEYS.includes(k));
             if (invalidKeys.length > 0) {
                 errors.push(`features can only contain ${VALID_FEATURE_KEYS.map((k) => `'${k}'`).join(", ")} properties. Invalid properties: ${invalidKeys.join(", ")}`);
             }
-            if (features.multiConnection === undefined) {
-                errors.push("features.multiConnection is required when features object is provided");
+
+            const usesModernConnections = features.connections !== undefined;
+            const usesLegacyConnectionFields = features.multiConnection !== undefined || features.connectionRequirement !== undefined;
+            if (usesModernConnections && usesLegacyConnectionFields) {
+                errors.push("features.connections cannot be combined with legacy features.multiConnection or features.connectionRequirement; remove the legacy fields");
+            }
+            if (usesLegacyConnectionFields) {
+                const legacyFields = [
+                    features.multiConnection !== undefined ? "features.multiConnection" : null,
+                    features.connectionRequirement !== undefined ? "features.connectionRequirement" : null,
+                ].filter((field): field is string => field !== null);
+                warnings.push(`Legacy connection feature fields (${legacyFields.join(", ")}) are deprecated; use features.connections instead`);
+            }
+
+            if (usesModernConnections) {
+                const connections = features.connections;
+                if (typeof connections === "number") {
+                    if (!Number.isInteger(connections) || connections < 0 || connections > 10) {
+                        errors.push("features.connections must be an integer between 0 and 10");
+                    }
+                } else if (connections === null || typeof connections !== "object" || Array.isArray(connections)) {
+                    errors.push("features.connections must be an integer or an object with optional 'min' and 'max' properties");
+                } else {
+                    const invalidConnectionKeys = Object.keys(connections).filter((key) => key !== "min" && key !== "max");
+                    if (invalidConnectionKeys.length > 0) {
+                        errors.push(`features.connections can only contain 'min' and 'max' properties. Invalid properties: ${invalidConnectionKeys.join(", ")}`);
+                    }
+
+                    const min = connections.min ?? 1;
+                    const max = connections.max ?? min;
+                    if (connections.min !== undefined && (!Number.isInteger(connections.min) || connections.min < 0 || connections.min > 10)) {
+                        errors.push("features.connections.min must be an integer between 0 and 10");
+                    }
+                    if (connections.max !== undefined && (!Number.isInteger(connections.max) || connections.max < 0 || connections.max > 10)) {
+                        errors.push("features.connections.max must be an integer between 0 and 10");
+                    }
+                    if (Number.isInteger(min) && Number.isInteger(max) && min > max) {
+                        errors.push("features.connections.min must be less than or equal to features.connections.max");
+                    }
+                }
+            } else if (features.multiConnection === undefined) {
+                errors.push("features.multiConnection is required when features object is provided without features.connections");
             } else if (!(VALID_MULTI_CONNECTION_VALUES as readonly string[]).includes(features.multiConnection)) {
                 errors.push(`features.multiConnection must be one of: ${VALID_MULTI_CONNECTION_VALUES.join(", ")}`);
+            }
+            if (features.connectionRequirement !== undefined && !(VALID_CONNECTION_REQUIREMENT_VALUES as readonly string[]).includes(features.connectionRequirement)) {
+                errors.push(`features.connectionRequirement must be one of: ${VALID_CONNECTION_REQUIREMENT_VALUES.join(", ")}`);
             }
             if (features.minAPI !== undefined) {
                 if (typeof features.minAPI !== "string" || !SEMVER_REGEX.test(features.minAPI)) {
@@ -380,7 +530,7 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
 // validatePPTBConfig
 // ---------------------------------------------------------------------------
 
-export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
+export function validatePPTBConfig(config: PPTBConfig, packageJson?: Pick<ToolPackageJson, "features">): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -389,10 +539,16 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
         return { valid: false, errors, warnings };
     }
 
-    const VALID_ROOT_KEYS = ["invocation", "agents"];
+    const VALID_ROOT_KEYS = ["invocation", "agents", "workers"];
     const unknownRootKeys = Object.keys(config).filter((k) => !VALID_ROOT_KEYS.includes(k));
     if (unknownRootKeys.length > 0) {
         warnings.push(`pptb.config.json contains unrecognised root keys: ${unknownRootKeys.join(", ")}`);
+    }
+
+    const workerResult = Object.prototype.hasOwnProperty.call(config, "workers") ? validateWorkers(config.workers) : undefined;
+    if (workerResult) errors.push(...workerResult.errors);
+    if (workerResult && packageJson !== undefined && !matchesEntireString(packageJson.features?.minAPI, SEMVER_REGEX)) {
+        errors.push("Worker declarations require a valid package.json features.minAPI");
     }
 
     if (config.invocation !== undefined) {
@@ -457,6 +613,12 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
                 errors.push(`agents.version "${agents.version}" is not a valid semantic version string (e.g. "1.0.0")`);
             }
 
+            if (agents.headless === undefined) {
+                errors.push("agents.headless is required");
+            } else if (typeof agents.headless !== "boolean") {
+                errors.push("agents.headless must be a boolean (true or false)");
+            }
+
             if (agents.invokable !== undefined && typeof agents.invokable !== "boolean") {
                 errors.push("agents.invokable must be a boolean (true or false)");
             }
@@ -467,7 +629,7 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
                 } else {
                     agents.modes.forEach((mode, idx) => {
                         if (mode !== "one-way" && mode !== "two-way") {
-                            errors.push(`agents.modes[${idx}] must be either \"one-way\" or \"two-way\"`);
+                            errors.push(`agents.modes[${idx}] must be either "one-way" or "two-way"`);
                         }
                     });
                 }
@@ -494,6 +656,6 @@ export function validatePPTBConfig(config: PPTBConfig): ValidationResult {
         valid,
         errors,
         warnings,
-        packageInfo: valid ? { invocation: config.invocation, agents: config.agents } : undefined,
+        packageInfo: valid ? { invocation: config.invocation, agents: config.agents, ...(workerResult ? { workers: workerResult.workers } : {}) } : undefined,
     };
 }

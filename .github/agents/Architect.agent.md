@@ -1,7 +1,7 @@
 ---
 name: Tech Designer
 description: Produces the technical design for the plan: file touch points, IPC boundaries, Electron security model, and error-handling. No code changes.
-tools: [vscode, read, agent, edit, search, web, azure-mcp/search, 'microsoftdocs/mcp/*', 'playwright/*', github.vscode-pull-request-github/issue_fetch, github.vscode-pull-request-github/suggest-fix, github.vscode-pull-request-github/searchSyntax, github.vscode-pull-request-github/doSearch, github.vscode-pull-request-github/renderIssues, github.vscode-pull-request-github/activePullRequest, github.vscode-pull-request-github/openPullRequest]
+tools: [vscode, read, agent, edit, search, web, 'microsoftdocs/mcp/*', 'playwright/*']
 target: vscode
 ---
 

@@ -18,6 +18,15 @@ export enum ToolBoxEvent {
     TERMINAL_OUTPUT = "terminal:output",
     TERMINAL_COMMAND_COMPLETED = "terminal:command:completed",
     TERMINAL_ERROR = "terminal:error",
+    MCP_HEADLESS_JOB_UPDATED = "mcp:headless-job-updated",
+    MCP_SERVER_STATUS_CHANGED = "mcp:server-status-changed",
+}
+
+export type McpServerStatus = "starting" | "running" | "stopped" | "error";
+
+export interface McpServerStatusChange {
+    status: McpServerStatus;
+    error?: string;
 }
 
 /**

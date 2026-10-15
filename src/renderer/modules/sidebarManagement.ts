@@ -5,7 +5,6 @@
 
 import { logError } from "../../common/logger";
 import { loadSidebarCommunityResources } from "./communityResourcesSidebarManagement";
-import { loadSidebarConsentReview } from "./cspConsentReviewSidebarManagement";
 import { loadSettings } from "./settingsManagement";
 
 // Track current sidebar
@@ -16,6 +15,16 @@ let currentSidebarId: string | null = "tools";
  */
 export function getCurrentSidebarId(): string | null {
     return currentSidebarId;
+}
+
+/** Toggle the currently selected sidebar without changing its active panel. */
+export function toggleSidebar(): void {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+
+    const activeSidebar = document.querySelector<HTMLElement>(".sidebar-content.active");
+    const activeSidebarId = currentSidebarId ?? (activeSidebar?.id.startsWith("sidebar-") ? activeSidebar.id.slice("sidebar-".length) : "tools");
+    switchSidebar(activeSidebarId);
 }
 
 /**
@@ -52,13 +61,6 @@ export function switchSidebar(sidebarId: string): void {
             // Load links when re-expanding links sidebar
             if (sidebarId === "links") {
                 loadSidebarCommunityResources().catch((err) => {
-                    logError(err instanceof Error ? err : new Error(String(err)));
-                });
-            }
-
-            // Load consent review when re-expanding consent sidebar
-            if (sidebarId === "consents") {
-                loadSidebarConsentReview().catch((err) => {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
             }
@@ -99,13 +101,6 @@ export function switchSidebar(sidebarId: string): void {
     // Load links when switching to links sidebar
     if (sidebarId === "links") {
         loadSidebarCommunityResources().catch((err) => {
-            logError(err instanceof Error ? err : new Error(String(err)));
-        });
-    }
-
-    // Load consent review when switching to consent sidebar
-    if (sidebarId === "consents") {
-        loadSidebarConsentReview().catch((err) => {
             logError(err instanceof Error ? err : new Error(String(err)));
         });
     }

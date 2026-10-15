@@ -28,10 +28,14 @@
  *   },
  *   "agents": {
  *     "version": "1.0.0",
+ *     "headless": false,
  *     "invokable": true,
  *     "modes": ["one-way", "two-way"],
  *     "defaultMode": "two-way",
- *     "timeoutMS": 12000
+ *     "timeoutMS": 12000,
+ *     "executionModes": ["windowed", "headless"],
+ *     "defaultExecutionMode": "headless",
+ *     "headlessEntry": "dist/headless.js"
  *   }
  * }
  * ```
@@ -102,19 +106,26 @@ export interface JsonSchemaObject {
  *   when it finishes.
  */
 export type AgentInvocationMode = "one-way" | "two-way";
+export type AgentExecutionMode = "windowed" | "headless";
 
 /**
  * Agent-specific launch contract for external automation callers.
  *
  * - `version`: semantic version for the agent-facing contract.
+ * - `headless`: whether the tool supports headless execution (required when agents is present).
  * - `invokable`: opt-in flag that exposes the tool to the MCP server.
  * - `modes`: supported MCP invocation modes for this tool.
  * - `defaultMode`: fallback mode when the caller does not specify one.
  * - `timeoutMS`: optional timeout hint, in milliseconds, for two-way calls.
+ * - `executionModes`: supported execution modes for this tool.
+ * - `defaultExecutionMode`: fallback execution mode when the caller does not specify one.
+ * - `headlessEntry`: path to the compiled automated runtime entry point.
  */
 export interface AgentsConfig {
     /** Semantic version of this agent contract. */
     version: string;
+    /** Whether the tool supports headless execution. */
+    headless: boolean;
     /** Whether the tool may be invoked by an external agent. */
     invokable?: boolean;
     /** Invocation modes supported by the tool when called by an agent. */
@@ -123,6 +134,12 @@ export interface AgentsConfig {
     defaultMode?: AgentInvocationMode;
     /** Optional timeout hint, in milliseconds, for agent-driven two-way calls. */
     timeoutMS?: number;
+    /** Execution modes supported by the tool. */
+    executionModes?: AgentExecutionMode[];
+    /** Default execution mode when an agent does not request one explicitly. */
+    defaultExecutionMode?: AgentExecutionMode;
+    /** Path to the compiled automated runtime entry point. */
+    headlessEntry?: string;
 }
 
 export interface InvocationConfig {
@@ -157,15 +174,40 @@ export interface InvocationConfig {
 }
 
 /**
- * The shape of a tool's `pptb.config.json` file.
- *
- * This file lives alongside `package.json` in the tool's package root.
- * All sections are optional; the file itself is optional.  When present it
- * is validated by `pptb-validate` in addition to `package.json`.
+ * Author-facing runtime policy. Latest maps to native LatestMajor in later runtime work.
  */
+export type WorkerRollForward = "Disable" | "Latest" | "Minor" | "Major";
+export type WorkerTargetFramework = "net8.0" | "net9.0" | "net10.0";
+export type WorkerPlatform = "all" | "windows-x64" | "windows-arm64" | "macos-x64" | "macos-arm64" | "linux-x64" | "linux-arm64";
+
+/** Declarative metadata only; no worker execution API is available yet. */
+export interface WorkerDeclaration {
+    kind: "dotnet-tool";
+    packageId: string;
+    /** Exact NuGet version; ranges, floating versions and tags are forbidden. */
+    packageVersion: string;
+    command: string;
+    dotnet: {
+        targetFramework: WorkerTargetFramework;
+        /** Stable major.minor.patch matching the executable target framework. */
+        minimumRuntimeVersion: string;
+        /** Defaults to Major when omitted. Explicit null/empty/unknown values are invalid. */
+        rollForward?: WorkerRollForward;
+    };
+    /** Required unique aliases; all must appear alone and names the versioned officially supported PPTB platform matrix. */
+    platforms: WorkerPlatform[];
+}
+
+export interface NormalizedWorkerDeclaration extends WorkerDeclaration {
+    dotnet: WorkerDeclaration["dotnet"] & { rollForward: WorkerRollForward };
+}
+
+/** Optional package-root config, validated alongside package.json by pptb-validate. */
 export interface PPTBConfig {
     /** Invocation contract – how this tool can be called by other tools. */
     invocation?: InvocationConfig;
     /** Agent contract – how this tool can be called by external automation. */
     agents?: AgentsConfig;
+    /** Native worker declarations keyed by stable ID. Requires package.json features.minAPI. */
+    workers?: Record<string, WorkerDeclaration>;
 }

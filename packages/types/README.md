@@ -9,6 +9,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [CLI options](#cli-options)
         - [What is validated](#what-is-validated)
             - [pptb.config.json (optional)](#pptbconfigjson-optional)
+    - [Additional Headers and Batch Operations](#additional-headers-and-batch-operations)
     - [Overview](#overview)
     - [Usage](#usage)
         - [Include all type definitions](#include-all-type-definitions)
@@ -17,6 +18,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Connections](#connections)
         - [Utilities](#utilities)
         - [Terminal Operations](#terminal-operations)
+        - [Native Workers](#native-workers)
         - [Events](#events)
         - [Inter-Tool Invocation](#inter-tool-invocation)
             - [Caller: launching another tool with prefill data](#caller-launching-another-tool-with-prefill-data)
@@ -41,6 +43,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
             - [Connections](#connections-1)
             - [Utils](#utils)
             - [Terminal](#terminal)
+            - [Workers](#workers)
             - [Events](#events-1)
             - [Invocation](#invocation)
         - [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
@@ -106,43 +109,56 @@ npx pptb-validate path/to/package.json
 
 The validator checks every field that the official review pipeline inspects:
 
-| Field                       | Required | Rules                                                                                                                                  |
-| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                      | ✅       | Must be a string                                                                                                                       |
-| `version`                   | ✅       | Must be a string                                                                                                                       |
-| `displayName`               | ✅       | Must be a string                                                                                                                       |
-| `description`               | ✅       | Must be a string                                                                                                                       |
-| `license`                   | ✅       | Must be one of the approved OSS licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, GPL-2.0, GPL-3.0, LGPL-3.0, ISC, AGPL-3.0-only) |
-| `contributors`              | ✅       | Non-empty array; each entry needs a `name`                                                                                             |
-| `configurations.repository` | ✅       | Valid, reachable URL                                                                                                                   |
-| `configurations.readmeUrl`  | ✅       | Valid URL; must **not** be hosted on `github.com` (use `raw.githubusercontent.com`)                                                    |
-| `configurations.website`    | ❌       | Valid, reachable URL when provided                                                                                                     |
-| `configurations.funding`    | ❌       | Valid, reachable URL when provided                                                                                                     |
-| `icon`                      | ❌       | Relative path to a `.svg` file bundled under `dist/`; must not be an HTTP URL or an absolute path                                      |
-| `cspExceptions`             | ❌       | When present: must not be empty; only recognised directives; each directive must be a non-empty array                                  |
-| `features.multiConnection`  | ❌\*     | Required when `features` is present; must be `"required"`, `"optional"`, or `"none"`                                                   |
-| `features.minAPI`           | ❌       | Valid semver string when provided                                                                                                      |
+| Field                            | Required | Rules                                                                                                                                  |
+| -------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                           | ✅       | Must be a string                                                                                                                       |
+| `version`                        | ✅       | Must be a string                                                                                                                       |
+| `displayName`                    | ✅       | Must be a string                                                                                                                       |
+| `description`                    | ✅       | Must be a string                                                                                                                       |
+| `license`                        | ✅       | Must be one of the approved OSS licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, GPL-2.0, GPL-3.0, LGPL-3.0, ISC, AGPL-3.0-only) |
+| `contributors`                   | ✅       | Non-empty array; each entry needs a `name`                                                                                             |
+| `configurations.repository`      | ✅       | Valid, reachable URL                                                                                                                   |
+| `configurations.readmeUrl`       | ✅       | Valid URL; must **not** be hosted on `github.com` (use `raw.githubusercontent.com`)                                                    |
+| `configurations.website`         | ❌       | Valid, reachable URL when provided                                                                                                     |
+| `configurations.funding`         | ❌       | Valid, reachable URL when provided                                                                                                     |
+| `icon`                           | ❌       | Relative path to a `.svg` file bundled under `dist/`; must not be an HTTP URL or an absolute path                                      |
+| `cspExceptions`                  | ❌       | When present: must not be empty; only recognised directives; each directive must be a non-empty array                                  |
+| `features.connections`           | ❌       | Number `0..10` for an exact count, or `{ min?, max? }` where `0 <= min <= max <= 10`; defaults to exactly one connection               |
+| `features.minAPI`                | ❌       | Valid semver string when provided                                                                                                      |
+| `features.multiConnection`       | ❌       | **Deprecated.** Legacy cardinality field; use `features.connections` instead. Required with legacy feature declarations only.          |
+| `features.connectionRequirement` | ❌       | **Deprecated.** Legacy required/optional field; use `features.connections` instead.                                                    |
 
-> \* Required only when the `features` object is present.
+Modern and legacy connection fields must not be combined. `connections: 0` means the tool never uses a connection; `{ "min": 0, "max": 1 }` means a connection is optional. Legacy fields remain supported for existing tools and produce a validation warning.
+
+Examples:
+
+```json
+{ "features": { "connections": 1 } }
+{ "features": { "connections": { "min": 1, "max": 5 } } }
+{ "features": { "connections": 0 } }
+```
 
 #### pptb.config.json (optional)
 
 In addition to `package.json`, the validator automatically checks a `pptb.config.json` file if one is present in the same directory. This file declares tool-to-tool communication contracts and other PPTB-specific metadata.
 
-| Field                               | Required | Rules                                                                                                                                                       |
-| ----------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `invocation.version`                | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes.            |
-| `invocation.capabilities`           | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`.                               |
-| `invocation.prefill`                | ❌       | JSON-schema-style object describing data callers can pre-populate                                                                                           |
-| `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                             |
-| `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                                |
-| `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                             |
-| `agents`                            | ❌       | Top-level agent contract for external automation; when present, must include `version` and may include `invokable`, `modes`, `defaultMode`, and `timeoutMS` |
-| `agents.version`                    | ✅       | Must be a valid semantic version string (e.g. `1.0.0`)                                                                                                      |
-| `agents.invokable`                  | ❌       | Boolean indicating whether an external (non-PPTB) automation agent may launch this tool programmatically                                                    |
-| `agents.modes`                      | ❌       | Array of supported invocation modes (`"one-way"`, `"two-way"`)                                                                                              |
-| `agents.defaultMode`                | ❌       | Default mode when the agent does not request one explicitly                                                                                                 |
-| `agents.timeoutMS`                  | ❌       | Optional timeout hint in milliseconds for two-way calls                                                                                                     |
+| Field                               | Required | Rules                                                                                                                                                                                                                              |
+| ----------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invocation.version`                | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes.                                                                                   |
+| `invocation.capabilities`           | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`.                                                                                                      |
+| `invocation.prefill`                | ❌       | JSON-schema-style object describing data callers can pre-populate                                                                                                                                                                  |
+| `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                                                                                                    |
+| `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                                                                                                       |
+| `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                                                                                                    |
+| `agents`                            | ❌       | Top-level agent contract for external automation; when present, must include `version` and may include `invokable`, `modes`, `defaultMode`, `timeoutMS`, `headless`, `executionModes`, `defaultExecutionMode`, and `headlessEntry` |
+| `agents.version`                    | ✅       | Must be a valid semantic version string (e.g. `1.0.0`)                                                                                                                                                                             |
+| `agents.invokable`                  | ❌       | Boolean indicating whether an external (non-PPTB) automation agent may launch this tool programmatically                                                                                                                           |
+| `agents.modes`                      | ❌       | Array of supported invocation modes (`"one-way"`, `"two-way"`)                                                                                                                                                                     |
+| `agents.defaultMode`                | ❌       | Default mode when the agent does not request one explicitly                                                                                                                                                                        |
+| `agents.timeoutMS`                  | ❌       | Optional timeout hint in milliseconds for two-way calls                                                                                                                                                                            |
+| `agents.executionModes`             | ❌       | Array of supported execution modes (`"windowed"`, `"headless"`)                                                                                                                                                                    |
+| `agents.defaultExecutionMode`       | ❌       | Default execution mode when the agent does not request one explicitly                                                                                                                                                              |
+| `agents.headlessEntry`              | ❌       | Path to the compiled automated runtime entry point                                                                                                                                                                                 |
 
 > \*\* Required only when the `invocation` object is present.
 
@@ -168,6 +184,7 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
     },
     "agents": {
         "version": "1.0.0",
+        "headless": false,
         "invokable": true,
         "modes": ["one-way", "two-way"],
         "defaultMode": "two-way",
@@ -175,6 +192,31 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
     }
 }
 ```
+
+## Additional Headers and Batch Operations
+
+Network-backed `dataverseAPI` methods accept optional additional headers as their final argument. The desktop app shows the exact header names and values for user consent before sending the first request. Users can allow the request once, allow all future Dataverse headers for that tool, or reject it.
+
+```typescript
+await dataverseAPI.update("account", accountId, { name: "Contoso" }, "primary", {
+    "If-Match": "*",
+    Prefer: "return=minimal",
+});
+
+const results = await dataverseAPI.executeBatch([
+    { method: "GET", url: "accounts?$select=name&$top=5" },
+    { method: "DELETE", url: `contacts(${contactId})`, headers: { "If-Match": "*" } },
+]);
+
+await dataverseAPI.executeTransaction([
+    { method: "POST", url: "accounts", body: { name: "Contoso" } },
+    { method: "POST", url: "contacts", body: { firstname: "Ada" } },
+]);
+```
+
+`executeBatch` returns an ordered result for every operation, including status, response headers, and an optional body. `executeTransaction` uses one atomic changeset and accepts write operations only. Batch URLs must be relative to the assigned Dataverse connection.
+
+Headless tools can use additional headers only after the user has granted persistent access during a windowed request.
 
 ## Overview
 
@@ -215,6 +257,18 @@ const powerplatform = window.powerplatformAPI;
 The ToolBox API provides organized namespaces for different functionality:
 
 ### Connections
+
+Declare an exact count or range with `features.connections`, for example `3`, `{ "min": 0, "max": 3 }`, or `{ "min": 1, "max": 4 }`. Exact `0` means no connections. Counts are bounded to 0–10; object defaults are min 1 and max equal to the resolved min. Remove the deprecated `multiConnection` and `connectionRequirement` fields when migrating; existing legacy-only tools remain supported.
+
+```typescript
+const slots = await toolboxAPI.connections.getConnections();
+const third = await toolboxAPI.connections.getConnection(2);
+if (third) {
+    const records = await dataverseAPI.queryData("accounts?$select=name&$top=5", 2);
+}
+```
+
+Targets are zero-based; `"primary"` and `"secondary"` alias 0 and 1. Null slots retain their positions, so never filter the array before routing requests. `getSecondaryConnection()` is deprecated but supported; use `getConnection(1)` or `(await getConnections())[1]`. See the [connection-slot author guide](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/N_CONNECTION_TOOL_AUTHOR_GUIDE.md) for migration and lifecycle examples.
 
 ```typescript
 // Get the active Dataverse connection
@@ -298,6 +352,42 @@ const terminals = await toolboxAPI.terminal.list();
 // Close a terminal
 await toolboxAPI.terminal.close(terminal.id);
 ```
+
+### Native Workers
+
+If a tool declares a .NET worker in `pptb.config.json`, connect to it through
+`toolboxAPI.workers.connect()`. PPTB owns process startup, consent, JSON-RPC
+framing, readiness, request correlation, cancellation and cleanup. Tool code only
+registers any worker-to-tool callbacks it needs, then calls worker methods by
+name:
+
+```typescript
+const worker = await toolboxAPI.workers.connect("sample", {
+    requests: {
+        "dataverse/fetchXml": async (params, context) => {
+            if (context.isCancellationRequested) throw new Error("Request cancelled");
+            const fetchXml = String(params);
+            const result = await dataverseAPI.fetchXmlQuery(fetchXml);
+            if (context.isCancellationRequested) throw new Error("Request cancelled");
+            return { value: result.value };
+        },
+    },
+    notifications: {
+        progress: (message) => setStatus(String(message)),
+    },
+});
+
+await worker.ready;
+const result = await worker.request("query", fetchXml);
+await worker.stop();
+```
+
+Use `worker.cancel()` to cancel outstanding requests. `worker.stop()` waits for
+PPTB's verified process cleanup; if it rejects, keep the session and let the user
+retry stop rather than claiming the worker was stopped. Workers are trusted
+native code running as the current OS user, not sandboxed. Do not send tokens or
+credential material to them; implement narrowly scoped reverse requests through
+PPTB APIs instead.
 
 ### Events
 
@@ -650,6 +740,13 @@ Core platform features organized into namespaces:
 
 #### Connections
 
+- **getConnections()**: Promise<Array<Connection | null>>
+    - Returns configured slots, preserving null gaps; not necessarily padded to the declared maximum.
+- **getConnection(target: "primary" | "secondary" | number)**: Promise<Connection | null>
+    - Gets one slot by zero-based index or legacy alias. Unassigned slots return null; negative/fractional targets reject.
+- **getSecondaryConnection()**: Promise<Connection | null>
+    - Deprecated compatibility adapter; prefer `getConnection("secondary")`.
+
 - **getActiveConnection()**: Promise<Connection | null>
     - Returns the currently active connection or null if none is active
     - Includes `enabledForPowerPlatformAPI` so tools can decide whether to use Power Platform API
@@ -710,6 +807,21 @@ Core platform features organized into namespaces:
 - **setVisibility(terminalId: string, visible: boolean)**: Promise<void>
     - Shows or hides the terminal UI for the specified terminal id
 
+#### Workers
+
+- **connect(workerId: string, options?: WorkerSessionOptions)**: Promise<WorkerSession>
+    - Starts the declared worker and returns a JSON-RPC session. `ready` resolves after the protocol initialize handshake.
+    - `options.requests` registers worker-initiated requests handled by the tool; `options.notifications` handles worker notifications; `options.onExit` observes process termination.
+- **WorkerSession.request<Result>(method: string, params?: unknown)**: Promise<Result>
+    - Sends a named request to the worker and resolves with its result.
+- **WorkerSession.notify(method: string, params?: unknown)**: Promise<void>
+    - Sends a notification to the worker.
+- **WorkerSession.cancel()**: void
+    - Requests cancellation of outstanding requests. Worker and callback cancellation is cooperative.
+- **WorkerSession.stop() / dispose()**: Promise<void>
+    - Stops the worker and waits for verified cleanup. A failed stop must remain visible and retryable.
+- **WorkerSessionOptions.requests** handlers receive `(params, context)`, where `context.isCancellationRequested` and `context.onCancellationRequested()` expose cancellation without exposing transport details.
+
 #### Events
 
 - **getHistory(limit?: number)**: Promise<ToolBoxEventPayload[]>
@@ -744,7 +856,7 @@ Core platform features organized into namespaces:
 - **launchTool(targetToolId, prefillData?, options?)**: Promise\<unknown\>
     - Launches the specified tool, optionally with prefill data
     - Returns a Promise that resolves with the data returned by the callee, or `null` if it closes without returning or the user clicks the "Return to Caller" banner
-    - The callee automatically inherits the caller's FXS connection; pass `options.primaryConnectionId` to override
+    - The callee inherits the caller's full positional connection array, bounded by its declared maximum; `options.connectionIds` replaces the array and legacy overrides affect only slots 0/1
     - Only one active callee per caller is allowed; throws `"A callee invocation is already in progress"` if a callee is already open
     - Pass `options.noReturn: true` for one-way "Send To" flows; the banner is suppressed entirely for the callee
 
@@ -795,13 +907,13 @@ Complete HTTP client for interacting with Microsoft Dataverse:
     - Supports both bound and unbound operations
 - **publishCustomizations(tableLogicalName?: string)**: Promise<void>
     - Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
-- **deploySolution(base64SolutionContent: string | ArrayBuffer | ArrayBufferView, options?: DeploySolutionOptions, connectionTarget?: "primary" | "secondary")**: Promise<{ImportJobId: string}>
+- **deploySolution(base64SolutionContent: string | ArrayBuffer | ArrayBufferView, options?: DeploySolutionOptions, connectionTarget?: "primary" | "secondary" | number)**: Promise<{ImportJobId: string}>
     - Deploys (imports) a solution to the Dataverse environment
     - Accepts either a base64-encoded solution zip string or raw binary data (Buffer, ArrayBuffer, Uint8Array)
     - Always supplies `PublishWorkflows` and `OverwriteUnmanagedCustomizations` booleans to Dataverse, defaulting to `false` when you omit them
     - Supports optional parameters for customizing the import (publishWorkflows, overwriteUnmanagedCustomizations, skipProductUpdateDependencies, convertToManaged)
     - Returns an ImportJobId for tracking the import progress
-- **getImportJobStatus(importJobId: string, connectionTarget?: "primary" | "secondary")**: Promise<Record<string, unknown>>
+- **getImportJobStatus(importJobId: string, connectionTarget?: "primary" | "secondary" | number)**: Promise<Record<string, unknown>>
     - Gets the status of a solution import job
     - Returns import job details including progress, completion status, and error information
     - Use to track the progress of a solution deployment initiated with deploySolution
@@ -811,6 +923,8 @@ Complete HTTP client for interacting with Microsoft Dataverse:
 Generic HTTP client for Power Platform Admin APIs covering all categories:
 
 #### Category Methods
+
+`connectionTarget` accepts zero-based numeric slots plus `"primary"` / `"secondary"`. For example, `powerplatformAPI.PowerApps.Get("apps", 2)` routes to slot 3. Calling an API with an unassigned slot returns a missing-connection error.
 
 Each category (Analytics, AppManagement, Authorization, Connectivity, CopilotStudio, Dynamics, EnvironmentManagement, Governance, Licensing, PowerApps, PowerAutomate, PowerPages, ResourceQuery, UserManagement, WorkflowAgents) exposes:
 

@@ -5,6 +5,9 @@
  */
 
 declare namespace ToolBoxAPI {
+    /** Legacy string aliases remain supported; numeric targets are zero-based slot indexes. */
+    export type ConnectionTarget = "primary" | "secondary" | number;
+
     /**
      * Tool context containing connection information
      * NOTE: accessToken is NOT included for security - tools must use dataverseAPI
@@ -16,6 +19,10 @@ declare namespace ToolBoxAPI {
         connectionId?: string | null;
         secondaryConnectionUrl?: string | null;
         secondaryConnectionId?: string | null;
+        /** All connection slots; index 0 is primary and index 1 is secondary. */
+        connectionIds?: Array<string | null>;
+        /** URLs for connection slots, aligned with `connectionIds`. */
+        connectionUrls?: Array<string | null>;
         /**
          * Invocation metadata injected by PPTB when the tool is launched by another
          * tool or by the MCP server. Tools should treat this as optional and
@@ -162,6 +169,55 @@ declare namespace ToolBoxAPI {
         error?: string;
     }
 
+    const workerHandleBrand: unique symbol;
+    export type WorkerHandle = string & { readonly [workerHandleBrand]: true };
+
+    export type WorkerRpcMessage =
+        | { jsonrpc: "2.0"; method: string; id?: string | number; params?: unknown[] | Record<string, unknown> }
+        | { jsonrpc: "2.0"; id: string | number | null; result: unknown }
+        | { jsonrpc: "2.0"; id: string | number | null; error: { code: number; message: string; data?: unknown } };
+
+    export interface WorkerSnapshot {
+        state: "starting" | "running" | "stopping" | "exited" | "failed";
+        failure?: string;
+        stderr: { bytes: number; truncated: boolean; summary: "Worker stderr redacted" };
+    }
+
+    export interface WorkerStart {
+        handle: WorkerHandle;
+        ready: Promise<void>;
+    }
+
+    export interface WorkerRequestContext {
+        readonly isCancellationRequested: boolean;
+        onCancellationRequested(callback: () => void): { dispose(): void };
+    }
+
+    export interface WorkerSessionOptions {
+        requests?: Record<string, (params: unknown, context: WorkerRequestContext) => unknown | Promise<unknown>>;
+        notifications?: Record<string, (params: unknown) => void>;
+        onExit?: (snapshot: WorkerSnapshot) => void;
+    }
+
+    export interface WorkerSession {
+        readonly ready: Promise<void>;
+        request<Result = unknown>(method: string, params?: unknown): Promise<Result>;
+        notify(method: string, params?: unknown): Promise<void>;
+        cancel(): void;
+        stop(): Promise<void>;
+        dispose(): Promise<void>;
+    }
+
+    export interface WorkersAPI {
+        connect(workerId: string, options?: WorkerSessionOptions): Promise<WorkerSession>;
+        start(workerId: string): Promise<WorkerStart>;
+        send(handle: WorkerHandle, message: WorkerRpcMessage): Promise<void>;
+        onMessage(handle: WorkerHandle, callback: (message: WorkerRpcMessage) => void): () => void;
+        onExit(handle: WorkerHandle, callback: (snapshot: WorkerSnapshot) => void): () => void;
+        stop(handle: WorkerHandle): Promise<void>;
+        dispose(handle: WorkerHandle): Promise<void>;
+    }
+
     /**
      * Connections namespace - restricted access for tools
      */
@@ -172,9 +228,15 @@ declare namespace ToolBoxAPI {
         getActiveConnection: () => Promise<Connection | null>;
 
         /**
-         * Get the secondary connection for multi-connection tools
+         * @deprecated Use `getConnection("secondary")` or `(await getConnections())[1]` for slot-aware connection access.
          */
         getSecondaryConnection: () => Promise<Connection | null>;
+
+        /** Get every configured connection slot, preserving null/unassigned slots. */
+        getConnections: () => Promise<Array<Connection | null>>;
+
+        /** Get one connection by its zero-based slot or legacy name. */
+        getConnection: (target: ConnectionTarget) => Promise<Connection | null>;
     }
 
     /**
@@ -225,7 +287,7 @@ declare namespace ToolBoxAPI {
          *   Defaults to `"primary"`. Pass `"secondary"` for multi-connection tools that
          *   want to open the URL in the secondary connection's browser context.
          */
-        openInConnectionBrowser: (url: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        openInConnectionBrowser: (url: string, connectionTarget?: ConnectionTarget) => Promise<void>;
     }
 
     /**
@@ -393,6 +455,9 @@ declare namespace ToolBoxAPI {
      * Main ToolBox API exposed to tools via window.toolboxAPI
      */
     export interface API {
+        /** Start and communicate with a worker declared by this tool's manifest. */
+        workers: WorkersAPI;
+
         /**
          * Connection-related operations (restricted)
          */
@@ -436,6 +501,16 @@ declare namespace ToolBoxAPI {
          * @internal Used internally by the framework
          */
         getToolContext: () => Promise<ToolContext>;
+        /**
+         * Mark this tool instance as preventing closure.
+         * While active, closing this tool tab or quitting PPTB shows a warning dialog
+         * with an "Ignore & Close" override.
+         */
+        preventClose: () => Promise<boolean>;
+        /**
+         * Clear a previously set prevent-close state for this tool instance.
+         */
+        releasePreventClose: () => Promise<boolean>;
     }
 
     /**
@@ -504,7 +579,9 @@ declare namespace ToolBoxAPI {
          * `features.multiConnection: "required"` or `"optional"` and
          * `options.secondaryConnectionId` is not provided, PPTB automatically shows
          * the multi-connection selector before launching the callee. The Promise rejects
-         * if the user cancels the selector.
+         * if the user cancels the selector. This prompt is skipped entirely when the callee
+         * declares `features.connectionRequirement: "optional"`, since a connection is never
+         * mandatory for that tool.
          *
          * **`noReturn`**: pass `true` when the caller does not expect the callee to
          * return data (e.g. a "Send To" pattern where data is only sent one-way).
@@ -519,7 +596,7 @@ declare namespace ToolBoxAPI {
         launchTool: (
             targetToolId: string,
             prefillData?: Record<string, unknown>,
-            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean },
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; connectionIds?: Array<string | null>; noReturn?: boolean },
         ) => Promise<unknown>;
 
         /**
@@ -586,11 +663,13 @@ declare global {
         /**
          * The organized ToolBox API for tools
          */
+        // @ts-expect-error App-renderer and tool windows expose different global API contracts.
         toolboxAPI: ToolBoxAPI.API;
 
         /**
          * Tool context available at startup
          */
+        // @ts-expect-error App-renderer and tool windows expose distinct context contracts.
         TOOLBOX_CONTEXT?: ToolBoxAPI.ToolContext;
     }
 }

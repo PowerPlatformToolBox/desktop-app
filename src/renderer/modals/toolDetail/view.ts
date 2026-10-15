@@ -1,3 +1,4 @@
+import { formatRatingMarkup } from "../../utils/rating";
 import { getModalStyles } from "../sharedStyles";
 
 export interface ModalViewTemplate {
@@ -254,11 +255,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
 
     const readmePlaceholder = model.readmeUrl ? "Loading README..." : "README is not available for this tool.";
 
-    // Add rating badge with reviews link
-    let ratingsHtml = "";
-    if (model.rating !== undefined) {
-        ratingsHtml = `<span>${model.rating.toFixed(1)} rating</span>`;
-    }
+    const ratingsHtml = formatRatingMarkup(model.rating, { suffix: " rating" });
 
     const linkItems: string[] = [];
     linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-link" href="#" role="button">Leave a review</a>`);

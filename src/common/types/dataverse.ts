@@ -2,6 +2,45 @@
  * Dataverse API-related type definitions
  */
 
+export type DataverseConnectionTarget = "primary" | "secondary" | number;
+
+export type DataverseAdditionalHeaders = Readonly<Record<string, string>>;
+
+export type DataverseBatchMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+
+export interface DataverseBatchRequest {
+    method: DataverseBatchMethod;
+    url: string;
+    headers?: Record<string, string>;
+    body?: unknown;
+    contentId?: string;
+}
+
+export interface DataverseBatchResult {
+    contentId?: string;
+    status: number;
+    statusText?: string;
+    headers: Record<string, string>;
+    /** Selected headers from the outer HTTP batch response, shared by every operation result. */
+    batchHeaders?: Record<string, string>;
+    body?: unknown;
+}
+
+export interface DataverseHeaderConsentRequest {
+    requestId: string;
+    toolId: string;
+    toolName: string;
+    operation: string;
+    headers: ReadonlyArray<Readonly<{ name: string; value: string; scope?: string }>>;
+}
+
+export type DataverseHeaderConsentDecision = "allow-tool" | "allow-instance" | "reject";
+
+export interface DataverseHeaderConsentResponse {
+    requestId: string;
+    decision: DataverseHeaderConsentDecision;
+}
+
 /**
  * Dataverse execute request
  */
@@ -49,6 +88,23 @@ export interface DataverseExecuteRequest {
 }
 
 /**
+ * System user entity in Dataverse representing a user record
+ */
+export interface DataverseUser {
+    systemuserid: string;
+    azureactivedirectoryobjectid?: string;
+    fullname: string;
+    domainname?: string;
+    internalemailaddress?: string;
+    isdisabled?: boolean;
+}
+
+export interface DataverseUserPage {
+    users: DataverseUser[];
+    nextLink: string | null;
+}
+
+/**
  * Navigation properties available on EntityDefinition
  * Used by getEntityRelatedMetadata to provide compile-time safety
  */
@@ -58,10 +114,7 @@ export type EntityRelatedMetadataBasePath = "Attributes" | "Keys" | "ManyToOneRe
  * Allowed related metadata paths. Supports nested lookups such as Attributes(LogicalName='accountnumber')/OptionSet
  */
 export type EntityRelatedMetadataPath =
-    | EntityRelatedMetadataBasePath
-    | `${EntityRelatedMetadataBasePath}/${string}`
-    | `${EntityRelatedMetadataBasePath}(${string})`
-    | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
+    EntityRelatedMetadataBasePath | `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
 
 /**
  * Runtime-safe list of supported base segments for related metadata retrieval

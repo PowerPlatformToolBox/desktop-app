@@ -5,26 +5,26 @@ labels: ["triage"]
 type: "feature"
 projects: ["PowerPlatformToolBox/1"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thanks for taking the time to fill out this bug report!
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for taking the time to fill out this bug report!
 
-        > [!NOTE]
-        > If you are a tool author and running into issues, after creating the bug please join the Discord server for more help using this [invite link](https://discord.gg/7ZQzVTngcN).
-        
-  - type: textarea
-    id: solution
-    attributes:
-      label: Provide an idea you would like to see in the tool?
-      description: Be as descriptive as you can be; providing mockup or screenshot will go a long way.
-      placeholder: Tell us your idea!
-      value: "My awesome idea is..."
-    validations:
-      required: true
-  - type: textarea
-    id: logs
-    attributes:
-      label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
-      render: shell
+              > [!NOTE]
+              > If you are a tool author and running into issues, after creating the bug please join the Discord server for more help using this [invite link](https://discord.gg/7ZQzVTngcN).
+
+    - type: textarea
+      id: solution
+      attributes:
+          label: Provide an idea you would like to see in the tool?
+          description: Be as descriptive as you can be; providing mockup or screenshot will go a long way.
+          placeholder: Tell us your idea!
+          value: "My awesome idea is..."
+      validations:
+          required: true
+    - type: textarea
+      id: logs
+      attributes:
+          label: Relevant log output
+          description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+          render: shell

@@ -4,8 +4,9 @@
  */
 
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
+import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
+import { ToolBoxEvent } from "../../common/types";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -14,6 +15,7 @@ import {
     DEFAULT_SHOW_ENVIRONMENT_COLOR,
     DEFAULT_TERMINAL_FONT,
 } from "../constants";
+import { markRendererInitialized } from "../utils/initializationState";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import {
@@ -26,19 +28,26 @@ import {
     openAddConnectionModal,
     updateFooterConnection,
 } from "./connectionManagement";
+import { openConsentReviewTab } from "./consent/consentReviewManagement";
+import { initializeDataverseHeaderConsentModal } from "./consent/dataverseHeaderConsentModal";
+import { initializeNativeWorkerConsentModal } from "./consent/nativeWorkerConsentModal";
+import { openSentryConsentModal } from "./consent/sentryConsentModal";
 import { initializeGlobalSearch } from "./globalSearchManagement";
+import { updateMcpActivityStatus } from "./mcpServerStatus";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
-import { openSentryConsentModal } from "./sentryConsentModal";
+import { openReportConcernModal } from "./reportConcernModal";
 import { applyRendererSentryConsent } from "./sentryRuntime";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { initializeTitlebar } from "./titlebarManagement";
+import { openToolIdeasModal } from "./toolIdeasModal";
 import {
     applyAppearanceSettings,
     closeAllTools,
@@ -52,7 +61,7 @@ import {
     setupKeyboardShortcuts,
     showHomePage,
 } from "./toolManagement";
-import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
+import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
 
 /**
  * Initialize the application
@@ -64,11 +73,17 @@ export async function initializeApplication(): Promise<void> {
         // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
         // This must be the very first IPC call so the cleanup happens before session restore.
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
+        initializeTitlebar();
 
         initializeBrowserWindowModals();
+        window.api.on("open-suggest-tool-modal", () => {
+            openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+        });
+        initializeDataverseHeaderConsentModal();
+        initializeNativeWorkerConsentModal();
         const initialSettings = await window.toolboxAPI.getUserSettings();
         applyTheme(initialSettings.theme);
-        await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent));
+        await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent), initialSettings.installId ?? initialSettings.machineId);
 
         if (shouldPromptForTelemetryConsent(initialSettings.sentryTelemetryConsent)) {
             const consentChoice = await openSentryConsentModal({
@@ -79,7 +94,8 @@ export async function initializeApplication(): Promise<void> {
 
             if (consentChoice !== null) {
                 await window.toolboxAPI.updateUserSettings({ sentryTelemetryConsent: consentChoice });
-                await applyRendererSentryConsent(consentChoice);
+                const updatedSettings = await window.toolboxAPI.getUserSettings();
+                await applyRendererSentryConsent(consentChoice, updatedSettings.installId ?? updatedSettings.machineId);
             }
         }
 
@@ -191,6 +207,7 @@ export async function initializeApplication(): Promise<void> {
         // Set up periodic token expiry checking for active tool connections
         setupTokenExpiryCheck();
 
+        markRendererInitialized();
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)));
@@ -270,6 +287,16 @@ function setupActivityBar(): void {
         });
     }
 
+    // Consent review button opens a tab instead of a sidebar panel
+    const consentReviewActivityBtn = document.getElementById("consent-review-activity-btn");
+    if (consentReviewActivityBtn) {
+        consentReviewActivityBtn.addEventListener("click", () => {
+            openConsentReviewTab().catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+        });
+    }
+
     // Agent invocation logs button opens a tab
     const agentInvocationLogsBtn = document.getElementById("mcp-btn");
     if (agentInvocationLogsBtn) {
@@ -311,6 +338,23 @@ function setupToolbarButtons(): void {
  * Set up sidebar buttons
  */
 function setupSidebarButtons(): void {
+    const marketplaceSuggestToolButton = document.getElementById("marketplace-suggest-tool-btn");
+    if (marketplaceSuggestToolButton) {
+        marketplaceSuggestToolButton.addEventListener("click", () => {
+            openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+        });
+    }
+
+    // Sidebar update all tools button
+    const sidebarUpdateAllToolsBtn = document.getElementById("sidebar-update-all-tools-btn");
+    if (sidebarUpdateAllToolsBtn) {
+        sidebarUpdateAllToolsBtn.addEventListener("click", () => {
+            updateAllToolsFromSidebar().catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+    }
+
     // Sidebar add connection button
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
     if (sidebarAddConnectionBtn) {
@@ -356,16 +400,6 @@ function setupSidebarButtons(): void {
             // Import the function dynamically to avoid circular dependencies
             const { openToolConnectionModal } = await import("./toolManagement");
             await openToolConnectionModal();
-        });
-    }
-
-    // Secondary footer connection status - click to open connection selector for secondary connection
-    const secondaryConnectionStatus = document.getElementById("secondary-connection-status");
-    if (secondaryConnectionStatus) {
-        secondaryConnectionStatus.addEventListener("click", async () => {
-            // Import the function dynamically to avoid circular dependencies
-            const { openToolSecondaryConnectionModal } = await import("./toolManagement");
-            await openToolSecondaryConnectionModal();
         });
     }
 }
@@ -607,6 +641,8 @@ function setupModalButtons(): void {
  * Set up application event listeners
  */
 function setupApplicationEventListeners(): void {
+    setupMcpServerStatusIndicator();
+
     // Home page listener
     window.toolboxAPI.onShowHomePage(() => {
         showHomePage();
@@ -625,6 +661,16 @@ function setupApplicationEventListeners(): void {
         const currentTheme = await window.toolboxAPI.utils.getCurrentTheme();
         const isDarkTheme = currentTheme === "dark";
         await openTroubleshootingModal(isDarkTheme);
+    });
+
+    // Report a Concern modal listener (triggered from the app menu for the active tool)
+    window.api.on("open-report-concern-modal", async (...args: unknown[]) => {
+        // The IPC event sends (event, data), so data is the second argument
+        const info = args[1] as { toolId: string; toolName: string; toolVersion: string } | undefined;
+        if (!info?.toolId || info.toolId === "none") return;
+        await openReportConcernModal({ id: info.toolId, name: info.toolName, version: info.toolVersion === "unknown" ? undefined : info.toolVersion }, "app-menu").catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
+        });
     });
 
     // About dialog listener
@@ -656,6 +702,43 @@ function setupApplicationEventListeners(): void {
             logError(error instanceof Error ? error : new Error(String(error)));
         });
     });
+}
+
+function setupMcpServerStatusIndicator(): void {
+    let hasReceivedStatusEvent = false;
+
+    window.toolboxAPI.events.on((_event, payload) => {
+        if (!payload || typeof payload !== "object") {
+            return;
+        }
+
+        const eventPayload = payload as { event?: unknown; data?: { status?: unknown; error?: unknown } };
+        if (eventPayload.event !== ToolBoxEvent.MCP_SERVER_STATUS_CHANGED) {
+            return;
+        }
+
+        const status = eventPayload.data?.status;
+        if (status !== "starting" && status !== "running" && status !== "stopped" && status !== "error") {
+            return;
+        }
+
+        hasReceivedStatusEvent = true;
+        updateMcpActivityStatus(status, typeof eventPayload.data?.error === "string" ? eventPayload.data.error : undefined);
+    });
+
+    void window.toolboxAPI.mcpServer
+        .getDetails()
+        .then((details) => {
+            if (!hasReceivedStatusEvent) {
+                updateMcpActivityStatus(details.status, details.error);
+            }
+        })
+        .catch((error) => {
+            logError("Failed to load MCP server status", error);
+            if (!hasReceivedStatusEvent) {
+                updateMcpActivityStatus("error");
+            }
+        });
 }
 
 /**
@@ -823,6 +906,14 @@ function setupToolPanelBoundsListener(): void {
             const invocationBanner = document.getElementById("invocation-banner");
             if (invocationBanner && invocationBanner.style.display !== "none") {
                 const bannerHeight = Math.round(invocationBanner.getBoundingClientRect().height);
+                adjustedY += bannerHeight;
+                adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
+            }
+
+            // Same treatment for the impersonation banner (stacks below the invocation banner if both are visible).
+            const impersonationBanner = document.getElementById("impersonation-banner");
+            if (impersonationBanner && impersonationBanner.style.display !== "none") {
+                const bannerHeight = Math.round(impersonationBanner.getBoundingClientRect().height);
                 adjustedY += bannerHeight;
                 adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
             }
