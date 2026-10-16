@@ -175,4 +175,26 @@ test.describe("Navigation", () => {
         await window.keyboard.press("Escape");
         await expect(overlay).toBeHidden({ timeout: 10_000 });
     });
+
+    test("global search filters settings through category tabs", async ({ window }) => {
+        await window.keyboard.press("Meta+Shift+P");
+
+        const overlay = window.locator("#global-search-overlay");
+        const input = window.locator("#global-search-input");
+        await expect(overlay).toBeVisible({ timeout: 10_000 });
+        await input.fill("Theme");
+
+        const settingsTab = window.getByRole("tab", { name: /Settings/ });
+        await expect(settingsTab).toContainText("1");
+        await settingsTab.click();
+        await expect(settingsTab).toHaveAttribute("aria-selected", "true");
+        await expect(window.locator("#global-search-results")).toContainText("Theme");
+
+        const installedTab = window.getByRole("tab", { name: /Installed Tools/ });
+        await installedTab.click();
+        await expect(installedTab).toHaveAttribute("aria-selected", "true");
+        await expect(window.locator("#global-search-results")).toContainText('No results for "Theme"');
+
+        await window.keyboard.press("Escape");
+    });
 });

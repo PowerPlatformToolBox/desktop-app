@@ -6714,6 +6714,68 @@ body.dark-theme .csp-warning ul {
     color: var(--text-secondary);
 }
 
+.global-search-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px 0;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+}
+
+.global-search-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        color 0.15s,
+        border-color 0.15s,
+        background 0.15s;
+
+    &:hover {
+        color: var(--text-color);
+        background: var(--activity-item-hover-bg);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+    }
+
+    &.active {
+        color: var(--text-color);
+        border-bottom-color: var(--accent-color);
+        font-weight: 600;
+    }
+}
+
+.global-search-tab-count {
+    min-width: 18px;
+    padding: 1px 5px;
+    border-radius: 9px;
+    background: var(--activity-item-hover-bg);
+    color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.global-search-tab.active .global-search-tab-count {
+    background: var(--activity-item-active-bg);
+    color: var(--text-color);
+}
+
 .global-search-results {
     flex: 1;
     overflow-y: auto;
@@ -6890,6 +6952,22 @@ body.dark-theme .global-search-item-badge.badge-settings {
     height: 1px;
     background: var(--border-color);
     margin: 4px 0;
+}
+
+@media (max-width: 560px) {
+    .global-search-tabs {
+        padding-inline: 6px;
+    }
+
+    .global-search-tab {
+        padding-inline: 7px;
+        font-size: 11px;
+    }
+
+    .global-search-footer {
+        gap: 8px;
+        flex-wrap: wrap;
+    }
 }
 
 /* Highlight pulse for focused setting element */
