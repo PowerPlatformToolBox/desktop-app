@@ -909,11 +909,74 @@
                         aria-label="Search tools, connections, and settings"
                     />
                 </div>
+                <div class="global-search-tabs" id="global-search-tabs" role="tablist" aria-label="Search categories">
+                    <button
+                        class="global-search-tab active"
+                        id="global-search-tab-all"
+                        type="button"
+                        role="tab"
+                        aria-selected="true"
+                        aria-controls="global-search-results"
+                        tabindex="0"
+                        data-category="all"
+                    >
+                        All <span class="global-search-tab-count" data-count-for="all">0</span>
+                    </button>
+                    <button
+                        class="global-search-tab"
+                        id="global-search-tab-installed"
+                        type="button"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="global-search-results"
+                        tabindex="-1"
+                        data-category="installed"
+                    >
+                        Installed Tools <span class="global-search-tab-count" data-count-for="installed">0</span>
+                    </button>
+                    <button
+                        class="global-search-tab"
+                        id="global-search-tab-marketplace"
+                        type="button"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="global-search-results"
+                        tabindex="-1"
+                        data-category="marketplace"
+                    >
+                        Marketplace <span class="global-search-tab-count" data-count-for="marketplace">0</span>
+                    </button>
+                    <button
+                        class="global-search-tab"
+                        id="global-search-tab-connection"
+                        type="button"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="global-search-results"
+                        tabindex="-1"
+                        data-category="connection"
+                    >
+                        Connections <span class="global-search-tab-count" data-count-for="connection">0</span>
+                    </button>
+                    <button
+                        class="global-search-tab"
+                        id="global-search-tab-settings"
+                        type="button"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="global-search-results"
+                        tabindex="-1"
+                        data-category="settings"
+                    >
+                        Settings <span class="global-search-tab-count" data-count-for="settings">0</span>
+                    </button>
+                </div>
                 <div class="global-search-results" id="global-search-results" role="listbox">
                     <!-- Results populated dynamically -->
                 </div>
                 <div class="global-search-footer">
                     <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+                    <span><kbd>Alt</kbd><kbd>←</kbd><kbd>→</kbd> categories</span>
                     <span><kbd>↵</kbd> select</span>
                 </div>
             </div>

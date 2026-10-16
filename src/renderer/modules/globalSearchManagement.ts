@@ -16,6 +16,9 @@ import { switchSidebar } from "./sidebarManagement";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ResultCategory = "installed" | "marketplace" | "connection" | "settings";
+type SearchCategory = "all" | ResultCategory;
+
+const SEARCH_CATEGORIES: SearchCategory[] = ["all", "installed", "marketplace", "connection", "settings"];
 
 interface SearchResult {
     id: string;
@@ -31,6 +34,8 @@ interface SearchResult {
 let isOpen = false;
 let selectedIndex = -1;
 let currentResults: SearchResult[] = [];
+let activeCategory: SearchCategory = "all";
+let searchRequestId = 0;
 
 /** The tool instance that was active before the search was opened (used to restore on dismiss). */
 let previousActiveInstanceId: string | null = null;
@@ -86,6 +91,8 @@ export function openGlobalSearch(): void {
     isOpen = true;
     selectedIndex = -1;
     currentResults = [];
+    activeCategory = "all";
+    updateCategoryTabs([]);
 
     // Hide the active BrowserView so the overlay is not rendered underneath it.
     // We capture the current active instance first so we can restore it on dismiss.
@@ -133,6 +140,7 @@ export function closeGlobalSearch(): void {
     isOpen = false;
     selectedIndex = -1;
     currentResults = [];
+    searchRequestId++;
     overlay.style.display = "none";
 
     // Restore the tool BrowserView only when the user dismisses the palette without
@@ -186,6 +194,7 @@ function navigateToSetting(focusId: string | undefined): void {
 // ── Search ────────────────────────────────────────────────────────────────────
 
 async function runSearch(query: string): Promise<void> {
+    const requestId = ++searchRequestId;
     const q = query.trim().toLowerCase();
     const results: SearchResult[] = [];
 
@@ -292,8 +301,12 @@ async function runSearch(query: string): Promise<void> {
         logError(err instanceof Error ? err : new Error(String(err)));
     }
 
+    // A slower response for an earlier query must not replace newer results.
+    if (requestId !== searchRequestId) return;
+
     currentResults = results;
-    selectedIndex = results.length > 0 ? 0 : -1;
+    const visibleResults = getVisibleResults();
+    selectedIndex = visibleResults.length > 0 ? 0 : -1;
     renderResults(results);
 }
 
@@ -308,39 +321,30 @@ function renderResults(results: SearchResult[]): void {
     const container = getResultsContainer();
     if (!container) return;
 
-    if (results.length === 0) {
+    updateCategoryTabs(results);
+    const visibleResults = activeCategory === "all" ? results : results.filter((result) => result.category === activeCategory);
+
+    if (visibleResults.length === 0) {
         const input = getInput();
         const query = input?.value.trim() ?? "";
-        if (!query) {
+        if (!query && activeCategory === "all") {
             container.innerHTML = `
                 <div class="global-search-empty">
                     <img src="icons/dark/search.svg" alt="" class="global-search-empty-icon" id="global-search-empty-icon" />
                     <span>Start typing to search tools, connections, and settings…</span>
                 </div>`;
-            syncEmptyIconTheme();
         } else {
+            const emptyMessage = query ? `No results for "<strong>${escapeHtml(query)}</strong>"` : "No items in this category";
             container.innerHTML = `
                 <div class="global-search-empty">
                     <img src="icons/dark/search.svg" alt="" class="global-search-empty-icon" id="global-search-empty-icon" />
-                    <span>No results for "<strong>${escapeHtml(query)}</strong>"</span>
+                    <span>${emptyMessage}</span>
                 </div>`;
-            syncEmptyIconTheme();
         }
+        syncEmptyIconTheme();
         return;
     }
 
-    // Group results by category
-    const grouped: Record<ResultCategory, SearchResult[]> = {
-        installed: [],
-        marketplace: [],
-        connection: [],
-        settings: [],
-    };
-    for (const r of results) {
-        grouped[r.category].push(r);
-    }
-
-    const sectionOrder: ResultCategory[] = ["installed", "marketplace", "connection", "settings"];
     const sectionLabels: Record<ResultCategory, string> = {
         installed: "Installed Tools",
         marketplace: "Marketplace",
@@ -361,31 +365,22 @@ function renderResults(results: SearchResult[]): void {
     };
 
     let html = "";
-    let globalIdx = 0;
-
-    for (const category of sectionOrder) {
-        const group = grouped[category];
-        if (group.length === 0) continue;
-
-        html += `<div class="global-search-section-label">${escapeHtml(sectionLabels[category])}</div>`;
-        for (const result of group) {
-            const isSelected = globalIdx === selectedIndex;
-            const badgeClass = badgeClasses[result.category];
-            const hint = actionHints[result.category];
-            html += `
-                <div class="global-search-item${isSelected ? " selected" : ""}" data-index="${globalIdx}" role="option" aria-selected="${isSelected}" tabindex="-1">
-                    <div class="global-search-item-icon">
-                        <img src="${getDefaultIconForCategory(result.category)}" alt="" />
-                    </div>
-                    <div class="global-search-item-text">
-                        <div class="global-search-item-name">${escapeHtml(result.name)}</div>
-                        <div class="global-search-item-desc">${escapeHtml(result.description)}</div>
-                    </div>
-                    <span class="global-search-item-badge ${badgeClass}" title="${escapeHtml(hint)}">${escapeHtml(sectionLabels[result.category])}</span>
-                </div>`;
-            globalIdx++;
-        }
-        html += `<div class="global-search-divider"></div>`;
+    for (let index = 0; index < visibleResults.length; index++) {
+        const result = visibleResults[index];
+        const isSelected = index === selectedIndex;
+        const badgeClass = badgeClasses[result.category];
+        const hint = actionHints[result.category];
+        html += `
+            <div class="global-search-item${isSelected ? " selected" : ""}" data-index="${index}" role="option" aria-selected="${isSelected}" tabindex="-1">
+                <div class="global-search-item-icon">
+                    <img src="${getDefaultIconForCategory(result.category)}" alt="" />
+                </div>
+                <div class="global-search-item-text">
+                    <div class="global-search-item-name">${escapeHtml(result.name)}</div>
+                    <div class="global-search-item-desc">${escapeHtml(result.description)}</div>
+                </div>
+                <span class="global-search-item-badge ${badgeClass}" title="${escapeHtml(hint)}">${escapeHtml(sectionLabels[result.category])}</span>
+            </div>`;
     }
 
     container.innerHTML = html;
@@ -395,11 +390,56 @@ function renderResults(results: SearchResult[]): void {
     container.querySelectorAll<HTMLElement>(".global-search-item").forEach((item) => {
         item.addEventListener("click", () => {
             const idx = parseInt(item.dataset["index"] ?? "-1", 10);
-            if (idx >= 0 && idx < currentResults.length) {
-                currentResults[idx]?.action();
+            const visible = getVisibleResults();
+            if (idx >= 0 && idx < visible.length) {
+                visible[idx]?.action();
             }
         });
     });
+}
+
+function getVisibleResults(): SearchResult[] {
+    return activeCategory === "all" ? currentResults : currentResults.filter((result) => result.category === activeCategory);
+}
+
+function updateCategoryTabs(results: SearchResult[]): void {
+    const tabs = document.querySelectorAll<HTMLButtonElement>("#global-search-tabs [role='tab']");
+    const counts: Record<SearchCategory, number> = {
+        all: results.length,
+        installed: 0,
+        marketplace: 0,
+        connection: 0,
+        settings: 0,
+    };
+    for (const result of results) counts[result.category]++;
+
+    tabs.forEach((tab) => {
+        const category = tab.dataset["category"] as SearchCategory | undefined;
+        if (!category) return;
+        const isActive = category === activeCategory;
+        tab.classList.toggle("active", isActive);
+        tab.setAttribute("aria-selected", String(isActive));
+        tab.tabIndex = isActive ? 0 : -1;
+        const count = tab.querySelector<HTMLElement>(".global-search-tab-count");
+        if (count) count.textContent = String(counts[category]);
+    });
+}
+
+function selectCategory(category: SearchCategory, focusTab = false): void {
+    if (!SEARCH_CATEGORIES.includes(category)) return;
+    activeCategory = category;
+    const visibleResults = getVisibleResults();
+    selectedIndex = visibleResults.length > 0 ? 0 : -1;
+    renderResults(currentResults);
+    if (focusTab) {
+        document.querySelector<HTMLButtonElement>(`#global-search-tabs [data-category="${category}"]`)?.focus();
+    }
+}
+
+function moveCategory(delta: number): void {
+    const currentIndex = SEARCH_CATEGORIES.indexOf(activeCategory);
+    const nextIndex = (currentIndex + delta + SEARCH_CATEGORIES.length) % SEARCH_CATEGORIES.length;
+    selectCategory(SEARCH_CATEGORIES[nextIndex], true);
 }
 
 function getDefaultIconForCategory(category: ResultCategory): string {
@@ -428,12 +468,13 @@ function syncEmptyIconTheme(): void {
 // ── Keyboard navigation ───────────────────────────────────────────────────────
 
 function moveSelection(delta: number): void {
-    if (currentResults.length === 0) return;
+    const visibleResults = getVisibleResults();
+    if (visibleResults.length === 0) return;
 
     if (selectedIndex === -1) {
-        selectedIndex = delta > 0 ? 0 : currentResults.length - 1;
+        selectedIndex = delta > 0 ? 0 : visibleResults.length - 1;
     } else {
-        selectedIndex = (selectedIndex + delta + currentResults.length) % currentResults.length;
+        selectedIndex = (selectedIndex + delta + visibleResults.length) % visibleResults.length;
     }
 
     updateSelectionUI();
@@ -455,8 +496,9 @@ function updateSelectionUI(): void {
 }
 
 function activateSelected(): void {
-    if (selectedIndex >= 0 && selectedIndex < currentResults.length) {
-        currentResults[selectedIndex]?.action();
+    const visibleResults = getVisibleResults();
+    if (selectedIndex >= 0 && selectedIndex < visibleResults.length) {
+        visibleResults[selectedIndex]?.action();
     }
 }
 
@@ -472,6 +514,42 @@ export function initializeGlobalSearch(): void {
     if (searchBtn && !(searchBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound) {
         (searchBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound = true;
         searchBtn.addEventListener("click", () => openGlobalSearch());
+    }
+
+    // Category tabs: clicking selects the filter; arrow keys follow the tab pattern.
+    const tabs = document.getElementById("global-search-tabs");
+    if (tabs && !(tabs as HTMLElement & { _pptbBound?: boolean })._pptbBound) {
+        (tabs as HTMLElement & { _pptbBound?: boolean })._pptbBound = true;
+        tabs.addEventListener("click", (event) => {
+            const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("[role='tab']") : null;
+            const category = target?.dataset["category"] as SearchCategory | undefined;
+            if (category) {
+                selectCategory(category);
+                getInput()?.focus();
+            }
+        });
+        tabs.addEventListener("keydown", (event: KeyboardEvent) => {
+            if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                event.preventDefault();
+                moveCategory(event.key === "ArrowRight" ? 1 : -1);
+            } else if (event.key === "Home" || event.key === "End") {
+                event.preventDefault();
+                const category = event.key === "Home" ? SEARCH_CATEGORIES[0] : SEARCH_CATEGORIES[SEARCH_CATEGORIES.length - 1];
+                selectCategory(category, true);
+            }
+        });
+    }
+
+    // Escape dismisses the palette regardless of whether the input or a tab has focus.
+    const searchOverlay = getOverlay();
+    if (searchOverlay && !(searchOverlay as HTMLElement & { _pptbEscapeBound?: boolean })._pptbEscapeBound) {
+        (searchOverlay as HTMLElement & { _pptbEscapeBound?: boolean })._pptbEscapeBound = true;
+        searchOverlay.addEventListener("keydown", (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeGlobalSearch();
+            }
+        });
     }
 
     // Close button inside the container header
@@ -511,13 +589,19 @@ export function initializeGlobalSearch(): void {
                     e.preventDefault();
                     moveSelection(-1);
                     break;
+                case "ArrowLeft":
+                case "ArrowRight":
+                    if (e.altKey) {
+                        e.preventDefault();
+                        moveCategory(e.key === "ArrowRight" ? 1 : -1);
+                    }
+                    break;
                 case "Enter":
                     e.preventDefault();
                     activateSelected();
                     break;
                 case "Escape":
-                    e.preventDefault();
-                    closeGlobalSearch();
+                    // The overlay handles Escape so it also works while a category tab is focused.
                     break;
             }
         });
