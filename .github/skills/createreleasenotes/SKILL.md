@@ -3,6 +3,7 @@ name: createreleasenotes
 description: "Generate release notes for the latest changes in the codebase."
 disable-model-invocation: true
 ---
+
 You are writing GitHub Release notes for Power Platform ToolBox.
 Version: ${input:newVersion}
 Compare tag: ${input:previousVersion}...${input:newVersion}

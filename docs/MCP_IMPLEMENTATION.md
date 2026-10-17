@@ -11,6 +11,7 @@ This document covers how Power Platform ToolBox exposes tools to external automa
     - [MCP Invocation Envelope](#mcp-invocation-envelope)
     - [Mode Semantics](#mode-semantics)
     - [Execution Mode Semantics](#execution-mode-semantics)
+    - [Agent-Driven Input Flow](#agent-driven-input-flow)
     - [Tool Runtime Context](#tool-runtime-context)
     - [Implementation Notes](#implementation-notes)
     - [Validation and Troubleshooting](#validation-and-troubleshooting)
@@ -94,7 +95,7 @@ For example, a tool declaring `features.connections: { "min": 2, "max": 3 }` can
 }
 ```
 
-The server rejects more names than the declared maximum and any names supplied to a zero-connection tool. Headless calls must supply at least the declared minimum; they do not open a connection picker or initiate fresh interactive sign-in. Authenticate interactive connections in PPTB first; cached tokens, silent refresh, client-secret and username/password authentication remain supported. `authToken` overrides the primary token in the `invokeHeadless` callback context only. Global Dataverse/Power Platform APIs use the saved connection's credentials, which are authenticated independently. A callback token does not identify a saved connection, satisfy a missing required slot, or replace saved credentials. Windowed calls can prompt for missing required slots.
+The server rejects more names than the declared maximum, names supplied to a zero-connection tool, and ambiguous names. Headless calls never open a connection picker or a browser sign-in. When names are missing, unknown, or need an interactive sign-in, the server returns an `input_required` response so the agent can ask the user (see [Agent-Driven Input Flow](#agent-driven-input-flow)). Cached tokens, silent refresh, client-secret and username/password authentication are used automatically. `authToken` overrides the primary token in the `invokeHeadless` callback context only. Global Dataverse/Power Platform APIs use the saved connection's credentials, which are authenticated independently. A callback token does not identify a saved connection, satisfy a missing required slot, or replace saved credentials. Windowed calls can prompt for missing required slots in the tool UI.
 
 Headless tools use `toolboxAPI.connections.getConnections()` or `getConnection(2)` to access later slots, and pass the same zero-based numeric target to Dataverse or Power Platform APIs. Legacy `"primary"` / `"secondary"` targets remain supported. Metadata returned by `getToolContext()` contains slot IDs/names/URLs, not tokens.
 
@@ -104,6 +105,8 @@ Headless tools use `toolboxAPI.connections.getConnections()` or `getConnection(2
 - `one-way`: MCP returns an immediate accepted response and does not wait for a payload from the callee.
 
 ## Execution Mode Semantics
+
+When `__pptb.executionMode` is omitted, `headless` is used whenever the tool lists it in `agents.executionModes` (or sets `agents.headless: true`). `windowed` is only a backup: it is used when the tool does not support headless or when the caller explicitly requests it. `agents.defaultExecutionMode` is currently ignored and may be removed in a future release.
 
 - `windowed`: existing BrowserView launch behavior.
 - `headless`: MCP returns a job acknowledgement with `jobId` and `jobStatusPath`.
@@ -217,6 +220,67 @@ export async function invokeHeadless(
 ```
 
 These messages are stored with the job, surfaced in the MCP Server detail pane, and kept bounded so the log history does not grow without limit.
+
+## Agent-Driven Input Flow
+
+Headless execution is fully agent-driven: PPTB never opens a window, picker, or browser sign-in from a tool call. Instead, anything the user still has to provide is returned to the agent in a single `input_required` response.
+
+### Built-in MCP tools
+
+| Tool                            | Purpose                                                                                                                                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pptb_list_connections`         | Lists saved connections: `name`, `environment` (`Dev`/`Test`/`UAT`/`Production`), `url`, `authenticationType`, `authStatus`, optional `category`. Optional `environment` filter. Never returns IDs, secrets, or tokens.                                                  |
+| `pptb_authenticate_connections` | Authenticates `connectionNames` (max 10). Cached/silent/client-secret/username-password paths run first; `interactive` connections open a browser sign-in on the user's machine. Returns per-connection `status` (`authenticated`, `failed`, `not-found`), never tokens. |
+
+`authStatus` values: `signed-in` (valid cached token), `refreshable` (PPTB can get a token without the user), `sign-in-required` (call `pptb_authenticate_connections`), `incomplete-credentials` (fix the connection in the PPTB app).
+
+Concurrent sign-in requests for the same connection share one browser flow. If a client times out while the user signs in, PPTB still stores the token; call `pptb_list_connections` to confirm `authStatus` before retrying.
+
+### `input_required` response
+
+Returned as an MCP error result (`isError: true`) so clients do not validate it against the tool's `outputSchema` and agents treat it as a correctable step. The text starts with `ACTION REQUIRED (not a failure)`, numbered next steps, then a JSON payload:
+
+```json
+{
+    "status": "input_required",
+    "tool": "compare-solutions",
+    "executionMode": "headless",
+    "messages": ["Tool 'Compare Solutions' requires at least 2 named connections; received 1.", "Missing required parameter(s): solutionName."],
+    "requirements": {
+        "connections": {
+            "minConnections": 2,
+            "maxConnections": 2,
+            "slots": [
+                { "index": 0, "label": "Primary", "required": true, "assignedConnectionName": "Contoso Dev" },
+                { "index": 1, "label": "Secondary", "required": true }
+            ],
+            "providedConnectionNames": ["Contoso Dev"],
+            "unknownConnectionNames": [],
+            "availableConnections": [
+                { "name": "Contoso Prod", "environment": "Production", "url": "https://prod.crm.dynamics.com", "authenticationType": "interactive", "authStatus": "sign-in-required" }
+            ]
+        },
+        "authentication": {
+            "connections": [{ "name": "Contoso Dev", "environment": "Dev", "authenticationType": "interactive", "reason": "Connection 'Contoso Dev' requires interactive sign-in. ..." }]
+        },
+        "parameters": [{ "name": "solutionName", "type": "string", "title": "Solution", "description": "Unique name of the solution" }]
+    },
+    "nextSteps": ["..."]
+}
+```
+
+- `connections` appears when required slots are missing or names are unknown. Headless only; windowed calls let the tool UI pick connections.
+- `authentication` lists selected connections that need a browser sign-in (or whose non-interactive authentication failed).
+- `parameters` lists missing required `prefill` properties in both execution modes, with `title`/`description`/`enum` from `pptb.config.json`. Object/array parameters include their `schema`. Type errors are still rejected directly.
+
+### Typical agent loop
+
+1. Call the tool. If the result is `input_required`, show the user `availableConnections` (name + environment) for each slot and ask for any `parameters`.
+2. Call `pptb_authenticate_connections` for every selected connection whose `authStatus` is not `signed-in`. Multi-connection tools need all slots authenticated.
+3. Retry the tool with `__pptb.connectionNames` in slot order plus the parameter values.
+4. Backup only: if the user prefers the PPTB UI, retry with `__pptb.executionMode: "windowed"`.
+
+Tool authors can improve the prompts agents show by adding `title` and `description` to `invocation.prefill` properties.
 
 ## Tool Runtime Context
 

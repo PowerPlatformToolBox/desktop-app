@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { CallToolRequestSchema, CallToolResult, ElicitRequestFormParams, ListToolsRequestSchema, PrimitiveSchemaDefinition } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, CallToolResult, ListToolsRequestSchema, Tool as McpToolDefinition } from "@modelcontextprotocol/sdk/types.js";
 import { promises as fs } from "fs";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import os from "os";
@@ -20,8 +20,22 @@ import { ToolManager } from "../managers/toolsManager";
 import { ToolWindowManager } from "../managers/toolWindowManager";
 import { logInvocation } from "./agentInvocationLogger";
 import { AgentExecutionMode, AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
+import {
+    AUTHENTICATE_CONNECTIONS_TOOL_NAME,
+    AuthenticationRequirement,
+    buildConnectionSlots,
+    ConnectionRequirement,
+    createInputRequiredResult,
+    describeMissingParameters,
+    hasRequirements,
+    hasReusableToken,
+    InputRequirements,
+    LIST_CONNECTIONS_TOOL_NAME,
+    MAX_CONNECTION_NAMES,
+    partitionValidationErrors,
+    summarizeConnection,
+} from "./headlessInputRequirements";
 import { invokeHeadlessTool } from "./headlessToolRuntime";
-import { JsonObjectSchema } from "./schemaConverter";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
 const MCP_AUTH_HEADER_DISPLAY_NAME = "X-MCP-Auth-Token";
@@ -121,53 +135,7 @@ function stripInvocationMeta(args: Record<string, unknown>): Record<string, unkn
     return clone;
 }
 
-/**
- * Parses validation errors to find top-level required-field-missing errors.
- * Only top-level fields ($.fieldName) are returned since elicitation supports flat schemas only.
- */
-function extractMissingFieldNames(errors: string[]): string[] {
-    const missing: string[] = [];
-    for (const err of errors) {
-        const match = /^\$\.([^.:]+): required field is missing$/.exec(err);
-        if (match?.[1]) {
-            missing.push(match[1]);
-        }
-    }
-    return missing;
-}
-
-/**
- * Builds a flat elicitation requestedSchema from missing required fields in the tool's input schema.
- * Returns null if any missing field cannot be represented as a primitive (e.g. object or array types),
- * since form-based elicitation only supports flat primitive values.
- */
-function buildElicitationProperties(inputSchema: JsonObjectSchema, fieldNames: string[]): Record<string, PrimitiveSchemaDefinition> | null {
-    const properties = isRecord(inputSchema.properties) ? inputSchema.properties : {};
-    const result: Record<string, PrimitiveSchemaDefinition> = {};
-
-    for (const name of fieldNames) {
-        const prop = isRecord(properties[name]) ? (properties[name] as Record<string, unknown>) : undefined;
-        const type = typeof prop?.type === "string" ? prop.type : undefined;
-        const description = typeof prop?.description === "string" ? prop.description : undefined;
-        const title = typeof prop?.title === "string" ? prop.title : undefined;
-        const enumValues = Array.isArray(prop?.enum) ? (prop.enum as unknown[]).filter((v): v is string => typeof v === "string") : undefined;
-
-        if (type === "boolean") {
-            result[name] = { type: "boolean", ...(title ? { title } : {}), ...(description ? { description } : {}) };
-        } else if (type === "number" || type === "integer") {
-            result[name] = { type: "number", ...(title ? { title } : {}), ...(description ? { description } : {}) };
-        } else if (enumValues && enumValues.length > 0) {
-            result[name] = { type: "string", enum: enumValues, ...(title ? { title } : {}), ...(description ? { description } : {}) };
-        } else if (type === "string" || type === undefined) {
-            result[name] = { type: "string", ...(title ? { title } : {}), ...(description ? { description } : {}) };
-        } else {
-            // Object or array — cannot be entered via a flat elicitation form
-            return null;
-        }
-    }
-
-    return Object.keys(result).length > 0 ? result : null;
-}
+class SignInRequiredError extends Error {}
 
 function createInvocationError(text: string): CallToolResult {
     return {
@@ -292,6 +260,7 @@ export class McpServerManager {
     private expectedToken: string;
     private agentToolsCache: { tools: AgentTool[] } | null = null;
     private headlessInvocationManager: HeadlessToolInvocationManager;
+    private pendingAuthentications = new Map<string, Promise<string>>();
 
     constructor(port = 7339, host = "127.0.0.1", settingsManager: SettingsManager, toolRegistryManager: ToolRegistryManager, toolManager: ToolManager) {
         this.port = port;
@@ -615,8 +584,9 @@ export class McpServerManager {
             throw new Error(`Requested execution mode '${requestedExecutionMode}' is not supported. Supported execution modes: ${tool.executionModes.join(", ")}`);
         }
 
-        if (tool.executionModes.includes(tool.defaultExecutionMode)) {
-            return tool.defaultExecutionMode;
+        // Headless is the primary execution mode; windowed is only a backup when headless is unsupported.
+        if (tool.executionModes.includes("headless")) {
+            return "headless";
         }
 
         return tool.executionModes[0] ?? "windowed";
@@ -643,61 +613,216 @@ export class McpServerManager {
         throw new Error(`Timed out waiting for headless job '${jobId}' completion after ${timeoutMs} ms.`);
     }
 
-    private getReusableAccessToken(connection: Connection): string | undefined {
-        if (!connection.accessToken) {
-            return undefined;
+    private matchSavedConnections(names: string[]): { connections: Array<Connection | null>; unknownNames: string[] } {
+        if (names.length > 0 && !this.connectionsManager) {
+            throw new Error("Connection manager is not configured for named connections.");
+        }
+        const savedConnections = this.connectionsManager?.getConnections() ?? [];
+        const unknownNames: string[] = [];
+        const connections = names.map((name) => {
+            const matches = savedConnections.filter((connection) => connection.name.trim().toLowerCase() === name.trim().toLowerCase());
+            if (matches.length > 1) throw new Error(`Multiple connections found with name '${name}'. Please make names unique.`);
+            if (matches.length === 0) {
+                unknownNames.push(name);
+                return null;
+            }
+            return matches[0];
+        });
+        return { connections, unknownNames };
+    }
+
+    private async tryAcquireTokenSilently(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string } | null> {
+        if (!this.authManager) {
+            return null;
+        }
+        if (connection.msalAccountId) {
+            try {
+                const silent = await this.authManager.acquireTokenSilently(connection);
+                return { accessToken: silent.accessToken, expiresOn: silent.expiresOn, msalAccountId: connection.msalAccountId };
+            } catch (error) {
+                logInfo(`[MCP] Silent token acquisition failed for connection '${connection.name}': ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+        if (connection.refreshToken) {
+            try {
+                return await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+            } catch (error) {
+                logInfo(`[MCP] Token refresh failed for connection '${connection.name}': ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns an access token for a saved connection. Cached and silent paths are always attempted first.
+     * Browser-based sign-in is only started when `allowInteractive` is true (agent-requested authentication);
+     * otherwise a SignInRequiredError is thrown so the caller can ask the agent to authenticate explicitly.
+     */
+    private acquireConnectionToken(connection: Connection, allowInteractive: boolean): Promise<string> {
+        if (hasReusableToken(connection)) {
+            return Promise.resolve(connection.accessToken as string);
+        }
+        const pending = this.pendingAuthentications.get(connection.id);
+        if (pending) {
+            return pending;
+        }
+        const attempt = this.acquireConnectionTokenUncached(connection, allowInteractive).finally(() => {
+            this.pendingAuthentications.delete(connection.id);
+        });
+        this.pendingAuthentications.set(connection.id, attempt);
+        return attempt;
+    }
+
+    private async acquireConnectionTokenUncached(connection: Connection, allowInteractive: boolean): Promise<string> {
+        if (!this.connectionsManager || !this.authManager) {
+            throw new Error("Connection/auth managers are not configured for connectionName-based authentication.");
+        }
+        if (connection.hasIncompleteCredentials) {
+            throw new Error(`Connection '${connection.name}' is missing credentials. Complete it in the PPTB app before using it.`);
         }
 
-        if (!connection.tokenExpiry) {
-            return connection.accessToken;
+        let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string } | null;
+
+        switch (connection.authenticationType) {
+            case "clientSecret":
+                authResult = await this.authManager.authenticateClientSecret(connection);
+                break;
+            case "usernamePassword":
+                authResult = (await this.tryAcquireTokenSilently(connection)) ?? (await this.authManager.authenticateUsernamePassword(connection));
+                break;
+            case "interactive":
+                authResult = await this.tryAcquireTokenSilently(connection);
+                if (!authResult) {
+                    if (!allowInteractive) {
+                        throw new SignInRequiredError(
+                            `Connection '${connection.name}' requires interactive sign-in. Call ${AUTHENTICATE_CONNECTIONS_TOOL_NAME} for it after the user confirms, then retry.`,
+                        );
+                    }
+                    authResult = await this.authManager.authenticateInteractive(connection);
+                }
+                break;
+            case "connectionString":
+                throw new Error(`Connection '${connection.name}' uses unsupported authenticationType 'connectionString' for headless token acquisition.`);
+            default:
+                throw new Error(`Unsupported authentication type for connection '${connection.name}'.`);
         }
 
-        const expiry = new Date(connection.tokenExpiry).getTime();
-        const now = Date.now();
+        this.connectionsManager.updateConnectionTokens(connection.id, {
+            accessToken: authResult.accessToken,
+            refreshToken: authResult.refreshToken,
+            expiresOn: authResult.expiresOn,
+            msalAccountId: authResult.msalAccountId,
+        });
 
-        // Keep a small safety buffer to avoid near-expiry token use.
-        if (Number.isFinite(expiry) && expiry - now > 60_000) {
-            return connection.accessToken;
+        return authResult.accessToken;
+    }
+
+    private assertConnectionCount(names: string[], range: { min: number; max: number }, toolName: string): void {
+        if (names.length > range.max) {
+            throw new Error(range.max === 0 ? `Tool '${toolName}' does not accept connections.` : `Tool '${toolName}' accepts at most ${range.max} connections; received ${names.length}.`);
         }
-
-        return undefined;
     }
 
     private async resolveInvocationConnections(invocationMeta: InvocationMeta, manifest: ToolMetadata, headless: boolean): Promise<ResolvedHeadlessAuthContext> {
         const names = invocationMeta.connectionNames ?? (invocationMeta.connectionName ? [invocationMeta.connectionName] : []);
         const range = resolveConnectionSlots(manifest.features);
-        if (names.length > range.max) {
-            throw new Error(range.max === 0 ? `Tool '${manifest.name}' does not accept connections.` : `Tool '${manifest.name}' accepts at most ${range.max} connections; received ${names.length}.`);
-        }
+        this.assertConnectionCount(names, range, manifest.name);
         if (headless && names.length < range.min) {
             throw new Error(`Tool '${manifest.name}' requires at least ${range.min} named connections; received ${names.length}. Supply connectionNames in slot order.`);
         }
-        if (names.length > 0 && !this.connectionsManager) throw new Error("Connection manager is not configured for named connections.");
-        const savedConnections = this.connectionsManager?.getConnections() ?? [];
-        const connections = names.map((name) => {
-            const matches = savedConnections.filter((connection) => connection.name.trim().toLowerCase() === name.trim().toLowerCase());
-            if (matches.length === 0) throw new Error(`No saved connection found with name '${name}'.`);
-            if (matches.length > 1) throw new Error(`Multiple connections found with name '${name}'. Please make names unique.`);
-            return matches[0];
-        });
-        const authContexts: ResolvedHeadlessAuthContext[] = [];
+        const { connections: matched, unknownNames } = this.matchSavedConnections(names);
+        if (unknownNames.length > 0) throw new Error(`No saved connection found with name '${unknownNames[0]}'.`);
+        const connections = matched as Connection[];
+        const authTokens: Array<string | undefined> = [];
         if (headless) {
             for (const [index, connection] of connections.entries()) {
-                const resolved = await this.resolveHeadlessAuthContext({ connectionName: connection.name }, false);
-                authContexts.push(index === 0 && invocationMeta.authToken ? { ...resolved, authToken: invocationMeta.authToken } : resolved);
+                const token = await this.acquireConnectionToken(connection, false);
+                authTokens.push(index === 0 && invocationMeta.authToken ? invocationMeta.authToken : token);
             }
         }
+        return this.buildResolvedContext(invocationMeta, connections, authTokens);
+    }
+
+    private buildResolvedContext(invocationMeta: InvocationMeta, connections: Connection[], authTokens: Array<string | undefined>): ResolvedHeadlessAuthContext {
         return {
             source: invocationMeta.authToken ? "provided-token" : connections.length ? "connection-name" : "none",
             connectionId: connections[0]?.id,
             connectionName: connections[0]?.name,
             connectionUrl: connections[0]?.url,
-            authToken: invocationMeta.authToken ?? authContexts[0]?.authToken,
+            authToken: invocationMeta.authToken ?? authTokens[0],
             connectionIds: connections.map((connection) => connection.id),
             connectionNames: connections.map((connection) => connection.name),
             connectionUrls: connections.map((connection) => connection.url),
-            authTokens: authContexts.map((resolved) => resolved.authToken),
+            authTokens,
         };
+    }
+
+    /**
+     * Resolves connections for a headless call without ever prompting the user. Missing/unknown connections and
+     * connections that need a browser sign-in are reported as requirements for the agent instead of failing.
+     * Hard errors (too many names, ambiguous names) are still thrown.
+     */
+    private async planHeadlessConnections(
+        invocationMeta: InvocationMeta,
+        manifest: ToolMetadata,
+    ): Promise<{ context?: ResolvedHeadlessAuthContext; connections?: ConnectionRequirement; authentication?: AuthenticationRequirement; messages: string[] }> {
+        const names = invocationMeta.connectionNames ?? (invocationMeta.connectionName ? [invocationMeta.connectionName] : []);
+        const range = resolveConnectionSlots(manifest.features);
+        this.assertConnectionCount(names, range, manifest.name);
+        if (range.min > 0 && !this.connectionsManager) {
+            throw new Error("Connection manager is not configured for named connections.");
+        }
+
+        const { connections: matched, unknownNames } = this.matchSavedConnections(names);
+        const messages: string[] = unknownNames.map((name) => `No saved connection found with name '${name}'.`);
+        if (names.length < range.min) {
+            messages.push(`Tool '${manifest.name}' requires at least ${range.min} named connections; received ${names.length}.`);
+        }
+
+        let connectionRequirement: ConnectionRequirement | undefined;
+        if (unknownNames.length > 0 || names.length < range.min) {
+            const savedConnections = this.connectionsManager?.getConnections() ?? [];
+            const now = Date.now();
+            connectionRequirement = {
+                minConnections: range.min,
+                maxConnections: range.max,
+                slots: buildConnectionSlots(range, names),
+                providedConnectionNames: names,
+                unknownConnectionNames: unknownNames,
+                availableConnections: savedConnections.map((connection) => summarizeConnection(connection, now)),
+            };
+            if (savedConnections.length === 0) {
+                messages.push("No saved connections exist in PPTB. Ask the user to add a connection in the Power Platform ToolBox app first.");
+            }
+        }
+
+        const authTokens: Array<string | undefined> = [];
+        const needsSignIn: AuthenticationRequirement["connections"] = [];
+        for (const [index, connection] of matched.entries()) {
+            if (!connection) {
+                authTokens.push(undefined);
+                continue;
+            }
+            try {
+                const token = await this.acquireConnectionToken(connection, false);
+                authTokens.push(index === 0 && invocationMeta.authToken ? invocationMeta.authToken : token);
+            } catch (error) {
+                const reason = error instanceof Error ? error.message : String(error);
+                if (!(error instanceof SignInRequiredError)) {
+                    logInfo(`[MCP] Headless token acquisition failed for connection '${connection.name}': ${reason}`);
+                }
+                needsSignIn.push({ name: connection.name, environment: connection.environment, authenticationType: connection.authenticationType, reason });
+                messages.push(reason);
+                authTokens.push(undefined);
+            }
+        }
+
+        const authentication = needsSignIn.length > 0 ? { connections: needsSignIn } : undefined;
+        if (connectionRequirement || authentication) {
+            return { connections: connectionRequirement, authentication, messages };
+        }
+
+        return { context: this.buildResolvedContext(invocationMeta, matched as Connection[], authTokens), messages };
     }
 
     private async resolveHeadlessAuthContext(invocationMeta: InvocationMeta, allowInteractive = true): Promise<ResolvedHeadlessAuthContext> {
@@ -718,74 +843,134 @@ export class McpServerManager {
             throw new Error("Connection/auth managers are not configured for connectionName-based authentication.");
         }
 
-        const matches = this.connectionsManager.getConnections().filter((c) => c.name.trim().toLowerCase() === invocationMeta.connectionName!.trim().toLowerCase());
-
-        if (matches.length === 0) {
+        const { connections, unknownNames } = this.matchSavedConnections([invocationMeta.connectionName]);
+        if (unknownNames.length > 0) {
             throw new Error(`No saved connection found with name '${invocationMeta.connectionName}'.`);
         }
 
-        if (matches.length > 1) {
-            throw new Error(`Multiple connections found with name '${invocationMeta.connectionName}'. Please make names unique.`);
-        }
-
-        const connection = matches[0];
-        const reusableToken = this.getReusableAccessToken(connection);
-        if (reusableToken) {
-            return {
-                authToken: reusableToken,
-                source: "connection-name",
-                connectionName: connection.name,
-                connectionId: connection.id,
-                connectionUrl: connection.url,
-            };
-        }
-
-        let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
-
-        switch (connection.authenticationType) {
-            case "clientSecret":
-                authResult = await this.authManager.authenticateClientSecret(connection);
-                break;
-            case "usernamePassword":
-                if (connection.msalAccountId) {
-                    const silent = await this.authManager.acquireTokenSilently(connection);
-                    authResult = { accessToken: silent.accessToken, expiresOn: silent.expiresOn, msalAccountId: connection.msalAccountId };
-                } else if (connection.refreshToken) {
-                    authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                } else {
-                    authResult = await this.authManager.authenticateUsernamePassword(connection);
-                }
-                break;
-            case "interactive":
-                if (connection.msalAccountId) {
-                    const silent = await this.authManager.acquireTokenSilently(connection);
-                    authResult = { accessToken: silent.accessToken, expiresOn: silent.expiresOn, msalAccountId: connection.msalAccountId };
-                } else if (connection.refreshToken) {
-                    authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                } else {
-                    if (!allowInteractive) throw new Error(`Connection '${connection.name}' requires interactive sign-in. Authenticate it in PPTB before headless invocation.`);
-                    authResult = await this.authManager.authenticateInteractive(connection);
-                }
-                break;
-            case "connectionString":
-                throw new Error(`Connection '${connection.name}' uses unsupported authenticationType 'connectionString' for headless token acquisition.`);
-            default:
-                throw new Error(`Unsupported authentication type for connection '${connection.name}'.`);
-        }
-
-        this.connectionsManager.updateConnectionTokens(connection.id, {
-            accessToken: authResult.accessToken,
-            refreshToken: authResult.refreshToken,
-            expiresOn: authResult.expiresOn,
-            msalAccountId: authResult.msalAccountId,
-        });
+        const connection = connections[0] as Connection;
+        const authToken = await this.acquireConnectionToken(connection, allowInteractive);
 
         return {
-            authToken: authResult.accessToken,
+            authToken,
             source: "connection-name",
             connectionName: connection.name,
             connectionId: connection.id,
             connectionUrl: connection.url,
+        };
+    }
+
+    private getBuiltInToolDefinitions(): McpToolDefinition[] {
+        return [
+            {
+                name: LIST_CONNECTIONS_TOOL_NAME,
+                title: "List PPTB connections",
+                description:
+                    "Lists saved Power Platform ToolBox connections with name, environment type (Dev/Test/UAT/Production), URL, authentication type, and authStatus. " +
+                    "Use it to let the user pick connections for PPTB tools. Never returns IDs, secrets, or tokens.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        environment: { type: "string", enum: ["Dev", "Test", "UAT", "Production"], description: "Optional environment type filter." },
+                    },
+                },
+                outputSchema: {
+                    type: "object",
+                    properties: { connections: { type: "array", items: { type: "object" } } },
+                    required: ["connections"],
+                },
+                annotations: { readOnlyHint: true, openWorldHint: false },
+            },
+            {
+                name: AUTHENTICATE_CONNECTIONS_TOOL_NAME,
+                title: "Authenticate PPTB connections",
+                description:
+                    "Signs in to saved PPTB connections so headless tools can use them. Cached, silent, client-secret, and username/password authentication are tried first; " +
+                    "interactive connections open a browser sign-in on the user's machine. Call it only for connections the user selected. Returns per-connection status, never tokens. " +
+                    `If this call times out while the user signs in, call ${LIST_CONNECTIONS_TOOL_NAME} to confirm authStatus before retrying.`,
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        connectionNames: {
+                            type: "array",
+                            items: { type: "string" },
+                            minItems: 1,
+                            maxItems: MAX_CONNECTION_NAMES,
+                            description: "Saved PPTB connection names to authenticate.",
+                        },
+                    },
+                    required: ["connectionNames"],
+                },
+                outputSchema: {
+                    type: "object",
+                    properties: {
+                        allAuthenticated: { type: "boolean" },
+                        results: { type: "array", items: { type: "object" } },
+                    },
+                    required: ["allAuthenticated", "results"],
+                },
+                annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+            },
+        ];
+    }
+
+    private handleListConnections(args: Record<string, unknown>): CallToolResult {
+        const environment = typeof args.environment === "string" ? args.environment.trim().toLowerCase() : undefined;
+        const now = Date.now();
+        const connections = (this.connectionsManager?.getConnections() ?? [])
+            .filter((connection) => !environment || connection.environment.toLowerCase() === environment)
+            .map((connection) => summarizeConnection(connection, now));
+        return createStructuredSuccess({ connections });
+    }
+
+    private async handleAuthenticateConnections(args: Record<string, unknown>, reportProgress: (progress: number, total: number, message: string) => Promise<void>): Promise<CallToolResult> {
+        const rawNames = args.connectionNames;
+        if (!Array.isArray(rawNames) || rawNames.length === 0 || rawNames.some((name) => typeof name !== "string" || !name.trim())) {
+            return createInvocationError("connectionNames must be a non-empty array of saved connection names.");
+        }
+        if (rawNames.length > MAX_CONNECTION_NAMES) {
+            return createInvocationError(`At most ${MAX_CONNECTION_NAMES} connections can be authenticated per call.`);
+        }
+        if (!this.connectionsManager || !this.authManager) {
+            return createInvocationError("Connection/auth managers are not configured.");
+        }
+
+        const names = [...new Map((rawNames as string[]).map((name) => [name.trim().toLowerCase(), name.trim()])).values()];
+        const results: Array<Record<string, unknown>> = [];
+
+        for (const [index, name] of names.entries()) {
+            await reportProgress(index, names.length, `Authenticating '${name}'`);
+            let connection: Connection | null;
+            try {
+                connection = this.matchSavedConnections([name]).connections[0];
+            } catch (error) {
+                results.push({ name, status: "failed", error: error instanceof Error ? error.message : String(error) });
+                continue;
+            }
+            if (!connection) {
+                results.push({ name, status: "not-found", error: `No saved connection found with name '${name}'.` });
+                continue;
+            }
+
+            const summary = { name: connection.name, environment: connection.environment, authenticationType: connection.authenticationType };
+            try {
+                await this.acquireConnectionToken(connection, true);
+                results.push({ ...summary, status: "authenticated" });
+                logInfo(`[MCP] Agent-requested authentication succeeded for connection '${connection.name}'`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                results.push({ ...summary, status: "failed", error: message });
+                logInfo(`[MCP] Agent-requested authentication failed for connection '${connection.name}': ${message}`);
+            }
+        }
+        await reportProgress(names.length, names.length, "Authentication finished");
+
+        const allAuthenticated = results.every((result) => result.status === "authenticated");
+        const payload = { allAuthenticated, results };
+        return {
+            content: [{ type: "text", text: JSON.stringify(payload) }],
+            structuredContent: payload,
+            isError: !allAuthenticated,
         };
     }
 
@@ -897,64 +1082,93 @@ export class McpServerManager {
 
         server.server.registerCapabilities({ tools: { listChanged: true } });
         server.server.setRequestHandler(ListToolsRequestSchema, () => ({
-            tools: agentTools.map((tool) => ({
-                name: tool.displayName,
-                title: tool.displayName,
-                description: `${tool.description} [modes: ${tool.invocationModes.join(", ")}; default: ${tool.defaultInvocationMode}; returnsData: ${hasObjectProperties(tool.outputSchema) ? "yes" : "no"}]`,
-                inputSchema: {
-                    ...tool.inputSchema,
-                    properties: {
-                        ...(isRecord(tool.inputSchema.properties) ? tool.inputSchema.properties : {}),
-                        [MCP_INVOCATION_META_KEY]: {
-                            type: "object",
-                            description: "Optional invocation metadata for MCP callers.",
+            tools: [
+                ...this.getBuiltInToolDefinitions(),
+                ...agentTools.map((tool) => {
+                    const manifest = this.resolveExecutionManifest(tool.toolId);
+                    const range = manifest ? resolveConnectionSlots(manifest.features) : null;
+                    const connectionHint = range ? `; connections: ${range.min === range.max ? range.min : `${range.min}-${range.max}`}` : "";
+                    const hasWindowedBackup = tool.executionModes.includes("headless") && tool.executionModes.includes("windowed");
+                    return {
+                        name: tool.displayName,
+                        title: tool.displayName,
+                        description: `${tool.description} [modes: ${tool.invocationModes.join(", ")}; default: ${tool.defaultInvocationMode}; executionModes: ${tool.executionModes.join(", ")}; defaultExecutionMode: ${tool.defaultExecutionMode}${connectionHint}; returnsData: ${hasObjectProperties(tool.outputSchema) ? "yes" : "no"}]`,
+                        inputSchema: {
+                            ...tool.inputSchema,
                             properties: {
-                                mode: {
-                                    type: "string",
-                                    enum: tool.invocationModes,
-                                    description: `Invocation mode. Defaults to '${tool.defaultInvocationMode}' when omitted.`,
-                                },
-                                executionMode: {
-                                    type: "string",
-                                    enum: tool.executionModes,
-                                    description: `Execution mode. Defaults to '${tool.defaultExecutionMode}' when omitted.`,
-                                },
-                                timeoutMs: {
-                                    type: "number",
-                                    description: "Optional timeout override in milliseconds for this call.",
-                                },
-                                authToken: {
-                                    type: "string",
-                                    description: "Optional caller-provided auth token for headless execution.",
-                                },
-                                connectionName: {
-                                    type: "string",
-                                    description: "Legacy alias for connectionNames[0]. Must match the first name when both are supplied.",
-                                },
-                                connectionNames: {
-                                    type: "array",
-                                    items: { type: "string" },
-                                    maxItems: 10,
-                                    description: "Saved PPTB connection names in slot order: index 0 is primary, index 1 secondary, and later indexes address additional slots.",
+                                ...(isRecord(tool.inputSchema.properties) ? tool.inputSchema.properties : {}),
+                                [MCP_INVOCATION_META_KEY]: {
+                                    type: "object",
+                                    description: "Optional invocation metadata for MCP callers.",
+                                    properties: {
+                                        mode: {
+                                            type: "string",
+                                            enum: tool.invocationModes,
+                                            description: `Invocation mode. Defaults to '${tool.defaultInvocationMode}' when omitted.`,
+                                        },
+                                        executionMode: {
+                                            type: "string",
+                                            enum: tool.executionModes,
+                                            description: `Execution mode. Defaults to '${tool.defaultExecutionMode}' when omitted.${hasWindowedBackup ? " Use 'windowed' only as a backup: it opens the tool UI in PPTB for the user." : ""}`,
+                                        },
+                                        timeoutMs: {
+                                            type: "number",
+                                            description: "Optional timeout override in milliseconds for this call.",
+                                        },
+                                        authToken: {
+                                            type: "string",
+                                            description: "Optional caller-provided auth token for headless execution.",
+                                        },
+                                        connectionName: {
+                                            type: "string",
+                                            description: "Legacy alias for connectionNames[0]. Must match the first name when both are supplied.",
+                                        },
+                                        connectionNames: {
+                                            type: "array",
+                                            items: { type: "string" },
+                                            maxItems: MAX_CONNECTION_NAMES,
+                                            description:
+                                                "Saved PPTB connection names in slot order: index 0 is primary, index 1 secondary, and later indexes address additional slots. " +
+                                                `If omitted or incomplete for a headless call, PPTB replies with input_required listing the available connections (name and environment) for the user to choose; ${LIST_CONNECTIONS_TOOL_NAME} returns the same list.`,
+                                        },
+                                    },
                                 },
                             },
                         },
-                    },
-                },
-                outputSchema: tool.outputSchema,
-            })),
+                        outputSchema: tool.outputSchema,
+                    };
+                }),
+            ],
         }));
 
-        server.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
-            const toolIdFromName = resolveToolId(request.params.name);
+        server.server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
             const toolArgs = isRecord(request.params.arguments) ? request.params.arguments : {};
+
+            if (request.params.name === LIST_CONNECTIONS_TOOL_NAME) {
+                return this.handleListConnections(toolArgs);
+            }
+            if (request.params.name === AUTHENTICATE_CONNECTIONS_TOOL_NAME) {
+                const progressToken = request.params._meta?.progressToken;
+                return await this.handleAuthenticateConnections(toolArgs, async (progress, total, message) => {
+                    if (progressToken === undefined) {
+                        return;
+                    }
+                    try {
+                        await extra.sendNotification({ method: "notifications/progress", params: { progressToken, progress, total, message } });
+                    } catch {
+                        // Progress is best-effort; authentication continues regardless.
+                    }
+                });
+            }
+
+            const toolIdFromName = resolveToolId(request.params.name);
             let invocationMeta: InvocationMeta;
             try {
                 invocationMeta = parseInvocationMeta(toolArgs);
             } catch (error) {
                 return createInvocationError(error instanceof Error ? error.message : String(error));
             }
-            let prefillData = stripInvocationMeta(toolArgs);
+            const prefillData = stripInvocationMeta(toolArgs);
 
             const agentTools = await this.getAgentTools();
             const matchedTool = agentTools.find((tool) => tool.toolId === toolIdFromName);
@@ -974,69 +1188,18 @@ export class McpServerManager {
             const toolId = matchedTool.toolId;
             const displayName = matchedTool.displayName;
             const inputValidationErrors = validateAgainstSchema(prefillData, matchedTool.inputSchema);
-            if (inputValidationErrors.length > 0) {
-                const missingFields = extractMissingFieldNames(inputValidationErrors);
-                let elicitedSuccessfully = false;
-
-                // Attempt elicitation only when every validation error is a missing required field
-                // and all of those fields can be represented as flat primitives in a form.
-                if (missingFields.length > 0 && missingFields.length === inputValidationErrors.length) {
-                    const elicitProperties = buildElicitationProperties(matchedTool.inputSchema, missingFields);
-                    if (elicitProperties) {
-                        try {
-                            const clientCaps = server.server.getClientCapabilities();
-                            if (clientCaps?.elicitation?.form) {
-                                const elicitParams: ElicitRequestFormParams = {
-                                    message: `The tool "${displayName}" requires the following parameters. Please provide values to continue.`,
-                                    requestedSchema: {
-                                        type: "object",
-                                        properties: elicitProperties,
-                                        required: missingFields,
-                                    },
-                                };
-                                const elicitResult = await server.server.elicitInput(elicitParams);
-
-                                if (elicitResult.action === "accept" && isRecord(elicitResult.content)) {
-                                    const mergedPrefill = { ...prefillData, ...elicitResult.content };
-                                    const revalidationErrors = validateAgainstSchema(mergedPrefill, matchedTool.inputSchema);
-                                    if (revalidationErrors.length === 0) {
-                                        prefillData = mergedPrefill;
-                                        elicitedSuccessfully = true;
-                                    } else {
-                                        const errorText = `Input validation failed after elicitation: ${revalidationErrors.join("; ")}`;
-                                        logInvocationWithMeta({ toolId, toolName: displayName, connectionId: null, prefillData, outcome: "rejected", error: errorText });
-                                        return createInvocationError(errorText);
-                                    }
-                                } else {
-                                    logInvocationWithMeta({
-                                        toolId,
-                                        toolName: displayName,
-                                        connectionId: null,
-                                        prefillData,
-                                        outcome: "rejected",
-                                        error: "User declined or cancelled parameter elicitation",
-                                    });
-                                    return createInvocationError(`Tool invocation cancelled: required parameters were not provided for "${displayName}".`);
-                                }
-                            }
-                        } catch {
-                            // Elicitation not supported or failed; fall through to the validation error below
-                        }
-                    }
-                }
-
-                if (!elicitedSuccessfully) {
-                    const errorText = `Input validation failed: ${inputValidationErrors.join("; ")}`;
-                    logInvocationWithMeta({
-                        toolId,
-                        toolName: displayName,
-                        connectionId: null,
-                        prefillData,
-                        outcome: "rejected",
-                        error: errorText,
-                    });
-                    return createInvocationError(errorText);
-                }
+            const { missingFields, otherErrors } = partitionValidationErrors(inputValidationErrors);
+            if (otherErrors.length > 0) {
+                const errorText = `Input validation failed: ${inputValidationErrors.join("; ")}`;
+                logInvocationWithMeta({
+                    toolId,
+                    toolName: displayName,
+                    connectionId: null,
+                    prefillData,
+                    outcome: "rejected",
+                    error: errorText,
+                });
+                return createInvocationError(errorText);
             }
 
             let executionMode: AgentExecutionMode;
@@ -1057,6 +1220,32 @@ export class McpServerManager {
                 });
                 return createInvocationError(errorText);
             }
+
+            // Anything the user still has to supply is collected here and returned to the agent in a single response.
+            const requirements: InputRequirements = {};
+            const requirementMessages: string[] = [];
+            if (missingFields.length > 0) {
+                requirements.parameters = describeMissingParameters(matchedTool.inputSchema, missingFields);
+                requirementMessages.push(`Missing required parameter(s): ${missingFields.join(", ")}.`);
+            }
+            const returnInputRequired = (): CallToolResult => {
+                logInvocationWithMeta({
+                    toolId,
+                    toolName: displayName,
+                    connectionId: null,
+                    prefillData,
+                    outcome: "rejected",
+                    error: `Input required: ${requirementMessages.join(" ")}`,
+                    invocationMode,
+                });
+                return createInputRequiredResult({
+                    toolName: displayName,
+                    executionMode,
+                    requirements,
+                    messages: requirementMessages,
+                    windowedBackupAvailable: matchedTool.executionModes.includes("windowed"),
+                });
+            };
 
             switch (executionMode) {
                 case "headless": {
@@ -1079,7 +1268,14 @@ export class McpServerManager {
                     }
 
                     try {
-                        resolvedAuthContext = await this.resolveInvocationConnections(invocationMeta, executionManifest, true);
+                        const plan = await this.planHeadlessConnections(invocationMeta, executionManifest);
+                        if (plan.connections) requirements.connections = plan.connections;
+                        if (plan.authentication) requirements.authentication = plan.authentication;
+                        requirementMessages.push(...plan.messages);
+                        if (!plan.context || hasRequirements(requirements)) {
+                            return returnInputRequired();
+                        }
+                        resolvedAuthContext = plan.context;
                     } catch (error) {
                         const errorText = error instanceof Error ? error.message : String(error);
                         logInvocationWithMeta({
@@ -1230,6 +1426,10 @@ export class McpServerManager {
                 }
 
                 case "windowed": {
+                    if (hasRequirements(requirements)) {
+                        return returnInputRequired();
+                    }
+
                     if (!this.toolWindowManager) {
                         const errorText = "Tool window manager is not available";
                         logInvocationWithMeta({
