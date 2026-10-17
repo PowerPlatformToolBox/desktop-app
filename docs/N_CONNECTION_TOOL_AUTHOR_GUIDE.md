@@ -92,7 +92,7 @@ MCP callers use saved names instead of internal IDs, under `arguments.__pptb`:
 }
 ```
 
-Names are trimmed and matched case-insensitively. Unknown or ambiguous names, excessive counts, and names for a zero-connection tool are rejected. `connectionName` remains the slot-0 alias; if both fields are supplied it must match the first array entry. Headless calls must supply enough names and never open a picker or initiate fresh interactive sign-in. Authenticate interactive saved connections first. Global APIs use saved credentials; a caller token overrides only the explicit headless callback's primary token, not global API authentication. See [MCP Implementation](MCP_IMPLEMENTATION.md).
+Names are trimmed and matched case-insensitively. Unknown or ambiguous names, excessive counts, and names for a zero-connection tool are rejected. `connectionName` remains the slot-0 alias; if both fields are supplied it must match the first array entry. Headless calls never open a picker or browser sign-in; missing names or sign-ins are returned to the agent as `input_required` so it can ask the user and call `pptb_authenticate_connections`. Global APIs use saved credentials; a caller token overrides only the explicit headless callback's primary token, not global API authentication. See [MCP Implementation](MCP_IMPLEMENTATION.md).
 
 MCP `connectionNames` entries must be non-empty strings and form a dense prefix starting at slot 0. They cannot represent null gaps or assign only slot 2 without also supplying slots 0 and 1.
 

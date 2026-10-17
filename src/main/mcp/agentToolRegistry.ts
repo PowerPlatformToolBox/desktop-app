@@ -146,13 +146,9 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
         const configuredExecutionModes = Array.isArray(executionModesRaw) ? executionModesRaw.filter((mode): mode is AgentExecutionMode => isAgentExecutionMode(mode)) : [];
         const executionModes: AgentExecutionMode[] =
             configuredExecutionModes.length > 0 ? configuredExecutionModes : supportsHeadless ? (["windowed", "headless"] as AgentExecutionMode[]) : FALLBACK_EXECUTION_MODES;
-        const defaultExecutionModeRaw = agentConfig?.defaultExecutionMode;
-        const defaultExecutionMode: AgentExecutionMode =
-            isAgentExecutionMode(defaultExecutionModeRaw) && executionModes.includes(defaultExecutionModeRaw)
-                ? defaultExecutionModeRaw
-                : executionModes.includes("windowed")
-                  ? "windowed"
-                  : (executionModes[0] ?? "windowed");
+        // Headless is always the primary mode when supported; windowed is the backup.
+        // agents.defaultExecutionMode is intentionally ignored (slated for removal).
+        const defaultExecutionMode: AgentExecutionMode = executionModes.includes("headless") ? "headless" : (executionModes[0] ?? "windowed");
 
         const defaultInvocationModeRaw = agentConfig?.defaultMode;
         let defaultInvocationMode: AgentInvocationMode;
