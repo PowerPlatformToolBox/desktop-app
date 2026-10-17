@@ -3,7 +3,7 @@ import type { Tool } from "../../../../src/common/types";
 import { BrowserviewProtocolManager } from "../../../../src/main/managers/browserviewProtocolManager";
 import { ToolFileSystemAccessManager } from "../../../../src/main/managers/toolFileSystemAccessManager";
 import { ToolWindowManager } from "../../../../src/main/managers/toolWindowManager";
-import { authorizeFilesystemCaller } from "../../../../src/main/utilities/filesystemAuthorization";
+import { authorizeFilesystemCaller } from "../../../../src/main/utils/filesystemAuthorization";
 
 let mockLoadURL: ((view: BrowserView) => Promise<void>) | undefined;
 

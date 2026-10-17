@@ -1,8 +1,9 @@
 import { createHash } from "crypto";
 import type { WebContents } from "electron";
+import type { RequestOptions } from "http";
 import type { DotNetToolPreparationRequest } from "../../common/types/dotnetTool";
 import type { WorkerLaunchDescriptor, WorkerOwner, WorkerProcessHandle, WorkerProcessStart, WorkerRpcMessage } from "../../common/types/workerProcess";
-import { dotNetStableJson } from "../utilities/dotnetToolPreparation";
+import { dotNetStableJson } from "../utils/dotnetToolPreparation";
 import { DotNetDiscoveryManager } from "./dotnetDiscoveryManager";
 import { DotNetToolManager } from "./dotnetToolManager";
 import type { NativeWorkerIdentity } from "./nativeWorkerConsentManager";
@@ -20,6 +21,7 @@ export interface WorkerBrokerDependencies {
     consent: NativeWorkerConsentManager;
     discovery: Pick<DotNetDiscoveryManager, "discover">;
     preparationRoot: string;
+    agentForUrl?(url: string): RequestOptions["agent"];
     createPreparation?: (approve: (request: DotNetToolPreparationRequest) => Promise<boolean>) => Pick<DotNetToolManager, "prepare">;
     process?: Omit<WorkerProcessDependencies, "prepare">;
     cleanupTimeoutMs?: number;
@@ -197,7 +199,7 @@ export class WorkerBrokerManager {
             this.dependencies.createPreparation?.(approve) ??
             new DotNetToolManager(this.dependencies.preparationRoot, {
                 approve,
-                rediscover: () => this.dependencies.discovery.discover(declaration.dotnet, declaration.platforms, control),
+                agentForUrl: this.dependencies.agentForUrl ? (url) => this.dependencies.agentForUrl?.(url) : undefined,
             });
         const prepared = await preparation.prepare(request, control);
         this.check(launch);
@@ -272,17 +274,11 @@ export class WorkerBrokerManager {
             if (launch.handle) void this.processes.stop(launch.owner, launch.handle);
             await new Promise<void>((resolve, reject) => {
                 const timer = setTimeout(() => reject(new WorkerProcessError("PREPARATION_STOP_TIMEOUT")), this.dependencies.cleanupTimeoutMs ?? 5000);
-                Promise.resolve(launch.preparing).then(
-                    () => {
-                        clearTimeout(timer);
-                        resolve();
-                    },
-                    (error: unknown) => {
-                        clearTimeout(timer);
-                        if (error instanceof Error && "code" in error && (error.code === "WORKSPACE_INVALID" || error.code === "RESTORE_STOP_UNVERIFIED")) reject(error);
-                        else resolve();
-                    },
-                );
+                const settled = (): void => {
+                    clearTimeout(timer);
+                    resolve();
+                };
+                Promise.resolve(launch.preparing).then(settled, settled);
             });
             if (launch.handle) await this.processes.stopAndVerify(launch.owner, launch.handle);
             launch.unsubscribeTerminal?.();

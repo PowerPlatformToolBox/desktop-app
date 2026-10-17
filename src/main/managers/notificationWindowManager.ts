@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { logError } from "../../common/logger";
-import { resolveTheme } from "../utilities/theme";
+import { resolveTheme } from "../utils/theme";
 import { SettingsManager } from "./settingsManager";
 
 interface NotificationOptions {

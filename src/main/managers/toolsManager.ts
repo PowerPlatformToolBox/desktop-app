@@ -19,7 +19,7 @@ import {
     ToolManifest,
     ToolRegistryEntry,
 } from "../../common/types";
-import { readWorkerMetadata } from "../utilities/workerMetadata";
+import { readWorkerMetadata } from "../utils/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
 import { ProxyManager } from "./proxyManager";
 import { ToolRegistryManager } from "./toolRegistryManager";

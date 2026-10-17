@@ -12,9 +12,6 @@ export type DotNetDiscoveryErrorCode =
     | "PROBE_FAILED"
     | "PROBE_TIMEOUT"
     | "PROBE_OUTPUT_INVALID"
-    | "SDK_NOT_FOUND"
-    | "SDK_CONFIG_INVALID"
-    | "SDK_RUNTIME_NOT_FOUND"
     | "RUNTIME_NOT_FOUND";
 
 export interface DotNetDiscoveryFailure {
@@ -47,12 +44,8 @@ export interface DotNetDiscoverySelection {
     platform: NativeWorkerPlatform;
     nativeRid: string;
     platformMatrixVersion: 1;
-    sdk: DotNetInstallation;
-    sdkRuntime: DotNetInstallation;
-    sdkRuntimeConfigPath: string;
     runtime: DotNetInstallation;
     nativeRollForward: "Disable" | "LatestMajor" | "Minor" | "Major";
-    sdkPin: { sdk: { version: string; rollForward: "disable"; allowPrerelease: false; paths: ["$host$"] } };
     attempts: DotNetHostAttempt[];
 }
 

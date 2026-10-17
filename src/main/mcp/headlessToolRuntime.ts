@@ -10,7 +10,7 @@ import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
 import { PowerPlatformManager } from "../managers/powerplatformManager";
 import { SettingsManager } from "../managers/settingsManager";
-import { mergeDataverseHeaders, validateAndSnapshotHeaders, validateBatchRequests } from "../utilities/dataverseBatch";
+import { mergeDataverseHeaders, validateAndSnapshotHeaders, validateBatchRequests } from "../utils/dataverseBatch";
 
 type HeadlessInvokeFn = (input: Record<string, unknown>, context: HeadlessInvokeContext) => Promise<Record<string, unknown>>;
 

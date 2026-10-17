@@ -61,6 +61,9 @@ importers:
             vscode-jsonrpc:
                 specifier: 8.2.1
                 version: 8.2.1
+            yauzl:
+                specifier: ^3.4.0
+                version: 3.4.0
         devDependencies:
             "@electron/notarize":
                 specifier: ^3.1.0
@@ -74,6 +77,9 @@ importers:
             "@types/node":
                 specifier: ^20.19.21
                 version: 20.19.27
+            "@types/yauzl":
+                specifier: ^2.10.3
+                version: 2.10.3
             "@typescript-eslint/eslint-plugin":
                 specifier: ^6.13.0
                 version: 6.21.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1)(typescript@5.9.3)
@@ -4133,6 +4139,10 @@ packages:
     yauzl@2.10.0:
         resolution: { integrity: sha512-p4a9I6X6nu6IhoGmBqAcbJy1mlC4j27vEPZX9F4L4/vZT3Lyq1VkFHw/V/PUcB9Buo+DG3iHkT0x3Qya58zc3g== }
 
+    yauzl@3.4.0:
+        resolution: { integrity: sha512-jIH9yLR9wqr0wOS0TpBvo/g/2UgZH5qePVbjgRliiF0BYvOZyaBknKsF+x9Iht0O6sqgnB93rCICdOZFecJuDw== }
+        engines: { node: ">=12" }
+
     yn@3.1.1:
         resolution: { integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q== }
         engines: { node: ">=6" }
@@ -5373,7 +5383,6 @@ snapshots:
     "@types/yauzl@2.10.3":
         dependencies:
             "@types/node": 20.19.27
-        optional: true
 
     "@typescript-eslint/eslint-plugin@6.21.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1)(typescript@5.9.3)":
         dependencies:
@@ -8664,6 +8673,10 @@ snapshots:
         dependencies:
             buffer-crc32: 0.2.13
             fd-slicer: 1.1.0
+
+    yauzl@3.4.0:
+        dependencies:
+            pend: 1.2.0
 
     yn@3.1.1: {}
 

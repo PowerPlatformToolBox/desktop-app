@@ -27,8 +27,8 @@ import {
 } from "../../common/types";
 import { compareVersions } from "../../common/utils/version";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
-import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
-import { normalizeWorkerMetadata, readWorkerMetadata } from "../utilities/workerMetadata";
+import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utils/mockRegistry";
+import { normalizeWorkerMetadata, readWorkerMetadata } from "../utils/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
 import { ProxyManager } from "./proxyManager";
 

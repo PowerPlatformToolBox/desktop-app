@@ -13,7 +13,7 @@ import type {
     WorkerProcessState,
     WorkerRpcMessage,
 } from "../../common/types/workerProcess";
-import { BoundedWorkerReader, immutableWorkerMessage, WORKER_PROCESS_LIMITS } from "../utilities/workerStdio";
+import { BoundedWorkerReader, immutableWorkerMessage, WORKER_PROCESS_LIMITS } from "../utils/workerStdio";
 
 export interface WorkerChild {
     readonly pid?: number;
@@ -86,7 +86,6 @@ interface WorkerRecord {
     outputClosed: Set<"stdout" | "stderr">;
     preparation?: Promise<void>;
     preparationSettled: boolean;
-    preparationFailure?: Error;
     treeKillDispatched: boolean;
     treeKillSucceeded: boolean;
     verificationWaiters: Set<() => void>;
@@ -329,7 +328,6 @@ export class WorkerProcessManager {
             if (child.stdout.destroyed || child.stdout.readableEnded || child.stdin.destroyed || child.stdin.writableEnded) return this.fail(record, "STDIO_CLOSED");
             await this.enqueue(record, { jsonrpc: "2.0", id: record.startupId, method: "platform/initialize", params: { protocol: "jsonrpc-stdio-v1", protocolVersion: 1 } });
         } catch (error) {
-            if (error instanceof Error && "code" in error && (error.code === "WORKSPACE_INVALID" || error.code === "RESTORE_STOP_UNVERIFIED")) record.preparationFailure = error;
             if (record.state === "starting" || record.state === "running") {
                 const code =
                     this.dependencies.preserveStartupErrorCodes && error instanceof Error && "code" in error && typeof error.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)
@@ -518,7 +516,6 @@ export class WorkerProcessManager {
         const record = this.authorize(owner, handle);
         await this.stop(owner, handle);
         await limited(record.preparation ?? Promise.resolve(), this.limits.startupTimeoutMs);
-        if (record.preparationFailure) throw record.preparationFailure;
         if (record.treeKillSucceeded && !record.cleaned) {
             await new Promise<void>((resolve) => {
                 const settled = (): void => {
@@ -645,7 +642,7 @@ export class WorkerProcessManager {
     }
 
     private cleanup(record: WorkerRecord): void {
-        if (record.cleaned || !record.stopPromise || !record.preparationSettled || record.preparationFailure || record.forcing) return;
+        if (record.cleaned || !record.stopPromise || !record.preparationSettled || record.forcing) return;
         if (record.child && (!record.exitSeen || record.outputClosed.size !== 2 || (record.treeKillDispatched && !record.treeKillSucceeded))) return;
         record.cleaned = true;
         clearTimeout(record.startupTimer);

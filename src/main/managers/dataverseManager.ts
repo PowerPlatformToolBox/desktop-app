@@ -26,7 +26,7 @@ import {
     selectDataverseBatchResponseHeaders,
     validateAndSnapshotHeaders,
     validateBatchRequests,
-} from "../utilities/dataverseBatch";
+} from "../utils/dataverseBatch";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
 

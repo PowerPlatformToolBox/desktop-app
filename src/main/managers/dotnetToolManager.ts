@@ -1,61 +1,66 @@
-import { execFile } from "child_process";
-import { createHash, randomUUID } from "crypto";
 import { app } from "electron";
-import * as filesystem from "fs/promises";
-import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "path";
+import * as fs from "fs/promises";
+import type { RequestOptions } from "http";
+import { dirname, isAbsolute, join, resolve } from "path";
 import { validateWorkers } from "../../../packages/validation/src/validate";
-import type { DotNetPreparedTool, DotNetToolPreparationErrorCode, DotNetToolPreparationRequest } from "../../common/types/dotnetTool";
+import type { DotNetPreparedTool, DotNetToolPreparationRequest } from "../../common/types/dotnetTool";
 import { DOTNET_NUGET_ORG_SOURCE } from "../../common/types/dotnetTool";
-import type { DotNetDiscoveryResult, DotNetDiscoverySelection } from "../../common/types/dotnetWorker";
-import { resolveDotNetLocalFeedPath, resolveDotNetPackageSource } from "../utilities/dotnetLocalFeed";
+import { resolveDotNetLocalFeedPath, resolveDotNetPackageSource } from "../utils/dotnetLocalFeed";
+import { DOTNET_PACKAGE_LIMITS, dotNetNuGetPackageUrl, dotNetPackageSha512, downloadDotNetPackage, extractDotNetToolPackage } from "../utils/dotnetPackage";
 import {
     dotNetHasControlCharacters,
     dotNetHash,
+    dotNetPackageInvalid,
     dotNetPackageRelativePath,
     dotNetStableJson,
+    DotNetToolPreparationError,
     dotNetToolSettings,
     normalizeDotNetNuGetVersion,
     parseDotNetPackageXml,
     verifyDotNetRuntimeConfig,
-} from "../utilities/dotnetToolPreparation";
-import { DotNetDiscoveryManager, dotNetProbeOptions } from "./dotnetDiscoveryManager";
+} from "../utils/dotnetToolPreparation";
 
-export interface DotNetToolExecOptions {
-    signal?: AbortSignal;
-    cwd: string;
-    env: NodeJS.ProcessEnv;
-    encoding: "utf8";
-    shell: false;
-    timeout: number;
-    terminationTimeoutMs?: number;
-    killSignal: "SIGKILL";
-    maxBuffer: number;
-    windowsHide: true;
-}
-
-export interface DotNetToolResolverEntry {
-    Version: string;
-    TargetFramework: string;
-    RuntimeIdentifier: string;
-    Name: string;
-    Runner: string;
-    PathToExecutable: string;
-}
+export { DotNetToolPreparationError };
 
 export interface DotNetToolPreparationDependencies {
     approve(request: DotNetToolPreparationRequest): Promise<boolean>;
-    rediscover?(request: DotNetToolPreparationRequest): Promise<DotNetDiscoveryResult>;
     localFeedPath?(): string | null;
     isDeveloperBuild?: boolean;
-    fs?: typeof filesystem;
-    exec?(host: string, args: readonly string[], options: DotNetToolExecOptions): Promise<string>;
-    inventory?(resolverPath: string, contents: string): Promise<DotNetToolResolverEntry[]>;
+    agentForUrl?(url: string): RequestOptions["agent"];
+    download?(url: string, signal: AbortSignal): Promise<Buffer>;
 }
 
 export interface DotNetPreparationControl {
     readonly signal: AbortSignal;
     assertCurrent(): void;
 }
+
+interface CacheMarker {
+    schema: 1;
+    packageId: string;
+    packageVersion: string;
+    packageSha512: string;
+    files: Record<string, number>;
+}
+
+interface Materialized {
+    reused: boolean;
+    packageSha512: string;
+}
+
+interface SharedMaterialization {
+    promise: Promise<Materialized>;
+    abort: AbortController;
+    waiters: number;
+}
+
+const MARKER_FILE = "complete.json";
+const TEMP_DIRECTORY = ".tmp";
+// Workspaces, staging folders and locks created by the previous `dotnet tool restore` based layout.
+const LEGACY_ENTRY = /^[a-f0-9]{64}(?:\.stage-.+|-[a-z0-9-]+(?:\.lock)?)$/;
+
+const materializations = new Map<string, SharedMaterialization>();
+const rootCleanups = new Map<string, Promise<void>>();
 
 function checkPreparation(control?: DotNetPreparationControl): void {
     try {
@@ -66,116 +71,58 @@ function checkPreparation(control?: DotNetPreparationControl): void {
     }
 }
 
-export class DotNetToolPreparationError extends Error {
-    constructor(
-        readonly code: DotNetToolPreparationErrorCode,
-        message?: string,
-        readonly details?: string,
-    ) {
-        super(message ?? `DotNet preparation failed: ${code}`);
-        this.name = "DotNetToolPreparationError";
-    }
-}
-
-function safeWinEnv(val: string | undefined, fallback: string): string {
-    return val && !dotNetHasControlCharacters(val) ? val : fallback;
-}
-
-const nuGetConfig = (request: DotNetToolPreparationRequest): string => {
-    if (request.source.kind === "nuget.org") {
-        return `<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear /><add key="nuget.org" value="${DOTNET_NUGET_ORG_SOURCE}" protocolVersion="3" /></packageSources><fallbackPackageFolders><clear /></fallbackPackageFolders><disabledPackageSources><clear /></disabledPackageSources><packageSourceMapping><clear /><packageSource key="nuget.org"><package pattern="*" /></packageSource></packageSourceMapping></configuration>\n`;
-    }
-    const escapeXml = (value: string): string => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
-    const packageId = escapeXml(request.declaration.packageId);
-    const feedPath = escapeXml(request.source.path);
-    return `<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear /><add key="pptb-local" value="${feedPath}" /><add key="nuget.org" value="${DOTNET_NUGET_ORG_SOURCE}" protocolVersion="3" /></packageSources><fallbackPackageFolders><clear /></fallbackPackageFolders><disabledPackageSources><clear /></disabledPackageSources><packageSourceMapping><clear /><packageSource key="pptb-local"><package pattern="${packageId}" /></packageSource><packageSource key="nuget.org"><package pattern="*" /></packageSource></packageSourceMapping></configuration>\n`;
-};
-const markerName = "complete.json";
-
-function authoritySelection(selection: DotNetDiscoverySelection): Omit<DotNetDiscoverySelection, "attempts"> {
-    const { attempts: discarded, ...authority } = selection;
-    void discarded;
-    return authority;
-}
-
-export function defaultExec(host: string, args: readonly string[], options: DotNetToolExecOptions): Promise<string> {
-    return new Promise((complete, reject) => {
-        const { signal, timeout, terminationTimeoutMs = 5000, ...execOptions } = options;
-        if (signal?.aborted) {
-            reject(new DotNetToolPreparationError("CANCELLED"));
-            return;
-        }
-        let closed = false;
-        let callbackReceived = false;
-        let failed = false;
-        let stopped = false;
-        let settled = false;
-        let output = "";
-        let errorDetails = "";
-        let closeDeadline: ReturnType<typeof setTimeout> | undefined;
-        const finish = (): void => {
-            if (settled || !closed || !callbackReceived) return;
-            settled = true;
-            clearTimeout(deadline);
-            clearTimeout(closeDeadline);
-            signal?.removeEventListener("abort", stop);
-            if (failed || stopped) reject(new DotNetToolPreparationError("RESTORE_FAILED", undefined, errorDetails || undefined));
-            else complete(output);
-        };
-        const awaitClose = (): void => {
-            if (closed || settled || closeDeadline) return;
-            closeDeadline = setTimeout(() => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(deadline);
-                signal?.removeEventListener("abort", stop);
-                child.removeListener("close", onClose);
-                reject(new DotNetToolPreparationError("RESTORE_STOP_UNVERIFIED"));
-            }, terminationTimeoutMs);
-        };
-        const stop = (): void => {
-            if (closed || settled || stopped) return;
-            stopped = true;
-            awaitClose();
-            try {
-                child.kill(options.killSignal);
-            } catch {
-                failed = true;
-            }
-        };
-        const onClose = (): void => {
-            closed = true;
-            finish();
-        };
-        const child = execFile(host, [...args], execOptions, (error, stdout, stderr) => {
-            callbackReceived = true;
-            failed = Boolean(error);
-            output = stdout;
-            if (error) {
-                const combined = [stderr, stdout].filter(Boolean).join("\n").trim();
-                errorDetails = combined || error.message;
-                stop();
-            }
-            awaitClose();
-            finish();
-        });
-        child.once("close", onClose);
-        signal?.addEventListener("abort", stop, { once: true });
-        const deadline = setTimeout(stop, timeout);
-        if (signal?.aborted) stop();
+function waitFor<Value>(promise: Promise<Value>, control?: DotNetPreparationControl): Promise<Value> {
+    if (!control) return promise;
+    return new Promise((resolvePromise, reject) => {
+        const onAbort = (): void => reject(new DotNetToolPreparationError("CANCELLED"));
+        if (control.signal.aborted) return onAbort();
+        control.signal.addEventListener("abort", onAbort, { once: true });
+        promise.then(resolvePromise, reject).finally(() => control.signal.removeEventListener("abort", onAbort));
     });
 }
 
-export class DotNetToolManager {
-    private readonly fs: typeof filesystem;
-    private readonly inflight = new Map<string, Promise<DotNetPreparedTool>>();
+function asPreparationError(error: unknown, code: "PACKAGE_INVALID" | "WORKSPACE_INVALID"): DotNetToolPreparationError {
+    if (error instanceof DotNetToolPreparationError) return error;
+    return new DotNetToolPreparationError(code, undefined, error instanceof Error ? error.message : String(error));
+}
 
+async function isFile(file: string): Promise<boolean> {
+    try {
+        return (await fs.stat(file)).isFile();
+    } catch {
+        return false;
+    }
+}
+
+async function isDirectory(file: string): Promise<boolean> {
+    try {
+        return (await fs.stat(file)).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+async function readText(file: string, missing: string, maxBytes = 4 * 1024 * 1024): Promise<string> {
+    let metadata;
+    try {
+        metadata = await fs.stat(file);
+    } catch {
+        throw dotNetPackageInvalid(missing);
+    }
+    if (!metadata.isFile() || metadata.size > maxBytes) throw dotNetPackageInvalid(`${missing} (not a file or too large)`);
+    return fs.readFile(file, "utf8");
+}
+
+/**
+ * Prepares a .NET worker by downloading its NuGet tool package and extracting it into an
+ * app-owned cache. No SDK or child process is involved; the worker is launched later with
+ * `dotnet exec` against the extracted entry point.
+ */
+export class DotNetToolManager {
     constructor(
         private readonly root: string,
         private readonly dependencies: DotNetToolPreparationDependencies,
-    ) {
-        this.fs = dependencies.fs ?? filesystem;
-    }
+    ) {}
 
     async prepare(input: DotNetToolPreparationRequest, control?: DotNetPreparationControl): Promise<DotNetPreparedTool> {
         checkPreparation(control);
@@ -193,6 +140,31 @@ export class DotNetToolManager {
         }
         if (approved !== true) throw new DotNetToolPreparationError("APPROVAL_DENIED");
         checkPreparation(control);
+        this.validate(request);
+        const packageId = request.declaration.packageId.toLowerCase();
+        const packageVersion = normalizeDotNetNuGetVersion(request.declaration.packageVersion);
+        const workspace = this.workspace(request, packageId, packageVersion);
+        await this.ensureRoot();
+        checkPreparation(control);
+        const materialized = await this.materializeShared(request, workspace, packageId, packageVersion, control);
+        checkPreparation(control);
+        const layout = await this.verifyLayout(workspace, request);
+        checkPreparation(control);
+        return {
+            identity: request.identity,
+            declarationFingerprint: dotNetHash(dotNetStableJson(request.declaration)),
+            workspace,
+            packageId,
+            packageVersion,
+            packageSha512: materialized.packageSha512,
+            command: request.declaration.command,
+            ...layout,
+            selection: request.selection,
+            reused: materialized.reused,
+        };
+    }
+
+    private validate(request: DotNetToolPreparationRequest): void {
         try {
             const identity = request.identity;
             if (
@@ -222,8 +194,7 @@ export class DotNetToolManager {
                 !isAbsolute(selection.hostRoot) ||
                 dirname(selection.hostPath) !== selection.hostRoot ||
                 !/^[a-z0-9-]+$/.test(selection.nativeRid) ||
-                selection.platformMatrixVersion !== 1 ||
-                dotNetStableJson(selection.sdkPin) !== dotNetStableJson({ sdk: { version: selection.sdk.version, rollForward: "disable", allowPrerelease: false, paths: ["$host$"] } })
+                selection.platformMatrixVersion !== 1
             )
                 throw new Error("Invalid selection");
             if (request.source.kind === "nuget.org") {
@@ -239,483 +210,255 @@ export class DotNetToolManager {
             } else {
                 throw new Error("Unknown package source");
             }
+        } catch (error) {
+            throw new DotNetToolPreparationError("INVALID_REQUEST", undefined, error instanceof Error ? error.message : undefined);
+        }
+    }
+
+    private workspace(request: DotNetToolPreparationRequest, packageId: string, packageVersion: string): string {
+        // Local-feed packages can be rebuilt with the same version, so their cache is keyed by content.
+        const version = request.source.kind === "local-feed" ? `${packageVersion}-local-${dotNetHash(request.source.packageSha512).slice(0, 16)}` : packageVersion;
+        return join(this.root, packageId, version);
+    }
+
+    private ensureRoot(): Promise<void> {
+        let cleanup = rootCleanups.get(this.root);
+        if (!cleanup) {
+            cleanup = (async () => {
+                if (!isAbsolute(this.root) || resolve(this.root) !== this.root) throw new DotNetToolPreparationError("WORKSPACE_INVALID", undefined, "Preparation root must be absolute");
+                await fs.mkdir(this.root, { recursive: true });
+                const entries = await fs.readdir(this.root).catch(() => [] as string[]);
+                await Promise.all(
+                    entries.filter((name) => name === TEMP_DIRECTORY || LEGACY_ENTRY.test(name)).map((name) => fs.rm(join(this.root, name), { recursive: true, force: true }).catch(() => undefined)),
+                );
+            })();
+            rootCleanups.set(this.root, cleanup);
+            cleanup.catch(() => rootCleanups.delete(this.root));
+        }
+        return cleanup.catch((error: unknown) => {
+            throw asPreparationError(error, "WORKSPACE_INVALID");
+        });
+    }
+
+    private async materializeShared(request: DotNetToolPreparationRequest, workspace: string, packageId: string, packageVersion: string, control?: DotNetPreparationControl): Promise<Materialized> {
+        let shared = materializations.get(workspace);
+        if (!shared) {
+            const abort = new AbortController();
+            const entry: SharedMaterialization = { promise: this.materialize(request, workspace, packageId, packageVersion, abort.signal), abort, waiters: 0 };
+            materializations.set(workspace, entry);
+            entry.promise
+                .finally(() => {
+                    if (materializations.get(workspace) === entry) materializations.delete(workspace);
+                })
+                .catch(() => undefined);
+            shared = entry;
+        }
+        const current = shared;
+        current.waiters++;
+        try {
+            return await waitFor(current.promise, control);
+        } finally {
+            // Stop the shared download only when every caller has given up on it.
+            if (--current.waiters === 0 && materializations.get(workspace) === current) {
+                current.abort.abort();
+                materializations.delete(workspace);
+            }
+        }
+    }
+
+    private async materialize(request: DotNetToolPreparationRequest, workspace: string, packageId: string, packageVersion: string, signal: AbortSignal): Promise<Materialized> {
+        const expectedSha512 = request.source.kind === "local-feed" ? request.source.packageSha512 : undefined;
+        const cached = await this.readIntactMarker(workspace, packageId, packageVersion);
+        if (cached && (!expectedSha512 || cached.packageSha512 === expectedSha512)) return { reused: true, packageSha512: cached.packageSha512 };
+        let stage: string | undefined;
+        try {
+            const bytes = await this.fetchPackage(request, packageId, packageVersion, signal);
+            signal.throwIfAborted();
+            const packageSha512 = dotNetPackageSha512(bytes);
+            if (expectedSha512 && packageSha512 !== expectedSha512) {
+                throw new DotNetToolPreparationError("PACKAGE_HASH_MISMATCH", undefined, "Local package bytes no longer match the approved package");
+            }
+            await fs.mkdir(join(this.root, TEMP_DIRECTORY), { recursive: true });
+            stage = await fs.mkdtemp(join(this.root, TEMP_DIRECTORY, `${packageId}.`));
+            const files = await extractDotNetToolPackage(bytes, packageId, stage, signal);
+            await this.verifyNuspec(stage, packageId, packageVersion);
+            const sizes: Record<string, number> = {};
+            for (const file of files) sizes[file] = (await fs.stat(join(stage, ...file.split("/")))).size;
+            const marker: CacheMarker = { schema: 1, packageId, packageVersion, packageSha512, files: sizes };
+            await fs.writeFile(join(stage, MARKER_FILE), JSON.stringify(marker), { flag: "wx" });
+            signal.throwIfAborted();
+            await fs.rm(workspace, { recursive: true, force: true });
+            await fs.mkdir(dirname(workspace), { recursive: true });
+            try {
+                await this.renameWithRetry(stage, workspace, signal);
+                stage = undefined;
+            } catch (error) {
+                // Another preparation may have published the same package first.
+                const published = await this.readIntactMarker(workspace, packageId, packageVersion);
+                if (!published || published.packageSha512 !== packageSha512) throw error;
+            }
+            return { reused: false, packageSha512 };
+        } catch (error) {
+            if (signal.aborted) throw new DotNetToolPreparationError("CANCELLED");
+            throw asPreparationError(error, "WORKSPACE_INVALID");
+        } finally {
+            if (stage) await fs.rm(stage, { recursive: true, force: true }).catch(() => undefined);
+        }
+    }
+
+    private async renameWithRetry(source: string, target: string, signal: AbortSignal): Promise<void> {
+        // Windows antivirus scanners briefly lock newly written DLLs, which makes directory renames fail transiently.
+        for (let attempt = 0; ; attempt++) {
+            try {
+                await fs.rename(source, target);
+                return;
+            } catch (error) {
+                const code = (error as NodeJS.ErrnoException).code;
+                if (process.platform !== "win32" || !["EPERM", "EACCES", "EBUSY"].includes(code ?? "") || attempt >= 6) throw error;
+                await new Promise((resolveDelay) => setTimeout(resolveDelay, 50 * 2 ** attempt));
+                signal.throwIfAborted();
+            }
+        }
+    }
+
+    private async readIntactMarker(workspace: string, packageId: string, packageVersion: string): Promise<CacheMarker | null> {
+        try {
+            const marker = JSON.parse(await fs.readFile(join(workspace, MARKER_FILE), "utf8")) as CacheMarker;
+            if (
+                marker?.schema !== 1 ||
+                marker.packageId !== packageId ||
+                marker.packageVersion !== packageVersion ||
+                !/^[A-Za-z0-9+/]{86}==$/.test(marker.packageSha512) ||
+                !marker.files ||
+                typeof marker.files !== "object"
+            )
+                return null;
+            for (const [file, size] of Object.entries(marker.files)) {
+                const metadata = await fs.lstat(join(workspace, ...dotNetPackageRelativePath(file).split("/")));
+                if (!metadata.isFile() || metadata.size !== size) return null;
+            }
+            return marker;
         } catch {
-            throw new DotNetToolPreparationError("INVALID_REQUEST");
-        }
-        const authority = { schema: 1, identity: request.identity, declaration: request.declaration, selection: authoritySelection(request.selection), source: request.source };
-        const fingerprint = dotNetHash(dotNetStableJson(authority));
-        const pending = control ? undefined : this.inflight.get(fingerprint);
-        if (pending) return pending;
-        const preparation = this.prepareApproved(request, authority, fingerprint, control);
-        if (!control) this.inflight.set(fingerprint, preparation);
-        try {
-            return await preparation;
-        } finally {
-            if (this.inflight.get(fingerprint) === preparation) this.inflight.delete(fingerprint);
+            return null;
         }
     }
 
-    private async safePath(file: string, directory: boolean): Promise<void> {
-        if (!isAbsolute(file) || resolve(file) !== file || dotNetHasControlCharacters(file)) throw new DotNetToolPreparationError("WORKSPACE_INVALID");
-        const volume = parse(file).root;
-        let current = volume;
-        const components = relative(volume, file).split(sep).filter(Boolean);
-        for (let index = 0; index < components.length; index++) {
-            current = join(current, components[index]);
-            const metadata = await this.fs.lstat(current);
-            const isDirectory = index < components.length - 1 || directory;
-            if (metadata.isSymbolicLink() || (isDirectory ? !metadata.isDirectory() : !metadata.isFile() || metadata.nlink !== 1) || (await this.fs.realpath(current)) !== current) {
-                throw new DotNetToolPreparationError("WORKSPACE_INVALID");
-            }
-        }
-    }
-
-    private async exists(file: string): Promise<boolean> {
-        try {
-            await this.fs.lstat(file);
-            return true;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-            throw error;
-        }
-    }
-
-    private async read(file: string, maxBytes = 256 * 1024): Promise<string> {
-        await this.safePath(file, false);
-        const handle = await this.fs.open(file, "r");
-        try {
-            const metadata = await handle.stat();
-            if (!metadata.isFile() || metadata.size > maxBytes || metadata.nlink !== 1) throw new DotNetToolPreparationError("ARTIFACT_INVALID");
-            const buffer = Buffer.alloc(maxBytes + 1);
-            let total = 0;
-            while (total < buffer.length) {
-                const { bytesRead } = await handle.read(buffer, total, buffer.length - total, total);
-                if (!bytesRead) break;
-                total += bytesRead;
-            }
-            if (total > maxBytes) throw new DotNetToolPreparationError("ARTIFACT_INVALID");
-            return buffer.subarray(0, total).toString("utf8");
-        } finally {
-            await handle.close();
-        }
-    }
-
-    private manifest(request: DotNetToolPreparationRequest): unknown {
-        return {
-            version: 1,
-            isRoot: true,
-            tools: { [request.declaration.packageId.toLowerCase()]: { version: normalizeDotNetNuGetVersion(request.declaration.packageVersion), commands: [request.declaration.command] } },
-        };
-    }
-
-    private async digest(file: string, algorithm: "sha256" | "sha512"): Promise<string> {
-        await this.safePath(file, false);
-        const handle = await this.fs.open(file, "r");
-        try {
-            const metadata = await handle.stat();
-            if (!metadata.isFile() || metadata.nlink !== 1 || metadata.size > 256 * 1024 * 1024) throw new Error("Invalid artifact size");
-            const hash = createHash(algorithm);
-            const buffer = Buffer.alloc(64 * 1024);
-            let total = 0;
-            let bytesRead: number;
-            do {
-                bytesRead = (await handle.read(buffer, 0, buffer.length, null)).bytesRead;
-                if ((total += bytesRead) > metadata.size) throw new Error("Artifact changed during hashing");
-                hash.update(buffer.subarray(0, bytesRead));
-            } while (bytesRead > 0);
-            if (total !== metadata.size) throw new Error("Artifact changed during hashing");
-            return hash.digest(algorithm === "sha512" ? "base64" : "hex");
-        } finally {
-            await handle.close();
-        }
-    }
-
-    private async validateConfiguration(workspace: string, request: DotNetToolPreparationRequest): Promise<void> {
-        await this.safePath(workspace, true);
-        if (
-            dotNetStableJson(JSON.parse(await this.read(join(workspace, "global.json")))) !== dotNetStableJson(request.selection.sdkPin) ||
-            (await this.read(join(workspace, "NuGet.Config"))) !== nuGetConfig(request) ||
-            dotNetStableJson(JSON.parse(await this.read(join(workspace, ".config", "dotnet-tools.json")))) !== dotNetStableJson(this.manifest(request))
-        )
-            throw new DotNetToolPreparationError("ARTIFACT_INVALID_CONFIGURATION");
-    }
-
-    private options(workspace: string, selection: DotNetDiscoverySelection, restore: boolean): DotNetToolExecOptions {
-        const osPlatform = selection.platform.startsWith("windows-") ? "win32" : selection.platform.startsWith("macos-") ? "darwin" : "linux";
-        const home = join(workspace, "cli-home");
-        return {
-            ...dotNetProbeOptions(selection.hostRoot, osPlatform),
-            cwd: workspace,
-            timeout: restore ? 120000 : 5000,
-            maxBuffer: 256 * 1024,
-            env: {
-                ...dotNetProbeOptions(selection.hostRoot, osPlatform).env,
-                HOME: home,
-                USERPROFILE: home,
-                DOTNET_CLI_HOME: home,
-                NUGET_PACKAGES: join(workspace, "packages"),
-                NUGET_HTTP_CACHE_PATH: join(workspace, "http-cache"),
-                NUGET_PLUGINS_CACHE_PATH: join(workspace, "plugin-cache"),
-                TMPDIR: join(workspace, "tmp"),
-                TMP: join(workspace, "tmp"),
-                TEMP: join(workspace, "tmp"),
-                DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: "true",
-                DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK: "1",
-                DOTNET_CLI_TELEMETRY_OPTOUT: "1",
-                DOTNET_GENERATE_ASPNET_CERTIFICATE: "false",
-                ...(osPlatform === "win32"
-                    ? {
-                          ProgramFiles: safeWinEnv(process.env.ProgramFiles, "C:\\Program Files"),
-                          "ProgramFiles(x86)": safeWinEnv(process.env["ProgramFiles(x86)"], "C:\\Program Files (x86)"),
-                          PROGRAMFILES: safeWinEnv(process.env.ProgramFiles, "C:\\Program Files"),
-                          "PROGRAMFILES(X86)": safeWinEnv(process.env["ProgramFiles(x86)"], "C:\\Program Files (x86)"),
-                          ProgramData: safeWinEnv(process.env.ProgramData, "C:\\ProgramData"),
-                          ALLUSERSPROFILE: safeWinEnv(process.env.ALLUSERSPROFILE, "C:\\ProgramData"),
-                          APPDATA: join(home, "AppData", "Roaming"),
-                          LOCALAPPDATA: join(home, "AppData", "Local"),
-                      }
-                    : {}),
-            },
-        };
-    }
-
-    private async command(workspace: string, request: DotNetToolPreparationRequest, args: readonly string[], restore: boolean, control?: DotNetPreparationControl): Promise<string> {
-        checkPreparation(control);
-        await this.validateConfiguration(workspace, request);
-        checkPreparation(control);
-        try {
-            const options = this.options(workspace, request.selection, restore);
-            if (control) options.signal = control.signal;
-            const output = await (this.dependencies.exec ?? defaultExec)(request.selection.hostPath, args, options);
-            checkPreparation(control);
-            if (typeof output !== "string" || Buffer.byteLength(output) > options.maxBuffer || output.includes("\0")) throw new Error("Invalid output");
-            return output;
-        } catch (error) {
-            if (error instanceof DotNetToolPreparationError && error.code === "RESTORE_STOP_UNVERIFIED") throw error;
-            checkPreparation(control);
-            const details = error instanceof DotNetToolPreparationError ? error.details : error instanceof Error ? error.message : undefined;
-            throw new DotNetToolPreparationError("RESTORE_FAILED", undefined, details);
-        }
-    }
-
-    private resolverPath(workspace: string, packageId: string): string {
-        return join(workspace, "cli-home", ".dotnet", "toolResolverCache", "1", packageId);
-    }
-
-    private async verifyArtifacts(
-        workspace: string,
-        request: DotNetToolPreparationRequest,
-        setStage: (stage: string) => void = () => undefined,
-    ): Promise<{ entryPoint: string; runtimeConfigPath: string; depsPath: string }> {
-        setStage("CONFIGURATION");
-        await this.validateConfiguration(workspace, request);
-        const { declaration, selection } = request;
-        const packageId = declaration.packageId.toLowerCase();
-        const version = normalizeDotNetNuGetVersion(declaration.packageVersion);
-        const packageRoot = join(workspace, "packages", packageId, version);
-        setStage("PACKAGE_DIRECTORY");
-        await this.safePath(packageRoot, true);
-        const archive = join(packageRoot, `${packageId}.${version}.nupkg`);
-        setStage("PACKAGE_ARCHIVE_HASH");
-        const archiveHash = await this.digest(archive, "sha512");
-        setStage("PACKAGE_METADATA");
-        const packageMetadata = JSON.parse(await this.read(join(packageRoot, ".nupkg.metadata")));
-        if (packageMetadata.version !== 2 || typeof packageMetadata.contentHash !== "string" || !/^[A-Za-z0-9+/]{86}==$/.test(packageMetadata.contentHash))
-            throw new Error("Invalid NuGet package metadata");
-        setStage("PACKAGE_SOURCE");
+    private async fetchPackage(request: DotNetToolPreparationRequest, packageId: string, packageVersion: string, signal: AbortSignal): Promise<Buffer> {
         if (request.source.kind === "local-feed") {
-            setStage("PACKAGE_SIDECAR");
-            const sidecarHash = (await this.read(`${archive}.sha512`)).trim();
-            if (!/^[A-Za-z0-9+/]{86}==$/.test(sidecarHash) || sidecarHash !== packageMetadata.contentHash) throw new Error("Local package sidecar does not match NuGet contentHash");
-            if (archiveHash !== request.source.packageSha512) throw new Error("Package archive does not match its local-feed consent pin");
+            const expectedName = `${packageId}.${packageVersion}.nupkg`;
+            const feed = request.source.path;
+            const name = (await fs.readdir(feed).catch(() => [] as string[])).find((entry) => entry.toLowerCase() === expectedName);
+            if (!name) throw new DotNetToolPreparationError("PACKAGE_NOT_FOUND", undefined, `${expectedName} was not found in the local feed`);
+            const file = join(feed, name);
+            const metadata = await fs.stat(file);
+            if (!metadata.isFile() || metadata.size > DOTNET_PACKAGE_LIMITS.maxPackageBytes) throw dotNetPackageInvalid("Local package is not a file or is too large");
+            return fs.readFile(file);
         }
-        setStage("NUSPEC");
-        const nuspecFiles = (await this.fs.readdir(packageRoot)).filter((name) => name.toLowerCase() === `${packageId}.nuspec`);
-        if (nuspecFiles.length !== 1) throw new Error("Package nuspec filename is missing or ambiguous");
-        const nuspec = parseDotNetPackageXml(await this.read(join(packageRoot, nuspecFiles[0])));
+        const url = dotNetNuGetPackageUrl(packageId, packageVersion);
+        if (this.dependencies.download) return this.dependencies.download(url, signal);
+        return downloadDotNetPackage(url, { agentForUrl: this.dependencies.agentForUrl, signal });
+    }
+
+    private async verifyNuspec(directory: string, packageId: string, packageVersion: string): Promise<void> {
+        const text = await readText(join(directory, `${packageId}.nuspec`), "Package has no nuspec");
+        let nuspec;
+        try {
+            nuspec = parseDotNetPackageXml(text);
+        } catch (error) {
+            throw dotNetPackageInvalid(`Package nuspec could not be parsed: ${error instanceof Error ? error.message : String(error)}`);
+        }
         const metadata = nuspec.children.filter((node) => node.name === "metadata");
-        const packageIdentity = (name: string): string => {
+        const value = (name: string): string | undefined => {
             const nodes = metadata[0]?.children.filter((node) => node.name === name);
-            if (nodes?.length !== 1 || nodes[0].children.length) throw new Error("Invalid package identity");
-            return nodes[0].text.trim();
+            return nodes?.length === 1 && !nodes[0].children.length ? nodes[0].text.trim() : undefined;
         };
-        if (nuspec.name !== "package" || metadata.length !== 1 || packageIdentity("id").toLowerCase() !== packageId || normalizeDotNetNuGetVersion(packageIdentity("version")) !== version)
-            throw new Error("Package identity mismatch");
-        const path = this.resolverPath(workspace, packageId);
-        setStage("RESOLVER");
-        const contents = await this.read(path);
-        const parsed = JSON.parse(contents) as DotNetToolResolverEntry[];
-        const entries = this.dependencies.inventory ? await this.dependencies.inventory(path, contents) : parsed;
-        if (dotNetStableJson(entries) !== dotNetStableJson(parsed) || !Array.isArray(entries) || entries.length !== 1) throw new Error("Invalid resolver inventory");
-        const entry = entries[0];
-        if (
-            Object.keys(entry).sort().join(",") !== "Name,PathToExecutable,Runner,RuntimeIdentifier,TargetFramework,Version" ||
-            entry.Version !== version ||
-            entry.Name !== declaration.command ||
-            entry.Runner !== "dotnet" ||
-            ![declaration.dotnet.targetFramework, `net${selection.sdk.major}.${selection.sdk.minor}`].includes(entry.TargetFramework) ||
-            !["any", selection.nativeRid].includes(entry.RuntimeIdentifier) ||
-            !isAbsolute(entry.PathToExecutable)
-        )
-            throw new Error("Resolver mismatch");
-        const artifactRoot = join(packageRoot, "tools", declaration.dotnet.targetFramework, "any");
-        setStage("TOOL_SETTINGS");
-        const executableName = dotNetToolSettings(await this.read(join(artifactRoot, "DotnetToolSettings.xml")), declaration.command);
-        const entryPoint = join(artifactRoot, dotNetPackageRelativePath(executableName));
-        const normalizedEntryPath = resolve(entry.PathToExecutable);
-        const isEntryMatch = process.platform === "win32" ? normalizedEntryPath.toLowerCase() === entryPoint.toLowerCase() : normalizedEntryPath === entryPoint;
-        if (!isEntryMatch) throw new Error("Entrypoint mismatch");
-        await this.safePath(entryPoint, false);
-        const runtimeConfigPath = entryPoint.slice(0, -4) + ".runtimeconfig.json";
-        const depsPath = entryPoint.slice(0, -4) + ".deps.json";
-        if (await this.exists(entryPoint.slice(0, -4) + ".runtimeconfig.dev.json")) throw new Error("Development runtime configuration is unsupported");
-        setStage("RUNTIME_CONFIG");
-        verifyDotNetRuntimeConfig(await this.read(runtimeConfigPath), declaration, selection);
-        setStage("DEPENDENCY_MANIFEST");
-        const deps = JSON.parse(await this.read(depsPath, 4 * 1024 * 1024));
+        const id = value("id");
+        const version = value("version");
+        let normalizedVersion: string | undefined;
+        try {
+            normalizedVersion = version ? normalizeDotNetNuGetVersion(version) : undefined;
+        } catch {
+            normalizedVersion = undefined;
+        }
+        if (nuspec.name !== "package" || metadata.length !== 1 || id?.toLowerCase() !== packageId || normalizedVersion !== packageVersion) {
+            throw dotNetPackageInvalid(`Package nuspec identity ${id ?? "?"} ${version ?? "?"} does not match ${packageId} ${packageVersion}`);
+        }
+        const packageTypes = metadata[0].children.filter((node) => node.name === "packageTypes").flatMap((node) => node.children.filter((child) => child.name === "packageType"));
+        if (!packageTypes.some((node) => node.attributes.name?.toLowerCase() === "dotnettool")) {
+            throw dotNetPackageInvalid("Package is not a .NET tool package (PackageType DotnetTool); build it with PackAsTool=true");
+        }
+    }
+
+    private async verifyLayout(workspace: string, request: DotNetToolPreparationRequest): Promise<{ entryPoint: string; runtimeConfigPath: string; depsPath: string }> {
+        try {
+            const { declaration, selection } = request;
+            const targetFramework = declaration.dotnet.targetFramework;
+            const artifactRoot = join(workspace, "tools", targetFramework, "any");
+            if (!(await isDirectory(artifactRoot))) {
+                const available = await fs.readdir(join(workspace, "tools")).catch(() => [] as string[]);
+                throw dotNetPackageInvalid(`Package has no tools/${targetFramework}/any folder${available.length ? ` (found: ${available.join(", ")})` : ""}`);
+            }
+            const entryRelative = dotNetToolSettings(await readText(join(artifactRoot, "DotnetToolSettings.xml"), "DotnetToolSettings.xml is missing"), declaration.command);
+            const entryPoint = join(artifactRoot, ...entryRelative.split("/"));
+            if (!(await isFile(entryPoint))) throw dotNetPackageInvalid(`Entry point ${entryRelative} is missing from the package`);
+            const base = entryPoint.slice(0, -4);
+            const runtimeConfigPath = `${base}.runtimeconfig.json`;
+            const depsPath = `${base}.deps.json`;
+            if (await isFile(`${base}.runtimeconfig.dev.json`)) throw dotNetPackageInvalid("Development runtimeconfig.dev.json files are not supported");
+            verifyDotNetRuntimeConfig(await readText(runtimeConfigPath, "Entry point runtimeconfig.json is missing"), declaration, selection);
+            await this.verifyDependencies(await readText(depsPath, "Entry point deps.json is missing"), artifactRoot, entryPoint, targetFramework, selection.nativeRid);
+            return { entryPoint, runtimeConfigPath, depsPath };
+        } catch (error) {
+            throw asPreparationError(error, "PACKAGE_INVALID");
+        }
+    }
+
+    private async verifyDependencies(text: string, artifactRoot: string, entryPoint: string, targetFramework: string, nativeRid: string): Promise<void> {
+        let deps;
+        try {
+            deps = JSON.parse(text);
+        } catch {
+            throw dotNetPackageInvalid("deps.json is not valid JSON");
+        }
         const targetName = deps?.runtimeTarget?.name;
         if (
             typeof targetName !== "string" ||
-            !new RegExp(`^\\.NETCoreApp,Version=v${declaration.dotnet.targetFramework.slice(3).replace(".", "\\.")}(?:/${selection.nativeRid})?$`).test(targetName) ||
-            !deps.targets ||
-            !deps.targets[targetName] ||
+            !new RegExp(`^\\.NETCoreApp,Version=v${targetFramework.slice(3).replace(".", "\\.")}(?:/${nativeRid})?$`).test(targetName) ||
+            !deps.targets?.[targetName] ||
             !deps.libraries ||
             typeof deps.libraries !== "object"
         )
-            throw new Error("Invalid dependency target");
+            throw dotNetPackageInvalid(`deps.json runtime target "${String(targetName)}" does not match ${targetFramework}`);
         let entryFound = false;
-        setStage("DEPENDENCY_ASSETS");
         for (const [libraryId, library] of Object.entries(deps.targets[targetName]) as [
             string,
             { runtime?: Record<string, unknown>; native?: Record<string, unknown>; runtimeTargets?: Record<string, unknown>; dependencies?: Record<string, unknown> },
         ][]) {
-            dotNetPackageRelativePath(libraryId);
-            if (libraryId.split("/").length !== 2 || !Object.hasOwn(deps.libraries, libraryId) || !library || typeof library !== "object") throw new Error("Missing dependency identity");
             const metadata = deps.libraries[libraryId];
-            if (!metadata || !["project", "package", "reference"].includes(metadata.type)) throw new Error("Invalid dependency metadata");
-            if (metadata.path !== undefined) dotNetPackageRelativePath(metadata.path);
-            if (metadata.hashPath !== undefined) dotNetPackageRelativePath(metadata.hashPath);
+            if (libraryId.split("/").length !== 2 || !metadata || !["project", "package", "reference"].includes(metadata.type) || !library || typeof library !== "object") {
+                throw dotNetPackageInvalid(`deps.json library "${libraryId}" is invalid`);
+            }
             for (const group of [library.runtime, library.native, library.runtimeTargets]) {
-                if (group !== undefined && (!group || typeof group !== "object" || Array.isArray(group))) throw new Error("Invalid artifact group");
+                if (group !== undefined && (!group || typeof group !== "object" || Array.isArray(group))) throw dotNetPackageInvalid(`deps.json library "${libraryId}" has an invalid asset group`);
                 for (const file of Object.keys(group ?? {})) {
-                    dotNetPackageRelativePath(file);
-                    if (file.endsWith("/_._") || file === "_._") continue;
-                    const exactArtifact = join(artifactRoot, file);
-                    const artifact = (await this.exists(exactArtifact)) ? exactArtifact : join(artifactRoot, basename(file));
-                    await this.safePath(artifact, false);
+                    if (file === "_._" || file.endsWith("/_._")) continue;
+                    try {
+                        dotNetPackageRelativePath(file);
+                    } catch {
+                        throw dotNetPackageInvalid(`deps.json asset "${file}" has an unsafe path`);
+                    }
+                    const exact = join(artifactRoot, ...file.split("/"));
+                    const artifact = (await isFile(exact)) ? exact : join(artifactRoot, file.split("/").at(-1) as string);
+                    if (!(await isFile(artifact))) throw dotNetPackageInvalid(`deps.json asset "${file}" is missing from the package`);
                     if (artifact === entryPoint) entryFound = true;
                 }
             }
             for (const [dependency, dependencyVersion] of Object.entries(library.dependencies ?? {})) {
-                if (typeof dependencyVersion !== "string" || !Object.hasOwn(deps.libraries, `${dependency}/${dependencyVersion}`)) throw new Error("Unresolved dependency");
+                if (typeof dependencyVersion !== "string" || !Object.hasOwn(deps.libraries, `${dependency}/${dependencyVersion}`)) {
+                    throw dotNetPackageInvalid(`deps.json dependency ${dependency}/${String(dependencyVersion)} is unresolved`);
+                }
             }
         }
-        if (!entryFound) throw new Error("Entrypoint absent from deps");
-        return { entryPoint, runtimeConfigPath, depsPath };
-    }
-
-    private async inventoryHash(workspace: string): Promise<Record<string, string>> {
-        const hashes: Record<string, string> = {};
-        let total = 0;
-        let count = 0;
-        const walk = async (directory: string): Promise<void> => {
-            await this.safePath(directory, true);
-            for (const name of (await this.fs.readdir(directory)).sort()) {
-                if (++count > 10000) throw new Error("Cache inventory exceeds bound");
-                const file = join(directory, name);
-                if (file === join(workspace, markerName)) continue;
-                const metadata = await this.fs.lstat(file);
-                if (metadata.isDirectory()) await walk(file);
-                else {
-                    await this.safePath(file, false);
-                    if ((total += metadata.size) > 1024 * 1024 * 1024) throw new Error("Cache inventory exceeds bound");
-                    hashes[relative(workspace, file).split(sep).join("/")] = await this.digest(file, "sha256");
-                }
-            }
-        };
-        await walk(workspace);
-        return hashes;
-    }
-
-    private async prepareApproved(request: DotNetToolPreparationRequest, authority: unknown, fingerprint: string, control?: DotNetPreparationControl): Promise<DotNetPreparedTool> {
-        checkPreparation(control);
-        let discovered: DotNetDiscoveryResult;
-        try {
-            discovered = await (this.dependencies.rediscover
-                ? this.dependencies.rediscover(JSON.parse(JSON.stringify(request)) as DotNetToolPreparationRequest)
-                : new DotNetDiscoveryManager().discover(request.declaration.dotnet, request.declaration.platforms, control));
-        } catch {
-            checkPreparation(control);
-            throw new DotNetToolPreparationError("DISCOVERY_CHANGED");
-        }
-        checkPreparation(control);
-        if (!discovered.ok || dotNetStableJson(authoritySelection(discovered.value)) !== dotNetStableJson(authoritySelection(request.selection)))
-            throw new DotNetToolPreparationError("DISCOVERY_CHANGED");
-        let lockOwned = false;
-        let lockInode: number | undefined;
-        let stage: string | undefined;
-        let published = false;
-        let finished = false;
-        let quarantined = false;
-        const workspace = join(this.root, `${fingerprint}-${request.selection.nativeRid}`);
-        const lock = `${workspace}.lock`;
-        const token = randomUUID();
-        const operation = async (): Promise<DotNetPreparedTool> => {
-            try {
-                checkPreparation(control);
-                if (!isAbsolute(this.root) || resolve(this.root) !== this.root) throw new DotNetToolPreparationError("WORKSPACE_INVALID");
-                if (!(await this.exists(this.root))) {
-                    await this.safePath(dirname(this.root), true);
-                    await this.fs.mkdir(this.root, { mode: 0o700 });
-                }
-                await this.safePath(this.root, true);
-                try {
-                    await this.fs.mkdir(lock, { mode: 0o700 });
-                    lockOwned = true;
-                    lockInode = (await this.fs.lstat(lock)).ino;
-                    await this.fs.writeFile(join(lock, "owner"), token, { flag: "wx", mode: 0o600 });
-                } catch {
-                    throw new DotNetToolPreparationError("PREPARATION_BUSY");
-                }
-                const descriptor = async (reused: boolean, integrityHash: string): Promise<DotNetPreparedTool> => ({
-                    identity: request.identity,
-                    declarationFingerprint: dotNetHash(dotNetStableJson(request.declaration)),
-                    preparationFingerprint: fingerprint,
-                    workspace,
-                    manifestPath: join(workspace, ".config", "dotnet-tools.json"),
-                    packageId: request.declaration.packageId.toLowerCase(),
-                    packageVersion: normalizeDotNetNuGetVersion(request.declaration.packageVersion),
-                    command: request.declaration.command,
-                    ...(await this.verifyArtifacts(workspace, request)),
-                    selection: request.selection,
-                    integrityHash,
-                    reused,
-                });
-                if (await this.exists(workspace)) {
-                    try {
-                        const marker = JSON.parse(await this.read(join(workspace, markerName), 2 * 1024 * 1024));
-                        if (dotNetStableJson(marker.authority) !== dotNetStableJson(authority)) throw new Error("Authority changed");
-                        const files = await this.inventoryHash(workspace);
-                        const integrityHash = dotNetHash(dotNetStableJson(files));
-                        if (
-                            marker.integrityHash !== integrityHash ||
-                            dotNetStableJson(marker.files) !== dotNetStableJson(files) ||
-                            Object.keys(marker).sort().join(",") !== "authority,files,integrityHash"
-                        )
-                            throw new Error("Cache changed");
-                        const result = await descriptor(true, integrityHash);
-                        checkPreparation(control);
-                        finished = true;
-                        return result;
-                    } catch {
-                        checkPreparation(control);
-                        throw new DotNetToolPreparationError("CACHE_INVALID");
-                    }
-                }
-                stage = await this.fs.mkdtemp(join(this.root, `${fingerprint}.stage-`));
-                for (const directory of [
-                    ".config",
-                    "cli-home",
-                    join("cli-home", "AppData"),
-                    join("cli-home", "AppData", "Roaming"),
-                    join("cli-home", "AppData", "Local"),
-                    "packages",
-                    "http-cache",
-                    "plugin-cache",
-                    "tmp",
-                ])
-                    await this.fs.mkdir(join(stage, directory), { mode: 0o700 });
-                await this.fs.writeFile(join(stage, "global.json"), dotNetStableJson(request.selection.sdkPin), { flag: "wx", mode: 0o600 });
-                await this.fs.writeFile(join(stage, "NuGet.Config"), nuGetConfig(request), { flag: "wx", mode: 0o600 });
-                await this.fs.writeFile(join(stage, ".config", "dotnet-tools.json"), dotNetStableJson(this.manifest(request)), { flag: "wx", mode: 0o600 });
-                const sdkVersion = await this.command(stage, request, ["--version"], false, control);
-                if (sdkVersion.trim() !== request.selection.sdk.version) throw new DotNetToolPreparationError("SDK_MISMATCH");
-                await this.command(
-                    stage,
-                    request,
-                    [
-                        "tool",
-                        "restore",
-                        "--tool-manifest",
-                        join(stage, ".config", "dotnet-tools.json"),
-                        "--configfile",
-                        join(stage, "NuGet.Config"),
-                        "--no-cache",
-                        "--disable-parallel",
-                        "--verbosity",
-                        "minimal",
-                    ],
-                    true,
-                    control,
-                );
-                let artifacts: Awaited<ReturnType<DotNetToolManager["verifyArtifacts"]>>;
-                let artifactStage = "CONFIGURATION";
-                try {
-                    artifacts = await this.verifyArtifacts(stage, request, (stageName) => {
-                        artifactStage = stageName;
-                    });
-                    artifactStage = "INTEGRITY_INVENTORY";
-                    await this.inventoryHash(stage);
-                } catch {
-                    throw new DotNetToolPreparationError(`ARTIFACT_INVALID_${artifactStage}` as DotNetToolPreparationErrorCode);
-                }
-                const resolverPath = this.resolverPath(stage, request.declaration.packageId.toLowerCase());
-                const records = JSON.parse(await this.read(resolverPath)) as DotNetToolResolverEntry[];
-                records[0].PathToExecutable = join(workspace, relative(stage, artifacts.entryPoint));
-                await this.fs.writeFile(resolverPath, JSON.stringify(records), { mode: 0o600 });
-                await this.safePath(stage, true);
-                await this.safePath(lock, true);
-                if (await this.exists(workspace)) throw new DotNetToolPreparationError("PREPARATION_BUSY");
-                checkPreparation(control);
-                await this.fs.rename(stage, workspace);
-                published = true;
-                stage = undefined;
-                const files = await this.inventoryHash(workspace);
-                const integrityHash = dotNetHash(dotNetStableJson(files));
-                const result = await descriptor(false, integrityHash);
-                const marker = dotNetStableJson({ authority, files, integrityHash });
-                if (Buffer.byteLength(marker) > 2 * 1024 * 1024) throw new DotNetToolPreparationError("ARTIFACT_INVALID");
-                checkPreparation(control);
-                await this.fs.writeFile(join(workspace, markerName), marker, { flag: "wx", mode: 0o600 });
-                checkPreparation(control);
-                finished = true;
-                return result;
-            } catch (error) {
-                if (error instanceof DotNetToolPreparationError && error.code === "RESTORE_STOP_UNVERIFIED") quarantined = true;
-                if (error instanceof DotNetToolPreparationError) throw error;
-                throw new DotNetToolPreparationError("WORKSPACE_INVALID");
-            }
-        };
-        const cleanup = async (): Promise<void> => {
-            if (quarantined) return;
-            try {
-                if (stage) await this.fs.rm(stage, { recursive: true, force: true });
-                if (published && !finished) await this.fs.rm(workspace, { recursive: true, force: true });
-                if (lockOwned) {
-                    await this.safePath(lock, true);
-                    if ((await this.fs.lstat(lock)).ino === lockInode) {
-                        const owner = join(lock, "owner");
-                        if (await this.exists(owner)) {
-                            if ((await this.read(owner)) !== token) throw new DotNetToolPreparationError("WORKSPACE_INVALID");
-                            await this.fs.unlink(owner);
-                        }
-                        await this.fs.rmdir(lock);
-                    }
-                }
-            } catch {
-                throw new DotNetToolPreparationError("WORKSPACE_INVALID");
-            }
-        };
-        return operation().then(
-            async (result) => {
-                await cleanup();
-                checkPreparation(control);
-                return result;
-            },
-            async (error: unknown) => {
-                await cleanup();
-                throw error;
-            },
-        );
+        if (!entryFound) throw dotNetPackageInvalid("Entry point is not listed in deps.json");
     }
 }

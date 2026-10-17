@@ -5,7 +5,7 @@ import { isAbsolute, resolve } from "path";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../common/ipc/channels";
 import { DOTNET_NUGET_ORG_SOURCE, type DotNetPackageSource } from "../../common/types/dotnetTool";
 import type { NativeWorkerConsentDecision, NativeWorkerConsentDescriptor, NativeWorkerConsentRecord, NativeWorkerConsentRequest, WorkerDeclaration } from "../../common/types";
-import { normalizeWorkerMetadata } from "../utilities/workerMetadata";
+import { normalizeWorkerMetadata } from "../utils/workerMetadata";
 
 export interface NativeWorkerIdentity {
     toolId: string;

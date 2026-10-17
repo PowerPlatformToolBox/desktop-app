@@ -62,43 +62,59 @@ Linux `/usr/share/dotnet/dotnet`, `/usr/lib/dotnet/dotnet`,
 `/usr/lib64/dotnet/dotnet` and `/usr/local/share/dotnet/dotnet`. There is no PATH
 lookup, renderer-provided host path, alternate Windows drive, user-local root or
 symlink escape. Native architecture is checked from host output, not folder
-names. Only bounded `--info`, `--list-sdks` and `--list-runtimes` probes run, with
-an explicit credential-free environment, no inherited PATH/home, 3-second
-timeouts and 256 KiB output limits. SDK selection is the highest stable installed
-10.0 SDK at least 10.0.100 on that host; SDK 11 is not substituted. SDK CLI
-runtime availability and worker runtime compatibility are checked independently.
-No SDK/runtime is downloaded or installed.
+names. Only bounded `--info` and `--list-runtimes` probes run, with an explicit
+credential-free environment, no inherited PATH/home, 3-second timeouts and
+256 KiB output limits. A non-zero `--info` exit (as on runtime-only hosts) still
+uses its Host section; the RID may appear under both the SDK and Host sections
+but must agree. No .NET SDK is required, and no SDK/runtime is downloaded or
+installed.
 
-## Package Preparation (PR3)
+## Package Preparation
+
+> Simplified in October 2026. Preparation originally ran `dotnet tool restore`
+> in an isolated SDK workspace and verified SDK-internal files such as
+> `toolResolverCache`. That required an installed .NET 10 SDK, depended on
+> undocumented SDK layouts, and needed staging/lock/quarantine handling for the
+> restore child process. It was replaced by the direct package flow below.
 
 Preparation accepts only a trusted main-process identity, canonical validated
 declaration and current discovery selection. Fresh approval is required before
-filesystem access, probes or commands, including warm-cache reuse and
-deduplicated requests. The workspace is app-owned and canonical; its authority
-binds tool/version/source fingerprint, declaration, SDK selection and native
-RID. The generated root manifest contains exactly the declared tool and command;
-`global.json` pins the discovered SDK with disabled roll-forward and host-scoped
-paths. Normal production preparation clears inherited NuGet sources and admits
-only nuget.org. Caches and CLI state are isolated inside the workspace.
+filesystem or network access, including warm-cache reuse. Unknown request
+fields, non-canonical declarations and non-nuget.org/non-configured sources are
+rejected before any download.
 
-Restore uses direct argument arrays with `shell: false`, an absolute host,
-bounded output and timeouts, exact package identity and command checks, and no
-inherited credentials, PATH, proxy or auth configuration. The prepared package
-is checked against its nuspec, archive digest/source metadata, resolver record,
-command entrypoint, DLL/deps artifacts, TFM, runtimeconfig and policy. Nested
-framework overrides, legacy policy conflicts, adjacent `.runtimeconfig.dev.json`,
-native-only indirection, self-contained layouts, traversal and link escapes fail
-closed. The cache inventory marker detects accidental modifications; it is not a
-signature or defense against a same-user adversary able to replace both payload
-and marker.
+The [.NET tool package format](https://github.com/dotnet/sdk/blob/main/documentation/general/tool-nuget-package-format.md)
+requires each `tools/<tfm>/any` folder to contain every dependency the tool needs,
+so no NuGet dependency resolution is performed. PPTB:
 
-Preparation is staged and atomically published only after verification. Cancellation
-or timeout is not cleanup evidence: the restore child must emit `close`, including
-pipe closure. If stop cannot be verified, the stage and filesystem lock remain
-quarantined and block reuse/mutation, including after restart. There is no stale
-lock deletion or automatic late-close recovery. Warm reuse still obtains fresh
-approval and discovery, then revalidates the complete cache without invoking
-restore. These safeguards do not make native packages safe or create a sandbox.
+1. Downloads `https://api.nuget.org/v3-flatcontainer/{id}/{version}/{id}.{version}.nupkg`
+   over HTTPS only (HTTPS-only redirects, at most 5), through the app proxy agent,
+   with a 256 MiB size cap, 5-minute timeout and cancellation. Developer builds
+   read the exact `.nupkg` from the configured local feed instead and require its
+   SHA-512 to equal the consent-pinned hash.
+2. Extracts with `yauzl` only the nuspec and `tools/**`. Entry names are
+   percent-decoded and must be safe package-relative paths (no absolute paths,
+   `..`, backslashes, colons or control characters); symlinks and
+   case-insensitive duplicates are rejected; at most 10,000 entries and 1 GiB
+   uncompressed.
+3. Verifies the nuspec ID/version and the `DotnetTool` package type, then
+   publishes the extraction from `native-workers/.tmp/` to
+   `native-workers/<id>/<version>/` (local feeds: `<version>-local-<hash>`) with
+   a `complete.json` marker recording the package SHA-512 and extracted file sizes.
+4. Verifies, for every launch, `DotnetToolSettings.xml` (Version 1, single
+   command matching the declaration, `Runner="dotnet"`, managed DLL entry point),
+   the entry point, its runtimeconfig against the declared TFM/minimum/policy,
+   the absence of `runtimeconfig.dev.json`, and that every `deps.json` runtime
+   asset exists and lists the entry point.
+
+Concurrent preparations of the same package share one in-process download; it is
+aborted only when every waiter has cancelled. The app is single-instance, so no
+filesystem lock is needed. A cache whose marker or file sizes do not match is
+discarded and rebuilt. On first use per launch, PPTB removes `native-workers/.tmp`
+and legacy `<64-hex>-<rid>`, `.stage-*` and `.lock` entries from the restore-based
+layout. The marker detects accidental damage; it is not a signature or defense
+against a same-user adversary. nuget.org integrity relies on HTTPS and immutable
+package versions; NuGet repository signatures are not verified.
 
 ## Process Transport (PR4)
 
@@ -154,15 +170,16 @@ authority includes a source fingerprint over canonical path and package/config
 bytes. Each asynchronous boundary rechecks live consent revision and source.
 Handles and events are scoped to the owning instance; another instance of the
 same tool cannot use them. Normal npm installation does not discover .NET,
-restore packages or start workers. No credentials are passed to the worker.
+download packages or start workers. No credentials are passed to the worker.
 
 Confirmed close, renderer crash/destruction/navigation, revocation, tool mutation
 and explicit app quit coordinate owner cleanup and verified stop. Canceled close
 preserves the worker; update/uninstall blocks before file mutation if preparation
 or stop cannot be proven complete. App quit waits behind a reentrancy guard;
-tray hiding does not stop workers. An unverified restore retains its stage and
-lock. A stop/pipe-close failure retains the broker blocker; later parent exit
-does not release a failed restore barrier. Cleanup status is not proof against a
+tray hiding does not stop workers. Preparation runs no child process; cancelling
+it aborts the shared download once no caller is waiting, and a failed preparation
+does not block later mutation or retry. A worker stop/pipe-close failure retains
+the broker blocker. Cleanup status is not proof against a
 native child that deliberately escapes the process group or closes inherited
 pipes.
 
@@ -172,15 +189,15 @@ The unpublished-package feed is developer-only. It requires both the Vite-inject
 `PPTB_DEVELOPER_BUILD=1` marker and an unpackaged app, plus
 `PPTB_DOTNET_LOCAL_NUGET_FEED` supplied to the main process as an absolute path.
 The path is not a manifest/renderer input and is never exposed to the tool
-preload. NuGet source mapping routes only the exact declared worker package ID
-to the local feed; dependencies remain nuget.org-only. Missing local packages
+preload. PPTB reads only the exact declared `<id>.<version>.nupkg` from the
+feed (the package already bundles its dependencies). Missing local packages
 fail without fallback. Registry, marketplace and npm-debug installs remain
 nuget.org-only. The consent/cache identity includes the canonical feed path and
 package SHA-512, so changing either invalidates prior approval/preparation.
 
 The sample UI is a protocol/core-sharing demonstration, not an SQL 4 CDS
-integration. Its `net10.0` package has not yet been packed, restored and run
-through the local feed on a .NET 10 SDK. The earlier PR0 .NET 8 probe is not
+integration. Its `net10.0` package must be packed and run through the local feed
+on a host with the .NET 10 runtime. The earlier PR0 .NET 8 probe is not
 evidence for this flow. Do not mark PR7 complete or claim C# interoperability
 until this smoke passes. PR8 still owns native .NET 10 and declared-platform
 qualification, packaged Electron behavior, and release coordination; do not
