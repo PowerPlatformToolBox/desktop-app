@@ -61,10 +61,28 @@ describe("remote tool icons", () => {
         expect(isAllowedRemoteIconUrl("not a url")).toBe(false);
     });
 
-    const respond = (body: string, init: ResponseInit = {}) => jest.fn().mockResolvedValue(new Response(body, init)) as unknown as typeof fetch;
+    const respond = (body: BodyInit, init: ResponseInit = {}) => jest.fn().mockResolvedValue(new Response(body, init));
 
-    it("downloads an allowed SVG", async () => {
-        await expect(fetchRemoteToolIconSvg("https://raw.githubusercontent.com/o/r/main/icon.svg", respond(SVG))).resolves.toBe(SVG);
+    it("downloads an allowed SVG without following redirects", async () => {
+        const fetchImpl = respond(SVG);
+        await expect(fetchRemoteToolIconSvg("https://raw.githubusercontent.com/o/r/main/icon.svg", fetchImpl)).resolves.toBe(SVG);
+        // A redirect could bounce the request to a host outside the allowlist.
+        expect(fetchImpl).toHaveBeenCalledWith("https://raw.githubusercontent.com/o/r/main/icon.svg", expect.objectContaining({ redirect: "error" }));
+    });
+
+    it("stops reading a streamed body once it passes the size limit", async () => {
+        let pulls = 0;
+        const chunk = new Uint8Array(64 * 1024).fill(32);
+        const endless = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                pulls++;
+                controller.enqueue(chunk);
+            },
+        });
+
+        // No content-length header, as with a chunked response.
+        await expect(fetchRemoteToolIconSvg("https://raw.githubusercontent.com/o/r/main/icon.svg", respond(endless))).resolves.toBeNull();
+        expect(pulls * chunk.byteLength).toBeLessThanOrEqual(MAX_TOOL_ICON_BYTES + 2 * chunk.byteLength);
     });
 
     it("does not request disallowed URLs", async () => {

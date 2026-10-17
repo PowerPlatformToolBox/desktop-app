@@ -103,13 +103,40 @@ export function generateToolIconHtml(toolId: string, iconPath: string | undefine
     }
 }
 
+/** Paint declarations in SVG markup: presentation attributes (`fill="…"`) and CSS (`fill: …`). */
+const SVG_PAINT_PATTERN = /\b(?:fill|stroke|stop-color|flood-color|lighting-color|color)\s*(?:=\s*["']([^"']*)["']|:\s*([^;"'}<>]+))/gi;
+const NAMED_COLOURS: Record<string, string> = { black: "#000000", white: "#ffffff" };
+
 /**
- * A monochrome icon uses `currentColor` (as the tool publishing docs recommend for
- * theme support) and is drawn as a mask filled with the theme's text colour. Any other
- * SVG is a colour icon and is drawn as authored.
+ * Whether an SVG is a single-colour icon that should be drawn as a mask filled with the
+ * theme's text colour. That's true when it uses `currentColor` (as the tool publishing docs
+ * recommend for theme support), or when every paint resolves to one colour — including
+ * unpainted shapes, which default to black. These icons were always drawn as masks, so they
+ * keep following the light/dark theme. Anything with two or more colours, a gradient/pattern,
+ * or an embedded image is a colour icon and is drawn as authored.
  */
 export function isMonochromeSvg(svg: string): boolean {
-    return /currentcolor/i.test(svg);
+    const markup = svg.replace(/<!--[\s\S]*?-->/g, "");
+    if (/currentcolor/i.test(markup)) return true;
+    if (/<image[\s>]/i.test(markup)) return false;
+
+    const colours = new Set<string>();
+    for (const match of markup.matchAll(SVG_PAINT_PATTERN)) {
+        const value = (match[1] ?? match[2] ?? "").trim().toLowerCase();
+        if (!value || ["none", "transparent", "inherit", "initial", "unset"].includes(value)) continue;
+        if (value.startsWith("url(")) return false;
+        colours.add(normalizeColour(value));
+        if (colours.size > 1) return false;
+    }
+    return true;
+}
+
+function normalizeColour(value: string): string {
+    const named = NAMED_COLOURS[value];
+    if (named) return named;
+    const shortHex = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(value);
+    if (shortHex) return `#${shortHex[1]}${shortHex[1]}${shortHex[2]}${shortHex[2]}${shortHex[3]}${shortHex[3]}`;
+    return value.replace(/\s+/g, "");
 }
 
 export function svgToDataUrl(svg: string): string {
@@ -126,33 +153,60 @@ export function planToolIcon(svg: string): ToolIconPlan {
 
 export type ToolIconSvgLoader = (toolId: string, iconPath: string) => Promise<string | null>;
 
-const remoteIconSvgCache = new Map<string, Promise<string | null>>();
+/** Load icon markup through the main process. */
+const defaultIconSvgLoader: ToolIconSvgLoader = (toolId, iconPath) => (window as unknown as { toolboxAPI: { getToolIconSvg: ToolIconSvgLoader } }).toolboxAPI.getToolIconSvg(toolId, iconPath);
 
-/** Load icon markup through the main process. Remote (marketplace) icons are cached per URL. */
-const defaultIconSvgLoader: ToolIconSvgLoader = (toolId, iconPath) => {
-    const api = (window as unknown as { toolboxAPI: { getToolIconSvg: ToolIconSvgLoader } }).toolboxAPI;
-    const load = () => api.getToolIconSvg(toolId, iconPath).catch(() => null);
-    if (!/^https?:\/\//i.test(iconPath)) return load();
+/** How long an icon that couldn't be loaded keeps using the fallback before it's tried again. */
+const FAILED_ICON_RETRY_MS = 60_000;
 
-    const cached = remoteIconSvgCache.get(iconPath);
-    if (cached) return cached;
+/**
+ * Resolved icons by tool id and icon path, so re-rendering the sidebar, homepage or
+ * marketplace draws them immediately instead of blanking them while the markup reloads.
+ */
+const toolIconPlans = new Map<string, { plan: ToolIconPlan | null; resolvedAt: number }>();
+const pendingToolIconPlans = new Map<string, Promise<ToolIconPlan | null>>();
 
-    const pending = load();
-    remoteIconSvgCache.set(iconPath, pending);
-    void pending.then((svg) => {
-        if (svg === null) remoteIconSvgCache.delete(iconPath);
-    });
+/** Clear resolved tool icons (used by tests). */
+export function clearToolIconCache(): void {
+    toolIconPlans.clear();
+    pendingToolIconPlans.clear();
+}
+
+function getCachedToolIconPlan(key: string): ToolIconPlan | null | undefined {
+    const entry = toolIconPlans.get(key);
+    if (!entry) return undefined;
+    if (entry.plan === null && Date.now() - entry.resolvedAt > FAILED_ICON_RETRY_MS) {
+        toolIconPlans.delete(key);
+        return undefined;
+    }
+    return entry.plan;
+}
+
+function loadToolIconPlan(key: string, toolId: string, iconPath: string, loadSvg: ToolIconSvgLoader): Promise<ToolIconPlan | null> {
+    let pending = pendingToolIconPlans.get(key);
+    if (!pending) {
+        pending = Promise.resolve()
+            .then(() => loadSvg(toolId, iconPath))
+            .catch(() => null)
+            .then((svg) => {
+                const plan = svg ? planToolIcon(svg) : null;
+                toolIconPlans.set(key, { plan, resolvedAt: Date.now() });
+                pendingToolIconPlans.delete(key);
+                return plan;
+            });
+        pendingToolIconPlans.set(key, pending);
+    }
     return pending;
-};
+}
 
 /**
  * Render SVG tool icons placed by `generateToolIconHtml`.
  *
  * The icon markup comes from the main process and is used as a `data:` URL, so it works for
  * locally loaded tools too (a CSS mask on a `pptb-webview://` URL is a cross-origin load that
- * fails). Colour SVGs are drawn as an <img>; monochrome (currentColor) SVGs stay a CSS mask so
- * they follow the light/dark theme. If the markup can't be loaded, the icon falls back to a
- * mask on the original URL (and to the fallback icon if that URL doesn't load).
+ * fails). Colour SVGs are drawn as an <img>; single-colour SVGs stay a CSS mask so they follow
+ * the light/dark theme. If the markup can't be loaded, the icon falls back to a mask on the
+ * original URL (and to the fallback icon if that URL doesn't load).
  *
  * We avoid putting URLs inside an inline `style="..."` string during HTML generation;
  * instead, we set them via DOM APIs to reduce injection risk and to keep escaping correct.
@@ -162,22 +216,35 @@ export function applyToolIconMasks(root: ParentNode = document, loadSvg: ToolIco
     return Promise.all(Array.from(elements).map((el) => renderToolIcon(el, loadSvg))).then(() => undefined);
 }
 
-async function renderToolIcon(el: HTMLElement, loadSvg: ToolIconSvgLoader): Promise<void> {
+function renderToolIcon(el: HTMLElement, loadSvg: ToolIconSvgLoader): Promise<void> {
     const iconUrl = el.getAttribute("data-pptb-icon-url");
-    if (!iconUrl) return;
-    el.setAttribute("data-pptb-icon-state", "loading");
+    if (!iconUrl) return Promise.resolve();
 
     const toolId = el.getAttribute("data-pptb-tool-id");
     const iconPath = el.getAttribute("data-pptb-icon-path");
-    const svg = toolId && iconPath ? await loadSvg(toolId, iconPath) : null;
+    if (!toolId || !iconPath) {
+        drawToolIcon(el, iconUrl, null);
+        return Promise.resolve();
+    }
 
-    if (!svg) {
+    const key = `${toolId}\n${iconPath}`;
+    const cached = getCachedToolIconPlan(key);
+    if (cached !== undefined) {
+        drawToolIcon(el, iconUrl, cached);
+        return Promise.resolve();
+    }
+
+    el.setAttribute("data-pptb-icon-state", "loading");
+    return loadToolIconPlan(key, toolId, iconPath, loadSvg).then((plan) => drawToolIcon(el, iconUrl, plan));
+}
+
+function drawToolIcon(el: HTMLElement, iconUrl: string, plan: ToolIconPlan | null): void {
+    if (!plan) {
         el.setAttribute("data-pptb-icon-state", "url");
         applyMaskFromUrl(el, iconUrl);
         return;
     }
 
-    const plan = planToolIcon(svg);
     if (plan.kind === "mask") {
         el.setAttribute("data-pptb-icon-state", "mask");
         el.style.setProperty("--pptb-icon-url", `url(${JSON.stringify(plan.url)})`);

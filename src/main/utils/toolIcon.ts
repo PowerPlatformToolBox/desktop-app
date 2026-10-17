@@ -1,3 +1,4 @@
+import { net } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -51,21 +52,49 @@ export function isAllowedRemoteIconUrl(url: string): boolean {
     }
 }
 
-/** Download a remote (marketplace) SVG icon. Returns null when not allowed, too large, or not an SVG. */
-export async function fetchRemoteToolIconSvg(url: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+type IconFetch = (url: string, init: RequestInit) => Promise<Response>;
+
+/**
+ * Download a remote (marketplace) SVG icon. Returns null when not allowed, too large, or not an SVG.
+ *
+ * Uses Electron's `net.fetch`, so the session's proxy settings apply. Redirects are refused, so the
+ * request can't be bounced to a host outside the allowlist.
+ */
+export async function fetchRemoteToolIconSvg(url: string, fetchImpl: IconFetch = (input, init) => net.fetch(input, init)): Promise<string | null> {
     if (!isAllowedRemoteIconUrl(url)) return null;
 
-    const response = await fetchImpl(url, { signal: AbortSignal.timeout(REMOTE_ICON_TIMEOUT_MS) });
-    if (!response.ok) return null;
+    const response = await fetchImpl(url, { redirect: "error", signal: AbortSignal.timeout(REMOTE_ICON_TIMEOUT_MS) });
+    if (!response.ok || !response.body) return null;
 
     const declaredLength = Number(response.headers.get("content-length"));
-    if (declaredLength > MAX_TOOL_ICON_BYTES) return null;
+    if (declaredLength > MAX_TOOL_ICON_BYTES) {
+        await response.body.cancel();
+        return null;
+    }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.byteLength > MAX_TOOL_ICON_BYTES) return null;
+    const body = await readBodyWithLimit(response.body, MAX_TOOL_ICON_BYTES);
+    if (!body) return null;
 
-    const svg = buffer.toString("utf8");
+    const svg = body.toString("utf8");
     return looksLikeSvg(svg) ? svg : null;
+}
+
+/** Read a response body, giving up (and cancelling the stream) once it passes `limit` bytes. */
+async function readBodyWithLimit(stream: ReadableStream<Uint8Array>, limit: number): Promise<Buffer | null> {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > limit) {
+            await reader.cancel();
+            return null;
+        }
+        chunks.push(value);
+    }
+    return Buffer.concat(chunks);
 }
 
 function looksLikeSvg(content: string): boolean {
