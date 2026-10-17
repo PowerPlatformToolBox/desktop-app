@@ -9,11 +9,9 @@ import {
     parseDotNetListing,
     parseDotNetVersion,
     resolveWorkerPlatform,
-    selectDotNetSdk,
-    selectSdkRuntime,
     selectWorkerRuntime,
     validateRuntimeRequirement,
-} from "../../src/main/utilities/dotnetDiscovery";
+} from "../../src/main/utils/dotnetDiscovery";
 
 function requirement(policy?: WorkerRollForward, minimumRuntimeVersion = "8.0.5"): WorkerDeclaration["dotnet"] {
     return { targetFramework: "net8.0", minimumRuntimeVersion, ...(policy === undefined ? {} : { rollForward: policy }) };
@@ -32,46 +30,36 @@ function selected(result: DotNetResult<DotNetInstallation>): string {
     return result.value.version;
 }
 
-function hostInfo(architecture = "arm64", rid: string | null = "osx-arm64", sdk = "11.0.100"): string {
-    return `.NET SDK:\n Version: ${sdk}\n\nRuntime Environment:\n${rid ? ` RID: ${rid}\n` : ""}\nHost:\n  Version: 10.0.1\n  Architecture: ${architecture}\n\n.NET SDKs installed:\n  10.0.200\n\nglobal.json file:\n  /untrusted/global.json\n`;
+function hostInfo(architecture = "arm64", rid: string | null = "osx-arm64"): string {
+    return `Host:\n  Version:      10.0.1\n  Architecture: ${architecture}\n  Commit:       abc123\n${rid ? `  RID:          ${rid}\n` : ""}\n.NET SDKs installed:\n  No SDKs were found.\n\nglobal.json file:\n  Not found\n`;
+}
+
+function sdkHostInfo(architecture = "arm64", rid = "osx-arm64"): string {
+    return `.NET SDK:\n Version: 10.0.100\n\nRuntime Environment:\n RID: ${rid}\n\nHost:\n  Version: 10.0.1\n  Architecture: ${architecture}\n  RID: ${rid}\n\n.NET SDKs installed:\n  10.0.100 [/usr/local/share/dotnet/sdk]\n`;
 }
 
 interface FixtureHost {
-    sdks?: string;
     runtimes?: string;
     info?: string;
     realPath?: string;
     executable?: boolean;
     failure?: object;
-    sdkConfig?: string;
-    sdkConfigRealPath?: string;
 }
 
 function fixture(hosts: Record<string, FixtureHost>, osPlatform = "darwin", architecture = "arm64") {
     const adapter: DotNetDiscoveryAdapter = {
         system: jest.fn(() => ({ platform: osPlatform, architecture })),
         realpath: jest.fn(async (file: string) => {
-            if (file.endsWith("dotnet.runtimeconfig.json")) {
-                const paths = osPlatform === "win32" ? win32 : posix;
-                const host = paths.join(paths.dirname(paths.dirname(paths.dirname(file))), osPlatform === "win32" ? "dotnet.exe" : "dotnet");
-                return hosts[host]?.sdkConfigRealPath ?? file;
-            }
             if (!hosts[file]) throw Object.assign(new Error("missing"), { code: "ENOENT" });
             return hosts[file].realPath ?? file;
         }),
         isExecutable: jest.fn(async (file: string) => hosts[file]?.executable !== false),
-        readSdkConfig: jest.fn(async (file: string) => {
-            const paths = osPlatform === "win32" ? win32 : posix;
-            const host = paths.join(paths.dirname(paths.dirname(paths.dirname(file))), osPlatform === "win32" ? "dotnet.exe" : "dotnet");
-            return hosts[host]?.sdkConfig ?? JSON.stringify({ runtimeOptions: { tfm: "net10.0", framework: { name: "Microsoft.NETCore.App", version: "10.0.0" }, rollForward: "LatestPatch" } });
-        }),
         probe: jest.fn(async (file: string, args: readonly DotNetDiagnostic[]) => {
             const host = hosts[file];
             if (host.failure) throw host.failure;
             const paths = osPlatform === "win32" ? win32 : posix;
             const root = paths.dirname(file);
             if (args[0] === "--info") return host.info ?? hostInfo(architecture, `${osPlatform === "win32" ? "win" : osPlatform === "linux" ? "linux" : "osx"}-${architecture}`);
-            if (args[0] === "--list-sdks") return host.sdks ?? `10.0.100 [${paths.join(root, "sdk")}]\n10.0.200 [${paths.join(root, "sdk")}]\n11.0.100 [${paths.join(root, "sdk")}]\n`;
             return (
                 host.runtimes ??
                 `Microsoft.NETCore.App 8.0.12 [${paths.join(root, "shared", "Microsoft.NETCore.App")}]\nMicrosoft.NETCore.App 10.0.1 [${paths.join(root, "shared", "Microsoft.NETCore.App")}]\n`
@@ -148,35 +136,35 @@ describe(".NET runtime policy selection", () => {
 });
 
 describe(".NET listings and host info", () => {
-    test("parses CRLF, whitespace, SDK paths with spaces, and skips prerelease SDKs", () => {
-        const parsed = parseDotNetListing(" 10.0.200 [C:\\Program Files\\dotnet\\sdk]\r\n10.0.300-preview.1 [C:\\Program Files\\dotnet\\sdk]\r\n", "sdk");
-        expect(parsed).toMatchObject({ ok: true, value: [{ version: "10.0.200", directory: "C:\\Program Files\\dotnet\\sdk" }] });
+    test("parses CRLF, whitespace and runtime paths with spaces", () => {
+        const parsed = parseDotNetListing(" Microsoft.NETCore.App 10.0.1 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n");
+        expect(parsed).toMatchObject({ ok: true, value: [{ version: "10.0.1", directory: "C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App" }] });
     });
 
     test("runtime listing excludes ASP.NET, Desktop and prereleases", () => {
         expect(
             parseDotNetListing(
                 "Microsoft.AspNetCore.App 10.0.1 [/dotnet/shared/Microsoft.AspNetCore.App]\nMicrosoft.WindowsDesktop.App 10.0.1 [/desktop]\nMicrosoft.NETCore.App 11.0.0-preview.1 [/core]\nMicrosoft.NETCore.App 8.0.12 [/core]",
-                "runtime",
             ),
         ).toMatchObject({ ok: true, value: [{ version: "8.0.12" }] });
     });
 
-    test.each(["garbage", "10.0 [sdk]", "10.0.200", "010.0.200 [/sdk]", "2147483648.0.1 [/sdk]", "10.0.200+build [/sdk]", "10.0.200 [/sdk] unexpected", "10.0.200- [/sdk]"])(
-        "rejects malformed SDK listing %s",
-        (listing) => {
-            expect(parseDotNetListing(listing, "sdk")).toMatchObject({ ok: false, error: { code: "PROBE_OUTPUT_INVALID" } });
-        },
-    );
-
-    test("empty inventories are valid but do not satisfy SDK/runtime", () => {
-        expect(parseDotNetListing(" \r\n", "sdk")).toEqual({ ok: true, value: [] });
-        expect(selectDotNetSdk([])).toMatchObject({ ok: false, error: { code: "SDK_NOT_FOUND" } });
+    test.each([
+        "garbage",
+        "Microsoft.NETCore.App 10.0 [/core]",
+        "Microsoft.NETCore.App 10.0.1",
+        "Microsoft.NETCore.App 010.0.1 [/core]",
+        "Microsoft.NETCore.App 2147483648.0.1 [/core]",
+        "Microsoft.NETCore.App 10.0.1+build [/core]",
+        "Microsoft.NETCore.App 10.0.1 [/core] unexpected",
+        "Microsoft.NETCore.App 10.0.1- [/core]",
+    ])("rejects malformed runtime listing %s", (listing) => {
+        expect(parseDotNetListing(listing)).toMatchObject({ ok: false, error: { code: "PROBE_OUTPUT_INVALID" } });
     });
 
-    test("selects highest stable installed 10.0 SDK and never 11 or pre-100 builds", () => {
-        expect(selected(selectDotNetSdk(installations("10.0.99", "10.0.100", "10.0.200", "11.0.100")))).toBe("10.0.200");
-        expect(selectDotNetSdk(installations("9.0.300", "10.0.99", "11.0.100"))).toMatchObject({ ok: false, error: { code: "SDK_NOT_FOUND" } });
+    test("empty inventory is valid but does not satisfy a runtime requirement", () => {
+        expect(parseDotNetListing(" \r\n")).toEqual({ ok: true, value: [] });
+        expect(selectWorkerRuntime([], requirement())).toMatchObject({ ok: false, error: { code: "RUNTIME_NOT_FOUND" } });
     });
 
     test.each(["8.0.0\n", "8.0.0-preview.1", "8.0.0+build", "8.00.0", "2147483648.0.0", " 8.0.0"])("rejects non-stable version %s", (value) => {
@@ -184,15 +172,18 @@ describe(".NET listings and host info", () => {
     });
 
     test("selectors derive components from version text, not inconsistent numeric metadata", () => {
-        const forged = { ...installations("11.0.100")[0], major: 10 };
-        expect(selectDotNetSdk([forged])).toMatchObject({ ok: false, error: { code: "SDK_NOT_FOUND" } });
         const forgedRuntime = { ...installations("8.0.4")[0], patch: 12 };
         expect(selectWorkerRuntime([forgedRuntime], requirement())).toMatchObject({ ok: false, error: { code: "RUNTIME_NOT_FOUND" } });
     });
 
-    test("uses Host architecture, not other architecture listings or SDK version", () => {
+    test("uses Host architecture, not other architecture listings", () => {
         expect(parseDotNetHostInfo(`${hostInfo()}\nOther architectures found:\n x64 [/other]\n`)).toEqual({ ok: true, value: { architecture: "arm64", rid: "osx-arm64" } });
         expect(parseDotNetHostInfo(hostInfo("x64", null))).toEqual({ ok: true, value: { architecture: "x64", rid: undefined } });
+    });
+
+    test("accepts the same RID reported by both the SDK and Host sections but rejects conflicting RIDs", () => {
+        expect(parseDotNetHostInfo(sdkHostInfo())).toEqual({ ok: true, value: { architecture: "arm64", rid: "osx-arm64" } });
+        expect(parseDotNetHostInfo(sdkHostInfo().replace(" RID: osx-arm64\n\nHost", " RID: osx-x64\n\nHost"))).toMatchObject({ ok: false, error: { code: "PROBE_OUTPUT_INVALID" } });
     });
 
     test.each(["bad", "Host:\n  Version: 10.0.1\n", `${hostInfo()}\nHost:\n Architecture: x64\n`, "Host:\n Architecture: arm64\n Architecture: x64\n"])(
@@ -269,21 +260,18 @@ describe("internal .NET discovery manager", () => {
         expect(adapter.realpath).not.toHaveBeenCalled();
     });
 
-    test("same host selects SDK10 and runtime8 regardless of ambient global.json and info SDK11", async () => {
+    test("selects the worker runtime on a runtime-only host using only --info and --list-runtimes", async () => {
         const { manager, adapter } = fixture({ [macHost]: {} });
         const result = await manager.discover(requirement(), ["all"]);
         expect(result).toMatchObject({
             ok: true,
             value: {
                 hostPath: macHost,
-                sdk: { version: "10.0.200" },
-                sdkRuntime: { version: "10.0.1" },
                 runtime: { version: "8.0.12" },
-                sdkPin: { sdk: { version: "10.0.200", rollForward: "disable", allowPrerelease: false, paths: ["$host$"] } },
             },
         });
         const calls = (adapter.probe as jest.Mock).mock.calls;
-        expect(calls.map((call) => call[1])).toEqual([["--info"], ["--list-sdks"], ["--list-runtimes"]]);
+        expect(calls.map((call) => call[1])).toEqual([["--info"], ["--list-runtimes"]]);
         for (const [file, args, options] of calls) {
             expect(file).toBe(macHost);
             expect(args).toHaveLength(1);
@@ -294,22 +282,19 @@ describe("internal .NET discovery manager", () => {
         }
     });
 
-    test("conflicting info SDK absence is not absence of installed SDKs", async () => {
-        const { manager } = fixture({ [macHost]: { info: hostInfo("arm64", null, "unavailable (global.json)") } });
-        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: true, value: { sdk: { version: "10.0.200" } } });
+    test("a host with an SDK installed is also accepted", async () => {
+        const { manager } = fixture({ [macHost]: { info: sdkHostInfo() } });
+        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: true, value: { runtime: { version: "8.0.12" } } });
     });
 
-    test.each([true, false])("nonzero info from a broken ambient SDK preserves native inventories (SDK runtime present: %s)", async (runtimePresent) => {
-        const { manager, adapter } = fixture({
-            [macHost]: runtimePresent ? {} : { runtimes: "Microsoft.NETCore.App 8.0.12 [/usr/local/share/dotnet/shared/Microsoft.NETCore.App]" },
-        });
+    test("nonzero --info exit (for example a runtime-only host) still uses its host output", async () => {
+        const { manager, adapter } = fixture({ [macHost]: {} });
         const originalProbe = adapter.probe.bind(adapter);
         adapter.probe = jest.fn(async (file, args, options) => {
-            if (args[0] === "--info") throw Object.assign(new Error("Ambient SDK cannot start"), { code: 150, stdout: hostInfo() });
+            if (args[0] === "--info") throw Object.assign(new Error("No SDK"), { code: 150, stdout: hostInfo() });
             return originalProbe(file, args, options);
         });
-        const result = await manager.discover(requirement(), ["all"]);
-        expect(result).toMatchObject(runtimePresent ? { ok: true, value: { sdk: { version: "10.0.200" } } } : { ok: false, error: { code: "SDK_RUNTIME_NOT_FOUND" } });
+        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: true, value: { runtime: { version: "8.0.12" } } });
     });
 
     test.each([
@@ -326,13 +311,9 @@ describe("internal .NET discovery manager", () => {
     });
 
     test.each([
-        [{ sdks: "" }, "SDK_NOT_FOUND"],
         [{ runtimes: "" }, "RUNTIME_NOT_FOUND"],
-        [{ sdks: "", runtimes: "" }, "SDK_NOT_FOUND"],
-        [{ sdks: "11.0.100 [/usr/local/share/dotnet/sdk]" }, "SDK_NOT_FOUND"],
-        [{ sdks: "10.0.100-preview.1 [/usr/local/share/dotnet/sdk]" }, "SDK_NOT_FOUND"],
         [{ runtimes: "Microsoft.NETCore.App 8.0.4 [/usr/local/share/dotnet/shared/Microsoft.NETCore.App]" }, "RUNTIME_NOT_FOUND"],
-    ] as [FixtureHost, DotNetDiscoveryErrorCode][])("distinguishes runtime-only, SDK-only and minimum failures %#", async (host, code) => {
+    ] as [FixtureHost, DotNetDiscoveryErrorCode][])("reports missing or too-old runtimes %#", async (host, code) => {
         const { manager } = fixture({ [macHost]: host });
         expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code } });
     });
@@ -346,63 +327,9 @@ describe("internal .NET discovery manager", () => {
         expect(await manager.discover(requirement("Latest"), ["all"])).toMatchObject({ ok: true, value: { nativeRollForward: "LatestMajor", runtime: { version: "11.0.1" } } });
     });
 
-    test("SDK presence without its CLI runtime is not compatible SDK availability", async () => {
-        const { manager } = fixture({ [macHost]: { runtimes: "Microsoft.NETCore.App 8.0.12 [/usr/local/share/dotnet/shared/Microsoft.NETCore.App]" } });
-        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "SDK_RUNTIME_NOT_FOUND" } });
-    });
-
-    test("SDK runtime minimum patch is checked independently from worker runtime", async () => {
-        const sdkConfig = JSON.stringify({ runtimeOptions: { tfm: "net10.0", framework: { name: "Microsoft.NETCore.App", version: "10.0.5" } } });
-        const { manager } = fixture({ [macHost]: { sdkConfig } });
-        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "SDK_RUNTIME_NOT_FOUND" } });
-    });
-
-    test.each(["bad JSON", "null", JSON.stringify({ runtimeOptions: { tfm: "net11.0" } }), "a".repeat(65537)])("SDK config is bounded and validated %#", async (sdkConfig) => {
-        const { manager } = fixture({ [macHost]: { sdkConfig } });
-        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "SDK_CONFIG_INVALID" } });
-    });
-
-    test("SDK config symlink escape is rejected without reading", async () => {
-        const { manager, adapter } = fixture({ [macHost]: { sdkConfigRealPath: "/untrusted/dotnet.runtimeconfig.json" } });
-        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "SDK_CONFIG_INVALID" } });
-        expect(adapter.readSdkConfig).not.toHaveBeenCalled();
-    });
-
-    test("SDK config read failures are sanitized", async () => {
-        const { manager, adapter } = fixture({ [macHost]: {} });
-        adapter.readSdkConfig = jest.fn().mockRejectedValue(new Error("secret SDK config"));
-        const result = await manager.discover(requirement(), ["all"]);
-        expect(result).toMatchObject({ ok: false, error: { code: "SDK_CONFIG_INVALID" } });
-        expect(JSON.stringify(result)).not.toContain("secret");
-    });
-
-    test("SDK config accepts default/Minor/LatestPatch with latest compatible patch only", () => {
-        for (const rollForward of [undefined, "Minor", "LatestPatch"]) {
-            const config = JSON.stringify({ runtimeOptions: { tfm: "net10.0", framework: { name: "Microsoft.NETCore.App", version: "10.0.5" }, rollForward } });
-            expect(selected(selectSdkRuntime(config, installations("10.0.4", "10.0.5", "10.0.9", "11.0.1")))).toBe("10.0.9");
-        }
-    });
-
-    test.each([
-        { tfm: "net9.0", framework: { name: "Microsoft.NETCore.App", version: "9.0.0" } },
-        { tfm: "net10.0", framework: { name: "Microsoft.AspNetCore.App", version: "10.0.0" } },
-        { tfm: "net10.0", framework: { name: "Microsoft.NETCore.App", version: "10.0.0-preview.1" } },
-        { tfm: "net10.0", framework: { name: "Microsoft.NETCore.App", version: "10.0.0" }, rollForward: "LatestMajor" },
-        { tfm: "net10.0", framework: { name: "Microsoft.NETCore.App", version: "10.0.0" }, applyPatches: false },
-        { tfm: "net10.0", framework: { name: "Microsoft.NETCore.App", version: "10.0.0" }, frameworks: [] },
-    ])("rejects unsupported installed SDK config %#", (runtimeOptions) => {
-        expect(selectSdkRuntime(JSON.stringify({ runtimeOptions }), installations("10.0.9"))).toMatchObject({ ok: false, error: { code: "SDK_CONFIG_INVALID" } });
-    });
-
-    test("does not merge SDK from host A and runtime from host B", async () => {
-        const { manager } = fixture({ [macHost]: { runtimes: "" }, [macX64Host]: { sdks: "" } });
-        const result = await manager.discover(requirement(), ["all"]);
-        expect(result).toMatchObject({ ok: false, error: { code: "RUNTIME_NOT_FOUND" }, attempts: [{ error: { code: "RUNTIME_NOT_FOUND" } }, { error: { code: "SDK_NOT_FOUND" } }] });
-    });
-
     test("does not use listings outside the selected host root", async () => {
-        const { manager } = fixture({ [macHost]: { sdks: "10.0.100 [/other/sdk]", runtimes: "Microsoft.NETCore.App 8.0.12 [/other/shared/Microsoft.NETCore.App]" } });
-        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "SDK_NOT_FOUND" } });
+        const { manager } = fixture({ [macHost]: { runtimes: "Microsoft.NETCore.App 8.0.12 [/other/shared/Microsoft.NETCore.App]" } });
+        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "RUNTIME_NOT_FOUND" } });
     });
 
     test.each([
@@ -411,9 +338,8 @@ describe("internal .NET discovery manager", () => {
         [{ info: hostInfo("arm64", "win-arm64") }, "ARCHITECTURE_MISMATCH"],
         [{ info: hostInfo("x86", null) }, "ARCHITECTURE_UNSUPPORTED"],
         [{ info: "garbage" }, "PROBE_OUTPUT_INVALID"],
-        [{ sdks: "garbage" }, "PROBE_OUTPUT_INVALID"],
         [{ runtimes: "garbage" }, "PROBE_OUTPUT_INVALID"],
-        [{ sdks: "10.0.100 [relative/sdk]" }, "PROBE_OUTPUT_INVALID"],
+        [{ runtimes: "Microsoft.NETCore.App 8.0.12 [relative/core]" }, "PROBE_OUTPUT_INVALID"],
         [{ info: "a".repeat(262145) }, "PROBE_OUTPUT_INVALID"],
         [{ info: "Host:\0" }, "PROBE_OUTPUT_INVALID"],
         [{ failure: { code: "ETIMEDOUT", message: "secret output" } }, "PROBE_TIMEOUT"],
@@ -430,7 +356,7 @@ describe("internal .NET discovery manager", () => {
     test("deterministic candidate fallback after wrong architecture", async () => {
         const { manager, adapter } = fixture({ [macHost]: { info: hostInfo("x64", "osx-x64") }, [macX64Host]: {} });
         expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: true, value: { hostPath: macX64Host, attempts: [{ error: { code: "ARCHITECTURE_MISMATCH" } }] } });
-        expect((adapter.realpath as jest.Mock).mock.calls.map((call) => call[0])).toEqual([macHost, macX64Host, "/usr/local/share/dotnet/x64/sdk/10.0.200/dotnet.runtimeconfig.json"]);
+        expect((adapter.realpath as jest.Mock).mock.calls.map((call) => call[0])).toEqual([macHost, macX64Host]);
     });
 
     test.each(["../dotnet", "/tmp/dotnet", "/usr/local/share/dotnet/dotnet\n"])("rejects unapproved real path %s before execution", async (realPath) => {
@@ -446,12 +372,12 @@ describe("internal .NET discovery manager", () => {
     });
 
     test("deduplicates approved real paths", async () => {
-        const { manager, adapter } = fixture({ [macHost]: { sdks: "" }, [macX64Host]: { realPath: macHost } });
-        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "SDK_NOT_FOUND" } });
-        expect(adapter.probe).toHaveBeenCalledTimes(3);
+        const { manager, adapter } = fixture({ [macHost]: { runtimes: "" }, [macX64Host]: { realPath: macHost } });
+        expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "RUNTIME_NOT_FOUND" } });
+        expect(adapter.probe).toHaveBeenCalledTimes(2);
     });
 
-    test("no installed host is distinct from missing SDK", async () => {
+    test("no installed host is distinct from a missing runtime", async () => {
         const { manager, adapter } = fixture({});
         expect(await manager.discover(requirement(), ["all"])).toMatchObject({ ok: false, error: { code: "HOST_NOT_FOUND" } });
         expect(adapter.probe).not.toHaveBeenCalled();

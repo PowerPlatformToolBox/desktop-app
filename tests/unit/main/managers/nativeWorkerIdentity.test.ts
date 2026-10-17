@@ -6,8 +6,8 @@ import * as path from "path";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../../../src/common/ipc/channels";
 import type { NativeWorkerConsentRecord, NativeWorkerConsentRequest, Tool, WorkerDeclaration } from "../../../../src/common/types";
 import { NativeWorkerConsentManager } from "../../../../src/main/managers/nativeWorkerConsentManager";
-import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity, type LoadedToolIdentity } from "../../../../src/main/utilities/nativeWorkerIdentity";
-import { DOTNET_LOCAL_NUGET_FEED_ENV } from "../../../../src/main/utilities/dotnetLocalFeed";
+import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity, type LoadedToolIdentity } from "../../../../src/main/utils/nativeWorkerIdentity";
+import { DOTNET_LOCAL_NUGET_FEED_ENV } from "../../../../src/main/utils/dotnetLocalFeed";
 
 class Sender extends EventEmitter {
     readonly send = jest.fn();

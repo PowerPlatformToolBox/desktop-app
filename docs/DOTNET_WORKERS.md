@@ -87,21 +87,21 @@ sequenceDiagram
 
 ### Code Map
 
-| Hop                                                                         | Implementation                                                                      |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Sample buttons and UI state                                                 | `sample-tools/new/html-sample/src/features/dotnetWorker.ts`                         |
-| Public session types                                                        | `packages/types/toolboxAPI.d.ts` and `src/common/types/workerToolApi.ts`            |
-| `connect`, request correlation, callback dispatch and cancellation          | `src/common/types/workerToolApiClient.ts`                                           |
-| JSON-RPC framing adapter owned by PPTB                                      | `src/common/types/workerRpcConnection.ts`                                           |
-| Tool preload to IPC bridge                                                  | `src/main/toolPreloadBridge.ts`                                                     |
-| `worker:start/send/stop` IPC handlers and per-sender events                 | `src/main/utilities/workerToolIpc.ts`                                               |
-| Sender identity, consent lease, runtime discovery and package preparation   | `src/main/managers/workerBrokerManager.ts`                                          |
-| .NET SDK/runtime probing                                                    | `src/main/managers/dotnetDiscoveryManager.ts`                                       |
-| NuGet restore, nuspec/artifact verification and cache                       | `src/main/managers/dotnetToolManager.ts`                                            |
-| Child process, stdio framing, initialize handshake and cleanup verification | `src/main/managers/workerProcessManager.ts` and `src/main/utilities/workerStdio.ts` |
-| `dataverseAPI.fetchXmlQuery` preload wrapper                                | `src/main/toolPreloadBridge.ts` (`DATAVERSE_CHANNELS.FETCH_XML_QUERY`)              |
-| Main-process Dataverse FetchXML IPC handler                                 | `src/main/index.ts` (`DATAVERSE_CHANNELS.FETCH_XML_QUERY`)                          |
-| C# stdio host and named query/callback methods                              | `sample-tools/new/html-sample/dotnet/Worker/Program.cs` and `WorkerMethods.cs`      |
+| Hop                                                                         | Implementation                                                                  |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Sample buttons and UI state                                                 | `sample-tools/new/html-sample/src/features/dotnetWorker.ts`                     |
+| Public session types                                                        | `packages/types/toolboxAPI.d.ts` and `src/common/types/workerToolApi.ts`        |
+| `connect`, request correlation, callback dispatch and cancellation          | `src/common/types/workerToolApiClient.ts`                                       |
+| JSON-RPC framing adapter owned by PPTB                                      | `src/common/types/workerRpcConnection.ts`                                       |
+| Tool preload to IPC bridge                                                  | `src/main/toolPreloadBridge.ts`                                                 |
+| `worker:start/send/stop` IPC handlers and per-sender events                 | `src/main/utils/workerToolIpc.ts`                                               |
+| Sender identity, consent lease, runtime discovery and package preparation   | `src/main/managers/workerBrokerManager.ts`                                      |
+| .NET host/runtime probing                                                   | `src/main/managers/dotnetDiscoveryManager.ts`                                   |
+| `.nupkg` download/extraction, package verification and cache                | `src/main/managers/dotnetToolManager.ts` and `src/main/utils/dotnetPackage.ts`  |
+| Child process, stdio framing, initialize handshake and cleanup verification | `src/main/managers/workerProcessManager.ts` and `src/main/utils/workerStdio.ts` |
+| `dataverseAPI.fetchXmlQuery` preload wrapper                                | `src/main/toolPreloadBridge.ts` (`DATAVERSE_CHANNELS.FETCH_XML_QUERY`)          |
+| Main-process Dataverse FetchXML IPC handler                                 | `src/main/index.ts` (`DATAVERSE_CHANNELS.FETCH_XML_QUERY`)                      |
+| C# stdio host and named query/callback methods                              | `sample-tools/new/html-sample/dotnet/Worker/Program.cs` and `WorkerMethods.cs`  |
 
 At author level the normal path is just `connect`, `ready`, `request`, and
 `stop`. The remaining rows describe platform-owned plumbing, not code each tool
@@ -184,12 +184,11 @@ inspect the resulting `.nupkg` to verify that the worker entry point, core DLL
 and runtime dependencies are included. A project reference alone is not proof
 that the desired files are in the package.
 
-When the core library is already published on nuget.org, the local worker package
-can depend on that exact core version; local source mapping routes the worker
-package ID to the developer feed and dependencies to nuget.org. If the core
-changes are unpublished too, use a project reference/bundled core DLL for local
-iteration. PR7's developer feed intentionally maps only the declared worker ID,
-so it does not serve a second unpublished core NuGet package.
+PPTB does not resolve NuGet dependencies when preparing a worker. `dotnet pack`
+with `PackAsTool=true` copies every dependency assembly (including a referenced
+core package) into `tools/<tfm>/any`, and PPTB runs exactly those files. Whether
+the core is a package reference or a project reference, it must end up inside the
+worker package.
 
 The shared core should avoid XrmToolBox UI types. A .NET Framework-only or
 Windows-only dependency may require multi-targeting/refactoring before it can be
@@ -241,9 +240,10 @@ validation limits and precise roll-forward semantics.
 
 ## Runtime Selection
 
-PPTB currently requires a compatible installed .NET 10.0 SDK (10.0.100 or later)
-for local tool preparation. The worker runtime is selected independently from
-that SDK:
+End users need only a compatible **.NET runtime** (`Microsoft.NETCore.App`)
+installed in the standard location; no .NET SDK is required. PPTB downloads the
+declared tool package directly and launches its entry point with `dotnet exec`.
+The worker runtime is selected from the installed runtimes:
 
 | PPTB `rollForward` | Behavior                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------- |
@@ -253,7 +253,7 @@ that SDK:
 | `Major` (default)  | Prefer requested line/latest patch, then the next minor in that major, then a higher major if needed. |
 
 No runtime below the declared minimum is selected. PPTB does not silently install
-a missing SDK or runtime. A later major is not automatically safe merely because
+a missing runtime. A later major is not automatically safe merely because
 the host can load the framework; authors must test the compatibility they declare.
 The exact supported console TFMs and runtime-config checks are in the declaration
 guide.
@@ -269,9 +269,34 @@ arguments, feeds, environment variables, working directories, tool IDs or
 instance IDs. PPTB derives authority from the actual tool `WebContents`, and
 events are sent only to their owning tool.
 
-Start is explicit: loading the npm tool does not restore a package or launch a
+Start is explicit: loading the npm tool does not download a package or launch a
 worker. Startup performs live identity/source validation, native-code consent,
-SDK/runtime discovery, exact package preparation and the protocol handshake.
+runtime discovery, exact package preparation and the protocol handshake.
+
+### Package Preparation
+
+PPTB downloads the exact `.nupkg` from the nuget.org flat container
+(`https://api.nuget.org/v3-flatcontainer/{id}/{version}/{id}.{version}.nupkg`)
+through the app's proxy settings, extracts only the nuspec and `tools/**`, and
+caches it under `<userData>/native-workers/<package-id>/<version>/`. The package
+must be a framework-dependent .NET tool (`PackAsTool=true`, package type
+`DotnetTool`, `DotnetToolSettings.xml` Version 1 with `Runner="dotnet"`) that
+contains `tools/<targetFramework>/any/` with the entry DLL, its
+`runtimeconfig.json` and `deps.json`. RID-specific and native-executable tools
+are not supported.
+
+A `complete.json` marker records the package SHA-512 and extracted file sizes;
+warm starts reuse the cache without network access, and a damaged cache is
+rebuilt automatically. Preparation failures report one of these codes (details
+are logged for diagnostics):
+
+| Code                    | Meaning                                                               |
+| ----------------------- | --------------------------------------------------------------------- |
+| `PACKAGE_NOT_FOUND`     | nuget.org (or the local feed) has no package for the exact ID/version |
+| `DOWNLOAD_FAILED`       | Network, proxy, timeout or HTTP error while downloading               |
+| `PACKAGE_INVALID`       | Unsafe archive or the package does not match the declaration          |
+| `PACKAGE_HASH_MISMATCH` | Local-feed bytes changed after approval                               |
+| `WORKSPACE_INVALID`     | The cache directory could not be written                              |
 
 ## Protocol And Reverse Calls
 
@@ -330,30 +355,30 @@ for package verification and the initialize handshake, then exercise a query
 and reverse callback, progress, cancellation and stop/close behavior.
 
 The feed path is not in `pptb.config.json`, is not sent by a renderer, and is
-never exposed through the tool preload. The configured local feed supplies only
-the exact declared worker package ID/version; NuGet source mapping keeps its
-other dependencies on nuget.org. Missing local packages fail rather than falling
-back to nuget.org. Registry, marketplace and npm-debug tools remain nuget.org-only.
-The consent fingerprint includes source path and package SHA-512, so changing
-either requires fresh approval and preparation.
+never exposed through the tool preload. PPTB reads only the exact declared
+`<id>.<version>.nupkg` from the feed. Missing local packages fail rather than
+falling back to nuget.org. Registry, marketplace and npm-debug tools remain
+nuget.org-only. The consent fingerprint includes source path and package SHA-512,
+so changing either requires fresh approval and is cached in a separate
+`<version>-local-<hash>` directory.
 
 Automated checks from the repository root:
 
 ```sh
 npm --prefix ../sample-tools/new/html-sample test
-pnpm run test:unit --runInBand --runTestsByPath tests/unit/main/workerToolApi.test.ts tests/unit/main/utilities/dotnetLocalFeed.test.ts tests/unit/main/managers/nativeWorkerIdentity.test.ts tests/unit/main/managers/dotnetToolManager.test.ts
+pnpm run test:unit --runInBand --runTestsByPath tests/unit/main/workerToolApi.test.ts tests/unit/main/utils/dotnetLocalFeed.test.ts tests/unit/main/utils/dotnetPackage.test.ts tests/unit/main/managers/nativeWorkerIdentity.test.ts tests/unit/main/managers/dotnetToolManager.test.ts
 pnpm exec playwright test tests/e2e/nativeWorkerConsent.test.ts
 ```
 
 The sample repo's bridge tests use simulated transport and do not prove C# interoperability.
-The real-package smoke requires an installed .NET 10 SDK and the configured
-local feed. Verify consent denial performs no restore/launch; missing SDK,
-runtime, package, command or protocol leaves no usable partial cache; exact-feed
-restore and warm reuse work; changed source/package bytes invalidate consent and
-cache; reverse calls work while the original request is pending; and no token or
-credential environment reaches the worker. Confirm npm-debug, registry and
-marketplace tools remain nuget.org-only and normal npm install performs no .NET
-discovery, restore or worker launch.
+The real-package smoke requires an installed .NET runtime matching the worker's
+declaration (no SDK) and the configured local feed. Verify consent denial performs
+no download/launch; a missing runtime, package, command or protocol fails with a
+clear code; exact-feed preparation and warm reuse work; changed source/package
+bytes invalidate consent and cache; reverse calls work while the original request
+is pending; and no token or credential environment reaches the worker. Confirm
+npm-debug, registry and marketplace tools remain nuget.org-only and normal npm
+install performs no .NET discovery, download or worker launch.
 
 The current sample is a protocol/core-sharing demonstration, not an SQL 4 CDS
 integration. PR0 exercised SQL 4 CDS 10.5.1 with a simulated narrow
@@ -374,7 +399,7 @@ an OS sandbox: it can access same-user files, use the network and start child
 processes. Stdio and consent are not containment. Consent is bound to the exact
 tool version, worker declaration, package source/content, protocol and platform
 matrix. Revocation cancels matching work; tool close, crash, updates and app quit
-must await verified cleanup. An unverified child/restore stop blocks destructive
+must await verified cleanup. An unverified worker stop blocks destructive
 mutation instead of claiming it succeeded.
 
 No bearer tokens are passed to the worker. Do not add workers to terminal

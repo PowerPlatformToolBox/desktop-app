@@ -7,7 +7,7 @@ import { addConnectionSlotsBreadcrumb, captureException } from "../../common/sen
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import type { DataverseUser } from "../../common/types/dataverse";
 import { ToolBoxEvent } from "../../common/types/events";
-import type { LoadedToolIdentity } from "../utilities/nativeWorkerIdentity";
+import type { LoadedToolIdentity } from "../utils/nativeWorkerIdentity";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";

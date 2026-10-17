@@ -74,13 +74,13 @@ import { WorkerBrokerManager } from "./managers/workerBrokerManager";
 import { clearLogEntries, readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
-import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
-import { ToolInstallationCoordinator } from "./utilities/appWorkerLifecycle";
-import { mergeDataverseHeaders } from "./utilities/dataverseBatch";
-import { authorizeFilesystemCaller } from "./utilities/filesystemAuthorization";
-import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utilities/nativeWorkerIdentity";
-import { WorkerQuitCoordinator } from "./utilities/workerQuit";
-import { registerWorkerToolIpcHandlers } from "./utilities/workerToolIpc";
+import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utils";
+import { ToolInstallationCoordinator } from "./utils/appWorkerLifecycle";
+import { mergeDataverseHeaders } from "./utils/dataverseBatch";
+import { authorizeFilesystemCaller } from "./utils/filesystemAuthorization";
+import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utils/nativeWorkerIdentity";
+import { WorkerQuitCoordinator } from "./utils/workerQuit";
+import { registerWorkerToolIpcHandlers } from "./utils/workerToolIpc";
 import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
 
 // Proxy environment variables must be set before any HTTP-capable manager is instantiated.
@@ -205,6 +205,7 @@ class ToolBoxApp {
                 consent: this.nativeWorkerConsentManager,
                 discovery: new DotNetDiscoveryManager(),
                 preparationRoot: path.join(app.getPath("userData"), "native-workers"),
+                agentForUrl: (url) => this.proxyManager.getAgentForUrl(url),
                 resolve: (sender, workerId) => {
                     const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(sender.id);
                     if (!instanceId || sender === this.mainWindow?.webContents || this.toolWindowManager?.getToolViews().get(instanceId)?.webContents !== sender) return null;
@@ -1901,55 +1902,55 @@ class ToolBoxApp {
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { readText } = await import("./utilities/filesystem.js");
+            const { readText } = await import("./utils/filesystem.js");
             return await readText(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { readBinary } = await import("./utilities/filesystem.js");
+            const { readBinary } = await import("./utils/filesystem.js");
             return await readBinary(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { exists } = await import("./utilities/filesystem.js");
+            const { exists } = await import("./utils/filesystem.js");
             return await exists(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { stat } = await import("./utilities/filesystem.js");
+            const { stat } = await import("./utils/filesystem.js");
             return await stat(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (event, dirPath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, dirPath);
 
-            const { readDirectory } = await import("./utilities/filesystem.js");
+            const { readDirectory } = await import("./utils/filesystem.js");
             return await readDirectory(dirPath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (event, filePath: string, content: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { writeText } = await import("./utilities/filesystem.js");
+            const { writeText } = await import("./utils/filesystem.js");
             return await writeText(filePath, content);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (event, dirPath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, dirPath);
 
-            const { createDirectory } = await import("./utilities/filesystem.js");
+            const { createDirectory } = await import("./utils/filesystem.js");
             return await createDirectory(dirPath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (event, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
             const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
-            const { saveFile } = await import("./utilities/filesystem.js");
+            const { saveFile } = await import("./utils/filesystem.js");
             const selectedPath = await saveFile(defaultPath, content, filters);
 
             // Grant access to the selected path if a tool called this and user selected a file
@@ -1967,7 +1968,7 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (event, options) => {
             const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
-            const { selectPath } = await import("./utilities/filesystem.js");
+            const { selectPath } = await import("./utils/filesystem.js");
             const selectedPath = await selectPath(options);
 
             // Grant access to the selected path if a tool called this and user selected something

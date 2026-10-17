@@ -5,7 +5,7 @@ import {
     validateAndSnapshotHeaders,
     validateBatchRequests,
     validateDataverseRelativeUrl,
-} from "../../../../src/main/utilities/dataverseBatch";
+} from "../../../../src/main/utils/dataverseBatch";
 
 describe("Dataverse batch utilities", () => {
     it("snapshots valid headers and rejects conflicting case-insensitive duplicates", () => {
