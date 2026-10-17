@@ -70,6 +70,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     installTool: (packageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL, packageName),
     uninstallTool: (packageName: string, toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UNINSTALL_TOOL, packageName, toolId),
     getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML, packageName),
+    getToolIconSvg: (toolId: string, iconPath: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_ICON_SVG, toolId, iconPath),
     getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_CONTEXT, packageName, connectionUrl),
 
     // Tool Window Management (NEW - BrowserView based)

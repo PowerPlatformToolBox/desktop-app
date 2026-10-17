@@ -68,10 +68,13 @@ export function generateToolIconHtml(toolId: string, iconPath: string | undefine
     if (resolvedUrl) {
         // If the resolved URL is an SVG, prefer a CSS mask element so the icon can inherit `currentColor`
         // and automatically adapt to light/dark theme.
+        // `applyToolIconMasks` later swaps in the icon's own markup: colour SVGs become an <img>,
+        // monochrome (currentColor) SVGs stay a mask.
         if (isSvgUrl(resolvedUrl)) {
             const escapedResolvedUrl = escapeHtml(resolvedUrl);
             const fallbackAttr = safeDefaultIconAttr ? ` data-pptb-icon-fallback="${safeDefaultIconAttr}"` : "";
-            return `<span class="tool-item-icon-img pptb-svg-mask-icon" role="img" aria-label="${escapedToolName} icon" data-pptb-icon-url="${escapedResolvedUrl}"${fallbackAttr}></span>`;
+            const sourceAttrs = ` data-pptb-tool-id="${escapeHtml(toolId)}" data-pptb-icon-path="${escapeHtml(iconPath ?? "")}"`;
+            return `<span class="tool-item-icon-img pptb-svg-mask-icon" role="img" aria-label="${escapedToolName} icon" data-pptb-icon-url="${escapedResolvedUrl}"${sourceAttrs}${fallbackAttr}></span>`;
         }
 
         // Non-SVG: render as a normal <img>
@@ -85,39 +88,112 @@ export function generateToolIconHtml(toolId: string, iconPath: string | undefine
 }
 
 /**
- * Apply CSS mask URLs for theme-aware SVG icons.
- *
- * We avoid putting the raw URL inside an inline `style="..."` string during HTML generation;
- * instead, we set it via DOM APIs to reduce injection risk and to keep escaping correct.
+ * A monochrome icon uses `currentColor` (as the tool publishing docs recommend for
+ * theme support) and is drawn as a mask filled with the theme's text colour. Any other
+ * SVG is a colour icon and is drawn as authored.
  */
-export function applyToolIconMasks(root: ParentNode = document): void {
-    const elements = root.querySelectorAll<HTMLElement>(".pptb-svg-mask-icon[data-pptb-icon-url]");
-    elements.forEach((el) => {
-        const iconUrl = el.getAttribute("data-pptb-icon-url");
-        if (!iconUrl) return;
+export function isMonochromeSvg(svg: string): boolean {
+    return /currentcolor/i.test(svg);
+}
 
-        // Set CSS variable used by the mask CSS.
-        // Use JSON.stringify to safely quote/escape characters in the CSS string.
-        el.style.setProperty("--pptb-icon-url", `url(${JSON.stringify(iconUrl)})`);
+export function svgToDataUrl(svg: string): string {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
 
-        const fallbackUrl = el.getAttribute("data-pptb-icon-fallback");
-        if (!fallbackUrl) return;
+export type ToolIconPlan = { kind: "mask"; url: string } | { kind: "image"; url: string };
 
-        // Optional fallback: preflight load; if it fails, replace with fallback <img>.
-        // Note: This may cause an extra request, but keeps UX consistent.
-        const probe = new Image();
-        probe.onerror = () => {
-            const img = document.createElement("img");
-            img.className = "tool-item-icon-img";
-            img.src = fallbackUrl;
+/** Decide how to draw an SVG icon from its markup. */
+export function planToolIcon(svg: string): ToolIconPlan {
+    const url = svgToDataUrl(svg);
+    return isMonochromeSvg(svg) ? { kind: "mask", url } : { kind: "image", url };
+}
 
-            const ariaLabel = el.getAttribute("aria-label") || "";
-            img.alt = ariaLabel;
+export type ToolIconSvgLoader = (toolId: string, iconPath: string) => Promise<string | null>;
 
-            el.replaceWith(img);
-        };
-        probe.src = iconUrl;
+const remoteIconSvgCache = new Map<string, Promise<string | null>>();
+
+/** Load icon markup through the main process. Remote (marketplace) icons are cached per URL. */
+const defaultIconSvgLoader: ToolIconSvgLoader = (toolId, iconPath) => {
+    const api = (window as unknown as { toolboxAPI: { getToolIconSvg: ToolIconSvgLoader } }).toolboxAPI;
+    const load = () => api.getToolIconSvg(toolId, iconPath).catch(() => null);
+    if (!/^https?:\/\//i.test(iconPath)) return load();
+
+    const cached = remoteIconSvgCache.get(iconPath);
+    if (cached) return cached;
+
+    const pending = load();
+    remoteIconSvgCache.set(iconPath, pending);
+    void pending.then((svg) => {
+        if (svg === null) remoteIconSvgCache.delete(iconPath);
     });
+    return pending;
+};
+
+/**
+ * Render SVG tool icons placed by `generateToolIconHtml`.
+ *
+ * The icon markup comes from the main process and is used as a `data:` URL, so it works for
+ * locally loaded tools too (a CSS mask on a `pptb-webview://` URL is a cross-origin load that
+ * fails). Colour SVGs are drawn as an <img>; monochrome (currentColor) SVGs stay a CSS mask so
+ * they follow the light/dark theme. If the markup can't be loaded, the icon falls back to a
+ * mask on the original URL (and to the fallback icon if that URL doesn't load).
+ *
+ * We avoid putting URLs inside an inline `style="..."` string during HTML generation;
+ * instead, we set them via DOM APIs to reduce injection risk and to keep escaping correct.
+ */
+export function applyToolIconMasks(root: ParentNode = document, loadSvg: ToolIconSvgLoader = defaultIconSvgLoader): Promise<void> {
+    const elements = root.querySelectorAll<HTMLElement>(".pptb-svg-mask-icon[data-pptb-icon-url]:not([data-pptb-icon-state])");
+    return Promise.all(Array.from(elements).map((el) => renderToolIcon(el, loadSvg))).then(() => undefined);
+}
+
+async function renderToolIcon(el: HTMLElement, loadSvg: ToolIconSvgLoader): Promise<void> {
+    const iconUrl = el.getAttribute("data-pptb-icon-url");
+    if (!iconUrl) return;
+    el.setAttribute("data-pptb-icon-state", "loading");
+
+    const toolId = el.getAttribute("data-pptb-tool-id");
+    const iconPath = el.getAttribute("data-pptb-icon-path");
+    const svg = toolId && iconPath ? await loadSvg(toolId, iconPath) : null;
+
+    if (!svg) {
+        el.setAttribute("data-pptb-icon-state", "url");
+        applyMaskFromUrl(el, iconUrl);
+        return;
+    }
+
+    const plan = planToolIcon(svg);
+    if (plan.kind === "mask") {
+        el.setAttribute("data-pptb-icon-state", "mask");
+        el.style.setProperty("--pptb-icon-url", `url(${JSON.stringify(plan.url)})`);
+        return;
+    }
+
+    el.replaceWith(createIconImage(plan.url, el.getAttribute("aria-label") || ""));
+}
+
+function applyMaskFromUrl(el: HTMLElement, iconUrl: string): void {
+    // Set CSS variable used by the mask CSS.
+    // Use JSON.stringify to safely quote/escape characters in the CSS string.
+    el.style.setProperty("--pptb-icon-url", `url(${JSON.stringify(iconUrl)})`);
+
+    const fallbackUrl = el.getAttribute("data-pptb-icon-fallback");
+    if (!fallbackUrl) return;
+
+    // Optional fallback: preflight load; if it fails, replace with fallback <img>.
+    // Note: This may cause an extra request, but keeps UX consistent.
+    const probe = new Image();
+    probe.onerror = () => {
+        el.replaceWith(createIconImage(fallbackUrl, el.getAttribute("aria-label") || ""));
+    };
+    probe.src = iconUrl;
+}
+
+function createIconImage(src: string, alt: string): HTMLImageElement {
+    const img = document.createElement("img");
+    img.className = "tool-item-icon-img";
+    img.src = src;
+    img.alt = alt;
+    return img;
 }
 
 function isSvgUrl(url: string): boolean {
