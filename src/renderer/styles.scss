@@ -4010,6 +4010,11 @@ img.tool-item-icon-img {
     mask-position: center;
 }
 
+/* Until applyToolIconMasks has set a mask, keep the placeholder empty instead of a solid square. */
+.pptb-svg-mask-icon:not([data-pptb-icon-state="mask"]):not([data-pptb-icon-state="url"]) {
+    background-color: transparent;
+}
+
 .tool-item-icon-text {
     font-size: 16px;
     line-height: 1;

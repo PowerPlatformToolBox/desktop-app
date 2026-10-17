@@ -79,6 +79,7 @@ import { ToolInstallationCoordinator } from "./utils/appWorkerLifecycle";
 import { mergeDataverseHeaders } from "./utils/dataverseBatch";
 import { authorizeFilesystemCaller } from "./utils/filesystemAuthorization";
 import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utils/nativeWorkerIdentity";
+import { fetchRemoteToolIconSvg, readToolIconSvg } from "./utils/toolIcon";
 import { WorkerQuitCoordinator } from "./utils/workerQuit";
 import { registerWorkerToolIpcHandlers } from "./utils/workerToolIpc";
 import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
@@ -490,6 +491,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML);
         ipcMain.removeHandler(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_ICON_SVG);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_CONTEXT);
         ipcMain.removeHandler(WORKER_CHANNELS.START);
         ipcMain.removeHandler(WORKER_CHANNELS.SEND);
@@ -1493,6 +1495,23 @@ class ToolBoxApp {
 
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML, (_, packageName) => {
             return this.toolManager.getToolWebviewHtml(packageName);
+        });
+
+        // Tool icon SVG markup, so the renderer can show colour icons as images and
+        // monochrome (currentColor) icons as theme masks without cross-origin loads.
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_ICON_SVG, async (_, toolId: unknown, iconPath: unknown) => {
+            if (typeof toolId !== "string" || typeof iconPath !== "string" || !iconPath) return null;
+            try {
+                if (/^https:\/\//i.test(iconPath)) {
+                    return await fetchRemoteToolIconSvg(iconPath);
+                }
+                const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
+                const toolBaseDir = tool ? this.browserviewProtocolManager.getToolBaseDirectory(tool) : null;
+                return toolBaseDir ? readToolIconSvg(toolBaseDir, iconPath) : null;
+            } catch (error) {
+                logWarn(`[ToolIcon] Could not load icon for ${toolId}: ${(error as Error).message}`);
+                return null;
+            }
         });
 
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_CONTEXT, (_, packageName, connectionUrl) => {
