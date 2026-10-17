@@ -42,8 +42,12 @@ describe("isMonochromeSvg", () => {
         expect(isMonochromeSvg(svg('<image href="data:image/png;base64,AAAA" width="24" height="24"/>'))).toBe(false);
     });
 
-    it("ignores colours mentioned in comments", () => {
+    it("ignores colours and keywords mentioned in comments", () => {
         expect(isMonochromeSvg(svg('<!-- fill="#FFB900" accent --><path fill="#000" d="M0 0h24v24H0z"/>'))).toBe(true);
+        expect(isMonochromeSvg(svg('<!-- was currentColor --><path fill="#0E5A9C" d="M0 0h24v24H0z"/><path fill="#fff" d="M1 1h2v2H1z"/>'))).toBe(false);
+        expect(isMonochromeSvg(svg('<!-- <image> removed --><path fill="#000" d="M0 0h24v24H0z"/>'))).toBe(true);
+        // An unclosed comment runs to the end of the markup.
+        expect(isMonochromeSvg(svg('<path fill="#000" d="M0 0h24v24H0z"/><!-- fill="#f00"'))).toBe(true);
     });
 });
 

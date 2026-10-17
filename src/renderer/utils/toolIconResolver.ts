@@ -116,12 +116,17 @@ const NAMED_COLOURS: Record<string, string> = { black: "#000000", white: "#fffff
  * or an embedded image is a colour icon and is drawn as authored.
  */
 export function isMonochromeSvg(svg: string): boolean {
-    const markup = svg.replace(/<!--[\s\S]*?-->/g, "");
-    if (/currentcolor/i.test(markup)) return true;
-    if (/<image[\s>]/i.test(markup)) return false;
+    // Matches inside XML comments (including an unclosed one) don't count. The markup is only
+    // inspected here, never rendered, so comments are skipped rather than stripped.
+    const comments = Array.from(svg.matchAll(/<!--[\s\S]*?(?:-->|$)/g), (m) => [m.index, m.index + m[0].length]);
+    const inMarkup = (match: RegExpMatchArray) => !comments.some(([start, end]) => match.index! >= start && match.index! < end);
+    const anyInMarkup = (pattern: RegExp) => Array.from(svg.matchAll(pattern)).some(inMarkup);
+
+    if (anyInMarkup(/currentcolor/gi)) return true;
+    if (anyInMarkup(/<image[\s>]/gi)) return false;
 
     const colours = new Set<string>();
-    for (const match of markup.matchAll(SVG_PAINT_PATTERN)) {
+    for (const match of Array.from(svg.matchAll(SVG_PAINT_PATTERN)).filter(inMarkup)) {
         const value = (match[1] ?? match[2] ?? "").trim().toLowerCase();
         if (!value || ["none", "transparent", "inherit", "initial", "unset"].includes(value)) continue;
         if (value.startsWith("url(")) return false;
