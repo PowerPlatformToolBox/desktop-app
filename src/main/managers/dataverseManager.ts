@@ -16,7 +16,7 @@ import {
     DataverseUser,
     DataverseUserPage,
 } from "../../common/types";
-import { DATAVERSE_API_VERSION } from "../constants";
+import { DATAVERSE_API_VERSION, MAX_DATAVERSE_METADATA_RESPONSE_BYTES, MAX_DATAVERSE_RESPONSE_BYTES } from "../constants";
 import {
     encodeDataverseBatch,
     MAX_DATAVERSE_BATCH_RESPONSE_BYTES,
@@ -787,7 +787,7 @@ export class DataverseManager {
             if (encoding !== "gzip" && encoding !== "deflate") return Promise.resolve(buffer);
             return new Promise((resolve, reject) => {
                 const callback = (error: Error | null, result: Buffer) => (error ? reject(error) : resolve(result));
-                const options = { maxOutputLength: MAX_DATAVERSE_BATCH_RESPONSE_BYTES };
+                const options = { maxOutputLength: MAX_DATAVERSE_METADATA_RESPONSE_BYTES };
                 if (encoding === "gzip") zlib.gunzip(buffer, options, callback);
                 else zlib.inflate(buffer, options, callback);
             });
@@ -816,10 +816,10 @@ export class DataverseManager {
 
                 res.on("data", (chunk: Buffer) => {
                     responseBytes += chunk.length;
-                    if (responseBytes > MAX_DATAVERSE_BATCH_RESPONSE_BYTES) {
+                    if (responseBytes > MAX_DATAVERSE_METADATA_RESPONSE_BYTES) {
                         responseLimitExceeded = true;
                         res.destroy();
-                        reject(new Error("Dataverse metadata response exceeds the maximum size"));
+                        reject(new Error(`Dataverse metadata response exceeds the maximum size (${MAX_DATAVERSE_METADATA_RESPONSE_BYTES / (1024 * 1024)} MB)`));
                         return;
                     }
                     chunks.push(chunk);
@@ -871,7 +871,7 @@ export class DataverseManager {
         body?: unknown,
         preferOptions?: string[],
         customHeaders?: Record<string, string>,
-        maxResponseBytes = MAX_DATAVERSE_BATCH_RESPONSE_BYTES,
+        maxResponseBytes = MAX_DATAVERSE_RESPONSE_BYTES,
         resolveMultipartErrors = false,
     ): Promise<{ status: number; data: unknown; rawBody: string; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
@@ -918,7 +918,7 @@ export class DataverseManager {
                     if (maxResponseBytes !== undefined && responseBytes > maxResponseBytes) {
                         responseLimitExceeded = true;
                         res.destroy();
-                        reject(new Error("Dataverse response exceeds the maximum size"));
+                        reject(new Error(`Dataverse response exceeds the maximum size (${Math.round(maxResponseBytes / (1024 * 1024))} MB)`));
                         return;
                     }
                     data += chunk;
