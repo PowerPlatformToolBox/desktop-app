@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import { generateToolIconHtml, isMonochromeSvg, planToolIcon, resolveToolIconUrl, svgToDataUrl } from "../../../src/renderer/utils/toolIconResolver";
+import { generateToolIconHtml, getFallbackIconUrl, isMonochromeSvg, planToolIcon, resolveToolIconUrl, svgToDataUrl } from "../../../src/renderer/utils/toolIconResolver";
 
 const COLOUR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="#0E5A9C" d="M0 0h64v64H0z"/><path stroke="#fff" d="M8 8l48 48"/></svg>';
 const MONO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h24v24H0z"/></svg>';
@@ -40,6 +40,21 @@ describe("generateToolIconHtml", () => {
         expect(html).toContain('data-pptb-tool-id="my-tool"');
         expect(html).toContain('data-pptb-icon-path="icons/icon.svg"');
         expect(html).toContain('aria-label="My &lt;Tool&gt; icon"');
-        expect(html).toContain('data-pptb-icon-fallback="default.svg"');
+
+        // The fallback URL stays out of the markup; the placeholder only carries an index.
+        expect(html).not.toContain("default.svg");
+        const index = /data-pptb-icon-fallback="(\d+)"/.exec(html)?.[1] ?? null;
+        expect(getFallbackIconUrl(index)).toBe("default.svg");
+        expect(generateToolIconHtml("other-tool", "icon.svg", "Other", "default.svg")).toContain(`data-pptb-icon-fallback="${index}"`);
+    });
+
+    it("ignores fallback indexes that weren't registered", () => {
+        expect(getFallbackIconUrl(null)).toBeUndefined();
+        expect(getFallbackIconUrl("999")).toBeUndefined();
+        expect(getFallbackIconUrl("javascript:alert(1)")).toBeUndefined();
+    });
+
+    it("omits the fallback when the default icon is unsafe", () => {
+        expect(generateToolIconHtml("my-tool", "icons/icon.svg", "My Tool", "javascript:alert(1)")).not.toContain("data-pptb-icon-fallback");
     });
 });

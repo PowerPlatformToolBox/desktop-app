@@ -49,6 +49,22 @@ export function resolveToolIconUrl(toolId: string, iconPath: string | undefined)
 }
 
 /**
+ * Fallback icon URLs for SVG placeholders. The markup only carries an index into this list, so
+ * `applyToolIconMasks` never reads a URL back out of the DOM.
+ */
+const fallbackIconUrls: string[] = [];
+
+function registerFallbackIcon(url: string): number {
+    const existing = fallbackIconUrls.indexOf(url);
+    return existing === -1 ? fallbackIconUrls.push(url) - 1 : existing;
+}
+
+/** Fallback icon URL for a placeholder's `data-pptb-icon-fallback` index, if any. */
+export function getFallbackIconUrl(index: string | null): string | undefined {
+    return index !== null && /^\d+$/.test(index) ? fallbackIconUrls[Number(index)] : undefined;
+}
+
+/**
  * Generate tool icon HTML with proper fallback handling
  * @param toolId - The tool identifier
  * @param iconPath - The icon path from tool manifest
@@ -72,7 +88,7 @@ export function generateToolIconHtml(toolId: string, iconPath: string | undefine
         // monochrome (currentColor) SVGs stay a mask.
         if (isSvgUrl(resolvedUrl)) {
             const escapedResolvedUrl = escapeHtml(resolvedUrl);
-            const fallbackAttr = safeDefaultIconAttr ? ` data-pptb-icon-fallback="${safeDefaultIconAttr}"` : "";
+            const fallbackAttr = safeDefaultIconUrl ? ` data-pptb-icon-fallback="${registerFallbackIcon(safeDefaultIconUrl)}"` : "";
             const sourceAttrs = ` data-pptb-tool-id="${escapeHtml(toolId)}" data-pptb-icon-path="${escapeHtml(iconPath ?? "")}"`;
             return `<span class="tool-item-icon-img pptb-svg-mask-icon" role="img" aria-label="${escapedToolName} icon" data-pptb-icon-url="${escapedResolvedUrl}"${sourceAttrs}${fallbackAttr}></span>`;
         }
@@ -176,7 +192,7 @@ function applyMaskFromUrl(el: HTMLElement, iconUrl: string): void {
     // Use JSON.stringify to safely quote/escape characters in the CSS string.
     el.style.setProperty("--pptb-icon-url", `url(${JSON.stringify(iconUrl)})`);
 
-    const fallbackUrl = el.getAttribute("data-pptb-icon-fallback");
+    const fallbackUrl = getFallbackIconUrl(el.getAttribute("data-pptb-icon-fallback"));
     if (!fallbackUrl) return;
 
     // Optional fallback: preflight load; if it fails, replace with fallback <img>.
