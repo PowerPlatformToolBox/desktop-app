@@ -666,10 +666,6 @@ export class ProxyManager {
         const bypassProxy = !effective.proxyUrl || matchesNoProxy(targetHost, effective.noProxyList);
         this.logRoute(targetUrl, bypassProxy ? (effective.proxyUrl ? "direct (no-proxy match)" : "direct") : describeProxy(effective.proxyUrl), "fetch");
 
-        if (bypassProxy && !effective.caBundlePath) {
-            return undefined;
-        }
-
         const cacheKey = `${bypassProxy ? "direct" : effective.proxyUrl}|${effective.caBundlePath || ""}`;
         const cached = this.fetchDispatcherCache.get(cacheKey);
         if (cached) {
@@ -677,13 +673,12 @@ export class ProxyManager {
         }
 
         const ca = this.resolveCombinedCaBundle(effective.caBundlePath);
-        if (bypassProxy && !ca) {
-            return undefined;
-        }
 
         try {
+            // Direct routes also get an explicit Agent: undici's default global dispatcher is shared with
+            // Electron's bundled (older, unpatched) undici through a global symbol.
             const dispatcher: Dispatcher = bypassProxy
-                ? new UndiciAgent({ connect: { ca } })
+                ? new UndiciAgent(ca ? { connect: { ca } } : undefined)
                 : new UndiciProxyAgent({
                       uri: effective.proxyUrl as string,
                       requestTls: ca ? { ca } : undefined,

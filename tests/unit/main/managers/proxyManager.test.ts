@@ -1,6 +1,7 @@
 import * as http from "http";
 import * as https from "https";
 import type { AddressInfo } from "net";
+import { Agent } from "undici";
 import { ProxyManager } from "../../../../src/main/managers/proxyManager";
 import type { SettingsManager } from "../../../../src/main/managers/settingsManager";
 import type { ProxyFailureNotice } from "../../../../src/main/utils/proxyFailure";
@@ -82,6 +83,23 @@ describe("ProxyManager failure reporting against a local proxy", () => {
             }),
         ).rejects.toMatchObject({ code: "ECONNREFUSED" });
         expect(notices).toEqual([expect.objectContaining({ kind: "proxy-unreachable", targetHost: "login.microsoftonline.com" })]);
+    });
+
+    it("routes direct (no proxy) fetches through the patched undici package with an explicit dispatcher", async () => {
+        const server = http.createServer((_, res) => res.end("ok"));
+        await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+        const manager = new ProxyManager({ getSetting: () => ({ mode: "none", manualProxyUrl: "", noProxyList: [], caBundlePath: "" }) } as unknown as SettingsManager);
+        const directUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+
+        try {
+            const dispatcher = (manager as unknown as { getFetchDispatcher(url: string, effective: unknown): unknown }).getFetchDispatcher(directUrl, manager.getEffectiveProxySettings());
+            expect(dispatcher).toBeInstanceOf(Agent);
+
+            const response = await manager.createProxyAwareFetch()(directUrl);
+            await expect(response.text()).resolves.toBe("ok");
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
     });
 
     it("fails Test Connection when the proxy rejects the tunnel instead of reporting success", async () => {
