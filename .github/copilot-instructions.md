@@ -228,7 +228,7 @@ src/
 │   │   ├── loadingOverlayWindowManager.ts # Loading overlay management
 │   │   ├── browserviewProtocolManager.ts # Custom protocol handler
 │   │   └── toolboxUtilityManager.ts     # Utility functions for tools
-│   └── utilities/                       # Utility modules
+│   └── utils/                           # Utility modules
 │       ├── clipboard.ts                 # Clipboard operations
 │       ├── filesystem.ts                # File system operations
 │       ├── theme.ts                     # Theme management

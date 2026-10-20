@@ -1,6 +1,6 @@
 import type { FinanceOperationsMethod, FinanceOperationsOptions, FinanceOperationsResponse } from "../../common/financeOperationsApi";
 import { normalizeConnection } from "../../common/types/connection";
-import { buildFinanceOperationsUrl, financeOperationsHttp, FinanceOperationsHttpError, validateFinanceOperationsHeaders } from "../utilities/financeOperationsHttp";
+import { buildFinanceOperationsUrl, financeOperationsHttp, FinanceOperationsHttpError, validateFinanceOperationsHeaders } from "../utils/financeOperationsHttp";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
 

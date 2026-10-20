@@ -11,10 +11,10 @@ import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
 import { FinanceOperationsManager } from "../managers/financeOperationsManager";
 import { createFinanceOperationsAPI } from "../../common/financeOperationsApi";
-import { validateFinanceOperationsHeaders } from "../utilities/financeOperationsHttp";
+import { validateFinanceOperationsHeaders } from "../utils/financeOperationsHttp";
 import { PowerPlatformManager } from "../managers/powerplatformManager";
 import { SettingsManager } from "../managers/settingsManager";
-import { mergeDataverseHeaders, validateAndSnapshotHeaders, validateBatchRequests } from "../utilities/dataverseBatch";
+import { mergeDataverseHeaders, validateAndSnapshotHeaders, validateBatchRequests } from "../utils/dataverseBatch";
 
 type HeadlessInvokeFn = (input: Record<string, unknown>, context: HeadlessInvokeContext) => Promise<Record<string, unknown>>;
 

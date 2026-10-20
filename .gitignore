@@ -166,3 +166,8 @@ test-results/
 !tests/e2e/tool-fixtures/dataverse-finance-operations/dist/
 !tests/e2e/tool-fixtures/dataverse-finance-operations/dist/index.html
 !tests/e2e/tool-fixtures/dataverse-finance-operations/dist/sample.js
+
+# Nix / direnv
+.direnv/
+result
+result-*

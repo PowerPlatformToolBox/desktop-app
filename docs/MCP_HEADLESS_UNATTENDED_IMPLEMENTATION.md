@@ -25,10 +25,11 @@ This initial implementation stage provides the CLI scaffold and build integratio
 
 ## Target Behavior (Next Stages)
 
-- MCP `call-tool` accepts `executionMode: "headless"`.
+- MCP `call-tool` accepts `executionMode: "headless"`; headless is the default whenever a tool supports it, and windowed is only a backup.
 - Only tools explicitly declaring `agents.headless: true` are eligible.
 - A job-based response model returns `jobId` and status endpoint for polling.
 - Authentication supports either caller-provided token (`authToken`) or server-side resolution from saved `connectionName` (no external `connectionId` exposure).
+- Missing connections, required sign-ins, and missing required parameters are returned to the agent as one `input_required` response. The agent asks the user, calls `pptb_authenticate_connections` (PPTB runs the sign-in), and retries. See [Agent-Driven Input Flow](MCP_IMPLEMENTATION.md#agent-driven-input-flow).
 
 ## Headless Runtime Globals
 
@@ -96,7 +97,7 @@ Declare the entry in `pptb.config.json`:
 }
 ```
 
-When the tool needs Dataverse or Power Platform access, the MCP caller must include a saved `connectionName` so the runtime can resolve the right connection before the module runs.
+When the tool needs Dataverse or Power Platform access, the MCP caller supplies saved `connectionNames`. If they are missing or need sign-in, the server returns `input_required` so the agent can ask the user and authenticate via `pptb_authenticate_connections` before retrying.
 
 ## Reused Existing Architecture
 

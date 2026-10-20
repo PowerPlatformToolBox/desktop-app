@@ -1,7 +1,7 @@
-import { AccountInfo, ConfidentialClientApplication, LogLevel, PublicClientApplication } from "@azure/msal-node";
+import { AccountInfo, ConfidentialClientApplication, INetworkModule, LogLevel, NetworkRequestOptions, NetworkResponse, PublicClientApplication } from "@azure/msal-node";
 import { BrowserWindow } from "electron";
 import { createHash } from "crypto";
-import { buildFinanceOperationsUrl, financeOperationsHttp } from "../utilities/financeOperationsHttp";
+import { buildFinanceOperationsUrl, financeOperationsHttp } from "../utils/financeOperationsHttp";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
@@ -9,6 +9,7 @@ import { logError, logInfo, logWarn } from "../../common/logger";
 import { assertDataverseConnection, Connection, normalizeConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
+import type { ProxyManager } from "./proxyManager";
 
 /**
  * Manages authentication for Power Platform connections
@@ -35,9 +36,55 @@ export class AuthManager {
         "/": "&#x2F;",
     };
 
-    constructor(browserManager: BrowserManager) {
+    constructor(
+        browserManager: BrowserManager,
+        private readonly proxyManager: ProxyManager,
+    ) {
         this.browserManager = browserManager;
         // MSAL will be initialized on-demand for interactive auth
+    }
+
+    private createNetworkClient(): INetworkModule {
+        return {
+            sendGetRequestAsync: <ResponseBody>(url: string, options?: NetworkRequestOptions) => this.makeMsalRequest<ResponseBody>(url, "GET", options),
+            sendPostRequestAsync: <ResponseBody>(url: string, options?: NetworkRequestOptions) => this.makeMsalRequest<ResponseBody>(url, "POST", options),
+        };
+    }
+
+    private makeMsalRequest<ResponseBody>(url: string, method: "GET" | "POST", options?: NetworkRequestOptions): Promise<NetworkResponse<ResponseBody>> {
+        return new Promise((resolve, reject) => {
+            const request = https.request(
+                url,
+                {
+                    method,
+                    headers: options?.headers,
+                    agent: this.proxyManager.getAgentForUrl(url),
+                    timeout: 30000,
+                },
+                (response) => {
+                    const chunks: Buffer[] = [];
+                    response.on("data", (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+                    response.on("error", reject);
+                    response.on("end", () => {
+                        try {
+                            const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as ResponseBody;
+                            const headers: Record<string, string> = {};
+                            for (const [name, value] of Object.entries(response.headers)) {
+                                if (value !== undefined) {
+                                    headers[name] = Array.isArray(value) ? value.join(", ") : value;
+                                }
+                            }
+                            resolve({ headers, body, status: response.statusCode || 0 });
+                        } catch {
+                            reject(new Error(`Authentication endpoint returned an invalid JSON response (HTTP ${response.statusCode})`));
+                        }
+                    });
+                },
+            );
+            request.on("error", reject);
+            request.on("timeout", () => request.destroy(new Error("Authentication network request timed out")));
+            request.end(options?.body);
+        });
     }
 
     /**
@@ -56,6 +103,7 @@ export class AuthManager {
                     authority: `https://login.microsoftonline.com/${tenantId}`,
                 },
                 system: {
+                    networkClient: this.createNetworkClient(),
                     loggerOptions: {
                         loggerCallback(loglevel: LogLevel, message: string) {
                             logWarn(message);
@@ -94,6 +142,7 @@ export class AuthManager {
                     authority: `https://login.microsoftonline.com/${tenantId}`,
                 },
                 system: {
+                    networkClient: this.createNetworkClient(),
                     loggerOptions: {
                         loggerCallback(loglevel: LogLevel, message: string) {
                             logWarn(message);
@@ -626,6 +675,7 @@ export class AuthManager {
                 port: 443,
                 path: urlObj.pathname + urlObj.search,
                 method: "POST",
+                agent: this.proxyManager.getAgentForUrl(url),
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
                     "Content-Length": Buffer.byteLength(postData),
@@ -664,6 +714,7 @@ export class AuthManager {
                 port: 443,
                 path: urlObj.pathname + urlObj.search,
                 method: "GET",
+                agent: this.proxyManager.getAgentForUrl(url),
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/json",

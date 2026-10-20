@@ -6,7 +6,7 @@
 import { resolveConnectionRequirements as resolveConnectionSlots } from "../../common/connectionSlots";
 import { connectionProductLabel } from "../../common/connectionProduct";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import type { ToolRegistryEntry } from "../../common/types";
+import type { MarketplaceSourceIssue, ToolRegistryEntry } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
 import { formatPackageSize } from "../utils/packageSize";
@@ -29,6 +29,8 @@ interface InstalledTool {
 
 // Tool library loaded from registry
 let toolLibrary: ToolDetail[] = [];
+let registryLoadError: string | null = null;
+let registryIssues: MarketplaceSourceIssue[] = [];
 
 /**
  * Get tool library
@@ -68,39 +70,105 @@ function mapRegistryEntryToToolDetail(tool: ToolRegistryEntry): ToolDetail {
 }
 
 /**
- * Load tools library from registry
+ * Load tools library from registry.
+ * Records the failure (instead of silently showing an empty list) so the marketplace can display it.
  */
-export async function loadToolsLibrary(): Promise<void> {
+export async function loadToolsLibrary(options?: { forceRefresh?: boolean }): Promise<void> {
     try {
         // Fetch tools from registry
-        const registryTools = await window.toolboxAPI.fetchRegistryTools();
+        const registryTools = await window.toolboxAPI.fetchRegistryTools(options);
 
         // Map registry tools to the format expected by the UI
         toolLibrary = registryTools.map(mapRegistryEntryToToolDetail);
+        registryLoadError = null;
 
         logInfo(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
         logError("Failed to load tools from registry", error);
         toolLibrary = [];
-        // Error will be shown in the marketplace UI
+        registryIssues = [];
+        registryLoadError = toReadableIpcError(error);
+        return;
     }
+
+    // Issues are informational; failing to read them must not turn a successful load into an error.
+    try {
+        registryIssues = await window.toolboxAPI.getRegistryIssues();
+    } catch (error) {
+        registryIssues = [];
+        logWarn("Failed to read marketplace source issues", error);
+    }
+}
+
+/**
+ * Strip Electron's IPC wrapper ("Error invoking remote method '...': Error: ") from main-process errors.
+ */
+function toReadableIpcError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.replace(/^Error invoking remote method '[^']+':\s*/, "").replace(/^(?:[A-Za-z]*Error):\s*/, "") || "Unknown error";
+}
+
+function renderRegistryLoadError(marketplaceList: HTMLElement, message: string): void {
+    marketplaceList.innerHTML = `
+        <div class="empty-state marketplace-load-error" role="alert">
+            <p class="marketplace-load-error-title">Unable to load the marketplace</p>
+            <pre class="marketplace-load-error-details">${escapeHtml(message)}</pre>
+            <p class="empty-state-hint">Check your network and proxy settings. If the problem persists, copy the details and report it to the Power Platform ToolBox team.</p>
+            <div class="marketplace-load-error-actions">
+                <button type="button" class="fluent-button fluent-button-primary" id="marketplace-load-retry-btn">Retry</button>
+                <button type="button" class="fluent-button fluent-button-secondary" id="marketplace-load-copy-btn">Copy details</button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById("marketplace-load-retry-btn")?.addEventListener("click", () => {
+        marketplaceList.innerHTML = '<div class="empty-state"><p>Loading marketplace…</p></div>';
+        void loadMarketplace({ forceRefresh: true });
+    });
+    document.getElementById("marketplace-load-copy-btn")?.addEventListener("click", () => {
+        const details = `Power Platform ToolBox marketplace load failure\nTime: ${new Date().toISOString()}\n\n${message}`;
+        void window.toolboxAPI.utils
+            .copyToClipboard(details)
+            .then(() => window.toolboxAPI.utils.showNotification({ title: "Copied", body: "Error details copied to the clipboard.", type: "success" }))
+            .catch((error: unknown) => logError(error instanceof Error ? error : new Error(String(error))));
+    });
+}
+
+function renderRegistryIssuesBanner(): string {
+    if (registryIssues.length === 0) {
+        return "";
+    }
+
+    const hasErrors = registryIssues.some((issue) => issue.severity === "error");
+    const items = registryIssues.map((issue) => `<li><strong>${escapeHtml(issue.sourceLabel)}</strong>: ${escapeHtml(issue.message)}</li>`).join("");
+    return `
+        <div class="marketplace-source-issues ${hasErrors ? "has-errors" : ""}" role="status">
+            <p>${hasErrors ? "Some marketplace sources could not be loaded. Tools from those sources are not shown." : "The marketplace loaded with limitations."}</p>
+            <ul>${items}</ul>
+        </div>
+    `;
 }
 
 /**
  * Load and display marketplace tools
  */
-export async function loadMarketplace(): Promise<void> {
+export async function loadMarketplace(options?: { forceRefresh?: boolean }): Promise<void> {
     const marketplaceList = document.getElementById("marketplace-tools-list");
     if (!marketplaceList) return;
 
-    await loadToolsLibrary();
+    await loadToolsLibrary(options);
 
-    // Check if toolLibrary is empty (failed to load from registry)
+    if (registryLoadError) {
+        renderRegistryLoadError(marketplaceList, registryLoadError);
+        return;
+    }
+
     if (!toolLibrary || toolLibrary.length === 0) {
         marketplaceList.innerHTML = `
+            ${renderRegistryIssuesBanner()}
             <div class="empty-state">
-                <p>Unable to load tools from registry.</p>
-                <p class="empty-state-hint">Please check your internet connection and try again.</p>
+                <p>No tools available.</p>
+                <p class="empty-state-hint">Make sure at least one marketplace source is enabled in Settings.</p>
             </div>
         `;
         return;
@@ -252,6 +320,7 @@ export async function loadMarketplace(): Promise<void> {
         const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showVerifiedOnly || showPrivateMarketplaceOnly;
         const emptyMessage = hasSearchTerm ? "Try a different search term." : hasActiveFilters ? "No tools match the current filters." : "Check back later for new tools.";
         marketplaceList.innerHTML = `
+            ${renderRegistryIssuesBanner()}
             <div class="empty-state">
                 <p>No matching tools</p>
                 <p class="empty-state-hint">${emptyMessage}</p>
@@ -378,6 +447,7 @@ export async function loadMarketplace(): Promise<void> {
     `;
         })
         .join("");
+    marketplaceList.insertAdjacentHTML("afterbegin", renderRegistryIssuesBanner());
 
     // Ensure SVG mask icons are initialized (theme-aware icons via currentColor)
     applyToolIconMasks(marketplaceList);

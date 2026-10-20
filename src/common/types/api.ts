@@ -6,9 +6,9 @@
 import type { ConnectionIds, ConnectionTarget } from "../connectionSlots";
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
-import { Connection } from "./connection";
 import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, DataverseUser, DataverseUserPage } from "./dataverse";
-import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { Connection } from "./connection";
+import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSourceIssue, ProxySettings, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolFeatures, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
 import { ToolIdea, ToolIdeaSubmission, ToolIdeaUpvoteResult } from "./toolIdea";
@@ -156,6 +156,8 @@ export interface McpServerDetails {
     authHeaderName: string;
     authHeaderValue: string;
     isRunning: boolean;
+    status: "starting" | "running" | "stopped" | "error";
+    error?: string;
 }
 
 export interface McpClientConfigWriteResult {
@@ -183,6 +185,8 @@ export interface McpServerAPI {
     stop: () => Promise<McpServerDetails>;
     configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
     configureVSCode: () => Promise<McpClientConfigWriteResult>;
+    disconnectClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
+    disconnectVSCode: () => Promise<McpClientConfigWriteResult>;
 }
 
 /**
@@ -196,6 +200,7 @@ export interface TroubleshootingAPI {
     checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
     checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
+    testProxyConnection: (settings?: ProxySettings) => Promise<{ success: boolean; message?: string }>;
 }
 
 /**
@@ -396,7 +401,8 @@ export interface ToolboxAPI {
     openDirectoryPicker: () => Promise<string | null>;
 
     // Registry-based tools
-    fetchRegistryTools: () => Promise<ToolRegistryEntry[]>;
+    fetchRegistryTools: (options?: { forceRefresh?: boolean }) => Promise<ToolRegistryEntry[]>;
+    getRegistryIssues: () => Promise<MarketplaceSourceIssue[]>;
     fetchCommunityLinks: () => Promise<CommunityLinksCollection | null>;
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: ToolManifest; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;

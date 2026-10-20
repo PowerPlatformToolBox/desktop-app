@@ -2,10 +2,10 @@ import type { Connection } from "../../../../src/common/types";
 import { FinanceOperationsManager } from "../../../../src/main/managers/financeOperationsManager";
 import type { AuthManager } from "../../../../src/main/managers/authManager";
 import type { ConnectionsManager } from "../../../../src/main/managers/connectionsManager";
-import { FinanceOperationsHttpError, financeOperationsHttp } from "../../../../src/main/utilities/financeOperationsHttp";
+import { FinanceOperationsHttpError, financeOperationsHttp } from "../../../../src/main/utils/financeOperationsHttp";
 
-jest.mock("../../../../src/main/utilities/financeOperationsHttp", () => ({
-    ...jest.requireActual("../../../../src/main/utilities/financeOperationsHttp"),
+jest.mock("../../../../src/main/utils/financeOperationsHttp", () => ({
+    ...jest.requireActual("../../../../src/main/utils/financeOperationsHttp"),
     financeOperationsHttp: jest.fn(),
 }));
 

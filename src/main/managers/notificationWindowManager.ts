@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
-import { resolveTheme } from "../utilities/theme";
+import { logError } from "../../common/logger";
+import { resolveTheme } from "../utils/theme";
 import { SettingsManager } from "./settingsManager";
 
 interface NotificationOptions {
@@ -126,9 +127,7 @@ export class NotificationHistoryWindowManager {
         this.history = [];
         this.unreadCount = 0;
         this.sendBadgeUpdate();
-        if (this.isPanelOpen) {
-            this.updateWindowContent();
-        }
+        this.closeHistoryPanel();
     }
 
     private sendBadgeUpdate(): void {
@@ -325,10 +324,8 @@ export class NotificationHistoryWindowManager {
             font-size: 11px;
             color: ${dark ? "#9d9d9d" : "#616161"};
             line-height: 1.4;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
         }
         .notification-history-entry__meta {
             display: flex;
@@ -488,6 +485,7 @@ export class NotificationWindowManager {
     private readonly WINDOW_WIDTH = 400;
     private readonly NOTIFICATION_HEIGHT = 100;
     private readonly PADDING = 16;
+    private contentHeight: number | null = null;
 
     constructor(mainWindow: BrowserWindow, settingsManager: SettingsManager) {
         this.mainWindow = mainWindow;
@@ -540,6 +538,19 @@ export class NotificationWindowManager {
         // Set parent to main window so it stays associated
         this.notificationWindow.setParentWindow(this.mainWindow);
 
+        this.notificationWindow.webContents.on("did-finish-load", () => {
+            const notificationWindow = this.notificationWindow;
+            if (!notificationWindow || notificationWindow.isDestroyed()) return;
+            void notificationWindow.webContents
+                .executeJavaScript("Math.ceil(document.body.getBoundingClientRect().height)")
+                .then((height: unknown) => {
+                    if (notificationWindow !== this.notificationWindow || notificationWindow.isDestroyed() || typeof height !== "number" || !Number.isFinite(height)) return;
+                    this.contentHeight = height;
+                    this.updateWindowPosition();
+                })
+                .catch((error: unknown) => logError("Failed to resize notification window", error));
+        });
+
         // Load initial empty content
         this.notificationWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(this.generateHTML())}`);
 
@@ -553,7 +564,8 @@ export class NotificationWindowManager {
     private calculateWindowHeight(): number {
         const notificationCount = Math.min(this.notifications.length, this.MAX_NOTIFICATIONS);
         if (notificationCount === 0) return 100; // Minimum height
-        return (this.NOTIFICATION_HEIGHT + this.PADDING) * notificationCount + this.PADDING;
+        const estimatedHeight = (this.NOTIFICATION_HEIGHT + this.PADDING) * notificationCount + this.PADDING;
+        return Math.min(this.contentHeight ?? estimatedHeight, Math.max(100, this.mainWindow.getBounds().height - 20));
     }
 
     /**
@@ -675,6 +687,7 @@ export class NotificationWindowManager {
     private updateWindow(): void {
         if (!this.notificationWindow) return;
 
+        this.contentHeight = null;
         // Update window size
         const newHeight = this.calculateWindowHeight();
         this.notificationWindow.setSize(this.WINDOW_WIDTH, newHeight);
@@ -751,7 +764,8 @@ export class NotificationWindowManager {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: transparent;
             padding: ${this.PADDING}px;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         .notification {
@@ -806,10 +820,7 @@ export class NotificationWindowManager {
             line-height: 1.4;
             color: ${dark ? "#cccccc" : "#444444"};
             overflow-wrap: anywhere;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            white-space: pre-wrap;
         }
 
         .notification-actions {

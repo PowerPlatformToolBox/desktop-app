@@ -20,8 +20,9 @@ import {
     ToolManifest,
     ToolRegistryEntry,
 } from "../../common/types";
-import { readWorkerMetadata } from "../utilities/workerMetadata";
+import { readWorkerMetadata } from "../utils/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
+import { ProxyManager } from "./proxyManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
 
@@ -53,6 +54,7 @@ export class ToolManager extends EventEmitter {
     private registryManager: ToolRegistryManager;
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
     private updatingTools: Set<string> = new Set();
+    private proxyManager?: ProxyManager;
 
     constructor(
         toolsDirectory: string,
@@ -61,10 +63,12 @@ export class ToolManager extends EventEmitter {
         installIdManager?: InstallIdManager,
         azureBlobBaseUrl?: string,
         settingsManager?: { getMarketplaceSources(): MarketplaceSource[] },
+        proxyManager?: ProxyManager,
     ) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager, azureBlobBaseUrl, settingsManager);
+        this.proxyManager = proxyManager;
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager, azureBlobBaseUrl, settingsManager, proxyManager);
         this.ensureToolsDirectory();
 
         // Forward registry events
@@ -309,8 +313,8 @@ export class ToolManager extends EventEmitter {
     /**
      * Fetch available tools from registry
      */
-    async fetchAvailableTools(): Promise<ToolRegistryEntry[]> {
-        const registryTools = await this.registryManager.fetchRegistry();
+    async fetchAvailableTools(options?: { forceRefresh?: boolean }): Promise<ToolRegistryEntry[]> {
+        const registryTools = await this.registryManager.fetchRegistry(options);
 
         return registryTools.map((registryTool) => ({
             id: registryTool.id,
@@ -510,6 +514,7 @@ export class ToolManager extends EventEmitter {
 
         return {
             ...process.env,
+            ...this.proxyManager?.getProxyEnvironmentVariables(),
             PATH: [...new Set(paths)].join(path.delimiter),
         };
     }

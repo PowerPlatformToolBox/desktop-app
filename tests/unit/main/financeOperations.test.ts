@@ -5,7 +5,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { createFinanceOperationsAPI, financeOperationsRecordPath } from "../../../src/common/financeOperationsApi";
 import type { FinanceOperationsMethod, FinanceOperationsOptions, FinanceOperationsResponse } from "../../../src/common/financeOperationsApi";
-import { buildFinanceOperationsUrl, financeOperationsHttp, validateFinanceOperationsHeaders } from "../../../src/main/utilities/financeOperationsHttp";
+import { buildFinanceOperationsUrl, financeOperationsHttp, validateFinanceOperationsHeaders } from "../../../src/main/utils/financeOperationsHttp";
 
 jest.mock("https", () => ({ request: jest.fn() }));
 

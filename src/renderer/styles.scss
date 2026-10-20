@@ -552,6 +552,26 @@ body.macos .app-container {
     border-left-color: var(--activity-item-active-border);
     background: var(--activity-item-active-bg);
 }
+
+.mcp-activity-item .mcp-status-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 9px;
+    height: 9px;
+    border: 2px solid var(--sidebar-bg);
+    border-radius: 50%;
+    background: #8a8886;
+    box-sizing: content-box;
+}
+
+.mcp-activity-item[data-mcp-status="running"] .mcp-status-indicator {
+    background: #107c10;
+}
+
+.mcp-activity-item[data-mcp-status="error"] .mcp-status-indicator {
+    background: #d13438;
+}
 /* Removed empty .activity-icon ruleset */
 
 /* Sidebar collapsed state */
@@ -2206,6 +2226,72 @@ body.dark-theme .consent-status.revoked {
     text-decoration: underline;
 }
 
+/* Marketplace load error and source issues */
+.marketplace-load-error-title {
+    font-weight: 600;
+    color: var(--text-color, #323130);
+}
+
+.marketplace-load-error-details {
+    max-width: 640px;
+    margin: 12px auto;
+    padding: 10px 12px;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    font-size: 12px;
+    color: #a4262c;
+    background: #fde7e9;
+    border: 1px solid #f1bbbc;
+    border-radius: 4px;
+}
+
+.marketplace-load-error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
+.marketplace-source-issues {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #8a6d3b;
+    background: #fff4ce;
+    border: 1px solid #ffb900;
+    border-radius: 4px;
+}
+
+.marketplace-source-issues.has-errors {
+    color: #a4262c;
+    background: #fde7e9;
+    border-color: #f1bbbc;
+}
+
+.marketplace-source-issues p {
+    margin: 0 0 6px;
+    font-weight: 600;
+}
+
+.marketplace-source-issues ul {
+    margin: 0;
+    padding-left: 18px;
+    word-break: break-word;
+}
+
+body.dark-theme .marketplace-load-error-details,
+body.dark-theme .marketplace-source-issues.has-errors {
+    color: #f1bbbc;
+    background: #442726;
+    border-color: #6e3b3b;
+}
+
+body.dark-theme .marketplace-source-issues {
+    color: #d4c89f;
+    background: #3a3a2a;
+    border-color: #8a7d3b;
+}
+
 /* Modal */
 .modal {
     display: none;
@@ -3058,6 +3144,12 @@ body.dark-theme .settings-vscode-item:hover {
     width: 80px;
 }
 
+.settings-vscode-number-input:disabled,
+.settings-vscode-number-input:disabled:hover {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
 .settings-vscode-btn {
     align-self: flex-start;
 }
@@ -3139,6 +3231,137 @@ body.dark-theme .settings-vscode-item:hover {
 
 .mcp-client-connect-row + .mcp-client-connect-row {
     margin-top: 8px;
+}
+
+.settings-vscode-item.mcp-clients-section {
+    display: block;
+    min-width: 0;
+}
+
+.mcp-clients-section h3 {
+    margin: 0 0 12px;
+}
+
+.mcp-client-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mcp-client-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    min-width: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.mcp-client-identity {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    min-width: 0;
+}
+
+.mcp-client-name {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 160px;
+    overflow-wrap: anywhere;
+}
+
+.mcp-client-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary, #8a8886);
+}
+
+.mcp-client-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.mcp-client-status[data-state="connected"] {
+    color: var(--success-color, #107c10);
+}
+
+body.dark-theme .mcp-client-status[data-state="connected"] {
+    color: #6ccb5f;
+}
+
+.mcp-client-status[data-state="invalid"] {
+    color: var(--error-color, #d13438);
+}
+
+.mcp-client-actions {
+    display: grid;
+    grid-template-columns: 120px 32px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    min-width: 160px;
+}
+
+.mcp-client-actions .fluent-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    box-sizing: border-box;
+}
+
+.mcp-client-actions .mcp-client-configure {
+    min-width: 112px;
+}
+
+.mcp-client-actions .mcp-client-disconnect {
+    min-width: 32px;
+    width: 32px;
+    padding: 0;
+}
+
+.mcp-client-actions [hidden] {
+    display: none;
+}
+
+.mcp-client-actions svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    fill: currentColor;
+}
+
+@media (max-width: 700px) {
+    .mcp-client-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .mcp-client-identity {
+        flex: 1 1 180px;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .mcp-client-name {
+        min-width: 0;
+    }
+
+    .mcp-client-actions {
+        justify-content: flex-start;
+    }
 }
 
 .mcp-server-actions-row {
@@ -6557,6 +6780,68 @@ body.dark-theme .csp-warning ul {
     color: var(--text-secondary);
 }
 
+.global-search-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px 0;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+}
+
+.global-search-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        color 0.15s,
+        border-color 0.15s,
+        background 0.15s;
+
+    &:hover {
+        color: var(--text-color);
+        background: var(--activity-item-hover-bg);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+    }
+
+    &.active {
+        color: var(--text-color);
+        border-bottom-color: var(--accent-color);
+        font-weight: 600;
+    }
+}
+
+.global-search-tab-count {
+    min-width: 18px;
+    padding: 1px 5px;
+    border-radius: 9px;
+    background: var(--activity-item-hover-bg);
+    color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.global-search-tab.active .global-search-tab-count {
+    background: var(--activity-item-active-bg);
+    color: var(--text-color);
+}
+
 .global-search-results {
     flex: 1;
     overflow-y: auto;
@@ -6733,6 +7018,22 @@ body.dark-theme .global-search-item-badge.badge-settings {
     height: 1px;
     background: var(--border-color);
     margin: 4px 0;
+}
+
+@media (max-width: 560px) {
+    .global-search-tabs {
+        padding-inline: 6px;
+    }
+
+    .global-search-tab {
+        padding-inline: 7px;
+        font-size: 11px;
+    }
+
+    .global-search-footer {
+        gap: 8px;
+        flex-wrap: wrap;
+    }
 }
 
 /* Highlight pulse for focused setting element */

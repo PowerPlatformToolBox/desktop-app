@@ -17,18 +17,20 @@ import {
     DataverseUser,
     DataverseUserPage,
 } from "../../common/types";
-import { DATAVERSE_API_VERSION } from "../constants";
+import { DATAVERSE_API_VERSION, MAX_DATAVERSE_METADATA_RESPONSE_BYTES, MAX_DATAVERSE_RESPONSE_BYTES } from "../constants";
 import {
     encodeDataverseBatch,
     MAX_DATAVERSE_BATCH_RESPONSE_BYTES,
     mergeDataverseHeaders,
     overrideDataverseHeaders,
     parseDataverseBatchResponse,
+    selectDataverseBatchResponseHeaders,
     validateAndSnapshotHeaders,
     validateBatchRequests,
-} from "../utilities/dataverseBatch";
+} from "../utils/dataverseBatch";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
+import type { ProxyManager } from "./proxyManager";
 
 /**
  * Dataverse API response type
@@ -77,12 +79,14 @@ const ENTITY_RELATED_METADATA_BASE_PATH_SET: Set<string> = new Set(ENTITY_RELATE
 export class DataverseManager {
     private connectionsManager: ConnectionsManager;
     private authManager: AuthManager;
+    private readonly proxyManager?: ProxyManager;
     private readonly requestContext = new AsyncLocalStorage<string | null>();
     private readonly additionalHeadersContext = new AsyncLocalStorage<Record<string, string>>();
 
-    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager) {
+    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager, proxyManager?: ProxyManager) {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
+        this.proxyManager = proxyManager;
     }
 
     withImpersonation<T>(callerObjectId: string | null, operation: () => Promise<T>): Promise<T> {
@@ -789,7 +793,7 @@ export class DataverseManager {
             if (encoding !== "gzip" && encoding !== "deflate") return Promise.resolve(buffer);
             return new Promise((resolve, reject) => {
                 const callback = (error: Error | null, result: Buffer) => (error ? reject(error) : resolve(result));
-                const options = { maxOutputLength: MAX_DATAVERSE_BATCH_RESPONSE_BYTES };
+                const options = { maxOutputLength: MAX_DATAVERSE_METADATA_RESPONSE_BYTES };
                 if (encoding === "gzip") zlib.gunzip(buffer, options, callback);
                 else zlib.inflate(buffer, options, callback);
             });
@@ -803,6 +807,7 @@ export class DataverseManager {
                 port: 443,
                 path: urlObj.pathname,
                 method: "GET",
+                agent: this.proxyManager?.getAgentForUrl(url),
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/xml",
@@ -818,10 +823,10 @@ export class DataverseManager {
 
                 res.on("data", (chunk: Buffer) => {
                     responseBytes += chunk.length;
-                    if (responseBytes > MAX_DATAVERSE_BATCH_RESPONSE_BYTES) {
+                    if (responseBytes > MAX_DATAVERSE_METADATA_RESPONSE_BYTES) {
                         responseLimitExceeded = true;
                         res.destroy();
-                        reject(new Error("Dataverse metadata response exceeds the maximum size"));
+                        reject(new Error(`Dataverse metadata response exceeds the maximum size (${MAX_DATAVERSE_METADATA_RESPONSE_BYTES / (1024 * 1024)} MB)`));
                         return;
                     }
                     chunks.push(chunk);
@@ -873,7 +878,7 @@ export class DataverseManager {
         body?: unknown,
         preferOptions?: string[],
         customHeaders?: Record<string, string>,
-        maxResponseBytes = MAX_DATAVERSE_BATCH_RESPONSE_BYTES,
+        maxResponseBytes = MAX_DATAVERSE_RESPONSE_BYTES,
         resolveMultipartErrors = false,
     ): Promise<{ status: number; data: unknown; rawBody: string; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
@@ -897,6 +902,7 @@ export class DataverseManager {
                 port: 443,
                 path: urlObj.pathname + urlObj.search,
                 method: method,
+                agent: this.proxyManager?.getAgentForUrl(url),
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/json",
@@ -920,7 +926,7 @@ export class DataverseManager {
                     if (maxResponseBytes !== undefined && responseBytes > maxResponseBytes) {
                         responseLimitExceeded = true;
                         res.destroy();
-                        reject(new Error("Dataverse response exceeds the maximum size"));
+                        reject(new Error(`Dataverse response exceeds the maximum size (${Math.round(maxResponseBytes / (1024 * 1024))} MB)`));
                         return;
                     }
                     data += chunk;
@@ -2060,11 +2066,13 @@ export class DataverseManager {
         if (!responseContentType?.toLowerCase().includes("multipart/mixed")) {
             throw new Error("Malformed Dataverse batch response: expected multipart/mixed");
         }
-        return parseDataverseBatchResponse(
+        const results = parseDataverseBatchResponse(
             response.rawBody,
             responseContentType,
             validatedRequests.map((request) => request.contentId as string),
             transaction,
         );
+        const batchHeaders = selectDataverseBatchResponseHeaders(response.headers);
+        return Object.keys(batchHeaders).length > 0 ? results.map((result) => ({ ...result, batchHeaders })) : results;
     }
 }

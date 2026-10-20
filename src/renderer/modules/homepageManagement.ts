@@ -9,8 +9,8 @@ import type { Connection } from "../../common/types/connection";
 import type { LastUsedToolEntry } from "../../common/types";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { filterMarketplaceByNew } from "./marketplaceManagement";
-import { openToolIdeasModal } from "./toolIdeasModal";
 import { switchSidebar } from "./sidebarManagement";
+import { openToolIdeasModal } from "./toolIdeasModal";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
 
 const SPONSORS_API_URL = "https://www.powerplatformtoolbox.com/api/sponsors";
@@ -84,7 +84,7 @@ function formatSponsorAmount(amount: number): string {
 }
 
 function getSponsorContributionText(sponsor: SponsorData): string {
-    return sponsor.isOneTime ? `${formatSponsorAmount(sponsor.totalContributed)} one-time` : `${formatSponsorAmount(sponsor.totalContributed)} contributed`;
+    return `${formatSponsorAmount(sponsor.totalContributed)} contributed`;
 }
 
 /**

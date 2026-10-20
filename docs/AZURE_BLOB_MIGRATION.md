@@ -64,8 +64,12 @@ The ToolBox app resolves the tool registry in the following order:
    ↓ (on failure)
 2. Azure Blob registry.json    – remote static snapshot (requires AZURE_BLOB_BASE_URL)
    ↓ (on failure or not configured)
-3. Local registry.json         – bundled fallback shipped with the app binary
+3. Error shown to the user     – marketplace displays the failure with Retry / Copy details
 ```
+
+There is no bundled-registry fallback in production builds, so outages and proxy problems are visible instead of being masked by stale data. Each failed stage is captured in Sentry (`Marketplace supabase fetch failed` / `Marketplace azure-blob fetch failed`). When the Azure Blob mirror is used, the marketplace shows a warning banner explaining that ratings, downloads, and the newest tools may be missing.
+
+The bundled `src/main/data/registry.json` is only used by development builds without Supabase credentials (with a visible warning) and by e2e tests (`PPTB_TEST_MODE=1` with `PPTB_TEST_REGISTRY_PATH`).
 
 The Azure Blob `registry.json` must follow the same schema as the local `src/main/data/registry.json` file (see [Local Registry Schema](#local-registry-schema) below).
 

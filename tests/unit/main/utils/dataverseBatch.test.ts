@@ -1,4 +1,11 @@
-import { encodeDataverseBatch, parseDataverseBatchResponse, validateAndSnapshotHeaders, validateBatchRequests, validateDataverseRelativeUrl } from "../../../../src/main/utilities/dataverseBatch";
+import {
+    encodeDataverseBatch,
+    parseDataverseBatchResponse,
+    selectDataverseBatchResponseHeaders,
+    validateAndSnapshotHeaders,
+    validateBatchRequests,
+    validateDataverseRelativeUrl,
+} from "../../../../src/main/utils/dataverseBatch";
 
 describe("Dataverse batch utilities", () => {
     it("snapshots valid headers and rejects conflicting case-insensitive duplicates", () => {
@@ -92,6 +99,23 @@ describe("Dataverse batch utilities", () => {
             { contentId: "2", status: 400, statusText: "Bad Request", headers: { "content-type": "text/plain" }, body: "invalid" },
             { contentId: "3", status: 204, statusText: "No Content", headers: {} },
         ]);
+    });
+
+    it("selects only the supported headers from the outer batch response", () => {
+        expect(
+            selectDataverseBatchResponseHeaders({
+                "content-type": "multipart/mixed; boundary=batch",
+                "content-length": "1234",
+                "x-ms-dop-hint": "4",
+                "x-ms-ratelimit-burst-remaining-xrm-requests": "4999",
+                "x-ms-ratelimit-time-remaining-xrm-requests": "59999",
+                "x-ms-ratelimit-time-remaining-requests": "unrecognized",
+            }),
+        ).toEqual({
+            "x-ms-dop-hint": "4",
+            "x-ms-ratelimit-burst-remaining-xrm-requests": "4999",
+            "x-ms-ratelimit-time-remaining-xrm-requests": "59999",
+        });
     });
 
     it("rejects truncated MIME responses", () => {

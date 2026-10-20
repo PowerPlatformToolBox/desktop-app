@@ -1,5 +1,5 @@
 import type { ElectronApplication, Page } from "playwright";
-import { test, expect } from "./fixtures";
+import { expect, test } from "./fixtures";
 
 /**
  * E2E: Notification history bell button in the footer.
@@ -35,6 +35,22 @@ async function isHistoryWindowVisible(electronApp: ElectronApplication): Promise
 }
 
 test.describe("Notification history panel", () => {
+    test("long notification messages are fully readable in history", async ({ electronApp, window }) => {
+        const body = "Visual Studio Code is configured and the PPTB MCP server is running. In VS Code, enable and start pptb from MCP: List Servers, and approve trust if prompted.";
+        await window.evaluate((message) => window.api.invoke("notification:show", { title: "MCP Client Configured", body: message, type: "success", duration: 0 }), body);
+        const historyWindow = await openHistoryWindow(electronApp, window);
+        const message = historyWindow.locator(".notification-history-entry__message").filter({ hasText: body });
+        await expect(message).toHaveText(body);
+        const dimensions = await message.evaluate((element) => ({
+            visibleHeight: element.clientHeight,
+            contentHeight: element.scrollHeight,
+            visibleWidth: element.clientWidth,
+            contentWidth: element.scrollWidth,
+        }));
+        expect(dimensions.contentHeight).toBeLessThanOrEqual(dimensions.visibleHeight + 1);
+        expect(dimensions.contentWidth).toBeLessThanOrEqual(dimensions.visibleWidth + 1);
+    });
+
     test("bell button is visible in the footer", async ({ window }) => {
         const bellBtn = window.locator("#footer-notification-bell-btn");
         await expect(bellBtn).toBeVisible({ timeout: 15_000 });
@@ -98,6 +114,16 @@ test.describe("Notification history panel", () => {
 
         const clearBtn = historyWindow.locator("#notification-clear-all-btn");
         await expect(clearBtn).toBeVisible({ timeout: 5_000 });
+    });
+
+    test("Clear All closes the history window", async ({ electronApp, window }) => {
+        const historyWindow = await openHistoryWindow(electronApp, window);
+
+        await historyWindow.locator("#notification-clear-all-btn").click();
+        await expect(window.locator("#footer-notification-bell-btn")).toHaveAttribute("aria-pressed", "false", { timeout: 5_000 });
+
+        const isVisible = await isHistoryWindowVisible(electronApp);
+        expect(isVisible).toBe(false);
     });
 
     test("bell button aria-pressed reflects window open state", async ({ electronApp, window }) => {

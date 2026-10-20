@@ -1,3 +1,4 @@
+import type { ProxyManager } from "../../../../src/main/managers/proxyManager";
 import { AuthManager } from "../../../../src/main/managers/authManager";
 import type { BrowserManager } from "../../../../src/main/managers/browserManager";
 import { DataverseManager } from "../../../../src/main/managers/dataverseManager";
@@ -30,7 +31,7 @@ describe("connection product guards", () => {
     });
 
     it("keeps Dataverse-only authentication methods blocked for F&O", async () => {
-        const auth = new AuthManager({} as BrowserManager);
+        const auth = new AuthManager({} as BrowserManager, { getAgentForUrl: jest.fn() } as unknown as ProxyManager);
         const requests = [() => auth.authenticateUsernamePassword(finops), () => auth.acquirePowerPlatformToken(finops), () => auth.refreshAccessToken(finops, "refresh-token")];
         for (const request of requests) {
             await expect(request()).rejects.toThrow("requires a Dataverse connection");

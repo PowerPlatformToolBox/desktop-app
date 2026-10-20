@@ -1,7 +1,8 @@
+import type { ProxyManager } from "../../../../src/main/managers/proxyManager";
 import type { Connection } from "../../../../src/common/types";
 import { AuthManager } from "../../../../src/main/managers/authManager";
 import type { BrowserManager } from "../../../../src/main/managers/browserManager";
-import { financeOperationsHttp } from "../../../../src/main/utilities/financeOperationsHttp";
+import { financeOperationsHttp } from "../../../../src/main/utils/financeOperationsHttp";
 
 const mockCredential = jest.fn();
 const mockSilent = jest.fn();
@@ -19,7 +20,7 @@ jest.mock("@azure/msal-node", () => ({
         return { getAuthCodeUrl: mockAuthCodeUrl, acquireTokenSilent: mockSilent, getTokenCache: () => ({ getAllAccounts: async () => [{ homeAccountId: "account" }] }) };
     },
 }));
-jest.mock("../../../../src/main/utilities/financeOperationsHttp", () => ({ ...jest.requireActual("../../../../src/main/utilities/financeOperationsHttp"), financeOperationsHttp: jest.fn() }));
+jest.mock("../../../../src/main/utils/financeOperationsHttp", () => ({ ...jest.requireActual("../../../../src/main/utils/financeOperationsHttp"), financeOperationsHttp: jest.fn() }));
 jest.mock("../../../../src/common/logger", () => ({ logWarn: jest.fn(), logInfo: jest.fn(), logError: jest.fn() }));
 
 describe("F&O authentication", () => {
@@ -38,7 +39,7 @@ describe("F&O authentication", () => {
     let auth: AuthManager;
     beforeEach(() => {
         jest.clearAllMocks();
-        auth = new AuthManager({} as BrowserManager);
+        auth = new AuthManager({} as BrowserManager, { getAgentForUrl: jest.fn() } as unknown as ProxyManager);
         mockCredential.mockResolvedValue({ accessToken: "app-token", expiresOn: new Date() });
         mockSilent.mockResolvedValue({ accessToken: "user-token", expiresOn: new Date() });
         (financeOperationsHttp as jest.Mock).mockResolvedValue({ status: 200, headers: {}, body: { value: [] } });

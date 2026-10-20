@@ -27,6 +27,7 @@ import type {
     LastUsedToolUpdate,
     NativeWorkerConsentDecision,
     NativeWorkerConsentRequest,
+    ProxySettings,
 } from "../common/types";
 
 /**
@@ -161,7 +162,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     openDirectoryPicker: () => ipcRenderer.invoke(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER),
 
     // Registry-based tools (new primary method)
-    fetchRegistryTools: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS),
+    fetchRegistryTools: (options?: { forceRefresh?: boolean }) => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, options),
+    getRegistryIssues: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_REGISTRY_ISSUES),
     fetchCommunityLinks: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS),
     getKnownCapabilityTags: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
@@ -255,6 +257,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
         checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
         checkInternetConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY),
+        testProxyConnection: (settings?: ProxySettings) => ipcRenderer.invoke(UTIL_CHANNELS.TEST_PROXY_CONNECTION, settings),
     },
 
     // FileSystem namespace - filesystem operations
@@ -499,6 +502,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         stop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.STOP),
         configureClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP),
         configureVSCode: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE),
+        disconnectClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.DISCONNECT_CLAUDE_DESKTOP),
+        disconnectVSCode: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.DISCONNECT_VSCODE),
     },
 });
 
