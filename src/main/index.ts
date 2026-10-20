@@ -243,17 +243,25 @@ class ToolBoxApp {
             this.browserManager = new BrowserManager();
             this.authManager = new AuthManager(this.browserManager, this.proxyManager);
             this.terminalManager = new TerminalManager();
-            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager, this.proxyManager);
             this.dataverseHeaderConsentManager = new DataverseHeaderConsentManager(
                 this.settingsManager,
                 () => this.mainWindow?.webContents ?? null,
                 (webContentsId) => this.toolWindowManager?.getToolIdentityByWebContents(webContentsId) ?? null,
             );
-            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
+            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager, this.proxyManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
-            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
+            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager, this.proxyManager);
             this.proxyManager.setCredentialPromptHandler((authInfo) => this.promptForProxyCredentials(authInfo.host || "proxy", authInfo.port));
+            this.proxyManager.setFailureNotifier((notice) => {
+                this.api.showNotification({
+                    title: notice.title,
+                    body: notice.message,
+                    type: "error",
+                    duration: 15000,
+                });
+            });
             this.mcpServerManager.setStatusChangeHandler((status, error) => {
                 if (this.mainWindow && !this.mainWindow.isDestroyed()) {
                     this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
@@ -479,6 +487,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_REGISTRY_ISSUES);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
@@ -1322,9 +1331,14 @@ class ToolBoxApp {
             });
         });
 
-        // Fetch available tools from registry
-        ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async () => {
-            return await this.toolManager.fetchAvailableTools();
+        // Fetch available tools from registry (throws when every enabled marketplace source fails)
+        ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async (_, options?: { forceRefresh?: boolean }) => {
+            return await this.toolManager.fetchAvailableTools({ forceRefresh: options?.forceRefresh === true });
+        });
+
+        // Failed or degraded marketplace sources from the last successful registry fetch
+        ipcMain.handle(TOOL_CHANNELS.GET_REGISTRY_ISSUES, () => {
+            return this.toolManager.getRegistryManager().getRegistryIssues();
         });
 
         // Fetch community resource links from Supabase (returns null on failure; renderer falls back to bundled data)
@@ -1784,7 +1798,7 @@ class ToolBoxApp {
 
                 const https = await import("https");
                 return new Promise<string | null>((resolve) => {
-                    const req = https.get(parsedUrl.toString(), { timeout: 5000 }, (res) => {
+                    const req = https.get(parsedUrl.toString(), { timeout: 5000, agent: this.proxyManager.getAgentForUrl(parsedUrl.toString()) }, (res) => {
                         const status = res.statusCode ?? 0;
                         const contentType = res.headers["content-type"] ?? "image/png";
 

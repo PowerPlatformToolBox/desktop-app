@@ -5,9 +5,13 @@ import * as http from "http";
 import { HttpProxyAgent } from "http-proxy-agent";
 import * as https from "https";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import { rootCertificates } from "tls";
+import type * as net from "net";
+import * as tls from "tls";
+import { Agent as UndiciAgent, ProxyAgent as UndiciProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { logInfo, logWarn } from "../../common/logger";
+import { captureException } from "../../common/sentryHelper";
 import type { ProxySettings } from "../../common/types";
+import { categorizeTargetHost, classifyProxyConnectStatus, classifyProxyError, describeProxyFailure, type ProxyFailure, type ProxyFailureNotice } from "../utils/proxyFailure";
 import { EncryptionManager } from "./encryptionManager";
 import { SettingsManager } from "./settingsManager";
 
@@ -26,6 +30,60 @@ interface EffectiveProxySettings {
 }
 
 type CredentialPromptHandler = (authInfo: AuthInfo) => Promise<{ username: string; password: string } | null>;
+type ProxyFailureNotifier = (notice: ProxyFailureNotice) => void;
+type ProxyFailureListener = (failure: ProxyFailure, targetHost: string) => void;
+type HttpsProxyConnectOpts = Parameters<HttpsProxyAgent<string>["connect"]>[1];
+
+class ReportingHttpsProxyAgent extends HttpsProxyAgent<string> {
+    constructor(
+        proxyUrl: string,
+        private readonly targetCa: string | undefined,
+        private readonly onFailure?: ProxyFailureListener,
+    ) {
+        super(proxyUrl, targetCa ? { ca: targetCa } : undefined);
+        if (onFailure) {
+            this.on("proxyConnect", (connect: { statusCode: number }, req: http.ClientRequest) => {
+                const failure = classifyProxyConnectStatus(connect.statusCode);
+                if (failure) {
+                    onFailure(failure, req.host);
+                }
+            });
+        }
+    }
+
+    async connect(req: http.ClientRequest, opts: HttpsProxyConnectOpts): Promise<net.Socket> {
+        // https-proxy-agent builds the target TLS connection from per-request options only,
+        // so the custom CA bundle must be injected here for TLS-inspecting proxies.
+        const connectOpts = this.targetCa && opts.secureEndpoint && !opts.ca ? ({ ...opts, ca: this.targetCa } as HttpsProxyConnectOpts) : opts;
+        try {
+            const socket = await super.connect(req, connectOpts);
+            if (this.onFailure && socket instanceof tls.TLSSocket) {
+                socket.once("error", (error) => {
+                    const failure = classifyProxyError(error);
+                    if (failure?.kind === "tls-untrusted") {
+                        this.onFailure?.(failure, opts.host || "");
+                    }
+                });
+            }
+            return socket;
+        } catch (error) {
+            const failure = classifyProxyError(error);
+            if (failure) {
+                this.onFailure?.(failure, opts.host || "");
+            }
+            throw error;
+        }
+    }
+}
+
+function toReadableFetchError(error: unknown): unknown {
+    // undici reports every network failure as "fetch failed"; surface the underlying reason.
+    if (error instanceof Error && error.message === "fetch failed" && error.cause instanceof Error) {
+        const code = (error.cause as { code?: unknown }).code;
+        return new Error(`fetch failed: ${error.cause.message}${typeof code === "string" && !error.cause.message.includes(code) ? ` (${code})` : ""}`, { cause: error });
+    }
+    return error;
+}
 
 function normalizeProxySettings(input?: ProxySettings): ProxySettings {
     const mode = input?.mode === "manual" || input?.mode === "none" ? input.mode : "auto";
@@ -119,6 +177,27 @@ function matchesNoProxy(hostname: string, noProxyList: string[]): boolean {
     });
 }
 
+function describeProxy(proxyUrl?: string): string {
+    if (!proxyUrl) {
+        return "direct";
+    }
+
+    try {
+        const parsed = new URL(proxyUrl);
+        return `${parsed.protocol}//${parsed.host}${parsed.username ? " (with credentials)" : ""}`;
+    } catch {
+        return "invalid";
+    }
+}
+
+function hasProxyCredentials(proxyUrl?: string): boolean {
+    try {
+        return Boolean(proxyUrl && new URL(proxyUrl).username);
+    } catch {
+        return false;
+    }
+}
+
 export function applyProxyEnvironmentBootstrap(): void {
     try {
         const store = new Store<{ proxy?: ProxySettings }>({ name: "user-settings" });
@@ -150,9 +229,16 @@ export class ProxyManager {
     private readonly encryptionManager: EncryptionManager;
     private readonly authStore: Store<ProxyAuthStore>;
     private readonly agentCache = new Map<string, http.RequestOptions["agent"]>();
-    private readonly fetchDispatcherCache = new Map<string, RequestInit["dispatcher"]>();
+    private readonly fetchDispatcherCache = new Map<string, Dispatcher>();
+    private readonly loggedRoutes = new Set<string>();
+    private readonly failureLastReportedAt = new Map<string, number>();
     private systemProxyUrl?: string;
     private credentialPromptHandler?: CredentialPromptHandler;
+    private failureNotifier?: ProxyFailureNotifier;
+
+    // Throttle notifications and telemetry for the same failure kind + host so a failing tool
+    // making many requests does not flood the user or Sentry.
+    private static readonly FAILURE_REPORT_INTERVAL_MS = 5 * 60_000;
 
     constructor(settingsManager: SettingsManager) {
         this.settingsManager = settingsManager;
@@ -171,6 +257,10 @@ export class ProxyManager {
 
     setCredentialPromptHandler(handler: CredentialPromptHandler): void {
         this.credentialPromptHandler = handler;
+    }
+
+    setFailureNotifier(notifier: ProxyFailureNotifier): void {
+        this.failureNotifier = notifier;
     }
 
     async detectSystemProxy(targetUrl: string): Promise<void> {
@@ -255,6 +345,15 @@ export class ProxyManager {
 
         this.agentCache.clear();
         this.fetchDispatcherCache.clear();
+        this.loggedRoutes.clear();
+        this.failureLastReportedAt.clear();
+
+        logInfo("[ProxyManager] Effective proxy configuration applied", {
+            mode: effective.mode,
+            proxy: describeProxy(effective.proxyUrl),
+            noProxyCount: effective.noProxyList.length,
+            hasCaBundle: Boolean(effective.caBundlePath),
+        });
     }
 
     getProxyEnvironmentVariables(): Record<string, string> {
@@ -268,33 +367,33 @@ export class ProxyManager {
     getAgentForUrl(targetUrl: string, override?: ProxySettings): http.RequestOptions["agent"] | undefined {
         const effective = this.getEffectiveProxySettings(override);
         if (!effective.proxyUrl) {
+            this.logRoute(targetUrl, "direct", "node-http");
             return this.createDirectAgent(targetUrl, effective.caBundlePath);
         }
 
         try {
             const parsedTarget = new URL(targetUrl);
             if (matchesNoProxy(parsedTarget.hostname, effective.noProxyList)) {
+                this.logRoute(targetUrl, "direct (no-proxy match)", "node-http");
                 return this.createDirectAgent(targetUrl, effective.caBundlePath);
             }
 
+            this.logRoute(targetUrl, describeProxy(effective.proxyUrl), "node-http");
+            // Agents built for a settings override (Test Connection) are not cached or reported centrally.
             const cacheKey = `${parsedTarget.protocol}:${effective.proxyUrl}:${effective.caBundlePath || ""}`;
-            const cached = this.agentCache.get(cacheKey);
+            const cached = override ? undefined : this.agentCache.get(cacheKey);
             if (cached) {
                 return cached;
             }
 
             const ca = this.resolveCombinedCaBundle(effective.caBundlePath);
-            const proxyUrlObject = new URL(effective.proxyUrl);
-            const proxyAgentOptions = {
-                protocol: proxyUrlObject.protocol,
-                host: proxyUrlObject.hostname,
-                port: proxyUrlObject.port || undefined,
-                auth: proxyUrlObject.username ? `${decodeURIComponent(proxyUrlObject.username)}:${decodeURIComponent(proxyUrlObject.password)}` : undefined,
-                ca: ca || undefined,
-            };
-            const agent = (parsedTarget.protocol === "http:" ? new HttpProxyAgent(proxyAgentOptions) : new HttpsProxyAgent(proxyAgentOptions)) as unknown as http.Agent;
+            const onFailure: ProxyFailureListener | undefined = override ? undefined : (failure, targetHost) => this.reportProxyFailure(failure, targetHost, "node-http", effective);
+            const agent: http.Agent =
+                parsedTarget.protocol === "http:" ? new HttpProxyAgent(effective.proxyUrl, ca ? { ca } : undefined) : new ReportingHttpsProxyAgent(effective.proxyUrl, ca, onFailure);
 
-            this.agentCache.set(cacheKey, agent);
+            if (!override) {
+                this.agentCache.set(cacheKey, agent);
+            }
             return agent;
         } catch (error) {
             logWarn("[ProxyManager] Failed to resolve proxy agent for URL", {
@@ -305,29 +404,34 @@ export class ProxyManager {
     }
 
     createProxyAwareFetch(override?: ProxySettings): typeof fetch {
-        return (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-            const targetUrl = this.resolveFetchTargetUrl(input);
-            const requestInit = { ...(init || {}) } as RequestInit & {
-                agent?: http.RequestOptions["agent"];
-                dispatcher?: RequestInit["dispatcher"];
-            };
+        return ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+            // Request objects come from Node's bundled undici and can't be passed to the undici package's fetch.
+            const targetUrl = typeof input === "string" || input instanceof URL ? input.toString() : undefined;
             if (!targetUrl) {
-                return fetch(input, requestInit as Parameters<typeof fetch>[1]);
+                return fetch(input, init).catch((error: unknown) => Promise.reject(toReadableFetchError(error)));
             }
 
             const effective = this.getEffectiveProxySettings(override);
             const dispatcher = this.getFetchDispatcher(targetUrl, effective);
-            if (dispatcher) {
-                requestInit.dispatcher = dispatcher;
-                return fetch(input, requestInit as Parameters<typeof fetch>[1]);
+            if (!dispatcher) {
+                return fetch(input, init).catch((error: unknown) => Promise.reject(toReadableFetchError(error)));
             }
 
-            const fallbackAgent = this.getAgentForUrl(targetUrl, override);
-            if (fallbackAgent) {
-                requestInit.agent = fallbackAgent;
-            }
-            return fetch(input, requestInit as Parameters<typeof fetch>[1]);
-        };
+            // Use undici's own fetch with its own dispatcher: Node's built-in fetch ignores `agent`,
+            // and mixing dispatcher instances across undici versions is not reliable.
+            const request = undiciFetch(targetUrl, { ...(init as Parameters<typeof undiciFetch>[1]), dispatcher }) as unknown as Promise<Response>;
+            return request.catch((error: unknown) => {
+                const targetHost = new URL(targetUrl).hostname;
+                const failure = this.isProxiedRoute(targetHost, effective) ? classifyProxyError(error) : undefined;
+                if (!failure) {
+                    return Promise.reject(toReadableFetchError(error));
+                }
+
+                const notice = override ? undefined : this.reportProxyFailure(failure, targetHost, "fetch", effective);
+                const message = notice?.message ?? describeProxyFailure(failure, targetHost, describeProxy(effective.proxyUrl)).message;
+                return Promise.reject(Object.assign(new Error(message, { cause: error }), { code: failure.code, proxyFailureKind: failure.kind }));
+            });
+        }) as typeof fetch;
     }
 
     async testConnection(override?: ProxySettings): Promise<{ success: boolean; message: string }> {
@@ -339,6 +443,27 @@ export class ProxyManager {
             const protocol = testUrl.startsWith("https:") ? https : http;
             const agent = this.getAgentForUrl(testUrl, override);
             const ca = this.resolveCombinedCaBundle(effective.caBundlePath);
+            const targetHost = new URL(testUrl).hostname;
+            const proxied = this.isProxiedRoute(targetHost, effective);
+            let tunnelFailure: ProxyFailure | undefined;
+            let settled = false;
+
+            const succeed = (message: string) => {
+                if (settled) return;
+                settled = true;
+                resolve({ success: true, message });
+            };
+            const fail = (message: string, failure?: ProxyFailure) => {
+                if (settled) return;
+                settled = true;
+                captureException(new Error(`Proxy test connection failed: ${failure?.kind ?? "unclassified"}`), {
+                    tags: { component: "proxy", proxy_failure: failure?.kind ?? "unclassified", proxy_mode: effective.mode, proxied: String(proxied) },
+                    extra: { code: failure?.code, status_code: failure?.statusCode, has_ca_bundle: Boolean(effective.caBundlePath) },
+                });
+                resolve({ success: false, message });
+            };
+            const describe = (failure: ProxyFailure) => describeProxyFailure(failure, targetHost, describeProxy(effective.proxyUrl)).message;
+
             const request = protocol.request(
                 testUrl,
                 {
@@ -350,39 +475,38 @@ export class ProxyManager {
                 },
                 (response) => {
                     response.resume();
+                    // A non-200 CONNECT response is replayed as the request's response; it came from the proxy, not the endpoint.
+                    if (tunnelFailure) {
+                        fail(describe(tunnelFailure), tunnelFailure);
+                        return;
+                    }
+
                     if (response.statusCode && response.statusCode >= 100 && response.statusCode < 400) {
-                        resolve({ success: true, message: `Connection successful (HTTP ${response.statusCode})` });
+                        succeed(`Connection successful (HTTP ${response.statusCode})`);
                         return;
                     }
 
                     if (response.statusCode && response.statusCode >= 400 && response.statusCode < 600) {
-                        resolve({
-                            success: true,
-                            message: `Connection reached endpoint (HTTP ${response.statusCode}). Proxy route is working.`,
-                        });
+                        succeed(`Connection reached endpoint (HTTP ${response.statusCode}). Proxy route is working.`);
                         return;
                     }
 
-                    resolve({
-                        success: false,
-                        message: `Connection failed with HTTP ${response.statusCode || "unknown"}`,
-                    });
+                    fail(`Connection failed with HTTP ${response.statusCode || "unknown"}`);
                 },
             );
 
+            request.on("proxyConnect", (connect: { statusCode: number }) => {
+                tunnelFailure = classifyProxyConnectStatus(connect.statusCode);
+            });
+
             request.on("error", (error) => {
-                resolve({
-                    success: false,
-                    message: error.message,
-                });
+                const failure = proxied ? classifyProxyError(error) : undefined;
+                fail(failure ? `${describe(failure)} (${error.message})` : error.message, failure);
             });
 
             request.on("timeout", () => {
                 request.destroy();
-                resolve({
-                    success: false,
-                    message: "Connection test timed out after 10 seconds",
-                });
+                fail("Connection test timed out after 10 seconds", proxied ? { kind: "proxy-timeout", code: "ETIMEDOUT" } : undefined);
             });
 
             request.end();
@@ -460,7 +584,7 @@ export class ProxyManager {
                 return undefined;
             }
 
-            return `${rootCertificates.join("\n")}\n${customCa}`;
+            return `${tls.rootCertificates.join("\n")}\n${customCa}`;
         } catch (error) {
             logWarn("[ProxyManager] Failed to read custom CA bundle", {
                 error: error instanceof Error ? error.message : String(error),
@@ -473,23 +597,65 @@ export class ProxyManager {
         return `${host || "unknown"}:${typeof port === "number" ? port : "0"}`;
     }
 
-    private resolveFetchTargetUrl(input: Parameters<typeof fetch>[0]): string | undefined {
-        if (typeof input === "string") {
-            return input;
-        }
-
-        if (input instanceof URL) {
-            return input.toString();
-        }
-
-        if ("url" in input && typeof input.url === "string") {
-            return input.url;
-        }
-
-        return undefined;
+    private isProxiedRoute(targetHost: string, effective: EffectiveProxySettings): boolean {
+        return Boolean(effective.proxyUrl) && !matchesNoProxy(targetHost, effective.noProxyList);
     }
 
-    private getFetchDispatcher(targetUrl: string, effective: EffectiveProxySettings): RequestInit["dispatcher"] | undefined {
+    /**
+     * Report a failure on a proxied request: log it, capture it in Sentry, and notify the user.
+     * Throttled per failure kind + host. Telemetry only receives a coarse host category, never the hostname.
+     */
+    private reportProxyFailure(failure: ProxyFailure, targetHost: string, channel: "node-http" | "fetch", effective: EffectiveProxySettings): ProxyFailureNotice {
+        const displayHost = targetHost || "the requested host";
+        const notice: ProxyFailureNotice = { ...describeProxyFailure(failure, displayHost, describeProxy(effective.proxyUrl)), targetHost: displayHost };
+
+        const key = `${failure.kind}|${targetHost}`;
+        const now = Date.now();
+        const lastReportedAt = this.failureLastReportedAt.get(key);
+        if (lastReportedAt !== undefined && now - lastReportedAt < ProxyManager.FAILURE_REPORT_INTERVAL_MS) {
+            return notice;
+        }
+        this.failureLastReportedAt.set(key, now);
+
+        const target = categorizeTargetHost(targetHost);
+        logWarn("[ProxyManager] Proxy connection failure", { kind: failure.kind, code: failure.code, statusCode: failure.statusCode, channel, target });
+        captureException(new Error(`Proxy connection failure: ${failure.kind}`), {
+            tags: { component: "proxy", proxy_failure: failure.kind, proxy_mode: effective.mode, proxy_channel: channel, proxy_target: target },
+            extra: {
+                code: failure.code,
+                status_code: failure.statusCode,
+                has_ca_bundle: Boolean(effective.caBundlePath),
+                proxy_has_credentials: hasProxyCredentials(effective.proxyUrl),
+            },
+        });
+
+        try {
+            this.failureNotifier?.(notice);
+        } catch (error) {
+            logWarn("[ProxyManager] Failed to show proxy failure notification", { error: error instanceof Error ? error.message : String(error) });
+        }
+
+        return notice;
+    }
+
+    private logRoute(targetUrl: string, route: string, channel: "node-http" | "fetch"): void {
+        let hostname = "";
+        try {
+            hostname = new URL(targetUrl).hostname;
+        } catch {
+            return;
+        }
+
+        const target = categorizeTargetHost(hostname);
+        const key = `${channel}|${hostname}|${route}`;
+        if (this.loggedRoutes.has(key)) {
+            return;
+        }
+        this.loggedRoutes.add(key);
+        logInfo("[ProxyManager] Outbound route resolved", { target, route, channel });
+    }
+
+    private getFetchDispatcher(targetUrl: string, effective: EffectiveProxySettings): Dispatcher | undefined {
         let targetHost = "";
         try {
             targetHost = new URL(targetUrl).hostname;
@@ -497,56 +663,34 @@ export class ProxyManager {
             return undefined;
         }
 
-        if (!effective.proxyUrl && !effective.caBundlePath) {
-            return undefined;
-        }
+        const bypassProxy = !effective.proxyUrl || matchesNoProxy(targetHost, effective.noProxyList);
+        this.logRoute(targetUrl, bypassProxy ? (effective.proxyUrl ? "direct (no-proxy match)" : "direct") : describeProxy(effective.proxyUrl), "fetch");
 
-        if (matchesNoProxy(targetHost, effective.noProxyList)) {
-            return undefined;
-        }
-
-        let undici:
-            | {
-                  ProxyAgent?: new (options: { uri: string; requestTls?: { ca?: string } }) => unknown;
-                  Agent?: new (options: { connect?: { ca?: string } }) => unknown;
-              }
-            | undefined;
-        try {
-            // undici is used by Node fetch; configure a dispatcher so fetch traffic (Supabase)
-            // follows proxy settings and optional CA bundle.
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            undici = require("undici");
-        } catch {
-            undici = undefined;
-        }
-
-        if (!undici) {
-            return undefined;
-        }
-
-        const ca = this.resolveCombinedCaBundle(effective.caBundlePath);
-        const cacheKey = `${effective.proxyUrl || "direct"}|${effective.caBundlePath || ""}`;
+        const cacheKey = `${bypassProxy ? "direct" : effective.proxyUrl}|${effective.caBundlePath || ""}`;
         const cached = this.fetchDispatcherCache.get(cacheKey);
         if (cached) {
             return cached;
         }
 
-        let dispatcher: RequestInit["dispatcher"] | undefined;
-        if (effective.proxyUrl && undici.ProxyAgent) {
-            dispatcher = new undici.ProxyAgent({
-                uri: effective.proxyUrl,
-                requestTls: ca ? { ca } : undefined,
-            }) as RequestInit["dispatcher"];
-        } else if (ca && undici.Agent) {
-            dispatcher = new undici.Agent({
-                connect: { ca },
-            }) as RequestInit["dispatcher"];
-        }
+        const ca = this.resolveCombinedCaBundle(effective.caBundlePath);
 
-        if (dispatcher) {
+        try {
+            // Direct routes also get an explicit Agent: undici's default global dispatcher is shared with
+            // Electron's bundled (older, unpatched) undici through a global symbol.
+            const dispatcher: Dispatcher = bypassProxy
+                ? new UndiciAgent(ca ? { connect: { ca } } : undefined)
+                : new UndiciProxyAgent({
+                      uri: effective.proxyUrl as string,
+                      requestTls: ca ? { ca } : undefined,
+                      proxyTls: ca ? { ca } : undefined,
+                  });
             this.fetchDispatcherCache.set(cacheKey, dispatcher);
+            return dispatcher;
+        } catch (error) {
+            logWarn("[ProxyManager] Failed to create fetch dispatcher", {
+                error: error instanceof Error ? error.message : String(error),
+            });
+            return undefined;
         }
-
-        return dispatcher;
     }
 }

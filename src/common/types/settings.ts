@@ -107,6 +107,18 @@ export interface MarketplaceSource {
 }
 
 /**
+ * Problem encountered while loading a marketplace source.
+ * "error" means the source failed to load; "warning" means it loaded from a degraded path (e.g. backup mirror).
+ */
+export interface MarketplaceSourceIssue {
+    sourceId: string;
+    sourceLabel: string;
+    sourceType: MarketplaceSource["type"];
+    severity: "error" | "warning";
+    message: string;
+}
+
+/**
  * Per-tool CSP consent record.
  * Stores whether consent was granted, and which required/optional domains were
  * present at the time of consent (used for future re-consent detection).

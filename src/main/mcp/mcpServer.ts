@@ -14,6 +14,7 @@ import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
 import { HeadlessJobRecord, HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
 import { PowerPlatformManager } from "../managers/powerplatformManager";
+import type { ProxyManager } from "../managers/proxyManager";
 import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { ToolManager } from "../managers/toolsManager";
@@ -301,11 +302,11 @@ export class McpServerManager {
         this.toolWindowManager = twm;
     }
 
-    setConnectionAuthManagers(connectionsManager: ConnectionsManager, authManager: AuthManager): void {
+    setConnectionAuthManagers(connectionsManager: ConnectionsManager, authManager: AuthManager, proxyManager?: ProxyManager): void {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
-        this.dataverseManager = new DataverseManager(connectionsManager, authManager);
-        this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager);
+        this.dataverseManager = new DataverseManager(connectionsManager, authManager, proxyManager);
+        this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager, proxyManager);
     }
 
     setJobChangeHandler(handler: ((jobId: string) => void) | null): void {

@@ -264,3 +264,78 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         expect(installTool).toHaveBeenCalledWith("catalog-tool");
     });
 });
+
+describe("ToolRegistryManager marketplace source failures", () => {
+    const builtinSource = { id: "builtin", type: "builtin" as const, label: "PPTB Marketplace", url: "", enabled: true };
+    const privateSource = { id: "private-1", type: "private" as const, label: "Contoso Marketplace", url: "https://marketplace.contoso.internal/registry.json", enabled: true };
+    let toolsDirectory: string;
+
+    const createManager = (sources: Array<typeof builtinSource | typeof privateSource>, azureBlobBaseUrl = "") => {
+        const manager = new ToolRegistryManager(toolsDirectory, "https://supabase.example", "anon-key", undefined, undefined, { getMarketplaceSources: () => sources });
+        (manager as unknown as { azureBlobBaseUrl: string }).azureBlobBaseUrl = azureBlobBaseUrl;
+        return manager;
+    };
+
+    beforeEach(() => {
+        toolsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "pptb-registry-failure-test-"));
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+        fs.rmSync(toolsDirectory, { recursive: true, force: true });
+    });
+
+    it("loads the Azure Blob mirror with a warning when Supabase fails", async () => {
+        const manager = createManager([builtinSource], "https://blob.example/tools");
+        jest.spyOn(manager as any, "fetchRegistryFromSupabase").mockRejectedValue(new Error("Supabase registry query failed: fetch failed"));
+        jest.spyOn(manager as any, "fetchAzureBlobRegistry").mockResolvedValue([{ id: "mirror-tool", name: "Mirror Tool", version: "1.0.0" }]);
+
+        const tools = await manager.fetchRegistry();
+
+        expect(tools.map((tool) => tool.id)).toEqual(["mirror-tool"]);
+        expect(manager.getRegistryIssues()).toEqual([expect.objectContaining({ sourceId: "builtin", severity: "warning", message: expect.stringContaining("backup mirror") })]);
+    });
+
+    it("throws instead of using a bundled registry when Supabase and the mirror both fail", async () => {
+        const manager = createManager([builtinSource], "https://blob.example/tools");
+        jest.spyOn(manager as any, "fetchRegistryFromSupabase").mockRejectedValue(new Error("Supabase registry query failed: fetch failed"));
+        jest.spyOn(manager as any, "fetchAzureBlobRegistry").mockRejectedValue(new Error("Registry request failed (HTTP 503)"));
+        const localRegistry = jest.spyOn(manager as any, "fetchLocalRegistry");
+
+        await expect(manager.fetchRegistry()).rejects.toThrow(/fetch failed.*backup mirror also failed: Registry request failed \(HTTP 503\)/s);
+        expect(localRegistry).not.toHaveBeenCalled();
+    });
+
+    it("throws when Supabase fails and no mirror is configured", async () => {
+        const manager = createManager([builtinSource]);
+        jest.spyOn(manager as any, "fetchRegistryFromSupabase").mockRejectedValue(new Error("Supabase registry query failed: fetch failed"));
+
+        await expect(manager.fetchRegistry()).rejects.toThrow("No backup mirror is configured");
+    });
+
+    it("reports a failing private source as an issue while loading the other sources", async () => {
+        const sentryHelper = await import("../../../../src/common/sentryHelper");
+        const captureException = jest.spyOn(sentryHelper, "captureException").mockImplementation(() => undefined);
+        const manager = createManager([builtinSource, privateSource]);
+        jest.spyOn(manager as any, "fetchRegistryFromSupabase").mockResolvedValue([{ id: "public-tool", name: "Public Tool", version: "1.0.0" }]);
+        jest.spyOn(manager as any, "fetchRegistryJsonText").mockRejectedValue(Object.assign(new Error("getaddrinfo ENOTFOUND marketplace.contoso.internal"), { code: "ENOTFOUND" }));
+
+        const tools = await manager.fetchRegistry();
+
+        expect(tools.map((tool) => tool.id)).toEqual(["public-tool"]);
+        expect(manager.getRegistryIssues()).toEqual([
+            expect.objectContaining({ sourceId: "private-1", sourceLabel: "Contoso Marketplace", severity: "error", message: expect.stringContaining("ENOTFOUND") }),
+        ]);
+        expect(captureException).toHaveBeenCalledTimes(1);
+        const telemetry = JSON.stringify(captureException.mock.calls[0]);
+        expect(telemetry).toContain("private-source");
+        expect(telemetry).not.toContain("contoso");
+    });
+
+    it("throws when every enabled source fails", async () => {
+        const manager = createManager([privateSource]);
+        jest.spyOn(manager as any, "fetchRegistryJsonText").mockRejectedValue(new Error("Registry request failed (HTTP 500)"));
+
+        await expect(manager.fetchRegistry()).rejects.toThrow("Contoso Marketplace: Registry request failed (HTTP 500)");
+    });
+});

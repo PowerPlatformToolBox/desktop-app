@@ -2226,6 +2226,72 @@ body.dark-theme .consent-status.revoked {
     text-decoration: underline;
 }
 
+/* Marketplace load error and source issues */
+.marketplace-load-error-title {
+    font-weight: 600;
+    color: var(--text-color, #323130);
+}
+
+.marketplace-load-error-details {
+    max-width: 640px;
+    margin: 12px auto;
+    padding: 10px 12px;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    font-size: 12px;
+    color: #a4262c;
+    background: #fde7e9;
+    border: 1px solid #f1bbbc;
+    border-radius: 4px;
+}
+
+.marketplace-load-error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
+.marketplace-source-issues {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #8a6d3b;
+    background: #fff4ce;
+    border: 1px solid #ffb900;
+    border-radius: 4px;
+}
+
+.marketplace-source-issues.has-errors {
+    color: #a4262c;
+    background: #fde7e9;
+    border-color: #f1bbbc;
+}
+
+.marketplace-source-issues p {
+    margin: 0 0 6px;
+    font-weight: 600;
+}
+
+.marketplace-source-issues ul {
+    margin: 0;
+    padding-left: 18px;
+    word-break: break-word;
+}
+
+body.dark-theme .marketplace-load-error-details,
+body.dark-theme .marketplace-source-issues.has-errors {
+    color: #f1bbbc;
+    background: #442726;
+    border-color: #6e3b3b;
+}
+
+body.dark-theme .marketplace-source-issues {
+    color: #d4c89f;
+    background: #3a3a2a;
+    border-color: #8a7d3b;
+}
+
 /* Modal */
 .modal {
     display: none;
