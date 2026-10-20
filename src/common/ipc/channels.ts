@@ -79,6 +79,7 @@ export const TOOL_CHANNELS = {
     GET_LOCAL_TOOL_WEBVIEW_HTML: "get-local-tool-webview-html",
     OPEN_DIRECTORY_PICKER: "open-directory-picker",
     FETCH_REGISTRY_TOOLS: "fetch-registry-tools",
+    GET_REGISTRY_ISSUES: "get-registry-issues",
     FETCH_COMMUNITY_LINKS: "fetch-community-links",
     INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
     CHECK_TOOL_UPDATES: "check-tool-updates",

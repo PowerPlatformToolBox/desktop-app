@@ -311,8 +311,8 @@ export class ToolManager extends EventEmitter {
     /**
      * Fetch available tools from registry
      */
-    async fetchAvailableTools(): Promise<ToolRegistryEntry[]> {
-        const registryTools = await this.registryManager.fetchRegistry();
+    async fetchAvailableTools(options?: { forceRefresh?: boolean }): Promise<ToolRegistryEntry[]> {
+        const registryTools = await this.registryManager.fetchRegistry(options);
 
         return registryTools.map((registryTool) => ({
             id: registryTool.id,

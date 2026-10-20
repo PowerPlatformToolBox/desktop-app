@@ -15,6 +15,7 @@ import {
     CommunityLinksGroup,
     CommunityLinksItem,
     MarketplaceSource,
+    MarketplaceSourceIssue,
     Tool,
     ToolConcernReportResult,
     ToolConcernReportSubmission,
@@ -280,9 +281,11 @@ export class ToolRegistryManager extends EventEmitter {
     private registryFetchInFlight: Promise<ToolRegistryEntry[]> | null = null;
     private registryCache: {
         tools: ToolRegistryEntry[];
+        issues: MarketplaceSourceIssue[];
         fetchedAtMs: number;
         source: "supabase" | "azureBlob" | "local";
     } | null = null;
+    private readonly marketplaceFailureReportedAt = new Map<string, number>();
 
     // Capability tags cache (fetched from Supabase `capability_tags` table)
     private capabilityTagsCache: CapabilityTagEntry[] | null = null;
@@ -294,6 +297,12 @@ export class ToolRegistryManager extends EventEmitter {
 
     // Capability tags change rarely; use a longer TTL so the fetch happens at most once per session.
     private static readonly CAPABILITY_TAGS_CACHE_TTL_MS = 300_000; // 5 minutes
+
+    // Registry index requests to Azure Blob / private sources must not hang the marketplace indefinitely.
+    private static readonly REGISTRY_REQUEST_TIMEOUT_MS = 20_000;
+
+    // Avoid flooding Sentry when the renderer repeatedly retries a failing source.
+    private static readonly MARKETPLACE_FAILURE_REPORT_INTERVAL_MS = 5 * 60_000;
 
     constructor(
         toolsDirectory: string,
@@ -320,7 +329,6 @@ export class ToolRegistryManager extends EventEmitter {
         // Validate Supabase credentials and create client
         if (useTestRegistry || !url || !key || url === "" || key === "") {
             logWarn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
-            logWarn("[ToolRegistry] Falling back to local registry.json file.");
             this.useLocalFallback = true;
         } else {
             logInfo("[ToolRegistry] Initializing Supabase client");
@@ -353,13 +361,14 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Fetch the tool registry from Supabase database or local fallback
+     * Fetch the tool registry from all enabled marketplace sources.
+     * Throws when every enabled source fails; partial failures are exposed via getRegistryIssues().
      */
-    async fetchRegistry(): Promise<ToolRegistryEntry[]> {
+    async fetchRegistry(options?: { forceRefresh?: boolean }): Promise<ToolRegistryEntry[]> {
         const now = Date.now();
 
         // Serve from cache when still fresh
-        if (this.registryCache && now - this.registryCache.fetchedAtMs < ToolRegistryManager.REGISTRY_CACHE_TTL_MS) {
+        if (!options?.forceRefresh && this.registryCache && now - this.registryCache.fetchedAtMs < ToolRegistryManager.REGISTRY_CACHE_TTL_MS) {
             return this.registryCache.tools;
         }
 
@@ -369,9 +378,10 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         this.registryFetchInFlight = (async () => {
-            const tools = await this.fetchRegistryFromConfiguredSources();
+            const { tools, issues } = await this.fetchRegistryFromConfiguredSources();
             this.registryCache = {
                 tools,
+                issues,
                 fetchedAtMs: Date.now(),
                 source: "supabase",
             };
@@ -385,19 +395,46 @@ export class ToolRegistryManager extends EventEmitter {
         }
     }
 
-    private async fetchRegistryFromConfiguredSources(): Promise<ToolRegistryEntry[]> {
+    /**
+     * Problems from the most recent successful registry fetch (failed or degraded sources).
+     */
+    getRegistryIssues(): MarketplaceSourceIssue[] {
+        return this.registryCache?.issues ?? [];
+    }
+
+    private async fetchRegistryFromConfiguredSources(): Promise<{ tools: ToolRegistryEntry[]; issues: MarketplaceSourceIssue[] }> {
         const configuredSources = this.settingsManager?.getMarketplaceSources() ?? [];
         const enabledSources = configuredSources.filter((source) => source.enabled);
 
         if (enabledSources.length === 0) {
-            return [];
+            return { tools: [], issues: [] };
         }
 
         const mergedTools = new Map<string, ToolRegistryEntry>();
+        const issues: MarketplaceSourceIssue[] = [];
+        const failures: string[] = [];
+        let loadedSourceCount = 0;
 
         for (const source of enabledSources) {
-            const tools = source.type === "builtin" ? await this.fetchBuiltinRegistryForSource(source) : await this.fetchRegistryFromMarketplaceUrl(source);
-            tools.forEach((tool) => {
+            let result: { tools: ToolRegistryEntry[]; warning?: string };
+            try {
+                result = source.type === "builtin" ? await this.fetchBuiltinRegistryForSource(source) : { tools: await this.fetchRegistryFromMarketplaceUrl(source) };
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                if (source.type === "private") {
+                    this.reportMarketplaceFailure("private-source", error);
+                }
+                issues.push({ sourceId: source.id, sourceLabel: source.label, sourceType: source.type, severity: "error", message });
+                failures.push(`${source.label}: ${message}`);
+                continue;
+            }
+
+            loadedSourceCount++;
+            if (result.warning) {
+                issues.push({ sourceId: source.id, sourceLabel: source.label, sourceType: source.type, severity: "warning", message: result.warning });
+            }
+
+            result.tools.forEach((tool) => {
                 const existingTool = mergedTools.get(tool.id);
                 const shouldOverride = !existingTool || source.type === "private" || existingTool.marketplaceSourceType !== "private";
                 if (!shouldOverride) {
@@ -413,88 +450,162 @@ export class ToolRegistryManager extends EventEmitter {
             });
         }
 
-        return Array.from(mergedTools.values());
+        if (loadedSourceCount === 0) {
+            throw new Error(failures.join("\n"));
+        }
+
+        return { tools: Array.from(mergedTools.values()), issues };
     }
 
-    private async fetchBuiltinRegistryForSource(_: MarketplaceSource): Promise<ToolRegistryEntry[]> {
-        if (this.useLocalFallback) {
-            return this.fetchFallbackRegistry();
+    /**
+     * Built-in marketplace: Supabase first, then the Azure Blob mirror. There is no bundled fallback in
+     * production builds, so a failure is surfaced to the user instead of silently showing stale data.
+     */
+    private async fetchBuiltinRegistryForSource(_: MarketplaceSource): Promise<{ tools: ToolRegistryEntry[]; warning?: string }> {
+        if (this.useLocalFallback && process.env.PPTB_TEST_MODE === "1" && process.env.PPTB_TEST_REGISTRY_PATH) {
+            return { tools: await this.fetchLocalRegistry() };
+        }
+
+        if (this.useLocalFallback && process.env.PPTB_DEVELOPER_BUILD === "1") {
+            return {
+                tools: await this.fetchLocalRegistry(),
+                warning: "Supabase credentials are not configured in this development build. Showing the bundled development registry.",
+            };
+        }
+
+        let supabaseFailure: string;
+        if (this.useLocalFallback || !this.supabase) {
+            supabaseFailure = "the marketplace service is not configured in this build";
+        } else {
+            try {
+                return { tools: await this.fetchRegistryFromSupabase() };
+            } catch (error) {
+                supabaseFailure = error instanceof Error ? error.message : String(error);
+                this.reportMarketplaceFailure("supabase", error);
+            }
+        }
+
+        if (!this.azureBlobBaseUrl) {
+            throw new Error(`Could not load the marketplace: ${supabaseFailure}. No backup mirror is configured.`);
         }
 
         try {
-            return await this.fetchRegistryFromSupabase();
+            const tools = await this.fetchAzureBlobRegistry();
+            logWarn("[ToolRegistry] Built-in marketplace loaded from the Azure Blob mirror after a Supabase failure");
+            return {
+                tools,
+                warning: `The marketplace service is unavailable (${supabaseFailure}). Showing tools from the backup mirror; ratings, downloads, and the newest tools may be missing.`,
+            };
         } catch (error) {
-            logWarn(`[ToolRegistry] Built-in marketplace fetch failed, falling back to local/azure registry`, error);
-            return this.fetchFallbackRegistry();
+            this.reportMarketplaceFailure("azure-blob", error);
+            const mirrorFailure = error instanceof Error ? error.message : String(error);
+            throw new Error(`Could not load the marketplace: ${supabaseFailure}. The backup mirror also failed: ${mirrorFailure}`);
         }
+    }
+
+    /**
+     * Capture a marketplace load failure in Sentry (throttled).
+     * Private sources are customer-configured, so only error codes/status are sent — never the URL, host, label, or message.
+     */
+    private reportMarketplaceFailure(stage: "supabase" | "azure-blob" | "private-source", error: unknown): void {
+        const message = error instanceof Error ? error.message : String(error);
+        const cause = error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined;
+        const rawCode = (error as { code?: unknown } | null)?.code ?? cause?.code;
+        const code = typeof rawCode === "string" ? rawCode : undefined;
+        const statusCode = /HTTP (\d{3})/.exec(message)?.[1];
+        const proxyFailureKind = (error as { proxyFailureKind?: unknown } | null)?.proxyFailureKind;
+
+        const key = stage === "private-source" ? `${stage}|${code ?? statusCode ?? "unknown"}` : `${stage}|${message}`;
+        const now = Date.now();
+        const lastReportedAt = this.marketplaceFailureReportedAt.get(key);
+        if (lastReportedAt !== undefined && now - lastReportedAt < ToolRegistryManager.MARKETPLACE_FAILURE_REPORT_INTERVAL_MS) {
+            return;
+        }
+        this.marketplaceFailureReportedAt.set(key, now);
+
+        logWarn(`[ToolRegistry] Marketplace ${stage} fetch failed`, stage === "private-source" ? { code, statusCode } : { code, statusCode, error: message });
+        captureException(new Error(`Marketplace ${stage} fetch failed`), {
+            tags: {
+                component: "marketplace",
+                marketplace_stage: stage,
+                ...(typeof proxyFailureKind === "string" ? { proxy_failure: proxyFailureKind } : {}),
+            },
+            extra: stage === "private-source" ? { code, status_code: statusCode } : { code, status_code: statusCode, error_message: message },
+        });
+    }
+
+    /**
+     * GET a registry index file and return its body. Rejects on non-200, network errors, and timeouts.
+     */
+    private fetchRegistryJsonText(registryUrl: string): Promise<string> {
+        const timeoutMs = ToolRegistryManager.REGISTRY_REQUEST_TIMEOUT_MS;
+        return new Promise<string>((resolve, reject) => {
+            const protocol = registryUrl.startsWith("https") ? https : http;
+            const request = protocol.get(registryUrl, this.getRequestOptions(registryUrl, timeoutMs), (res) => {
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    reject(new Error(`Registry request failed (HTTP ${res.statusCode})`));
+                    return;
+                }
+                const chunks: Buffer[] = [];
+                res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+                res.on("error", reject);
+            });
+            request.on("timeout", () => {
+                request.destroy(Object.assign(new Error(`Registry request timed out after ${timeoutMs / 1000} seconds`), { code: "ETIMEDOUT" }));
+            });
+            request.on("error", reject);
+        });
     }
 
     private async fetchRegistryFromMarketplaceUrl(source: MarketplaceSource): Promise<ToolRegistryEntry[]> {
         if (!source.url) {
-            logWarn(`[ToolRegistry] Marketplace source ${source.id} is missing a URL`);
-            return [];
+            throw new Error("No registry URL is configured for this marketplace source.");
         }
 
+        const registryUrl = source.url;
+        // Private source URLs are customer-specific; never include them in logs (logs are forwarded to Sentry).
+        logInfo(`[ToolRegistry] Fetching registry from private marketplace source ${source.id}`);
+
+        const rawJson = await this.fetchRegistryJsonText(registryUrl);
+
+        let registryData: AzureBlobRegistryFile;
         try {
-            const registryUrl = source.url;
-            logInfo(`[ToolRegistry] Fetching registry from marketplace source ${source.id}: ${registryUrl}`);
+            registryData = JSON.parse(rawJson) as AzureBlobRegistryFile;
+        } catch (parseError) {
+            throw new Error(`The registry file is not valid JSON: ${(parseError as Error).message}`);
+        }
 
-            const rawJson = await new Promise<string>((resolve, reject) => {
-                const protocol = registryUrl.startsWith("https") ? https : http;
-                protocol
-                    .get(registryUrl, this.getRequestOptions(registryUrl), (res) => {
-                        if (res.statusCode !== 200) {
-                            reject(new Error(`Marketplace registry request failed: HTTP ${res.statusCode} for ${registryUrl}`));
-                            return;
-                        }
-                        const chunks: Buffer[] = [];
-                        res.on("data", (chunk: Buffer) => chunks.push(chunk));
-                        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-                        res.on("error", reject);
-                    })
-                    .on("error", reject);
-            });
-
-            let registryData: AzureBlobRegistryFile;
-            try {
-                registryData = JSON.parse(rawJson) as AzureBlobRegistryFile;
-            } catch (parseError) {
-                throw new Error(`Failed to parse registry JSON from ${registryUrl}: ${(parseError as Error).message}`);
-            }
-
-            if (!registryData.tools || registryData.tools.length === 0) {
-                logInfo(`[ToolRegistry] No tools found in marketplace source ${source.id}`);
-                return [];
-            }
-
-            return registryData.tools
-                .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
-                .map((tool) => ({
-                    id: tool.id,
-                    name: tool.name,
-                    description: tool.description,
-                    authors: this.normalizeAuthorList(tool.authors),
-                    version: tool.version,
-                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || "", registryUrl),
-                    checksum: tool.checksum,
-                    size: tool.size,
-                    publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
-                    repository: tool.repository,
-                    website: tool.homepage || tool.website,
-                    icon: tool.icon,
-                    cspExceptions: tool.cspExceptions,
-                    features: tool.features,
-                    license: tool.license,
-                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
-                    maturity: tool.maturity,
-                    marketplaceSourceId: source.id,
-                    marketplaceSourceLabel: source.label,
-                    marketplaceSourceType: source.type,
-                }));
-        } catch (error) {
-            logWarn(`[ToolRegistry] Failed to fetch marketplace source ${source.id}`, error);
+        if (!registryData.tools || registryData.tools.length === 0) {
+            logInfo(`[ToolRegistry] No tools found in marketplace source ${source.id}`);
             return [];
         }
+
+        return registryData.tools
+            .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
+            .map((tool) => ({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                authors: this.normalizeAuthorList(tool.authors),
+                version: tool.version,
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || "", registryUrl),
+                checksum: tool.checksum,
+                size: tool.size,
+                publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
+                repository: tool.repository,
+                website: tool.homepage || tool.website,
+                icon: tool.icon,
+                cspExceptions: tool.cspExceptions,
+                features: tool.features,
+                license: tool.license,
+                status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                maturity: tool.maturity,
+                marketplaceSourceId: source.id,
+                marketplaceSourceLabel: source.label,
+                marketplaceSourceType: source.type,
+            }));
     }
 
     private async fetchRegistryFromSupabase(): Promise<ToolRegistryEntry[]> {
@@ -533,28 +644,6 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Fetch the tool registry from Azure Blob Storage or local JSON file.
-     * Azure Blob is tried first (when configured), then the local registry.json.
-     */
-    private async fetchFallbackRegistry(): Promise<ToolRegistryEntry[]> {
-        if (process.env.PPTB_TEST_MODE === "1" && process.env.PPTB_TEST_REGISTRY_PATH) {
-            return this.fetchLocalRegistry();
-        }
-
-        if (this.azureBlobBaseUrl) {
-            try {
-                const tools = await this.fetchAzureBlobRegistry();
-                if (tools.length > 0) {
-                    return tools;
-                }
-            } catch (error) {
-                logWarn(`[ToolRegistry] Azure Blob registry fetch failed`);
-            }
-        }
-        return this.fetchLocalRegistry();
-    }
-
-    /**
      * Fetch the tool registry from an Azure Blob Storage container.
      * Expects a registry.json file at <azureBlobBaseUrl>/registry.json with the
      * same shape as the local registry.json fallback file.
@@ -563,21 +652,7 @@ export class ToolRegistryManager extends EventEmitter {
         const registryUrl = `${this.azureBlobBaseUrl}/registry.json`;
         logInfo(`[ToolRegistry] Fetching registry from Azure Blob: ${registryUrl}`);
 
-        const rawJson = await new Promise<string>((resolve, reject) => {
-            const protocol = registryUrl.startsWith("https") ? https : http;
-            protocol
-                .get(registryUrl, this.getRequestOptions(registryUrl), (res) => {
-                    if (res.statusCode !== 200) {
-                        reject(new Error(`Azure Blob registry request failed: HTTP ${res.statusCode} for ${registryUrl}`));
-                        return;
-                    }
-                    const chunks: Buffer[] = [];
-                    res.on("data", (chunk: Buffer) => chunks.push(chunk));
-                    res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-                    res.on("error", reject);
-                })
-                .on("error", reject);
-        });
+        const rawJson = await this.fetchRegistryJsonText(registryUrl);
 
         let registryData: AzureBlobRegistryFile;
         try {
