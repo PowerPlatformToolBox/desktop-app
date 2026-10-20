@@ -13,9 +13,11 @@ import { contextBridge, ipcRenderer } from "electron";
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
 import type { ConnectionIds, ConnectionTarget } from "../common/connectionSlots";
 import { normalizeConnectionTarget } from "../common/connectionSlots";
+import { resolveConnectionType, type ConnectionType } from "../common/types/connection";
 import {
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
+    FINANCE_OPERATIONS_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
     POWERPLATFORM_CHANNELS,
@@ -27,6 +29,7 @@ import {
     WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logInfo } from "../common/logger";
+import { createFinanceOperationsAPI, type FinanceOperationsMethod, type FinanceOperationsOptions, type FinanceOperationsResponse } from "../common/financeOperationsApi";
 import type { DataverseBatchRequest, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 import { createWorkerToolAPI } from "../common/types/workerToolApiClient";
 import type { WorkerToolEvent } from "../common/types/workerToolApi";
@@ -186,6 +189,7 @@ const powerPlatformApi = POWER_PLATFORM_CATEGORIES.reduce(
 );
 
 type ToolSafeConnection = {
+    connectionType: ConnectionType;
     id: string;
     name: string;
     url: string;
@@ -218,6 +222,7 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
 
     return {
         id: source.id,
+        connectionType: resolveConnectionType(source.connectionType),
         name: source.name,
         url: source.url,
         environment,
@@ -234,6 +239,21 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
 }
 
 // Expose toolboxAPI to the tool window
+contextBridge.exposeInMainWorld(
+    "financeOperationsAPI",
+    createFinanceOperationsAPI(async <T>(method: FinanceOperationsMethod, path: string, body?: unknown, options?: FinanceOperationsOptions) => {
+        const result = (await ipcInvoke(FINANCE_OPERATIONS_CHANNELS.REQUEST, method, path, body, options)) as {
+            ok: boolean;
+            response: FinanceOperationsResponse<T>;
+            error: { message: string; code?: string; status?: number; requestId?: string; retryAfter?: string };
+        };
+        // Electron drops custom properties on Error instances crossing contextBridge.
+        // Reject with a plain structured object so HTTP diagnostics reach tool code.
+        if (!result.ok) throw { name: "FinanceOperationsError", ...result.error };
+        return result.response as FinanceOperationsResponse<T>;
+    }),
+);
+
 contextBridge.exposeInMainWorld("toolboxAPI", {
     workers: workerToolAPI,
     // Tool Info

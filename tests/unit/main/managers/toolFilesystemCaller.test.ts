@@ -1,4 +1,5 @@
 import { BrowserView, BrowserWindow } from "electron";
+import { resolve } from "path";
 import type { Tool } from "../../../../src/common/types";
 import { BrowserviewProtocolManager } from "../../../../src/main/managers/browserviewProtocolManager";
 import { ToolFileSystemAccessManager } from "../../../../src/main/managers/toolFileSystemAccessManager";
@@ -82,7 +83,7 @@ describe("Filesystem caller authorization boundary", () => {
         mockLoadURL = async (view) => {
             expect(view.webContents.send).not.toHaveBeenCalled();
             expect(manager.getInstanceIdByWebContents(view.webContents.id)).toBe(instanceId);
-            expect(manager.getLoadedToolIdentityByWebContents(view.webContents.id)).toMatchObject({ toolVersion: "1.0.0", sourcePath: "/local/tool" });
+            expect(manager.getLoadedToolIdentityByWebContents(view.webContents.id)).toMatchObject({ toolVersion: "1.0.0", sourcePath: resolve("/local/tool") });
             expect(manager.getToolIdentityByWebContents(view.webContents.id)).toEqual({ toolId: tool.id, toolName: tool.name });
             expect(manager.getConnectionIdByWebContents(view.webContents.id)).toBe("connection-a");
             expect(() => authorizeFilesystemCaller(view.webContents, mainWindow.webContents, manager, access, protectedPath)).toThrow("Access denied");

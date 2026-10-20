@@ -4,6 +4,8 @@ This plan tracks the delivery of N-connection support for tools, including the S
 
 ## Manifest Contract
 
+This plan's integer and `{ min, max }` declarations remain the default and fallback when explicit slot definitions are absent. Existing tools keep the count/range and legacy behavior described below. The opt-in typed-slot extension is tracked separately in the [connection slot definitions plan](CONNECTION_SLOT_DEFINITIONS_IMPLEMENTATION_PLAN.md) and [author guide](N_CONNECTION_TOOL_AUTHOR_GUIDE.md#declare-fixed-typed-slots): `connections: { slots: [...] }` declares fixed ordered purposes, allowed products and required status per index. Required slots may follow optional null holes; they are not a required prefix. Malformed supplied slots fail validation rather than falling back to this plan's count/range rules. Do not mix slots with min/max, tool-level `connectionTypes`, or legacy connection fields.
+
 New tools use one feature field:
 
 ```json
@@ -20,7 +22,7 @@ New tools use one feature field:
 
 ### Complete Declaration Matrix
 
-The resolved range is `{ min, max }`: the first `min` slots must be assigned before launch; the user may assign additional slots up to `max`. Slot 0 is Primary; slot 1 is Secondary; later slots are numbered from 3. A blank feature declaration (or no `features` object) keeps the historic default of one required connection.
+For integer/range and legacy declarations, the resolved range is `{ min, max }`: the first `min` slots must be assigned before launch; the user may assign additional slots up to `max`. Slot 0 is Primary; slot 1 is Secondary; later slots are numbered from 3. A blank feature declaration (or no `features` object) keeps the historic default of one required connection. Explicit-slot definitions instead enforce required status at each declared index and retain fixed optional holes.
 
 #### Modern declaration: `features.connections`
 
@@ -72,7 +74,7 @@ Omitted legacy fields use `multiConnection: "none"` and `connectionRequirement: 
 | `connections: -1`, `connections: 1.5`, or `connections: 11` | Validation error | Exact counts must be integers in 0–10.                                                                      |
 | `{ "min": 3, "max": 2 }`                                    | Validation error | Minimum exceeds maximum.                                                                                    |
 | `{ "max": 11 }` or `{ "min": -1 }`                          | Validation error | Bounds must be integers in 0–10.                                                                            |
-| `{ "maxx": 2 }`                                             | Validation error | The object accepts only `min` and `max`.                                                                    |
+| `{ "maxx": 2 }`                                             | Validation error | A count/range object accepts only `min` and `max`; the separate opt-in slot object accepts only `slots`.    |
 | `features: {}`                                              | Validation error | Without modern `connections`, legacy `multiConnection` remains required when a features object is supplied. |
 
 #### New capabilities compared with legacy declarations

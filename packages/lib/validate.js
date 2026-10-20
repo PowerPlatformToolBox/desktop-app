@@ -1,5 +1,6 @@
 // @ts-check
 "use strict";
+const { hasConnectionSlotDefinitions, validateConnectionSlotDefinitions } = require("./connectionSlots.js");
 
 /**
  * Tool validation logic for Power Platform ToolBox tools.
@@ -9,7 +10,8 @@
 /** @typedef {{ name: string; url?: string }} Contributor */
 /** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
-/** @typedef {{ connections?: number | { min?: number; max?: number }; multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
+/** @typedef {{ label?: string; connectionTypes?: Array<"dataverse" | "financeOperations">; required?: boolean }} ConnectionSlotDefinition */
+/** @typedef {{ connections?: number | { min?: number; max?: number } | { slots: ConnectionSlotDefinition[] }; connectionTypes?: Array<"dataverse" | "financeOperations">; multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
 /**
  * @typedef {{
  *   name: string;
@@ -317,7 +319,7 @@ async function validatePackageJson(packageJson, options = {}) {
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
             errors.push("features must be a non-array object with optional 'connections', 'multiConnection', 'connectionRequirement', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["connections", "multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
+            const VALID_FEATURE_KEYS = ["connections", "connectionTypes", "multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
             const featureKeys = Object.keys(features);
             const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
 
@@ -326,6 +328,14 @@ async function validatePackageJson(packageJson, options = {}) {
             }
 
             const usesModernConnections = features.connections !== undefined;
+            if (features.connectionTypes !== undefined) {
+                const types = features.connectionTypes;
+                if (!Array.isArray(types) || types.length === 0 || types.some((type) => type !== "dataverse" && type !== "financeOperations") || new Set(types).size !== types.length) {
+                    errors.push("features.connectionTypes must be a non-empty, unique array containing only 'dataverse' and 'financeOperations'");
+                } else if (features.enabledForPowerPlatformAPI === true && !types.includes("dataverse")) {
+                    errors.push("features.enabledForPowerPlatformAPI requires support for Dataverse connections");
+                }
+            }
             const usesLegacyConnectionFields = features.multiConnection !== undefined || features.connectionRequirement !== undefined;
             if (usesModernConnections && usesLegacyConnectionFields) {
                 errors.push("features.connections cannot be combined with legacy features.multiConnection or features.connectionRequirement; remove the legacy fields");
@@ -346,6 +356,8 @@ async function validatePackageJson(packageJson, options = {}) {
                     }
                 } else if (connections === null || typeof connections !== "object" || Array.isArray(connections)) {
                     errors.push("features.connections must be an integer or an object with optional 'min' and 'max' properties");
+                } else if (hasConnectionSlotDefinitions(connections)) {
+                    errors.push(...validateConnectionSlotDefinitions(connections, features));
                 } else {
                     const invalidConnectionKeys = Object.keys(connections).filter((key) => key !== "min" && key !== "max");
                     if (invalidConnectionKeys.length > 0) {

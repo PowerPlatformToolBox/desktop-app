@@ -4,6 +4,8 @@
 
 import type { NormalizedWorkerDeclaration } from "../../../packages/types/pptbConfig";
 import { CspExceptions } from "./common";
+import type { ConnectionType } from "./connection";
+import type { ToolConnectionRequirement } from "../../../packages/types/toolManifest";
 export type { NormalizedWorkerDeclaration, WorkerDeclaration, WorkerPlatform, WorkerRollForward, WorkerTargetFramework } from "../../../packages/types/pptbConfig";
 
 /**
@@ -24,8 +26,10 @@ export interface CapabilityTagEntry {
  * Tool features configuration
  */
 export interface ToolFeatures {
-    /** Exact count or permitted range of connections used by this tool. */
-    connections?: number | { min?: number; max?: number };
+    /** Supported products; omitted declarations support Dataverse only. */
+    connectionTypes?: ConnectionType[];
+    /** Existing count/range behavior, or opt-in fixed slot definitions. */
+    connections?: ToolConnectionRequirement;
     /**
      * Multi-connection support configuration
      * - "required": Both primary and secondary connections are required

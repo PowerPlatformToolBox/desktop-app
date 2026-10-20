@@ -255,7 +255,7 @@ test("isolates consent categories and fits compact review rows on desktop and mo
         document.body.classList.add("dark-theme");
     }, reviewScript);
     await page.setViewportSize({ width: 820, height: 768 });
-    await page.getByRole("tab", { name: /Dataverse Headers/ }).click();
+    await page.getByRole("tab", { name: /API Headers/ }).click();
     await expect(page.locator("#consent-native-panel")).toBeHidden();
     await expect(page.locator(".consent-review-row-title").first()).toHaveText("local-power-maverick-tool-root-cause-analysis");
     await page.getByRole("button", { name: "Details", exact: true }).first().click();
@@ -272,7 +272,7 @@ test("isolates consent categories and fits compact review rows on desktop and mo
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.locator("html").evaluate((element) => element.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "test-results/consent-review-native-mobile.png" });
-    await page.getByRole("tab", { name: /Dataverse Headers/ }).click();
+    await page.getByRole("tab", { name: /API Headers/ }).click();
     await expect(page.locator("#consent-native-panel")).toBeHidden();
     expect(await page.locator("html").evaluate((element) => element.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "test-results/consent-review-dataverse-mobile.png" });

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Dataverse + F&O Explorer</title>
+        <style>
+            :root {
+                color-scheme: light dark;
+                font-family: "Segoe UI", sans-serif;
+                --bg: #f5f3ee;
+                --ink: #172c38;
+                --surface: #fffefa;
+                --line: #c7cdc9;
+                --accent: #a64117;
+                --muted: #53656e;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --bg: #14232b;
+                    --ink: #f3f0e7;
+                    --surface: #1b303b;
+                    --line: #49606a;
+                    --accent: #ffad79;
+                    --muted: #b1c1c8;
+                }
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--ink);
+            }
+            main {
+                max-width: 1440px;
+                margin: auto;
+                padding: 36px;
+            }
+            .eyebrow {
+                color: var(--accent);
+                font:
+                    600 12px Consolas,
+                    monospace;
+                letter-spacing: 0.13em;
+                text-transform: uppercase;
+            }
+            h1 {
+                font-family: Georgia, serif;
+                font-weight: 400;
+                font-size: clamp(28px, 4vw, 44px);
+                margin: 12px 0;
+            }
+            p {
+                line-height: 1.6;
+            }
+            .intro {
+                max-width: 760px;
+                color: var(--muted);
+            }
+            .toolbar {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 16px;
+                padding: 20px 0;
+            }
+            button,
+            input {
+                font: inherit;
+                border: 1px solid var(--line);
+                border-radius: 3px;
+            }
+            button {
+                padding: 11px 18px;
+                background: var(--ink);
+                color: var(--bg);
+                cursor: pointer;
+                font-weight: 600;
+            }
+            button:disabled {
+                opacity: 0.5;
+                cursor: wait;
+            }
+            :focus-visible {
+                outline: 3px solid var(--accent);
+                outline-offset: 3px;
+            }
+            #status {
+                color: var(--muted);
+                margin: 0;
+            }
+            .panes {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 24px;
+            }
+            section {
+                min-width: 0;
+                background: var(--surface);
+                border: 1px solid var(--line);
+                border-top: 4px solid var(--ink);
+                padding: 24px;
+            }
+            section:last-child {
+                border-top-color: var(--accent);
+            }
+            h2 {
+                margin: 0 0 8px;
+                font-size: 22px;
+                font-weight: 600;
+            }
+            .connection {
+                min-height: 3em;
+                overflow-wrap: anywhere;
+                color: var(--muted);
+                font-size: 13px;
+            }
+            label {
+                display: block;
+                margin: 20px 0 8px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            input {
+                width: 100%;
+                padding: 12px;
+                color: var(--ink);
+                background: var(--bg);
+                font-family: Consolas, monospace;
+                font-size: 13px;
+            }
+            .result-status {
+                font-size: 13px;
+                color: var(--muted);
+            }
+            pre {
+                min-height: 220px;
+                max-height: 50vh;
+                overflow: auto;
+                padding: 16px;
+                margin: 0;
+                background: var(--bg);
+                border: 1px solid var(--line);
+                font:
+                    13px/1.6 Consolas,
+                    monospace;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+            }
+            footer {
+                margin-top: 24px;
+                color: var(--muted);
+                font-size: 13px;
+                line-height: 1.6;
+            }
+            @media (max-width: 800px) {
+                main {
+                    padding: 20px;
+                }
+                .panes {
+                    grid-template-columns: 1fr;
+                }
+                section {
+                    padding: 18px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <div class="eyebrow">Multi-connection example / Read only</div>
+            <h1>Two systems. One workspace.</h1>
+            <p class="intro">Explore Dataverse accounts and Finance &amp; Operations customers side by side. Choose the Dataverse accounts connection first, then the F&amp;O customers connection.</p>
+            <div class="toolbar">
+                <button id="run" disabled>Read both systems</button>
+                <p id="status" role="status" aria-live="polite">Checking connections…</p>
+            </div>
+            <div class="panes">
+                <section aria-labelledby="dataverse-title">
+                    <h2 id="dataverse-title">Dataverse</h2>
+                    <p class="connection" id="dataverse-connection">Loading connection…</p>
+                    <label for="dataverse-query">OData query relative to /api/data/v9.2</label>
+                    <input id="dataverse-query" value="accounts?$select=name,accountnumber&amp;$top=5" spellcheck="false" />
+                    <p class="result-status" id="dataverse-status">No request yet</p>
+                    <pre id="dataverse-result" aria-label="Dataverse response">Accounts will appear here.</pre>
+                </section>
+                <section aria-labelledby="finops-title">
+                    <h2 id="finops-title">Finance &amp; Operations</h2>
+                    <p class="connection" id="finops-connection">Loading connection…</p>
+                    <label for="finops-query">OData path relative to /data</label>
+                    <input id="finops-query" value="CustomersV3?$top=5" spellcheck="false" />
+                    <p class="result-status" id="finops-status">No request yet</p>
+                    <pre id="finops-result" aria-label="Finance and Operations response">Customers will appear here.</pre>
+                </section>
+            </div>
+            <footer>
+                Each request reads one page. Adjust the entity set and query to suit your environments. Results are independent: these records are not automatically matched or synchronized.
+            </footer>
+        </main>
+        <script src="sample.js"></script>
+    </body>
+</html>

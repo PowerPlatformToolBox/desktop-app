@@ -162,6 +162,11 @@ buildScripts/*/latest-mac.yml
 # Test Results
 test-results/
 
+# The mixed-tool regression snapshot has no build step.
+!tests/e2e/tool-fixtures/dataverse-finance-operations/dist/
+!tests/e2e/tool-fixtures/dataverse-finance-operations/dist/index.html
+!tests/e2e/tool-fixtures/dataverse-finance-operations/dist/sample.js
+
 # Nix / direnv
 .direnv/
 result

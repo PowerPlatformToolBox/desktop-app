@@ -5,6 +5,7 @@
  */
 
 import { logError, logInfo } from "../../common/logger";
+import { CONNECTION_PRODUCTS, connectionProductLabel } from "../../common/connectionProduct";
 import type { Connection } from "../../common/types/connection";
 import type { Tool } from "../../common/types/tool";
 import type { ToolDetail } from "../types/index";
@@ -254,11 +255,11 @@ async function runSearch(query: string): Promise<void> {
         const connectionsRaw = await window.toolboxAPI.connections.getAll();
         const connections = connectionsRaw as Connection[];
         for (const conn of connections) {
-            if (matches(q, conn.name, conn.url, conn.environment)) {
+            if (matches(q, conn.name, conn.url, conn.environment, connectionProductLabel(conn.connectionType), CONNECTION_PRODUCTS[conn.connectionType ?? "dataverse"].description)) {
                 results.push({
                     id: `connection:${conn.id}`,
                     name: conn.name,
-                    description: `${conn.environment} · ${conn.url}`,
+                    description: `${connectionProductLabel(conn.connectionType)} · ${conn.environment} · ${conn.url}`,
                     category: "connection",
                     action: () => {
                         // Sidebar navigation: restore the tool BrowserView so it stays visible

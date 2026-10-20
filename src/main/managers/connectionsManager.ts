@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import Store from "electron-store";
 import { logInfo } from "../../common/logger";
-import { Connection } from "../../common/types";
+import { Connection, normalizeConnection, resolveConnectionType } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
 
 /**
@@ -50,6 +50,17 @@ export class ConnectionsManager {
 
         // Migrate existing connections to encrypted storage if needed
         this.migrateConnectionsToEncrypted();
+        this.migrateLegacyConnectionTypes();
+    }
+
+    private migrateLegacyConnectionTypes(): void {
+        const connections = this.store.get("connections");
+        if (connections.some((connection) => connection.connectionType === undefined)) {
+            this.store.set(
+                "connections",
+                connections.map((connection) => (connection.connectionType === undefined ? { ...connection, connectionType: "dataverse" as const } : connection)),
+            );
+        }
     }
 
     /**
@@ -59,7 +70,7 @@ export class ConnectionsManager {
      */
     private normalizeConnectionForStorage(connection: Connection): Connection {
         const decrypted = this.encryptionManager.decryptFields(connection, SENSITIVE_CONNECTION_FIELDS);
-        return this.encryptionManager.encryptFields(decrypted, SENSITIVE_CONNECTION_FIELDS);
+        return this.encryptionManager.encryptFields(normalizeConnection(decrypted), SENSITIVE_CONNECTION_FIELDS);
     }
 
     /**
@@ -108,6 +119,14 @@ export class ConnectionsManager {
             const decryptedUpdates = this.encryptionManager.decryptFields(updates as Connection, SENSITIVE_CONNECTION_FIELDS);
             const mergedConnection = { ...existingConnection, ...decryptedUpdates };
 
+            if (resolveConnectionType(existingConnection.connectionType) !== resolveConnectionType(mergedConnection.connectionType)) {
+                throw new Error("Changing connection type requires creating a new connection.");
+            }
+
+            if ((["url", "authenticationType", "clientId", "tenantId", "clientSecret", "username", "password"] as const).some((field) => existingConnection[field] !== mergedConnection[field])) {
+                this.clearTokensForConnection(mergedConnection);
+            }
+
             connections[index] = this.normalizeConnectionForStorage(mergedConnection);
             this.store.set("connections", connections);
         }
@@ -129,7 +148,7 @@ export class ConnectionsManager {
         const connections = this.store.get("connections");
 
         // Decrypt sensitive fields for each connection
-        return connections.map((conn) => this.encryptionManager.decryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
+        return connections.map((conn) => normalizeConnection(this.encryptionManager.decryptFields(conn, SENSITIVE_CONNECTION_FIELDS)));
     }
 
     /**
@@ -268,7 +287,7 @@ export class ConnectionsManager {
         }
 
         // Decrypt sensitive fields
-        return this.encryptionManager.decryptFields(connection, SENSITIVE_CONNECTION_FIELDS);
+        return normalizeConnection(this.encryptionManager.decryptFields(connection, SENSITIVE_CONNECTION_FIELDS));
     }
 
     /**
@@ -407,6 +426,7 @@ export class ConnectionsManager {
             existingIds.add(newId);
 
             const newConnection: Connection = {
+                connectionType: entry.connectionType as Connection["connectionType"],
                 id: newId,
                 name: entry.name as string,
                 url: entry.url as string,
@@ -429,7 +449,22 @@ export class ConnectionsManager {
             };
 
             // Encrypt sensitive fields and persist
-            const encryptedConnection = this.encryptionManager.encryptFields(newConnection, SENSITIVE_CONNECTION_FIELDS);
+            let encryptedConnection: Connection;
+            try {
+                encryptedConnection = this.normalizeConnectionForStorage(newConnection);
+            } catch (error) {
+                skipped++;
+                warnings.push(`Skipped "${connName}": ${(error as Error).message}`);
+                continue;
+            }
+
+            try {
+                normalizeConnection(entry as unknown as Connection);
+            } catch (error) {
+                skipped++;
+                warnings.push(`Skipped "${connName}": ${(error as Error).message}`);
+                continue;
+            }
             existingConnections.push(encryptedConnection);
             imported++;
         }

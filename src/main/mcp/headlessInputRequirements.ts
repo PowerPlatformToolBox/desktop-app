@@ -1,5 +1,5 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { ConnectionSlotRange, connectionTargetLabel } from "../../common/connectionSlots";
+import { ConnectionRequirements, connectionTargetLabel } from "../../common/connectionSlots";
 import { Connection } from "../../common/types";
 import { JsonObjectSchema } from "./schemaConverter";
 
@@ -37,7 +37,7 @@ export interface ConnectionRequirement {
     minConnections: number;
     maxConnections: number;
     slots: ConnectionSlotDescriptor[];
-    providedConnectionNames: string[];
+    providedConnectionNames: Array<string | null>;
     unknownConnectionNames: string[];
     availableConnections: ConnectionSummary[];
 }
@@ -115,12 +115,12 @@ export function summarizeConnection(connection: Connection, now = Date.now()): C
     };
 }
 
-export function buildConnectionSlots(range: ConnectionSlotRange, providedNames: string[]): ConnectionSlotDescriptor[] {
+export function buildConnectionSlots(range: ConnectionRequirements, providedNames: Array<string | null>): ConnectionSlotDescriptor[] {
     const slotCount = Math.min(Math.max(range.max, range.min), MAX_CONNECTION_NAMES);
     return Array.from({ length: slotCount }, (_, index) => ({
         index,
-        label: connectionTargetLabel(index),
-        required: index < range.min,
+        label: range.slots[index]?.label ?? connectionTargetLabel(index),
+        required: range.slots[index]?.required ?? index < range.min,
         ...(providedNames[index] ? { assignedConnectionName: providedNames[index] } : {}),
     }));
 }

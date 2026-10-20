@@ -6,6 +6,7 @@ import os from "os";
 import path from "path";
 import type { ElectronApplication, Page } from "playwright";
 import { _electron as electron } from "playwright";
+import type { ToolFeatures } from "../../src/common/types/tool";
 
 /**
  * Extended Playwright test fixture that launches and tears down the Electron app.
@@ -20,6 +21,7 @@ interface AppFixtures {
     maturityData: boolean;
     multiConnectionData: boolean;
     connectionEdgeData: boolean;
+    connectionScenario: { features?: ToolFeatures } | null;
 }
 
 async function dismissTelemetryConsentModalIfPresent(electronApp: ElectronApplication): Promise<void> {
@@ -135,9 +137,10 @@ export const test = base.extend<AppFixtures>({
     maturityData: [false, { option: true }],
     multiConnectionData: [false, { option: true }],
     connectionEdgeData: [false, { option: true }],
+    connectionScenario: [null, { option: true }],
 
     // Playwright fixtures require object destructuring for the first argument.
-    electronApp: async ({ maturityData, multiConnectionData, connectionEdgeData }, use) => {
+    electronApp: async ({ maturityData, multiConnectionData, connectionEdgeData, connectionScenario }, use) => {
         const mainEntry = path.resolve(__dirname, "../../dist/main/index.js");
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), maturityData ? "pptb-maturity-e2e-" : multiConnectionData ? "pptb-multiconnection-e2e-" : "pptb-e2e-"));
         const userDataDirectory = path.join(tempRoot, "user-data");
@@ -177,7 +180,7 @@ export const test = base.extend<AppFixtures>({
 
         if (multiConnectionData) {
             const toolsDirectory = path.join(userDataDirectory, "tools");
-            const toolDefinitions = [
+            const toolDefinitions: Array<{ id: string; name: string; features?: ToolFeatures }> = [
                 { id: "e2e-required-connections", name: "E2E Required Connections", features: { connections: 2 } },
                 { id: "e2e-optional-connections", name: "E2E Optional Connections", features: { multiConnection: "optional" } },
                 { id: "e2e-optional-zero-to-three", name: "E2E Optional Zero To Three", features: { connections: { min: 0, max: 3 } } },
@@ -186,13 +189,49 @@ export const test = base.extend<AppFixtures>({
                 { id: "e2e-invocation-callee", name: "E2E Invocation Callee", features: { connections: { min: 1, max: 4 } } },
                 { id: "e2e-four-connection-range", name: "E2E Four Connection Range", features: { connections: { min: 3, max: 4 } } },
                 { id: "e2e-single-connection", name: "E2E Single Connection" },
+                { id: "e2e-finops-connection", name: "E2E F&O Connection", features: { connections: 1, connectionTypes: ["financeOperations"] } },
+                { id: "e2e-mixed-connections", name: "E2E Mixed Connections", features: { connections: 2, connectionTypes: ["dataverse", "financeOperations"] } },
+                {
+                    id: "e2e-typed-connections",
+                    name: "E2E Typed Connections",
+                    features: { connections: { slots: [{ label: "Dataverse accounts" }, { label: "F&O customers", connectionTypes: ["financeOperations"] }] } },
+                },
+                {
+                    id: "e2e-typed-optional",
+                    name: "E2E Typed Optional",
+                    features: {
+                        connections: {
+                            slots: [
+                                { label: 'Accounts </script><img src=x onerror="window.slotLabelInjected=true">', required: false },
+                                { label: "Required F&O customers", connectionTypes: ["financeOperations"] },
+                                { label: "Optional comparison", required: false, connectionTypes: ["dataverse", "financeOperations"] },
+                            ],
+                        },
+                    },
+                },
+                { id: "e2e-typed-single", name: "E2E Typed Single", features: { connections: { slots: [{ label: "F&O customer lookup", connectionTypes: ["financeOperations"] }] } } },
+                { id: "e2e-typed-ten", name: "E2E Typed Ten", features: { connections: { slots: Array.from({ length: 10 }, (_, index) => ({ label: `Accounts environment ${index + 1}` })) } } },
+                {
+                    id: "e2e-typed-all-optional",
+                    name: "E2E Typed All Optional",
+                    features: { connections: { slots: [{ label: "Optional customer lookup", required: false, connectionTypes: ["financeOperations"] }] } },
+                },
+                {
+                    id: "e2e-mixed-explorer",
+                    name: "Dataverse + F&O Explorer",
+                    features: JSON.parse(fs.readFileSync(path.resolve(__dirname, "./tool-fixtures/dataverse-finance-operations/package.json"), "utf8")).features,
+                },
                 { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
             ];
+            if (connectionScenario) toolDefinitions.push({ id: "e2e-scenario", name: "E2E Scenario", features: connectionScenario.features });
             const installedTools = toolDefinitions.map((tool) => {
                 const installPath = path.join(toolsDirectory, tool.id);
                 fs.mkdirSync(path.join(installPath, "dist"), { recursive: true });
                 fs.writeFileSync(path.join(installPath, "package.json"), JSON.stringify({ name: tool.id, version: "1.0.0", ...(tool.features ? { features: tool.features } : {}) }, null, 2));
                 fs.writeFileSync(path.join(installPath, "dist", "index.html"), `<!doctype html><html><body><main>${tool.id} E2E fixture</main></body></html>`);
+                if (tool.id === "e2e-mixed-explorer") {
+                    fs.cpSync(path.resolve(__dirname, "./tool-fixtures/dataverse-finance-operations/dist"), path.join(installPath, "dist"), { recursive: true });
+                }
                 return {
                     ...tool,
                     description: "Static tool fixture for multi-connection E2E tests.",
@@ -240,6 +279,17 @@ export const test = base.extend<AppFixtures>({
                                 url: "https://prod.crm.dynamics.com",
                                 environment: "Production",
                                 authenticationType: "interactive",
+                                createdAt: "2026-10-01T00:00:00.000Z",
+                            },
+                            {
+                                id: "e2e-finops",
+                                name: "E2E Finance Operations",
+                                connectionType: "financeOperations",
+                                url: "https://finops.operations.dynamics.com",
+                                environment: "Dev",
+                                authenticationType: "interactive",
+                                clientId: "11111111-1111-1111-1111-111111111111",
+                                tenantId: "22222222-2222-2222-2222-222222222222",
                                 createdAt: "2026-10-01T00:00:00.000Z",
                             },
                         ],

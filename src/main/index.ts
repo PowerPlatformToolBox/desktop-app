@@ -6,11 +6,14 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import type { ConnectionTarget } from "../common/connectionSlots";
-import { normalizeConnectionTarget, resolveConnectionSlots } from "../common/connectionSlots";
+import { hasConnectionSlotDefinitions, normalizeConnectionTarget, resolveConnectionRequirements } from "../common/connectionSlots";
+import { validateConnectionAssignments } from "../common/connectionCompatibility";
+import { connectionProductLabel } from "../common/connectionProduct";
 import {
     AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
+    FINANCE_OPERATIONS_CHANNELS,
     DATAVERSE_HEADER_CONSENT_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
@@ -46,6 +49,9 @@ import {
     ToolConcernReportSubmission,
     ToolIdeaSubmission,
 } from "../common/types";
+import type { FinanceOperationsMethod, FinanceOperationsOptions } from "../common/financeOperationsApi";
+import { FinanceOperationsManager } from "./managers/financeOperationsManager";
+import { validateFinanceOperationsHeaders } from "./utils/financeOperationsHttp";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -128,6 +134,7 @@ class ToolBoxApp {
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
+    private financeOperationsManager: FinanceOperationsManager;
     private dataverseHeaderConsentManager: DataverseHeaderConsentManager;
     private nativeWorkerConsentManager: NativeWorkerConsentManager;
     private workerBrokerManager: WorkerBrokerManager;
@@ -244,6 +251,7 @@ class ToolBoxApp {
             this.authManager = new AuthManager(this.browserManager, this.proxyManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager, this.proxyManager);
+            this.financeOperationsManager = new FinanceOperationsManager(this.connectionsManager, this.authManager);
             this.dataverseHeaderConsentManager = new DataverseHeaderConsentManager(
                 this.settingsManager,
                 () => this.mainWindow?.webContents ?? null,
@@ -595,6 +603,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UPDATE_CHANNELS.GET_VERSION_COMPATIBILITY_INFO);
 
         // Dataverse handlers
+        ipcMain.removeHandler(FINANCE_OPERATIONS_CHANNELS.REQUEST);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.RETRIEVE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE);
@@ -900,7 +909,11 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.UPDATE_CONNECTION, (_, id, updates) => {
+            const previous = this.connectionsManager.getConnectionById(id);
             this.connectionsManager.updateConnection(id, updates);
+            const current = this.connectionsManager.getConnectionById(id);
+            const authFields = ["url", "authenticationType", "clientId", "tenantId", "clientSecret", "username", "password"] as const;
+            if (authFields.some((field) => previous?.[field] !== current?.[field])) this.authManager.clearConnectionCache(id);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
         });
 
@@ -912,6 +925,7 @@ class ToolBoxApp {
             const deletionBlocker = this.toolWindowManager?.getConnectionDeletionBlocker(id) ?? null;
             if (deletionBlocker) throw new Error(deletionBlocker);
             this.connectionsManager.deleteConnection(id);
+            this.authManager.clearConnectionCache(id);
             this.settingsManager.removeConnectionFromToolSlots(id);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
         });
@@ -1368,7 +1382,7 @@ class ToolBoxApp {
         ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (event, toolId) => {
             if (event.sender !== this.mainWindow?.webContents || event.sender.isDestroyed()) throw new Error("Tool mutation requires the trusted main window");
             const manifest = await this.workerBrokerManager.withToolMutation(toolId, () => this.toolManager.updateTool(toolId));
-            const maxConnections = resolveConnectionSlots(manifest.features).max;
+            const maxConnections = resolveConnectionRequirements(manifest.features).max;
             if (this.settingsManager.limitToolConnectionSlots(toolId, maxConnections)) {
                 this.api.showNotification({
                     title: "Connection Assignments Updated",
@@ -1588,7 +1602,14 @@ class ToolBoxApp {
         });
 
         // Tool-Connection mapping handlers
+        const validateRememberedSlots = (toolId: string, connectionIds: Array<string | null>): Array<string | null> => {
+            const features = this.toolManager.getRegistryManager().getInstalledManifestSync(toolId)?.features;
+            return hasConnectionSlotDefinitions(features?.connections) ? validateConnectionAssignments(connectionIds, features, (id) => this.connectionsManager.getConnectionById(id)) : connectionIds;
+        };
         ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, (_, toolId, connectionId) => {
+            const ids = this.settingsManager.getToolConnectionSlots(toolId);
+            ids[0] = connectionId;
+            validateRememberedSlots(toolId, ids);
             this.settingsManager.setToolConnection(toolId, connectionId);
         });
 
@@ -1606,6 +1627,9 @@ class ToolBoxApp {
 
         // Tool secondary connection management
         ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, (_, toolId: string, connectionId: string) => {
+            const ids = this.settingsManager.getToolConnectionSlots(toolId);
+            ids[1] = connectionId;
+            validateRememberedSlots(toolId, ids);
             this.settingsManager.setToolSecondaryConnection(toolId, connectionId);
         });
 
@@ -1622,7 +1646,7 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION_SLOTS, (_, toolId: string, connectionIds: Array<string | null>) => {
-            this.settingsManager.setToolConnectionSlots(toolId, connectionIds);
+            this.settingsManager.setToolConnectionSlots(toolId, validateRememberedSlots(toolId, connectionIds));
         });
         ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_CONNECTION_SLOTS, (_, toolId: string) => this.settingsManager.getToolConnectionSlots(toolId));
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION_SLOTS, (_, toolId: string) => this.settingsManager.removeToolConnectionSlots(toolId));
@@ -2099,6 +2123,19 @@ class ToolBoxApp {
                 }
             },
         );
+
+        ipcMain.handle(FINANCE_OPERATIONS_CHANNELS.REQUEST, async (event, method: FinanceOperationsMethod, path: string, body: unknown, options: FinanceOperationsOptions = {}) => {
+            try {
+                const connectionId = resolveToolConnectionForRequest(this.toolWindowManager, event.sender.id, options.connectionTarget);
+                if (this.connectionsManager.getConnectionById(connectionId)?.connectionType !== "financeOperations") throw new Error("This API requires a Finance & Operations connection.");
+                const headers = validateFinanceOperationsHeaders(options.headers);
+                await this.dataverseHeaderConsentManager.authorize(event.sender, "Send an F&O OData request", headers, "financeOperations");
+                return { ok: true, response: await this.financeOperationsManager.request(connectionId, method, path, body, { ...options, headers }) };
+            } catch (error) {
+                const details = error as Error & { code?: string; status?: number; requestId?: string; retryAfter?: string };
+                return { ok: false, error: { message: details.message, code: details.code, status: details.status, requestId: details.requestId, retryAfter: details.retryAfter } };
+            }
+        });
 
         // Dataverse API handlers
         // All handlers automatically get the connectionId from the calling tool's WebContents
@@ -3348,7 +3385,11 @@ class ToolBoxApp {
             const tool = this.toolManager.getTool(entry.toolId);
             const manifest = tool ? null : this.toolManager.getInstalledManifestSync(entry.toolId);
             const baseLabel = tool?.name || manifest?.name || entry.toolId;
-            const connectionLabel = entry.primaryConnection?.name || entry.primaryConnection?.url || entry.primaryConnection?.id || null;
+            const descriptions = (entry.connections ?? [entry.primaryConnection, entry.secondaryConnection]).filter(Boolean).map((record) => {
+                const connection = record?.id ? this.connectionsManager.getConnectionById(record.id) : null;
+                return `${connection?.name || record?.name || record?.url || record?.id} · ${connection ? connectionProductLabel(connection.connectionType) : "Unavailable"}`;
+            });
+            const connectionLabel = descriptions.slice(0, 2).join(" / ") + (descriptions.length > 2 ? ` (+${descriptions.length - 2} more)` : "");
             const label = connectionLabel ? `${baseLabel} (${connectionLabel})` : baseLabel;
             const enabled = Boolean(tool || manifest);
 
@@ -3359,12 +3400,17 @@ class ToolBoxApp {
                     this.sendToolLaunchRequest(entry.toolId, "recent", {
                         primaryConnectionId: entry.primaryConnection?.id ?? null,
                         secondaryConnectionId: entry.secondaryConnection?.id ?? null,
+                        connectionIds: entry.connections?.map((record) => record?.id ?? null),
                     }),
             };
         });
     }
 
-    private sendToolLaunchRequest(toolId: string, source: "recent" | "favorite", connectionContext?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }): void {
+    private sendToolLaunchRequest(
+        toolId: string,
+        source: "recent" | "favorite",
+        connectionContext?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; connectionIds?: Array<string | null> },
+    ): void {
         if (!this.mainWindow) {
             return;
         }
@@ -3376,6 +3422,7 @@ class ToolBoxApp {
                 source,
                 primaryConnectionId: connectionContext?.primaryConnectionId ?? null,
                 secondaryConnectionId: connectionContext?.secondaryConnectionId ?? null,
+                connectionIds: connectionContext?.connectionIds,
             },
             timestamp: new Date().toISOString(),
         };

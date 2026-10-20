@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from "async_hooks";
 import * as zlib from "zlib";
 import { logError, logWarn } from "../../common/logger";
 import {
+    assertDataverseConnection,
     AttributeMetadataType,
     Connection,
     DataverseBatchRequest,
@@ -179,6 +180,8 @@ export class DataverseManager {
         if (!connection) {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }
+
+        assertDataverseConnection(connection);
 
         // Strategy 1: Interactive auth with MSAL account - use silent token acquisition
         // MSAL automatically handles token refresh if expired (no local server needed for refresh)

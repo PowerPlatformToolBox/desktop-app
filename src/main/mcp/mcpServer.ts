@@ -6,11 +6,13 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import { isDeepStrictEqual } from "util";
-import { resolveConnectionSlots } from "../../common/connectionSlots";
+import { resolveConnectionRequirements } from "../../common/connectionSlots";
+import { assertConnectionCompatible, validateConnectionAssignments } from "../../common/connectionCompatibility";
 import { logError, logInfo } from "../../common/logger";
 import { Connection, McpClientConfigStatus, McpServerStatus, ToolManifest, ToolMetadata } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
+import { FinanceOperationsManager } from "../managers/financeOperationsManager";
 import { DataverseManager } from "../managers/dataverseManager";
 import { HeadlessJobRecord, HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
 import { PowerPlatformManager } from "../managers/powerplatformManager";
@@ -60,7 +62,7 @@ interface InvocationMeta {
     executionMode?: AgentExecutionMode;
     authToken?: string;
     connectionName?: string;
-    connectionNames?: string[];
+    connectionNames?: Array<string | null>;
 }
 
 interface ResolvedHeadlessAuthContext {
@@ -70,9 +72,9 @@ interface ResolvedHeadlessAuthContext {
     connectionId?: string;
     connectionUrl?: string;
     connectionIds?: Array<string | null>;
-    connectionNames?: string[];
+    connectionNames?: Array<string | null>;
     connectionUrls?: Array<string | null>;
-    authTokens?: Array<string | undefined>;
+    authTokens?: Array<string | null | undefined>;
 }
 
 type InvocationLogParams = Parameters<typeof logInvocation>[0] & {
@@ -109,12 +111,12 @@ export function parseInvocationMeta(args: Record<string, unknown>): InvocationMe
     const timeoutMs = typeof raw.timeoutMs === "number" && Number.isFinite(raw.timeoutMs) && raw.timeoutMs > 0 ? Math.floor(raw.timeoutMs) : undefined;
     const authToken = typeof raw.authToken === "string" && raw.authToken.trim().length > 0 ? raw.authToken.trim() : undefined;
     const connectionName = typeof raw.connectionName === "string" && raw.connectionName.trim().length > 0 ? raw.connectionName.trim() : undefined;
-    let connectionNames: string[] | undefined;
+    let connectionNames: Array<string | null> | undefined;
     if (raw.connectionNames !== undefined) {
-        if (!Array.isArray(raw.connectionNames) || raw.connectionNames.some((name) => typeof name !== "string" || !name.trim())) {
-            throw new Error("connectionNames must be an array of non-empty saved connection names.");
+        if (!Array.isArray(raw.connectionNames) || Array.from(raw.connectionNames).some((name) => name !== null && (typeof name !== "string" || !name.trim()))) {
+            throw new Error("connectionNames must be an array of non-empty saved connection names (or null placeholders for explicit slots).");
         }
-        connectionNames = raw.connectionNames.map((name: string) => name.trim());
+        connectionNames = raw.connectionNames.map((name: string | null) => name?.trim() ?? null);
         if (connectionName && connectionNames[0]?.toLowerCase() !== connectionName.toLowerCase()) {
             throw new Error("connectionName must match connectionNames[0] when both are supplied.");
         }
@@ -257,6 +259,7 @@ export class McpServerManager {
     private connectionsManager: ConnectionsManager | null = null;
     private authManager: AuthManager | null = null;
     private dataverseManager: DataverseManager | null = null;
+    private financeOperationsManager: FinanceOperationsManager | null = null;
     private powerPlatformManager: PowerPlatformManager | null = null;
     private expectedToken: string;
     private agentToolsCache: { tools: AgentTool[] } | null = null;
@@ -307,6 +310,7 @@ export class McpServerManager {
         this.authManager = authManager;
         this.dataverseManager = new DataverseManager(connectionsManager, authManager, proxyManager);
         this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager, proxyManager);
+        this.financeOperationsManager = new FinanceOperationsManager(connectionsManager, authManager);
     }
 
     setJobChangeHandler(handler: ((jobId: string) => void) | null): void {
@@ -614,13 +618,14 @@ export class McpServerManager {
         throw new Error(`Timed out waiting for headless job '${jobId}' completion after ${timeoutMs} ms.`);
     }
 
-    private matchSavedConnections(names: string[]): { connections: Array<Connection | null>; unknownNames: string[] } {
+    private matchSavedConnections(names: Array<string | null>): { connections: Array<Connection | null>; unknownNames: string[] } {
         if (names.length > 0 && !this.connectionsManager) {
             throw new Error("Connection manager is not configured for named connections.");
         }
         const savedConnections = this.connectionsManager?.getConnections() ?? [];
         const unknownNames: string[] = [];
         const connections = names.map((name) => {
+            if (name === null) return null;
             const matches = savedConnections.filter((connection) => connection.name.trim().toLowerCase() === name.trim().toLowerCase());
             if (matches.length > 1) throw new Error(`Multiple connections found with name '${name}'. Please make names unique.`);
             if (matches.length === 0) {
@@ -718,25 +723,69 @@ export class McpServerManager {
         return authResult.accessToken;
     }
 
-    private assertConnectionCount(names: string[], range: { min: number; max: number }, toolName: string): void {
+    private assertConnectionCount(names: Array<string | null>, range: { min: number; max: number }, toolName: string): void {
         if (names.length > range.max) {
             throw new Error(range.max === 0 ? `Tool '${toolName}' does not accept connections.` : `Tool '${toolName}' accepts at most ${range.max} connections; received ${names.length}.`);
         }
     }
 
+    private connectionNamesSchema(manifest: ToolMetadata | null) {
+        const requirements = resolveConnectionRequirements(manifest?.features);
+        return {
+            type: "array",
+            items: { type: requirements.explicit ? ["string", "null"] : "string" },
+            maxItems: requirements.explicit ? requirements.max : 10,
+            description: requirements.explicit
+                ? `Saved PPTB connection names in declared slot order. Use null for unassigned optional slots; never reorder or compact indexes. ${requirements.slots
+                      .map((slot, index) => `${index}: ${slot.label} (${slot.connectionTypes.join(" or ")}; ${slot.required ? "required" : "optional"})`)
+                      .join(". ")}`
+                : "Saved PPTB connection names in slot order: index 0 is primary, index 1 secondary, and later indexes address additional slots.",
+        };
+    }
+
     private async resolveInvocationConnections(invocationMeta: InvocationMeta, manifest: ToolMetadata, headless: boolean): Promise<ResolvedHeadlessAuthContext> {
         const names = invocationMeta.connectionNames ?? (invocationMeta.connectionName ? [invocationMeta.connectionName] : []);
-        const range = resolveConnectionSlots(manifest.features);
-        this.assertConnectionCount(names, range, manifest.name);
-        if (headless && names.length < range.min) {
+        const range = resolveConnectionRequirements(manifest.features);
+        if (names.length > range.max) {
+            throw new Error(range.max === 0 ? `Tool '${manifest.name}' does not accept connections.` : `Tool '${manifest.name}' accepts at most ${range.max} connections; received ${names.length}.`);
+        }
+        if (!range.explicit && names.some((name) => name === null)) {
+            throw new Error("connectionNames must be an array of non-empty saved connection names for integer, range and legacy tools.");
+        }
+        // Preserve callback-only token support; typed slots always need saved identity.
+        if (!range.explicit && headless && invocationMeta.authToken && !names.length && range.max > 0 && range.min <= 1) {
+            return { authToken: invocationMeta.authToken, source: "provided-token" };
+        }
+        if (!range.explicit && headless && names.length < range.min) {
             throw new Error(`Tool '${manifest.name}' requires at least ${range.min} named connections; received ${names.length}. Supply connectionNames in slot order.`);
         }
-        const { connections: matched, unknownNames } = this.matchSavedConnections(names);
-        if (unknownNames.length > 0) throw new Error(`No saved connection found with name '${unknownNames[0]}'.`);
-        const connections = matched as Connection[];
-        const authTokens: Array<string | undefined> = [];
+        if (names.some((name) => name !== null) && !this.connectionsManager) throw new Error("Connection manager is not configured for named connections.");
+        const savedConnections = this.connectionsManager?.getConnections() ?? [];
+        const connections = names.map((name) => {
+            if (name === null) return null;
+            const matches = savedConnections.filter((connection) => connection.name.trim().toLowerCase() === name.trim().toLowerCase());
+            if (matches.length === 0) throw new Error(`No saved connection found with name '${name}'.`);
+            if (matches.length > 1) throw new Error(`Multiple connections found with name '${name}'. Please make names unique.`);
+            if (!range.explicit) assertConnectionCompatible(matches[0], manifest.features);
+            return matches[0];
+        });
+        if (range.explicit) {
+            const ids = validateConnectionAssignments(
+                connections.map((connection) => connection?.id ?? null),
+                manifest.features,
+                (id) => savedConnections.find((connection) => connection.id === id),
+                headless,
+            );
+            connections.length = ids.length;
+            for (let index = 0; index < ids.length; index++) connections[index] ??= null;
+        }
+        const authTokens: Array<string | null | undefined> = [];
         if (headless) {
             for (const [index, connection] of connections.entries()) {
+                if (!connection) {
+                    authTokens.push(null);
+                    continue;
+                }
                 const token = await this.acquireConnectionToken(connection, false);
                 authTokens.push(index === 0 && invocationMeta.authToken ? invocationMeta.authToken : token);
             }
@@ -744,16 +793,16 @@ export class McpServerManager {
         return this.buildResolvedContext(invocationMeta, connections, authTokens);
     }
 
-    private buildResolvedContext(invocationMeta: InvocationMeta, connections: Connection[], authTokens: Array<string | undefined>): ResolvedHeadlessAuthContext {
+    private buildResolvedContext(invocationMeta: InvocationMeta, connections: Array<Connection | null>, authTokens: Array<string | null | undefined>): ResolvedHeadlessAuthContext {
         return {
-            source: invocationMeta.authToken ? "provided-token" : connections.length ? "connection-name" : "none",
+            source: invocationMeta.authToken ? "provided-token" : connections.some(Boolean) ? "connection-name" : "none",
             connectionId: connections[0]?.id,
             connectionName: connections[0]?.name,
             connectionUrl: connections[0]?.url,
-            authToken: invocationMeta.authToken ?? authTokens[0],
-            connectionIds: connections.map((connection) => connection.id),
-            connectionNames: connections.map((connection) => connection.name),
-            connectionUrls: connections.map((connection) => connection.url),
+            authToken: invocationMeta.authToken ?? authTokens[0] ?? undefined,
+            connectionIds: connections.map((connection) => connection?.id ?? null),
+            connectionNames: connections.map((connection) => connection?.name ?? null),
+            connectionUrls: connections.map((connection) => connection?.url ?? null),
             authTokens,
         };
     }
@@ -768,20 +817,38 @@ export class McpServerManager {
         manifest: ToolMetadata,
     ): Promise<{ context?: ResolvedHeadlessAuthContext; connections?: ConnectionRequirement; authentication?: AuthenticationRequirement; messages: string[] }> {
         const names = invocationMeta.connectionNames ?? (invocationMeta.connectionName ? [invocationMeta.connectionName] : []);
-        const range = resolveConnectionSlots(manifest.features);
+        const range = resolveConnectionRequirements(manifest.features);
         this.assertConnectionCount(names, range, manifest.name);
+        if (!range.explicit && names.some((name) => name === null)) throw new Error("connectionNames must be an array of non-empty saved connection names for integer, range and legacy tools.");
+        if (!range.explicit && invocationMeta.authToken && !names.length && range.max > 0 && range.min <= 1)
+            return { context: { authToken: invocationMeta.authToken, source: "provided-token" }, messages: [] };
         if (range.min > 0 && !this.connectionsManager) {
             throw new Error("Connection manager is not configured for named connections.");
         }
 
         const { connections: matched, unknownNames } = this.matchSavedConnections(names);
+        const saved = this.connectionsManager?.getConnections() ?? [];
+        if (range.explicit) {
+            validateConnectionAssignments(
+                matched.map((connection) => connection?.id ?? null),
+                manifest.features,
+                (id) => saved.find((connection) => connection.id === id),
+                false,
+            );
+            while (matched.length < range.max) matched.push(null);
+        } else {
+            for (const connection of matched) if (connection) assertConnectionCompatible(connection, manifest.features);
+        }
+        const missingRequired = range.slots.some((slot, index) => slot.required && !matched[index]);
         const messages: string[] = unknownNames.map((name) => `No saved connection found with name '${name}'.`);
-        if (names.length < range.min) {
+        if (range.explicit && missingRequired) {
+            for (const [index, slot] of range.slots.entries()) if (slot.required && !matched[index]) messages.push(`Connection slot ${index + 1} (${slot.label}) is required.`);
+        } else if (missingRequired) {
             messages.push(`Tool '${manifest.name}' requires at least ${range.min} named connections; received ${names.length}.`);
         }
 
         let connectionRequirement: ConnectionRequirement | undefined;
-        if (unknownNames.length > 0 || names.length < range.min) {
+        if (unknownNames.length > 0 || missingRequired) {
             const savedConnections = this.connectionsManager?.getConnections() ?? [];
             const now = Date.now();
             connectionRequirement = {
@@ -797,11 +864,11 @@ export class McpServerManager {
             }
         }
 
-        const authTokens: Array<string | undefined> = [];
+        const authTokens: Array<string | null | undefined> = [];
         const needsSignIn: AuthenticationRequirement["connections"] = [];
         for (const [index, connection] of matched.entries()) {
             if (!connection) {
-                authTokens.push(undefined);
+                authTokens.push(range.explicit ? null : undefined);
                 continue;
             }
             try {
@@ -1087,7 +1154,7 @@ export class McpServerManager {
                 ...this.getBuiltInToolDefinitions(),
                 ...agentTools.map((tool) => {
                     const manifest = this.resolveExecutionManifest(tool.toolId);
-                    const range = manifest ? resolveConnectionSlots(manifest.features) : null;
+                    const range = manifest ? resolveConnectionRequirements(manifest.features) : null;
                     const connectionHint = range ? `; connections: ${range.min === range.max ? range.min : `${range.min}-${range.max}`}` : "";
                     const hasWindowedBackup = tool.executionModes.includes("headless") && tool.executionModes.includes("windowed");
                     return {
@@ -1124,14 +1191,7 @@ export class McpServerManager {
                                             type: "string",
                                             description: "Legacy alias for connectionNames[0]. Must match the first name when both are supplied.",
                                         },
-                                        connectionNames: {
-                                            type: "array",
-                                            items: { type: "string" },
-                                            maxItems: MAX_CONNECTION_NAMES,
-                                            description:
-                                                "Saved PPTB connection names in slot order: index 0 is primary, index 1 secondary, and later indexes address additional slots. " +
-                                                `If omitted or incomplete for a headless call, PPTB replies with input_required listing the available connections (name and environment) for the user to choose; ${LIST_CONNECTIONS_TOOL_NAME} returns the same list.`,
-                                        },
+                                        connectionNames: this.connectionNamesSchema(manifest),
                                     },
                                 },
                             },
@@ -1328,6 +1388,7 @@ export class McpServerManager {
                                         settingsManager: this.settingsManager,
                                         connectionsManager: this.connectionsManager ?? undefined,
                                         dataverseManager: this.dataverseManager ?? undefined,
+                                        financeOperationsManager: this.financeOperationsManager ?? undefined,
                                         powerPlatformManager: this.powerPlatformManager ?? undefined,
                                     },
                                 );

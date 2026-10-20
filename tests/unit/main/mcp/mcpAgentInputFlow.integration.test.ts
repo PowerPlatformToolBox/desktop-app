@@ -19,6 +19,7 @@ interface TestConnection {
     url: string;
     environment: string;
     authenticationType: string;
+    connectionType?: "dataverse" | "financeOperations";
     accessToken?: string;
     tokenExpiry?: string;
     clientSecret?: string;
@@ -73,6 +74,21 @@ describe("MCP agent-driven headless input flow", () => {
 
         directory = fs.mkdtempSync(path.join(os.tmpdir(), "pptb-mcp-agent-flow-"));
         const fixtures = [
+            {
+                id: "typed",
+                name: "Typed",
+                features: {
+                    connections: {
+                        slots: [
+                            { label: "Optional source", required: false },
+                            { label: "Required F&O", connectionTypes: ["financeOperations"] },
+                            { label: "Optional audit", required: false },
+                        ],
+                    },
+                },
+                agents: { invokable: true, headless: true, modes: ["two-way"] },
+                prefill: { type: "object", properties: {} },
+            },
             {
                 id: "single",
                 name: "Single",
@@ -168,6 +184,30 @@ describe("MCP agent-driven headless input flow", () => {
         }
         const filtered = await client.callTool({ name: "pptb_list_connections", arguments: { environment: "production" } });
         expect((filtered.structuredContent as any).connections.map((connection: { name: string }) => connection.name)).toEqual(["Contoso Prod"]);
+    });
+
+    it("preserves typed optional holes through agent input and rejects incompatible assignments before authentication", async () => {
+        connections.push({
+            id: "finops",
+            name: "F&O",
+            connectionType: "financeOperations",
+            url: "https://erp.example",
+            environment: "Dev",
+            authenticationType: "interactive",
+            accessToken: "fo-token",
+        });
+        const missing = payloadOf(await client.callTool({ name: "typed", arguments: {} }));
+        expect(missing.requirements.connections.slots).toEqual([
+            { index: 0, label: "Optional source", required: false },
+            { index: 1, label: "Required F&O", required: true },
+            { index: 2, label: "Optional audit", required: false },
+        ]);
+        const wrong = await client.callTool({ name: "typed", arguments: { __pptb: { connectionNames: [null, "Contoso Prod"] } } });
+        expect(textOf(wrong)).toContain("not compatible with slot 2");
+        expect(authManager.acquireTokenSilently).not.toHaveBeenCalled();
+        const result = await client.callTool({ name: "typed", arguments: { __pptb: { connectionNames: [null, "F&O"] } } });
+        expect(result.isError).not.toBe(true);
+        expect(result.structuredContent).toMatchObject({ names: [null, "F&O", null], tokens: [null, "fo-token", null] });
     });
 
     it("defaults to headless and returns connections plus missing parameters in one input_required response", async () => {

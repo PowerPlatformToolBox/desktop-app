@@ -3,6 +3,7 @@
 
 import type { WebContents } from "electron";
 import { EventEmitter } from "events";
+import { resolve } from "path";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../../../src/common/ipc/channels";
 import type { NativeWorkerConsentRecord, NativeWorkerConsentRequest, WorkerDeclaration } from "../../../../src/common/types";
 import type { NativeWorkerConsentStore, NativeWorkerIdentity } from "../../../../src/main/managers/nativeWorkerConsentManager";
@@ -195,12 +196,14 @@ describe("NativeWorkerConsentManager", () => {
     });
 
     it("binds the local feed path and exact package bytes into consent identity", () => {
-        const first = nativeWorkerConsentFingerprint(nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: "/tmp/feed-a", packageSha512: "a".repeat(86) + "==" } }, "worker"));
+        const first = nativeWorkerConsentFingerprint(
+            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: resolve("/tmp/feed-a"), packageSha512: "a".repeat(86) + "==" } }, "worker"),
+        );
         const changedPath = nativeWorkerConsentFingerprint(
-            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: "/tmp/feed-b", packageSha512: "a".repeat(86) + "==" } }, "worker"),
+            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: resolve("/tmp/feed-b"), packageSha512: "a".repeat(86) + "==" } }, "worker"),
         );
         const changedBytes = nativeWorkerConsentFingerprint(
-            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: "/tmp/feed-a", packageSha512: "b".repeat(86) + "==" } }, "worker"),
+            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: resolve("/tmp/feed-a"), packageSha512: "b".repeat(86) + "==" } }, "worker"),
         );
 
         expect(changedPath).not.toBe(first);

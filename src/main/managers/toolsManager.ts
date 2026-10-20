@@ -4,6 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { logError, logInfo, logWarn } from "../../common/logger";
+import { hasConnectionSlotDefinitions, resolveConnectionRequirements } from "../../common/connectionSlots";
 import {
     CapabilityTagEntry,
     CommunityLinksCollection,
@@ -86,6 +87,7 @@ export class ToolManager extends EventEmitter {
     }
 
     private createToolFromInstalledManifest(manifest: ToolManifest): Tool {
+        if (hasConnectionSlotDefinitions(manifest.features?.connections)) resolveConnectionRequirements(manifest.features);
         const tool: Tool = {
             id: manifest.id,
             name: manifest.name,
@@ -768,6 +770,7 @@ export class ToolManager extends EventEmitter {
         try {
             const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
             packageJson = JSON.parse(packageJsonContent) as ToolPackageJson;
+            if (hasConnectionSlotDefinitions(packageJson.features?.connections)) resolveConnectionRequirements(packageJson.features);
         } catch (error) {
             throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
         }
@@ -1008,6 +1011,7 @@ export class ToolManager extends EventEmitter {
         try {
             const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
             packageJson = JSON.parse(packageJsonContent) as ToolPackageJson;
+            if (hasConnectionSlotDefinitions(packageJson.features?.connections)) resolveConnectionRequirements(packageJson.features);
         } catch (error) {
             throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
         }

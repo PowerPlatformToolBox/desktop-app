@@ -24,6 +24,8 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         return;
     }
 
+    const connectionTypeSelect = document.getElementById("connection-type");
+    const isFinanceOperations = () => connectionTypeSelect?.value === "financeOperations";
     const authTypeSelect = document.getElementById("connection-authentication-type");
     const interactiveFields = document.getElementById("interactive-fields");
     const clientSecretFields = document.getElementById("client-secret-fields");
@@ -52,7 +54,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         "PowerAutomate.Flows.Read",
         "ResourceQuery.Resources.Read",
     ];
-    const supportsPowerPlatformApi = (authType) => authType === "interactive" || authType === "usernamePassword";
+    const supportsPowerPlatformApi = (authType) => !isFinanceOperations() && (authType === "interactive" || authType === "usernamePassword");
     let pendingConfigureSaveScript = "";
     const getBrowserProfileSelection = () => {
         const select = browserProfileSelect instanceof HTMLSelectElement ? browserProfileSelect : null;
@@ -84,6 +86,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     };
 
     const shouldShowConfigureFooter = () => {
+        if (isFinanceOperations()) return false;
         return Boolean(getCurrentClientId()) || (ppApiCheckbox instanceof HTMLInputElement && ppApiCheckbox.checked);
     };
 
@@ -227,13 +230,31 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const getDefaultEnvColor = (env) => ENV_COLORS[env] || "#2e7d32";
 
     const updateAuthVisibility = () => {
+        const finops = isFinanceOperations();
+        for (const option of authTypeSelect?.options || []) {
+            if (["usernamePassword", "connectionString"].includes(option.value)) { option.disabled = finops; option.hidden = finops; }
+        }
+        if (finops && ["usernamePassword", "connectionString"].includes(authTypeSelect?.value)) authTypeSelect.value = "interactive";
+        const help = document.getElementById("finance-operations-help");
+        if (help) help.style.display = finops ? "block" : "none";
+        const urlInput = document.getElementById("connection-url");
+        if (urlInput) urlInput.placeholder = finops ? "https://your-environment.operations.dynamics.com" : "https://org.crm.dynamics.com";
+        const tenantInput = document.getElementById("connection-tenant-id");
+        if (tenantInput) { tenantInput.required = finops; tenantInput.placeholder = finops ? "your-tenant-id" : "organizations"; }
+        const tenantLabel = document.getElementById("connection-tenant-id-label");
+        if (tenantLabel) tenantLabel.textContent = finops ? "Tenant ID (Required)" : "Tenant ID (Optional)";
+        if (interactiveClientIdInput) interactiveClientIdInput.placeholder = finops ? "your-app-client-id" : "51f81489-12ee-4a9e-aaae-a2591f45987d";
+        const clientHelp = document.getElementById("interactive-client-id-help");
+        if (clientHelp) clientHelp.textContent = finops ? "Enter your Entra application Client ID with Dynamics ERP delegated permissions." : "Override the default Azure AD App ID if needed. Leave empty to use the development app.";
+        const tenantHelp = document.getElementById("interactive-tenant-id-help");
+        if (tenantHelp) tenantHelp.textContent = finops ? "Enter the tenant that owns your F&O environment." : "Defaults to organizations for multi-tenant authentication.";
         const authType = authTypeSelect?.value || "interactive";
         const showPowerPlatformApiOption = supportsPowerPlatformApi(authType);
         if (interactiveFields) interactiveFields.style.display = authType === "interactive" ? "flex" : "none";
         if (clientSecretFields) clientSecretFields.style.display = authType === "clientSecret" ? "flex" : "none";
         if (usernamePasswordFields) usernamePasswordFields.style.display = authType === "usernamePassword" ? "flex" : "none";
         if (connectionStringFields) connectionStringFields.style.display = authType === "connectionString" ? "flex" : "none";
-        if (testButton) testButton.style.display = (authType === "interactive" || authType === "connectionString") ? "none" : "inline-flex";
+        if (testButton) testButton.style.display = ((authType === "interactive" && !finops) || authType === "connectionString") ? "none" : "inline-flex";
         if (ppApiWrapper) ppApiWrapper.style.display = showPowerPlatformApiOption ? "" : "none";
         if (ppApiHelp) ppApiHelp.style.display = showPowerPlatformApiOption ? "" : "none";
         if (!showPowerPlatformApiOption && ppApiCheckbox instanceof HTMLInputElement) {
@@ -244,7 +265,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     };
 
     const updatePowerPlatformClientIdRequirement = () => {
-        const requiresClientId = ppApiCheckbox instanceof HTMLInputElement ? ppApiCheckbox.checked : false;
+        const requiresClientId = isFinanceOperations() || (ppApiCheckbox instanceof HTMLInputElement ? ppApiCheckbox.checked : false);
 
         if (interactiveClientIdInput instanceof HTMLInputElement) {
             interactiveClientIdInput.required = requiresClientId;
@@ -254,7 +275,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         }
 
         if (interactiveClientIdLabel) {
-            interactiveClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
+            interactiveClientIdLabel.textContent = isFinanceOperations() ? "Client ID (Required)" : requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
         }
         if (usernamePasswordClientIdLabel) {
             usernamePasswordClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
@@ -386,6 +407,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         name: getInputValue("connection-name"),
         url: getInputValue("connection-url"),
         environment: (document.getElementById("connection-environment")?.value) || "Dev",
+        connectionType: connectionTypeSelect?.value || "dataverse",
         authenticationType: authTypeSelect?.value || "interactive",
         clientId: getInputValue("connection-client-id"),
         clientSecret: getInputValue("connection-client-secret"),
@@ -432,6 +454,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (!connection) return;
         
         connectionId = connection.id;
+        if (connectionTypeSelect) connectionTypeSelect.value = connection.connectionType || "dataverse";
         setInputValue("connection-name", connection.name);
         setInputValue("connection-url", connection.url);
         
@@ -575,6 +598,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     togglePasswordVisibility("toggle-client-secret", "connection-client-secret");
     togglePasswordVisibility("toggle-password", "connection-password");
 
+    connectionTypeSelect?.addEventListener("change", updateAuthVisibility);
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
 

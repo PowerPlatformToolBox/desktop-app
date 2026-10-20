@@ -125,7 +125,7 @@ describe("connection modal double-click controller wiring", () => {
         const connectSuccessStart = script.indexOf("if (payload?.channel === CHANNELS.connectReady && payload.data?.success && payload.data?.connectionId)");
         const connectFailureStart = script.indexOf("if (payload?.channel === CHANNELS.connectReady && payload.data?.success === false)");
         expect(connectSuccessStart).toBeGreaterThanOrEqual(0);
-        expect(script.slice(connectSuccessStart, connectFailureStart)).not.toContain("impersonateSlots.delete(slotIndex)");
+        expect(script.slice(connectSuccessStart, connectFailureStart)).toContain('?.connectionType === "financeOperations") impersonateSlots.delete(slotIndex)');
     });
 
     it("accepts a CSP-safe impersonation icon data URL", () => {
