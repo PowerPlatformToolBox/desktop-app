@@ -52,9 +52,15 @@ describe("Supabase tools_catalog mapping", () => {
         expect(() => mergeInstalledToolFeatures({ connections: 1 }, { connections: explicitConnections, connectionTypes: ["dataverse"] })).toThrow("cannot be combined");
     });
     it("does not relax package Power Platform API requirements when merging older catalog metadata", () => {
-        expect(mergeInstalledToolFeatures({ connections: 1, enabledForPowerPlatformAPI: false }, {
-            connections: { slots: [{}] }, enabledForPowerPlatformAPI: true,
-        })).toMatchObject({ connections: { slots: [{}] }, enabledForPowerPlatformAPI: true });
+        expect(
+            mergeInstalledToolFeatures(
+                { connections: 1, enabledForPowerPlatformAPI: false },
+                {
+                    connections: { slots: [{}] },
+                    enabledForPowerPlatformAPI: true,
+                },
+            ),
+        ).toMatchObject({ connections: { slots: [{}] }, enabledForPowerPlatformAPI: true });
     });
     it.each([["financeOperations"], ["dataverse", "financeOperations"]].map((types) => [types]))("preserves connection types in native and serialized registry values %p", (connectionTypes) => {
         for (const value of [connectionTypes, JSON.stringify(connectionTypes)]) {

@@ -2,12 +2,19 @@ import { isConnection, normalizeConnection, normalizeFinanceOperationsUrl, resol
 import { isConnectionCompatible, resolveSupportedConnectionTypes } from "../../../src/common/connectionCompatibility";
 
 const legacy: Connection = {
-    id: "legacy", name: "Legacy", url: "https://org.crm.dynamics.com", environment: "Dev",
-    authenticationType: "interactive", createdAt: "2026-10-07T00:00:00Z",
+    id: "legacy",
+    name: "Legacy",
+    url: "https://org.crm.dynamics.com",
+    environment: "Dev",
+    authenticationType: "interactive",
+    createdAt: "2026-10-07T00:00:00Z",
 };
 const finops: Connection = {
-    ...legacy, connectionType: "financeOperations", url: "https://example.operations.dynamics.com/data/",
-    clientId: "app-id", tenantId: "tenant-id",
+    ...legacy,
+    connectionType: "financeOperations",
+    url: "https://example.operations.dynamics.com/data/",
+    clientId: "app-id",
+    tenantId: "tenant-id",
 };
 
 describe("connection product contracts", () => {
@@ -32,9 +39,15 @@ describe("connection product contracts", () => {
     });
 
     it.each([
-        "http://example.com", "https://user:secret@example.com", "https://example.com?x=1",
-        "https://example.com#fragment", "https://example.com/data/Customers", "https://example.com/Metadata",
-        "https://example.com/a/../data", "https://example.com\\data", "https://example.com/%64ata",
+        "http://example.com",
+        "https://user:secret@example.com",
+        "https://example.com?x=1",
+        "https://example.com#fragment",
+        "https://example.com/data/Customers",
+        "https://example.com/Metadata",
+        "https://example.com/a/../data",
+        "https://example.com\\data",
+        "https://example.com/%64ata",
         "https://example.com/data//",
     ])("rejects an invalid F&O root %s", (url) => {
         expect(() => normalizeFinanceOperationsUrl(url)).toThrow();
@@ -44,16 +57,17 @@ describe("connection product contracts", () => {
         expect(() => normalizeConnection({ ...finops, authenticationType })).toThrow("authentication only");
     });
 
-    it.each([
-        { clientId: undefined }, { tenantId: " " }, { enabledForPowerPlatformAPI: true },
-        { powerPlatformAccessToken: "token" }, { scopesForPowerPlatformAPI: [] },
-    ])("rejects invalid F&O configuration %p", (overrides) => {
-        expect(isConnection({ ...finops, ...overrides })).toBe(false);
-    });
+    it.each([{ clientId: undefined }, { tenantId: " " }, { enabledForPowerPlatformAPI: true }, { powerPlatformAccessToken: "token" }, { scopesForPowerPlatformAPI: [] }])(
+        "rejects invalid F&O configuration %p",
+        (overrides) => {
+            expect(isConnection({ ...finops, ...overrides })).toBe(false);
+        },
+    );
 
     it("normalizes F&O URLs and allows incomplete secret exports", () => {
         expect(normalizeConnection({ ...finops, authenticationType: "clientSecret" })).toMatchObject({
-            connectionType: "financeOperations", url: "https://example.operations.dynamics.com",
+            connectionType: "financeOperations",
+            url: "https://example.operations.dynamics.com",
         });
     });
 

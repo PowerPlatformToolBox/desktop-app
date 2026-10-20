@@ -108,9 +108,21 @@ test("explicit slot launch and reassignment enforce types and required indexes t
 
     // Invalid launches must not leave views or open-instance records behind.
     const openBefore = await window.evaluate(() => window.toolboxAPI.getOpenToolWindows());
-    expect(await window.evaluate(async (tool) => window.toolboxAPI.launchToolWindow("e2e-mixed-connections-456-rejected", {
-        ...tool, features: { connections: { slots: [{}] } },
-    }, "e2e-dev-connection", "e2e-finops"), tool)).toBe(false);
+    expect(
+        await window.evaluate(
+            async (tool) =>
+                window.toolboxAPI.launchToolWindow(
+                    "e2e-mixed-connections-456-rejected",
+                    {
+                        ...tool,
+                        features: { connections: { slots: [{}] } },
+                    },
+                    "e2e-dev-connection",
+                    "e2e-finops",
+                ),
+            tool,
+        ),
+    ).toBe(false);
     for (const ids of [
         ["e2e-dev-connection", null],
         [null, "e2e-dev-connection"],

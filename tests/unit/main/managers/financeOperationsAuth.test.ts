@@ -10,17 +10,35 @@ const mockPublic = jest.fn();
 const mockAuthCodeUrl = jest.fn().mockResolvedValue("https://login.example/authorize");
 jest.mock("@azure/msal-node", () => ({
     LogLevel: { Warning: 2 },
-    ConfidentialClientApplication: function (config: unknown) { mockConfidential(config); return { acquireTokenByClientCredential: mockCredential }; },
-    PublicClientApplication: function (config: unknown) { mockPublic(config); return { getAuthCodeUrl: mockAuthCodeUrl, acquireTokenSilent: mockSilent, getTokenCache: () => ({ getAllAccounts: async () => [{ homeAccountId: "account" }] }) }; },
+    ConfidentialClientApplication: function (config: unknown) {
+        mockConfidential(config);
+        return { acquireTokenByClientCredential: mockCredential };
+    },
+    PublicClientApplication: function (config: unknown) {
+        mockPublic(config);
+        return { getAuthCodeUrl: mockAuthCodeUrl, acquireTokenSilent: mockSilent, getTokenCache: () => ({ getAllAccounts: async () => [{ homeAccountId: "account" }] }) };
+    },
 }));
 jest.mock("../../../../src/main/utilities/financeOperationsHttp", () => ({ ...jest.requireActual("../../../../src/main/utilities/financeOperationsHttp"), financeOperationsHttp: jest.fn() }));
 jest.mock("../../../../src/common/logger", () => ({ logWarn: jest.fn(), logInfo: jest.fn(), logError: jest.fn() }));
 
 describe("F&O authentication", () => {
-    const connection: Connection = { id: "erp", name: "ERP", connectionType: "financeOperations", url: "https://erp.example/data/", environment: "Test", authenticationType: "clientSecret", clientId: "app", clientSecret: "secret", tenantId: "tenant", createdAt: "2026-10-07" };
+    const connection: Connection = {
+        id: "erp",
+        name: "ERP",
+        connectionType: "financeOperations",
+        url: "https://erp.example/data/",
+        environment: "Test",
+        authenticationType: "clientSecret",
+        clientId: "app",
+        clientSecret: "secret",
+        tenantId: "tenant",
+        createdAt: "2026-10-07",
+    };
     let auth: AuthManager;
     beforeEach(() => {
-        jest.clearAllMocks(); auth = new AuthManager({} as BrowserManager);
+        jest.clearAllMocks();
+        auth = new AuthManager({} as BrowserManager);
         mockCredential.mockResolvedValue({ accessToken: "app-token", expiresOn: new Date() });
         mockSilent.mockResolvedValue({ accessToken: "user-token", expiresOn: new Date() });
         (financeOperationsHttp as jest.Mock).mockResolvedValue({ status: 200, headers: {}, body: { value: [] } });

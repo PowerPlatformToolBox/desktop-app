@@ -74,7 +74,7 @@ Omitted legacy fields use `multiConnection: "none"` and `connectionRequirement: 
 | `connections: -1`, `connections: 1.5`, or `connections: 11` | Validation error | Exact counts must be integers in 0–10.                                                                      |
 | `{ "min": 3, "max": 2 }`                                    | Validation error | Minimum exceeds maximum.                                                                                    |
 | `{ "max": 11 }` or `{ "min": -1 }`                          | Validation error | Bounds must be integers in 0–10.                                                                            |
-| `{ "maxx": 2 }`                                             | Validation error | A count/range object accepts only `min` and `max`; the separate opt-in slot object accepts only `slots`. |
+| `{ "maxx": 2 }`                                             | Validation error | A count/range object accepts only `min` and `max`; the separate opt-in slot object accepts only `slots`.    |
 | `features: {}`                                              | Validation error | Without modern `connections`, legacy `multiConnection` remains required when a features object is supplied. |
 
 #### New capabilities compared with legacy declarations

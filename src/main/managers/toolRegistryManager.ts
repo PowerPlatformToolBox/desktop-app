@@ -944,8 +944,8 @@ export class ToolRegistryManager extends EventEmitter {
         const minAPI: string | undefined = workers
             ? packageJson.features.minAPI
             : hasConnectionSlotDefinitions(installedFeatures?.connections) && installedFeatures?.minAPI && (!tool.minAPI || compareVersions(installedFeatures.minAPI, tool.minAPI) > 0)
-            ? installedFeatures.minAPI
-            : tool.minAPI;
+              ? installedFeatures.minAPI
+              : tool.minAPI;
 
         // Log if version info is missing (informational only, tools will still work as legacy)
         if (!minAPI) {

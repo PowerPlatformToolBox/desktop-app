@@ -142,8 +142,8 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, optionsO
     <div class="modal-body">
         <div class="info-message">
             This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${
-        isSecondaryRequired ? "both connections" : "at least a primary connection"
-    } to continue.
+                isSecondaryRequired ? "both connections" : "at least a primary connection"
+            } to continue.
         </div>
         <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
             <span>This tool uses Power Platform API. Selecting a connection that is not enabled for PP API may cause issues while using this tool.</span>
@@ -245,8 +245,8 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
             <button type="button" class="connection-slot-button" data-slot-index="${index}" aria-pressed="${index === 0 ? "true" : "false"}">
                 <span class="connection-slot-number">${index + 1}</span>
                 <span class="connection-slot-copy"><strong data-slot-name="${index}" title="${escapeHtml(assigned || "Not selected")}">${
-            assigned ? escapeHtml(assigned) : "Not selected"
-        }</strong></span>
+                    assigned ? escapeHtml(assigned) : "Not selected"
+                }</strong></span>
                 <span class="connection-badge ${required ? "required" : "optional"}">${required ? "Required" : "Optional"}</span>
             </button>
             ${required ? "" : `<button type="button" class="connection-slot-clear" data-clear-slot="${index}" aria-label="Remove connection slot ${index + 1}" title="Remove slot">&times;</button>`}
@@ -311,8 +311,8 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
         <div id="power-platform-api-info-multi" class="modal-warning" style="display:none;margin-bottom:12px"><span>This tool uses Power Platform API. Select connections enabled for PP API.</span></div>
         <div class="slot-selection-layout">
             <div id="connection-slot-rail" class="connection-slot-rail">${slots}${
-        options.slots ? "" : `<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ${initialSlotCount >= maxConnections ? "disabled" : ""}>+ Add connection</button>`
-    }</div>
+                options.slots ? "" : `<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ${initialSlotCount >= maxConnections ? "disabled" : ""}>+ Add connection</button>`
+            }</div>
             <div class="slot-connections-pane">
                 <h4 id="connection-slot-purpose" role="status" aria-live="polite">${options.slots ? `Choose a connection for ${escapeHtml(options.slots[0].label)}` : "Choose a connection"}</h4>
                 <div class="modal-search-container">

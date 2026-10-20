@@ -19,12 +19,17 @@ test("filters connection products and clears the selection", async ({ window }) 
 
 async function modalWith(app: ElectronApplication, selector: string): Promise<Page> {
     let page: Page | undefined;
-    await expect.poll(async () => {
-        for (const candidate of app.windows()) {
-            if (await candidate.locator(selector).count()) { page = candidate; return true; }
-        }
-        return false;
-    }).toBe(true);
+    await expect
+        .poll(async () => {
+            for (const candidate of app.windows()) {
+                if (await candidate.locator(selector).count()) {
+                    page = candidate;
+                    return true;
+                }
+            }
+            return false;
+        })
+        .toBe(true);
     return page!;
 }
 
@@ -60,7 +65,9 @@ test("adds and edits F&O through the regular connection UI", async ({ electronAp
     await edit.locator("#connection-tenant-id-cs").fill("22222222-2222-2222-2222-222222222222");
     await edit.locator("#connection-client-secret").fill("test-only-secret");
     await edit.locator("#confirm-connection-btn").click();
-    await expect.poll(() => window.evaluate(async () => (await window.toolboxAPI.connections.getAll()).find((connection) => connection.name === "UI F&O Sandbox")?.authenticationType)).toBe("clientSecret");
+    await expect
+        .poll(() => window.evaluate(async () => (await window.toolboxAPI.connections.getAll()).find((connection) => connection.name === "UI F&O Sandbox")?.authenticationType))
+        .toBe("clientSecret");
 });
 
 test("F&O-only picker hides Dataverse impersonation", async ({ electronApp, window }) => {
@@ -99,13 +106,27 @@ test("tool facade reads service document and XML through the real IPC handler", 
         https.request = (url: URL, options: unknown, callback: (response: unknown) => void) => {
             if (url.hostname !== "finops.operations.dynamics.com") return originalRequest(url, options, callback);
             const request = new EventEmitter();
-            request.destroy = (error: Error) => { request.emit("error", error); request.emit("close"); };
+            request.destroy = (error: Error) => {
+                request.emit("error", error);
+                request.emit("close");
+            };
             request.end = () => {
                 const response = new EventEmitter();
-                response.statusCode = url.searchParams.has("fail") ? 429 : 200; response.headers = { "retry-after": "10", "x-ms-request-id": "e2e-trace" };
+                response.statusCode = url.searchParams.has("fail") ? 429 : 200;
+                response.headers = { "retry-after": "10", "x-ms-request-id": "e2e-trace" };
                 callback(response);
-                response.emit("data", Buffer.from(url.searchParams.has("fail") ? '{"error":{"message":"throttled"}}' : url.pathname.endsWith("/$metadata") ? "<Edmx />" : '{"value":[{"name":"CustomersV3","kind":"EntitySet","url":"CustomersV3"}]}'));
-                response.emit("end"); request.emit("close");
+                response.emit(
+                    "data",
+                    Buffer.from(
+                        url.searchParams.has("fail")
+                            ? '{"error":{"message":"throttled"}}'
+                            : url.pathname.endsWith("/$metadata")
+                              ? "<Edmx />"
+                              : '{"value":[{"name":"CustomersV3","kind":"EntitySet","url":"CustomersV3"}]}',
+                    ),
+                );
+                response.emit("end");
+                request.emit("close");
             };
             return request;
         };

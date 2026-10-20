@@ -5,7 +5,10 @@ import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
 
 export class FinanceOperationsManager {
-    constructor(private readonly connections: ConnectionsManager, private readonly auth: AuthManager) {}
+    constructor(
+        private readonly connections: ConnectionsManager,
+        private readonly auth: AuthManager,
+    ) {}
 
     async request<T = unknown>(connectionId: string, method: FinanceOperationsMethod, path: string, body?: unknown, options: FinanceOperationsOptions = {}): Promise<FinanceOperationsResponse<T>> {
         if (!["GET", "POST", "PATCH", "PUT", "DELETE"].includes(method)) throw new Error("Unsupported F&O HTTP method.");
@@ -24,18 +27,19 @@ export class FinanceOperationsManager {
         const getToken = async (forceRefresh = false) => {
             const expiry = connection.tokenExpiry ? Date.parse(connection.tokenExpiry) : NaN;
             if (!forceRefresh && connection.accessToken && expiry > Date.now() + 60_000) return connection.accessToken;
-            const result = connection.authenticationType === "clientSecret"
-                ? await this.auth.authenticateClientSecret(connection, undefined, true, forceRefresh)
-                : await this.auth.acquireTokenSilently(connection, forceRefresh);
+            const result =
+                connection.authenticationType === "clientSecret"
+                    ? await this.auth.authenticateClientSecret(connection, undefined, true, forceRefresh)
+                    : await this.auth.acquireTokenSilently(connection, forceRefresh);
             this.connections.updateConnectionTokens(connectionId, result);
             return result.accessToken;
         };
         try {
-            return await financeOperationsHttp(url, method, await getToken(), snapshot, headers, timeoutMs) as FinanceOperationsResponse<T>;
+            return (await financeOperationsHttp(url, method, await getToken(), snapshot, headers, timeoutMs)) as FinanceOperationsResponse<T>;
         } catch (error) {
             // Writes/actions are never replayed after uncertain delivery.
             if (!(error instanceof FinanceOperationsHttpError) || error.status !== 401 || method !== "GET") throw error;
-            return await financeOperationsHttp(url, method, await getToken(true), snapshot, headers, timeoutMs) as FinanceOperationsResponse<T>;
+            return (await financeOperationsHttp(url, method, await getToken(true), snapshot, headers, timeoutMs)) as FinanceOperationsResponse<T>;
         }
     }
 }

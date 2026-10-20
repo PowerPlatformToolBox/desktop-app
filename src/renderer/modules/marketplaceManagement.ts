@@ -319,8 +319,8 @@ export async function loadMarketplace(): Promise<void> {
                 // Compact mode: icon, name, version, author only
                 return `
         <div class="marketplace-item-pptb marketplace-item-compact ${verifiedClass} ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${
-                    isUnsupported ? "unsupported" : ""
-                }" data-tool-id="${tool.id}">
+            isUnsupported ? "unsupported" : ""
+        }" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
@@ -643,8 +643,8 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                     <h2 class="tool-detail-tab-name">${escapeHtml(
                         tool.name,
                     )}${verifiedBadgeHtml}<span id="tool-detail-installed-badge" class="marketplace-item-installed-icon tool-detail-tab-installed-badge" ${
-        isInstalled ? "" : 'style="display:none"'
-    } aria-label="Installed" title="Installed">✓</span></h2>
+                        isInstalled ? "" : 'style="display:none"'
+                    } aria-label="Installed" title="Installed">✓</span></h2>
                     <p class="tool-detail-tab-description">${escapeHtml(tool.description || "")}</p>
                     <p class="tool-detail-tab-authors">By ${escapeHtml(authorsDisplay)}</p>
                     ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list" id="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}

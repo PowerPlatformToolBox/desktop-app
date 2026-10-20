@@ -12,7 +12,7 @@ jest.mock("https", () => ({ request: jest.fn() }));
 const fixtureText = (name: string) => readFileSync(join(__dirname, "../../fixtures/financeOperations", name), "utf8");
 const fixtureJson = (name: string) => JSON.parse(fixtureText(name));
 async function fixtureRequest<T>(method: FinanceOperationsMethod, path: string, body?: unknown, options?: FinanceOperationsOptions): Promise<FinanceOperationsResponse<T>> {
-    return await financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", path), method, "test-token", body, options?.headers) as FinanceOperationsResponse<T>;
+    return (await financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", path), method, "test-token", body, options?.headers)) as FinanceOperationsResponse<T>;
 }
 
 describe("F&O OData boundaries and keys", () => {
@@ -22,7 +22,18 @@ describe("F&O OData boundaries and keys", () => {
         expect(buildFinanceOperationsUrl(root, `${root}/data/CustomersV3?$skiptoken=abc`).search).toBe("?$skiptoken=abc");
         expect(buildFinanceOperationsUrl(root, "$metadata").pathname).toBe("/data/$metadata");
     });
-    it.each(["https://other.example/data/Customers", "https://erp.operations.dynamics.com/api/data", "../secret", "%2e%2e/secret", "%252e%252e/secret", "//other.example/data", "https://user:secret@erp.operations.dynamics.com/data", "Customers#fragment", "Customers\\..\\secret", "http://erp.operations.dynamics.com/data"])("rejects unsafe path %s", (path) => {
+    it.each([
+        "https://other.example/data/Customers",
+        "https://erp.operations.dynamics.com/api/data",
+        "../secret",
+        "%2e%2e/secret",
+        "%252e%252e/secret",
+        "//other.example/data",
+        "https://user:secret@erp.operations.dynamics.com/data",
+        "Customers#fragment",
+        "Customers\\..\\secret",
+        "http://erp.operations.dynamics.com/data",
+    ])("rejects unsafe path %s", (path) => {
         expect(() => buildFinanceOperationsUrl(root, path)).toThrow();
     });
     it.each(["Authorization", "Host", "Content-Length", "Cookie", "MSCRMCallerID"])("protects header %s", (name) => {
@@ -40,16 +51,22 @@ describe("F&O HTTP transport", () => {
     function respond(status: number, text: string | Buffer | { length: number }, headers: Record<string, string> = {}) {
         const request = new EventEmitter() as EventEmitter & { end: jest.Mock; destroy: jest.Mock };
         let activeResponse: EventEmitter | undefined;
-        request.destroy = jest.fn((error) => { activeResponse?.emit("aborted"); request.emit("error", error); request.emit("close"); });
+        request.destroy = jest.fn((error) => {
+            activeResponse?.emit("aborted");
+            request.emit("error", error);
+            request.emit("close");
+        });
         (https.request as jest.Mock).mockImplementation((_url, _options, callback) => {
             request.end = jest.fn(() => {
                 const response = new EventEmitter() as EventEmitter & { statusCode: number; headers: Record<string, string>; destroy: jest.Mock };
                 activeResponse = response;
                 response.destroy = jest.fn(() => response.emit("aborted"));
-                response.statusCode = status; response.headers = headers;
+                response.statusCode = status;
+                response.headers = headers;
                 callback(response);
                 response.emit("data", typeof text === "string" ? Buffer.from(text) : text);
-                response.emit("end"); request.emit("close");
+                response.emit("end");
+                request.emit("close");
             });
             return request;
         });
@@ -133,7 +150,12 @@ describe("F&O HTTP transport", () => {
     });
     it("surfaces throttling metadata and redacts tokens", async () => {
         respond(429, '{"error":{"message":"secret-token throttled"}}', { "retry-after": "10", "x-ms-request-id": "trace" });
-        await expect(financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", "Rows"), "GET", "secret-token")).rejects.toMatchObject({ status: 429, requestId: "trace", retryAfter: "10", message: "F&O HTTP 429: [redacted] throttled" });
+        await expect(financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", "Rows"), "GET", "secret-token")).rejects.toMatchObject({
+            status: 429,
+            requestId: "trace",
+            retryAfter: "10",
+            message: "F&O HTTP 429: [redacted] throttled",
+        });
     });
     it("rejects redirects without following them", async () => {
         respond(302, "", { location: "https://other.example" });
@@ -141,17 +163,24 @@ describe("F&O HTTP transport", () => {
         expect(https.request).toHaveBeenCalledTimes(1);
     });
     it("includes nested F&O validation messages without stack traces or tokens", async () => {
-        respond(400, JSON.stringify({ error: { message: "An error has occurred.", innererror: {
-            message: "Write failed for table CustTable.", stacktrace: "private-server-stack",
-            internalexception: { message: "Customer group secret-token does not exist.", type: "PrivateServerType" },
-        } } }));
+        respond(
+            400,
+            JSON.stringify({
+                error: {
+                    message: "An error has occurred.",
+                    innererror: {
+                        message: "Write failed for table CustTable.",
+                        stacktrace: "private-server-stack",
+                        internalexception: { message: "Customer group secret-token does not exist.", type: "PrivateServerType" },
+                    },
+                },
+            }),
+        );
         const result = financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", "CustomersV3"), "POST", "secret-token");
         await expect(result).rejects.toMatchObject({ status: 400, message: "F&O HTTP 400: An error has occurred. | Write failed for table CustTable. | Customer group [redacted] does not exist." });
     });
     it("handles OData message objects and detail arrays, deduplicating messages", async () => {
-        respond(400, JSON.stringify({ error: { message: { value: "Validation failed" },
-            details: [{ message: "Name is required" }, { message: "Name is required" }, { message: null }],
-        } }));
+        respond(400, JSON.stringify({ error: { message: { value: "Validation failed" }, details: [{ message: "Name is required" }, { message: "Name is required" }, { message: null }] } }));
         await expect(financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", "Rows"), "POST", "token")).rejects.toThrow("F&O HTTP 400: Validation failed | Name is required");
     });
     it("bounds validation messages and handles malformed error envelopes", async () => {
@@ -166,14 +195,19 @@ describe("F&O HTTP transport", () => {
         try {
             const request = new EventEmitter() as EventEmitter & { end: jest.Mock; destroy: jest.Mock };
             request.end = jest.fn();
-            request.destroy = jest.fn((error) => { request.emit("error", error); request.emit("close"); });
+            request.destroy = jest.fn((error) => {
+                request.emit("error", error);
+                request.emit("close");
+            });
             (https.request as jest.Mock).mockReturnValue(request);
             const promise = financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", "Rows"), "GET", "token", undefined, undefined, 1000);
             const result = expect(promise).rejects.toThrow("timed out");
             jest.advanceTimersByTime(1000);
             await result;
             expect(request.destroy).toHaveBeenCalledTimes(1);
-        } finally { jest.useRealTimers(); }
+        } finally {
+            jest.useRealTimers();
+        }
     });
     it("retains the timeout reason when cancellation aborts an active response", async () => {
         jest.useFakeTimers();
@@ -181,12 +215,21 @@ describe("F&O HTTP transport", () => {
             const request = new EventEmitter() as EventEmitter & { end: jest.Mock; destroy: jest.Mock };
             const response = new EventEmitter();
             request.end = jest.fn();
-            request.destroy = jest.fn((error) => { response.emit("aborted"); request.emit("error", error); request.emit("close"); });
-            (https.request as jest.Mock).mockImplementation((_url, _options, callback) => { callback(response); return request; });
+            request.destroy = jest.fn((error) => {
+                response.emit("aborted");
+                request.emit("error", error);
+                request.emit("close");
+            });
+            (https.request as jest.Mock).mockImplementation((_url, _options, callback) => {
+                callback(response);
+                return request;
+            });
             const result = expect(financeOperationsHttp(buildFinanceOperationsUrl("https://erp.example", "$metadata"), "GET", "token", undefined, undefined, 1000)).rejects.toThrow("timed out");
             jest.advanceTimersByTime(1000);
             await result;
-        } finally { jest.useRealTimers(); }
+        } finally {
+            jest.useRealTimers();
+        }
     });
     it("forwards facade targets and exposes a single page", async () => {
         const request = jest.fn().mockResolvedValue({ status: 200, headers: {}, body: { value: [], "@odata.nextLink": "next" } });

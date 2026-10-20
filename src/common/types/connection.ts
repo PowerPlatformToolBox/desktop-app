@@ -49,7 +49,12 @@ export function normalizeConnection(connection: Connection): NormalizedConnectio
     if (!connection.clientId?.trim() || !connection.tenantId?.trim()) {
         throw new Error("Finance & Operations requires a client ID and tenant ID.");
     }
-    if (connection.enabledForPowerPlatformAPI || connection.powerPlatformAccessToken !== undefined || connection.powerPlatformTokenExpiry !== undefined || connection.scopesForPowerPlatformAPI !== undefined) {
+    if (
+        connection.enabledForPowerPlatformAPI ||
+        connection.powerPlatformAccessToken !== undefined ||
+        connection.powerPlatformTokenExpiry !== undefined ||
+        connection.scopesForPowerPlatformAPI !== undefined
+    ) {
         throw new Error("Finance & Operations connections cannot enable Power Platform API access.");
     }
     return {

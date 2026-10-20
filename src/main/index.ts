@@ -242,7 +242,7 @@ class ToolBoxApp {
             this.authManager = new AuthManager(this.browserManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
-        this.financeOperationsManager = new FinanceOperationsManager(this.connectionsManager, this.authManager);
+            this.financeOperationsManager = new FinanceOperationsManager(this.connectionsManager, this.authManager);
             this.dataverseHeaderConsentManager = new DataverseHeaderConsentManager(
                 this.settingsManager,
                 () => this.mainWindow?.webContents ?? null,
@@ -1528,9 +1528,7 @@ class ToolBoxApp {
         // Tool-Connection mapping handlers
         const validateRememberedSlots = (toolId: string, connectionIds: Array<string | null>): Array<string | null> => {
             const features = this.toolManager.getRegistryManager().getInstalledManifestSync(toolId)?.features;
-            return hasConnectionSlotDefinitions(features?.connections)
-                ? validateConnectionAssignments(connectionIds, features, (id) => this.connectionsManager.getConnectionById(id))
-                : connectionIds;
+            return hasConnectionSlotDefinitions(features?.connections) ? validateConnectionAssignments(connectionIds, features, (id) => this.connectionsManager.getConnectionById(id)) : connectionIds;
         };
         ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, (_, toolId, connectionId) => {
             const ids = this.settingsManager.getToolConnectionSlots(toolId);
@@ -3328,7 +3326,11 @@ class ToolBoxApp {
         });
     }
 
-    private sendToolLaunchRequest(toolId: string, source: "recent" | "favorite", connectionContext?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; connectionIds?: Array<string | null> }): void {
+    private sendToolLaunchRequest(
+        toolId: string,
+        source: "recent" | "favorite",
+        connectionContext?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; connectionIds?: Array<string | null> },
+    ): void {
         if (!this.mainWindow) {
             return;
         }

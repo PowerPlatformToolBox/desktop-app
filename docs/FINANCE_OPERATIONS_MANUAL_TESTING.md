@@ -42,13 +42,13 @@ The example uses an unreleased typed-slot contract. Use the local updated branch
 
 ```json
 {
-  "query": "CustomersV3?$top=5",
-  "__pptb": {
-    "executionMode": "headless",
-    "mode": "two-way",
-    "connectionName": "F&O Client Secret",
-    "timeoutMs": 120000
-  }
+    "query": "CustomersV3?$top=5",
+    "__pptb": {
+        "executionMode": "headless",
+        "mode": "two-way",
+        "connectionName": "F&O Client Secret",
+        "timeoutMs": 120000
+    }
 }
 ```
 
@@ -61,20 +61,20 @@ Headless query invocations also accept an optional integer `pageSize` from `1` t
 
 ## Remaining live acceptance checks
 
-| Check | Recorded result (updated 2026-10-10) |
-| --- | --- |
-| Microsoft Login and OData reads | Passed, user confirmed |
-| Client-secret authentication / Test Connection | Passed, user confirmed |
-| Interactive silent renewal and client-secret renewal | Passed, user confirmed both live tests on 2026-10-09 |
-| Cross-company filtering | Passed, user confirmed |
-| Follow a real server-provided next link | Passed, user confirmed live paging on 2026-10-10 after adding the sample page-size option |
-| Restricted-user service-document probe | Passed: Test Connection and List entity sets succeeded, user confirmed on 2026-10-10 |
-| Restricted-user entity permission error | Passed: user supplied HTTP 403, "User is not authorized to read view CustCustomerV3Entity. Request denied." on 2026-10-10; raw HTTP 403 body captured and sanitized on 2026-10-10 |
-| Create a disposable CustomersV3 record | Passed after omitting the account number for environment numbering |
-| Retrieve using dataAreaId and CustomerAccount | Passed with explicit cross-company=true; default-scoped read returned 404 |
-| Update and delete the disposable record, then verify deletion | Passed, user confirmed PATCH/name verification/DELETE/final GET 404 |
-| Invoke an available action using `request` | Passed: collection-bound GetInstalledModules returned HTTP 200 and Collection(Edm.String) |
-| Same read in desktop and unattended client-secret execution | Passed, user confirmed headless MCP test |
+| Check                                                         | Recorded result (updated 2026-10-10)                                                                                                                                              |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Microsoft Login and OData reads                               | Passed, user confirmed                                                                                                                                                            |
+| Client-secret authentication / Test Connection                | Passed, user confirmed                                                                                                                                                            |
+| Interactive silent renewal and client-secret renewal          | Passed, user confirmed both live tests on 2026-10-09                                                                                                                              |
+| Cross-company filtering                                       | Passed, user confirmed                                                                                                                                                            |
+| Follow a real server-provided next link                       | Passed, user confirmed live paging on 2026-10-10 after adding the sample page-size option                                                                                         |
+| Restricted-user service-document probe                        | Passed: Test Connection and List entity sets succeeded, user confirmed on 2026-10-10                                                                                              |
+| Restricted-user entity permission error                       | Passed: user supplied HTTP 403, "User is not authorized to read view CustCustomerV3Entity. Request denied." on 2026-10-10; raw HTTP 403 body captured and sanitized on 2026-10-10 |
+| Create a disposable CustomersV3 record                        | Passed after omitting the account number for environment numbering                                                                                                                |
+| Retrieve using dataAreaId and CustomerAccount                 | Passed with explicit cross-company=true; default-scoped read returned 404                                                                                                         |
+| Update and delete the disposable record, then verify deletion | Passed, user confirmed PATCH/name verification/DELETE/final GET 404                                                                                                               |
+| Invoke an available action using `request`                    | Passed: collection-bound GetInstalledModules returned HTTP 200 and Collection(Edm.String)                                                                                         |
+| Same read in desktop and unattended client-secret execution   | Passed, user confirmed headless MCP test                                                                                                                                          |
 
 For write/action checks, use a sandbox entity and action selected by the environment owner. Record sanitized request paths, response status and keys, and confirm cleanup of the disposable record. Do not use production records as test fixtures.
 
@@ -89,7 +89,8 @@ const entities = await window.financeOperationsAPI.getServiceDocument();
 const page = await window.financeOperationsAPI.queryData("CustomersV3?$top=5");
 const metadata = await window.financeOperationsAPI.getMetadata();
 const record = await window.financeOperationsAPI.retrieve("CustomersV3", {
-    dataAreaId: "usmf", CustomerAccount: "C-001",
+    dataAreaId: "usmf",
+    CustomerAccount: "C-001",
 });
 // Every key field must match the entity's $metadata declaration.
 ```

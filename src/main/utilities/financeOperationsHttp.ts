@@ -13,8 +13,7 @@ function serviceErrorMessage(body: unknown, accessToken: string): string {
     function visit(value: unknown, depth = 0): void {
         if (!value || typeof value !== "object" || depth > 5 || messages.length >= 8) return;
         const record = value as Record<string, unknown>;
-        const message = typeof record.message === "string" ? record.message :
-            record.message && typeof record.message === "object" ? (record.message as Record<string, unknown>).value : undefined;
+        const message = typeof record.message === "string" ? record.message : record.message && typeof record.message === "object" ? (record.message as Record<string, unknown>).value : undefined;
         if (typeof message === "string" && message.trim()) {
             const bounded = message.trim().slice(0, 2000);
             if (!messages.includes(bounded)) messages.push(bounded);
@@ -31,7 +30,12 @@ function serviceErrorMessage(body: unknown, accessToken: string): string {
 
 export class FinanceOperationsHttpError extends Error {
     readonly code = "FINANCE_OPERATIONS_HTTP_ERROR";
-    constructor(message: string, readonly status?: number, readonly requestId?: string, readonly retryAfter?: string) {
+    constructor(
+        message: string,
+        readonly status?: number,
+        readonly requestId?: string,
+        readonly retryAfter?: string,
+    ) {
         super(message);
         this.name = "FinanceOperationsHttpError";
     }
@@ -47,7 +51,11 @@ export function buildFinanceOperationsUrl(root: string, path: string): URL {
     for (let i = 0; i < 5; i++) {
         if (decoded.includes("\\") || decoded.split("/").some((part) => part === "." || part === "..")) throw new Error("F&O paths cannot contain traversal segments.");
         let next: string;
-        try { next = decodeURIComponent(decoded); } catch { break; }
+        try {
+            next = decodeURIComponent(decoded);
+        } catch {
+            break;
+        }
         if (next === decoded) break;
         decoded = next;
         if (i === 4) throw new Error("F&O path encoding is too deeply nested.");
@@ -71,7 +79,14 @@ export function validateFinanceOperationsHeaders(headers?: Record<string, string
     return result;
 }
 
-export function financeOperationsHttp(url: URL, method: FinanceOperationsMethod, accessToken: string, body?: unknown, headers?: Record<string, string>, timeoutMs = 30_000): Promise<FinanceOperationsResponse> {
+export function financeOperationsHttp(
+    url: URL,
+    method: FinanceOperationsMethod,
+    accessToken: string,
+    body?: unknown,
+    headers?: Record<string, string>,
+    timeoutMs = 30_000,
+): Promise<FinanceOperationsResponse> {
     const metadata = url.pathname.endsWith("/$metadata");
     const responseLimit = metadata ? MAX_METADATA_BYTES : MAX_BYTES;
     const customHeaders = validateFinanceOperationsHeaders(headers);
@@ -79,52 +94,76 @@ export function financeOperationsHttp(url: URL, method: FinanceOperationsMethod,
     const serialized = body === undefined ? undefined : JSON.stringify(body);
     if (serialized !== undefined && Buffer.byteLength(serialized) > MAX_BYTES) throw new Error("F&O request exceeds the 20 MB size limit.");
     return new Promise((resolve, reject) => {
-        const req = https.request(url, { method, headers: {
-            Accept: metadata ? "application/xml" : "application/json",
-            "OData-Version": "4.0", "OData-MaxVersion": "4.0", "Accept-Encoding": "gzip, deflate, br",
-            ...(serialized !== undefined ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(serialized) } : {}),
-            ...customHeaders, Authorization: `Bearer ${accessToken}`,
-        } }, (res) => {
-            const chunks: Buffer[] = [];
-            let size = 0;
-            res.on("data", (chunk: Buffer) => {
-                size += chunk.length;
-                if (size > responseLimit) {
-                    const error = new Error(`F&O ${metadata ? "metadata" : "response"} exceeds the ${responseLimit / (1024 * 1024)} MB size limit.`);
-                    // Destroying the request can synchronously abort its response. Settle
-                    // first so the generic aborted event cannot hide the real cause.
-                    reject(error);
-                    req.destroy(error);
-                    res.destroy();
-                }
-                else chunks.push(chunk);
-            });
-            res.on("error", reject);
-            res.on("aborted", () => reject(new Error("F&O response was interrupted.")));
-            res.on("end", () => {
-                try {
-                    let bytes = Buffer.concat(chunks);
-                    const decompressOptions = { maxOutputLength: responseLimit };
-                    if (res.headers["content-encoding"] === "gzip") bytes = gunzipSync(bytes, decompressOptions);
-                    else if (res.headers["content-encoding"] === "deflate") bytes = inflateSync(bytes, decompressOptions);
-                    else if (res.headers["content-encoding"] === "br") bytes = brotliDecompressSync(bytes, decompressOptions);
-                    const text = bytes.toString("utf8");
-                    const status = res.statusCode ?? 0;
-                    const responseHeaders = Object.fromEntries(Object.entries(res.headers).filter(([, value]) => value !== undefined).map(([key, value]) => [key, Array.isArray(value) ? value.join(", ") : String(value)]));
-                    let parsed: unknown;
-                    if (text) {
-                        try { parsed = JSON.parse(text); } catch {
-                            if (url.pathname.endsWith("/$metadata") && status >= 200 && status < 300) parsed = text;
-                            else if (status >= 200 && status < 300) throw new Error("F&O returned a non-JSON response.");
+        const req = https.request(
+            url,
+            {
+                method,
+                headers: {
+                    Accept: metadata ? "application/xml" : "application/json",
+                    "OData-Version": "4.0",
+                    "OData-MaxVersion": "4.0",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    ...(serialized !== undefined ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(serialized) } : {}),
+                    ...customHeaders,
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            },
+            (res) => {
+                const chunks: Buffer[] = [];
+                let size = 0;
+                res.on("data", (chunk: Buffer) => {
+                    size += chunk.length;
+                    if (size > responseLimit) {
+                        const error = new Error(`F&O ${metadata ? "metadata" : "response"} exceeds the ${responseLimit / (1024 * 1024)} MB size limit.`);
+                        // Destroying the request can synchronously abort its response. Settle
+                        // first so the generic aborted event cannot hide the real cause.
+                        reject(error);
+                        req.destroy(error);
+                        res.destroy();
+                    } else chunks.push(chunk);
+                });
+                res.on("error", reject);
+                res.on("aborted", () => reject(new Error("F&O response was interrupted.")));
+                res.on("end", () => {
+                    try {
+                        let bytes = Buffer.concat(chunks);
+                        const decompressOptions = { maxOutputLength: responseLimit };
+                        if (res.headers["content-encoding"] === "gzip") bytes = gunzipSync(bytes, decompressOptions);
+                        else if (res.headers["content-encoding"] === "deflate") bytes = inflateSync(bytes, decompressOptions);
+                        else if (res.headers["content-encoding"] === "br") bytes = brotliDecompressSync(bytes, decompressOptions);
+                        const text = bytes.toString("utf8");
+                        const status = res.statusCode ?? 0;
+                        const responseHeaders = Object.fromEntries(
+                            Object.entries(res.headers)
+                                .filter(([, value]) => value !== undefined)
+                                .map(([key, value]) => [key, Array.isArray(value) ? value.join(", ") : String(value)]),
+                        );
+                        let parsed: unknown;
+                        if (text) {
+                            try {
+                                parsed = JSON.parse(text);
+                            } catch {
+                                if (url.pathname.endsWith("/$metadata") && status >= 200 && status < 300) parsed = text;
+                                else if (status >= 200 && status < 300) throw new Error("F&O returned a non-JSON response.");
+                            }
                         }
+                        if (status < 200 || status >= 300) {
+                            const safeMessage = serviceErrorMessage(parsed, accessToken);
+                            reject(
+                                new FinanceOperationsHttpError(
+                                    `F&O HTTP ${status}: ${safeMessage}`,
+                                    status,
+                                    responseHeaders["x-ms-request-id"] || responseHeaders["request-id"],
+                                    responseHeaders["retry-after"],
+                                ),
+                            );
+                        } else resolve({ status, headers: responseHeaders, ...(parsed !== undefined ? { body: parsed } : {}) });
+                    } catch (error) {
+                        reject(error);
                     }
-                    if (status < 200 || status >= 300) {
-                        const safeMessage = serviceErrorMessage(parsed, accessToken);
-                        reject(new FinanceOperationsHttpError(`F&O HTTP ${status}: ${safeMessage}`, status, responseHeaders["x-ms-request-id"] || responseHeaders["request-id"], responseHeaders["retry-after"]));
-                    } else resolve({ status, headers: responseHeaders, ...(parsed !== undefined ? { body: parsed } : {}) });
-                } catch (error) { reject(error); }
-            });
-        });
+                });
+            },
+        );
         const timeout = setTimeout(() => {
             const error = new Error("F&O request timed out.");
             reject(error);

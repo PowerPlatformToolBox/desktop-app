@@ -38,7 +38,11 @@ export function financeOperationsRecordPath(entitySet: string, key: FinanceOpera
         else if (value && typeof value === "object" && Object.keys(value).length === 1 && typeof value.odataLiteral === "string") {
             literal = value.odataLiteral;
             // Explicit literals cover decimal/int64, GUID, date/time and named enum keys.
-            if (!/^(?:-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?|[A-Za-z_][\w.]*'[A-Za-z_][\w]*')$/.test(literal)) {
+            if (
+                !/^(?:-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?|[A-Za-z_][\w.]*'[A-Za-z_][\w]*')$/.test(
+                    literal,
+                )
+            ) {
                 throw new Error("Unsupported OData key literal.");
             }
         } else throw new Error("Unsupported F&O key value; use an explicit literal for large numeric keys.");
@@ -70,7 +74,8 @@ export function createFinanceOperationsAPI(request: FinanceOperationsRequest) {
             if (!identifier.test(entitySet)) throw new Error("Invalid F&O entity-set name.");
             return request<T>("POST", entitySet, data, options);
         },
-        update: (entitySet: string, key: FinanceOperationsKey, data: Record<string, unknown>, options?: FinanceOperationsOptions) => request("PATCH", financeOperationsRecordPath(entitySet, key), data, options),
+        update: (entitySet: string, key: FinanceOperationsKey, data: Record<string, unknown>, options?: FinanceOperationsOptions) =>
+            request("PATCH", financeOperationsRecordPath(entitySet, key), data, options),
         delete: (entitySet: string, key: FinanceOperationsKey, options?: FinanceOperationsOptions) => request("DELETE", financeOperationsRecordPath(entitySet, key), undefined, options),
         getServiceDocument: async (options?: FinanceOperationsOptions): Promise<FinanceOperationsServiceDocument> => {
             const result = await request<FinanceOperationsServiceDocument>("GET", "", undefined, options);

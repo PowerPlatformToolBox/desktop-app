@@ -94,10 +94,12 @@ test.describe("Multi-connection selection modal", () => {
         await expandToolsSidebar(window);
         await window.locator('#sidebar-tools-list .tool-item-pptb[data-tool-id="e2e-finops-connection"]').click();
         let modal: Page | null = null;
-        await expect.poll(async () => {
-            modal = await findWindowWithSelector(electronApp.windows(), "#connections-list-container");
-            return modal !== null;
-        }).toBe(true);
+        await expect
+            .poll(async () => {
+                modal = await findWindowWithSelector(electronApp.windows(), "#connections-list-container");
+                return modal !== null;
+            })
+            .toBe(true);
         await expect(modal!.locator(".connection-item")).toHaveCount(1);
         await expect(modal!.locator("#connections-list-container")).toContainText("E2E Finance Operations");
         await expect(modal!.locator("#connections-list-container")).not.toContainText("E2E Development");

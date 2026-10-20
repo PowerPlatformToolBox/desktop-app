@@ -49,7 +49,7 @@ describe("ToolWindowManager connection slot routing", () => {
         const view = new BrowserView();
         (manager as any).toolViews.set("tool-1", view);
         (manager as any).toolConnectionFeatures.set("tool-1", { connections: 3, connectionTypes: ["dataverse", "financeOperations"] });
-        connectionsManager.getConnectionById.mockImplementation((id) => ({ id, name: id, url: `https://${id}.example`, connectionType: id === "finops" ? "financeOperations" : "dataverse" } as any));
+        connectionsManager.getConnectionById.mockImplementation((id) => ({ id, name: id, url: `https://${id}.example`, connectionType: id === "finops" ? "financeOperations" : "dataverse" }) as any);
         await manager.updateToolConnections("tool-1", ["primary-id", null, "finops"]);
         expect((manager as any).toolConnectionInfo.get("tool-1").connectionIds).toEqual(["primary-id", null, "finops"]);
         expect(() => manager.setImpersonation("tool-1", { azureactivedirectoryobjectid: "00000000-0000-0000-0000-000000000001" } as any, 2)).toThrow("requires a Dataverse connection");

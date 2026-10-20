@@ -723,7 +723,10 @@ export class AuthManager {
             // Enhance error message for permission-related failures
             const errorMessage = (error as Error).message;
             if (errorMessage.includes("401") || errorMessage.includes("403")) {
-                if (connection.connectionType === "financeOperations") throw new Error("F&O access was denied. Check Dynamics ERP permissions and consent, the F&O user security roles, and the Microsoft Entra application-to-user mapping for client-secret authentication.");
+                if (connection.connectionType === "financeOperations")
+                    throw new Error(
+                        "F&O access was denied. Check Dynamics ERP permissions and consent, the F&O user security roles, and the Microsoft Entra application-to-user mapping for client-secret authentication.",
+                    );
                 throw new Error("You do not have permission to access this environment. Please verify the user account matches the selected environment.");
             }
             throw new Error(`Environment access validation failed: ${errorMessage}`);

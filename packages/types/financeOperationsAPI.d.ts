@@ -50,8 +50,12 @@ declare namespace FinanceOperationsAPI {
 }
 declare global {
     var financeOperationsAPI: FinanceOperationsAPI.API;
-    interface Window { financeOperationsAPI: FinanceOperationsAPI.API; }
-    interface GlobalThis { financeOperationsAPI: FinanceOperationsAPI.API; }
+    interface Window {
+        financeOperationsAPI: FinanceOperationsAPI.API;
+    }
+    interface GlobalThis {
+        financeOperationsAPI: FinanceOperationsAPI.API;
+    }
 }
 export = FinanceOperationsAPI;
 export as namespace FinanceOperationsAPI;

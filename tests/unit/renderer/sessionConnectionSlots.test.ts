@@ -26,7 +26,7 @@ describe("session connection slots", () => {
             {
                 connections: { slots: [{ required: false }, { connectionTypes: ["financeOperations"] }, { required: false }] },
             },
-            async (id) => ({ id, connectionType: "financeOperations", authenticationType: "interactive" } as Connection),
+            async (id) => ({ id, connectionType: "financeOperations", authenticationType: "interactive" }) as Connection,
         );
         expect(ids).toEqual([null, "fo", null]);
     });

@@ -18,15 +18,15 @@ Last reviewed: **2026-10-14**. **Complete** means implemented and verified for t
 
 Phase 6 verification (2026-10-14): **46 additional Electron cases** close the automated scenario gaps: 26 default/integer/range/legacy declarations, seven actual cold restarts, seven typed/default/optional/Power Platform/invocation/impersonation workflows, four connection-management/authentication workflows and two installation workflows. Existing MCP tests additionally exercise singular/array/token inputs, connectionless calls, ambiguous names and expired sessions. The complete suite executed **121 tests** (120 initial passes; one closed-window discovery race in the new test helper was fixed and its restart case passed the focused retry and `--last-failed`). There are no skipped or unresolved failing scenarios. The actual marketplace Install-button case also passed a focused run after its UI assertion was added. **286 targeted tests**, application and strict E2E type checks, and the Electron build passed. Long-purpose, light and narrow dark picker screenshots were inspected. The declaration matrix exposed count/range reassignment retaining excess slots; runtime now bounds these arrays exactly as launch already does, while explicit excess assignments remain atomic rejections. All named mappings and external-boundary qualifications are in the [coverage inventory](CONNECTION_SLOT_E2E_COVERAGE.md).
 
-| Plan area | Current status |
-| --- | --- |
-| 1. Contract, types, validation, resolver | Complete |
-| 2. Registry and installation metadata | Partial — supported repository loading/install routes and marketplace UI verified; external intake support pending |
-| 3. Main-process enforcement and persistence | Complete — runtime, remembered assignments and typed cold-restoration/manifest-change scenarios verified |
-| 4. Picker, runtime controls, purpose and product labels | Complete — automated scenario matrix, marketplace summaries and representative rendering verified |
-| 5. MCP and headless invocation | Complete — protocol, actual headless entry/API routing and windowed picker verified |
+| Plan area                                                            | Current status                                                                                                                            |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Contract, types, validation, resolver                             | Complete                                                                                                                                  |
+| 2. Registry and installation metadata                                | Partial — supported repository loading/install routes and marketplace UI verified; external intake support pending                        |
+| 3. Main-process enforcement and persistence                          | Complete — runtime, remembered assignments and typed cold-restoration/manifest-change scenarios verified                                  |
+| 4. Picker, runtime controls, purpose and product labels              | Complete — automated scenario matrix, marketplace summaries and representative rendering verified                                         |
+| 5. MCP and headless invocation                                       | Complete — protocol, actual headless entry/API routing and windowed picker verified                                                       |
 | 6. Example migration, author documentation and release compatibility | Partial — typed example and author/manual/MCP documentation complete; 1.3.0 selected; actual older-app acceptance and publication pending |
-| 7. Full verification and live acceptance | Partial — automated matrix and full-suite execution complete; live acceptance pending |
+| 7. Full verification and live acceptance                             | Partial — automated matrix and full-suite execution complete; live acceptance pending                                                     |
 
 ### Contract and shared logic
 
@@ -134,12 +134,12 @@ The existing integer and `{ min, max }` model remains the default and fallback c
 
 Supported forms:
 
-| Form | Behavior |
-| --- | --- |
-| `connections: 2` | Exactly two required connections. |
-| `connections: { min: 0, max: 10 }` | Existing range behavior; the first `min` slots are required. |
-| `connections: { slots: [...] }` | Fixed ordered slot definitions, each with its own types and required status. |
-| Existing legacy fields or omitted connections | Existing compatibility defaults and behavior. |
+| Form                                          | Behavior                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------- |
+| `connections: 2`                              | Exactly two required connections.                                            |
+| `connections: { min: 0, max: 10 }`            | Existing range behavior; the first `min` slots are required.                 |
+| `connections: { slots: [...] }`               | Fixed ordered slot definitions, each with its own types and required status. |
+| Existing legacy fields or omitted connections | Existing compatibility defaults and behavior.                                |
 
 Rules for the new form:
 
@@ -234,15 +234,15 @@ Use **Dataverse** and **F&O** consistently. Provide **Dynamics 365 Finance & Ope
 
 Audit and update these surfaces:
 
-| Surface | Intended presentation |
-| --- | --- |
-| Connections sidebar/management lists | Product badge beside existing connection metadata. Preserve and standardize the badges already present. |
-| Single-connection picker | Product badge on every selectable connection row. |
-| Multi-connection picker | Product badge on each available connection row and each populated slot summary; allowed-product text on unassigned explicit slots. |
-| Runtime connection switching | Product label alongside the connection name in selection menus and assigned-connection summaries. |
-| Tool tab/status summaries | Include product in the connection summary and accessible text/tooltip where the compact layout cannot display the full connection description. |
-| Invocation and session-restoration selection | Use the same labeled picker and slot summaries as ordinary launch. |
-| Import selection/review surfaces, where individual connections are listed | Include product when the source provides it; normalize legacy records consistently before labeling. |
+| Surface                                                                   | Intended presentation                                                                                                                          |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Connections sidebar/management lists                                      | Product badge beside existing connection metadata. Preserve and standardize the badges already present.                                        |
+| Single-connection picker                                                  | Product badge on every selectable connection row.                                                                                              |
+| Multi-connection picker                                                   | Product badge on each available connection row and each populated slot summary; allowed-product text on unassigned explicit slots.             |
+| Runtime connection switching                                              | Product label alongside the connection name in selection menus and assigned-connection summaries.                                              |
+| Tool tab/status summaries                                                 | Include product in the connection summary and accessible text/tooltip where the compact layout cannot display the full connection description. |
+| Invocation and session-restoration selection                              | Use the same labeled picker and slot summaries as ordinary launch.                                                                             |
+| Import selection/review surfaces, where individual connections are listed | Include product when the source provides it; normalize legacy records consistently before labeling.                                            |
 
 Centralize product-to-label formatting rather than embedding different strings in each renderer/template. Resolve the product from connection metadata using the existing discriminator/default rules, never from the connection name or hostname. Legacy records without a product discriminator display Dataverse; invalid explicit products must not silently receive a Dataverse label.
 
@@ -274,41 +274,41 @@ Set the example's minimum supported API/app version to the actual release introd
 
 Extend existing suites rather than duplicating their coverage:
 
-| Area | Required checks |
-| --- | --- |
-| Types and validator | All three forms; defaults; 1/10-slot boundaries; invalid keys/types; forbidden combinations; legacy compatibility. |
-| Shared resolver | Optional-before-required; multiple allowed products; Dataverse default; stable indexes and nulls. |
-| Main process | Valid launch/update; missing required slot; wrong product; extra slot; atomic rejection; inheritance; impersonation guards. |
-| Registry and settings | Native/serialized slots; package retention; stale catalog features; restore after manifest changes. |
-| Picker | Purpose label in the selection dialog and updates when changing slots; labels persist during search/filtering; fallback labels and escaping; per-slot filtering; optional clear; required confirmation; single explicit slot; count/range regression. |
-| Product labels | Same-name mixed-product connections; legacy Dataverse default; labels in filtered lists and assigned slots; accessible F&O expansion; search; reassignment; light/dark and narrow layouts. |
-| MCP/headless | Schema/argument compatibility; named connections in declared order; null holes; incompatible products; missing required slots; API routing. |
-| Mixed example | Real preload/IPC/API-manager routing to Dataverse slot 0 and F&O slot 1; independent failures; wrong-slot reassignment rejected. |
+| Area                  | Required checks                                                                                                                                                                                                                                       |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Types and validator   | All three forms; defaults; 1/10-slot boundaries; invalid keys/types; forbidden combinations; legacy compatibility.                                                                                                                                    |
+| Shared resolver       | Optional-before-required; multiple allowed products; Dataverse default; stable indexes and nulls.                                                                                                                                                     |
+| Main process          | Valid launch/update; missing required slot; wrong product; extra slot; atomic rejection; inheritance; impersonation guards.                                                                                                                           |
+| Registry and settings | Native/serialized slots; package retention; stale catalog features; restore after manifest changes.                                                                                                                                                   |
+| Picker                | Purpose label in the selection dialog and updates when changing slots; labels persist during search/filtering; fallback labels and escaping; per-slot filtering; optional clear; required confirmation; single explicit slot; count/range regression. |
+| Product labels        | Same-name mixed-product connections; legacy Dataverse default; labels in filtered lists and assigned slots; accessible F&O expansion; search; reassignment; light/dark and narrow layouts.                                                            |
+| MCP/headless          | Schema/argument compatibility; named connections in declared order; null holes; incompatible products; missing required slots; API routing.                                                                                                           |
+| Mixed example         | Real preload/IPC/API-manager routing to Dataverse slot 0 and F&O slot 1; independent failures; wrong-slot reassignment rejected.                                                                                                                      |
 
 ### Required E2E regression matrix
 
 E2E coverage is a completion requirement for both existing connection behavior and the new explicit-slot form. Inventory current coverage, map each scenario below to a named test, and add missing tests. Do not consider a scenario covered solely by a resolver or validator unit test. Use parameterized fixtures for declaration variants and representative workflow tests for their effects; avoid multiplying every unrelated setting into a full Cartesian product.
 
-| Scenario group | Required E2E scenarios and assertions |
-| --- | --- |
-| Existing default and integer declarations | No features, omitted `connections`, exact counts 0, 1, 2, and 10. Confirm absent slots use the existing default/fallback behavior, correct picker/connectionless launch, required-slot confirmation, maximum enforcement, and unchanged Primary/Secondary/numeric targeting. |
-| Existing range declarations | Empty object/defaults; min-only and max-only defaults; ranges 0–1, 0–3, 1–2, 3–4, and 0–10. Cover zero-assignment launch, required prefixes, adding/removing optional slots, bounds, sparse assignment arrays, and runtime changes. |
-| Legacy declarations | Parameterize every supported `multiConnection`/`connectionRequirement` combination, including omitted fields. Assert expected required/optional behavior and unchanged single/multi-picker selection. |
-| Existing product compatibility | Legacy/undeclared Dataverse default; Dataverse-only; F&O-only; mixed product declarations on integer/range tools; Power Platform API restrictions. Assert available products and rejection of incompatible direct assignments. |
-| Connection management | Add/edit Dataverse and F&O connections; supported authentication choices and validation; test-connection success/failure; import/export and incomplete credentials; search/sort/type filters and reset; token expiry/refresh and failed authentication; deletion while assigned versus unassigned. Existing behavior must remain intact. |
-| Explicit-slot declarations | One slot; two typed required slots; 10 slots; omitted field defaults; multiple allowed types within a slot; all-required, all-optional, and mixed required/optional definitions. Assert fixed rows, per-slot filtering, no add/remove controls, and correct confirmation state. |
-| Required slots at arbitrary indexes | Optional slot before a required slot and holes between required slots. A populated optional slot cannot satisfy a missing required slot. Launch with `[null, validId]` where permitted and verify target 1 stays target 1. |
-| Purpose labels | Author label in the dialog heading/instructions, slot rail, single-slot picker, and runtime switch dialog. Changing slots updates the purpose; filtering/searching preserves it. Verify missing-label fallbacks, long labels, and escaped markup. |
-| Product labels | Same-name Dataverse/F&O connections remain distinguishable across lists, pickers, assigned-slot summaries, and switching. Verify labels in product-filtered lists, legacy Dataverse defaults, accessible F&O descriptions, and updates after reassignment. |
-| Selection lifecycle | Assign, replace, clear optional, attempt to clear required, cancel, and reopen. Cancel must not commit draft changes; confirmation must commit the correctly ordered IDs and impersonation state. Cover empty compatible lists and incomplete credentials. |
-| Runtime enforcement | Valid reassignment; wrong product in a slot; missing required assignment; extra slots; stale/deleted connection IDs. Exercise the real IPC update path and assert rejection leaves IDs, tool context, saved state, and event notifications unchanged. |
-| Impersonation | Dataverse selection/clearing; F&O hides/rejects impersonation; mixed-type slot changing from Dataverse to F&O clears incompatible impersonation. Other slots' impersonation remains attached to their original indexes. |
-| Remembered assignments and sessions | Reopen a tool and restart/restore a session with valid slots and null holes. Repeat after a connection is removed or a manifest changes types, required status, order, or length. Invalid restored state must prompt correctly rather than launch with silently remapped connections. |
-| Invocation entry points | Ordinary tool launch, local development loading, inter-tool inheritance and overrides, invocation prompts, and windowed MCP. Verify the same per-slot rules and purpose labels on every path. |
-| Headless MCP | Exercise the actual MCP protocol and headless runtime with named connections, null holes, legacy singular/array inputs, wrong products, missing required slots, and ambiguous/missing names. Assert stable targets and useful slot-specific errors; mocked resolver calls alone are insufficient. |
-| Installed metadata | Load/install the actual package through supported local and package/registry paths. Verify explicit requirements survive catalog serialization and stale count-only metadata, and the resulting picker uses them. Invalid/conflicting slot declarations fail clearly rather than falling back. |
-| API routing | Run the actual mixed example through real preload, IPC handlers, and API managers. Assert each request's environment, product API, target, and authentication context; cover independent failures and compatible reassignment. Include optional-hole numeric targeting and existing primary/secondary aliases. |
-| Presentation and accessibility | Light/dark themes, narrow layout, long/same-name connections, keyboard selection/confirmation/cancel, and accessible purpose/product labels. Use interaction assertions plus rendered screenshots; color alone cannot distinguish products. |
+| Scenario group                            | Required E2E scenarios and assertions                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Existing default and integer declarations | No features, omitted `connections`, exact counts 0, 1, 2, and 10. Confirm absent slots use the existing default/fallback behavior, correct picker/connectionless launch, required-slot confirmation, maximum enforcement, and unchanged Primary/Secondary/numeric targeting.                                                             |
+| Existing range declarations               | Empty object/defaults; min-only and max-only defaults; ranges 0–1, 0–3, 1–2, 3–4, and 0–10. Cover zero-assignment launch, required prefixes, adding/removing optional slots, bounds, sparse assignment arrays, and runtime changes.                                                                                                      |
+| Legacy declarations                       | Parameterize every supported `multiConnection`/`connectionRequirement` combination, including omitted fields. Assert expected required/optional behavior and unchanged single/multi-picker selection.                                                                                                                                    |
+| Existing product compatibility            | Legacy/undeclared Dataverse default; Dataverse-only; F&O-only; mixed product declarations on integer/range tools; Power Platform API restrictions. Assert available products and rejection of incompatible direct assignments.                                                                                                           |
+| Connection management                     | Add/edit Dataverse and F&O connections; supported authentication choices and validation; test-connection success/failure; import/export and incomplete credentials; search/sort/type filters and reset; token expiry/refresh and failed authentication; deletion while assigned versus unassigned. Existing behavior must remain intact. |
+| Explicit-slot declarations                | One slot; two typed required slots; 10 slots; omitted field defaults; multiple allowed types within a slot; all-required, all-optional, and mixed required/optional definitions. Assert fixed rows, per-slot filtering, no add/remove controls, and correct confirmation state.                                                          |
+| Required slots at arbitrary indexes       | Optional slot before a required slot and holes between required slots. A populated optional slot cannot satisfy a missing required slot. Launch with `[null, validId]` where permitted and verify target 1 stays target 1.                                                                                                               |
+| Purpose labels                            | Author label in the dialog heading/instructions, slot rail, single-slot picker, and runtime switch dialog. Changing slots updates the purpose; filtering/searching preserves it. Verify missing-label fallbacks, long labels, and escaped markup.                                                                                        |
+| Product labels                            | Same-name Dataverse/F&O connections remain distinguishable across lists, pickers, assigned-slot summaries, and switching. Verify labels in product-filtered lists, legacy Dataverse defaults, accessible F&O descriptions, and updates after reassignment.                                                                               |
+| Selection lifecycle                       | Assign, replace, clear optional, attempt to clear required, cancel, and reopen. Cancel must not commit draft changes; confirmation must commit the correctly ordered IDs and impersonation state. Cover empty compatible lists and incomplete credentials.                                                                               |
+| Runtime enforcement                       | Valid reassignment; wrong product in a slot; missing required assignment; extra slots; stale/deleted connection IDs. Exercise the real IPC update path and assert rejection leaves IDs, tool context, saved state, and event notifications unchanged.                                                                                    |
+| Impersonation                             | Dataverse selection/clearing; F&O hides/rejects impersonation; mixed-type slot changing from Dataverse to F&O clears incompatible impersonation. Other slots' impersonation remains attached to their original indexes.                                                                                                                  |
+| Remembered assignments and sessions       | Reopen a tool and restart/restore a session with valid slots and null holes. Repeat after a connection is removed or a manifest changes types, required status, order, or length. Invalid restored state must prompt correctly rather than launch with silently remapped connections.                                                    |
+| Invocation entry points                   | Ordinary tool launch, local development loading, inter-tool inheritance and overrides, invocation prompts, and windowed MCP. Verify the same per-slot rules and purpose labels on every path.                                                                                                                                            |
+| Headless MCP                              | Exercise the actual MCP protocol and headless runtime with named connections, null holes, legacy singular/array inputs, wrong products, missing required slots, and ambiguous/missing names. Assert stable targets and useful slot-specific errors; mocked resolver calls alone are insufficient.                                        |
+| Installed metadata                        | Load/install the actual package through supported local and package/registry paths. Verify explicit requirements survive catalog serialization and stale count-only metadata, and the resulting picker uses them. Invalid/conflicting slot declarations fail clearly rather than falling back.                                           |
+| API routing                               | Run the actual mixed example through real preload, IPC handlers, and API managers. Assert each request's environment, product API, target, and authentication context; cover independent failures and compatible reassignment. Include optional-hole numeric targeting and existing primary/secondary aliases.                           |
+| Presentation and accessibility            | Light/dark themes, narrow layout, long/same-name connections, keyboard selection/confirmation/cancel, and accessible purpose/product labels. Use interaction assertions plus rendered screenshots; color alone cannot distinguish products.                                                                                              |
 
 Extend `tests/e2e/multiConnectionModal.spec.ts`, `financeOperations.spec.ts`, `connectionEdgeCases.spec.ts`, and `mixedConnectionExample.spec.ts`, adding focused slot-definition/session/invocation suites where needed. The example's former either-order expectation has been replaced by **typed mixed example enforces declared order and routes compatible reassignment**. The separate **existing mixed-product count declarations still route both APIs in either slot order** test retains legacy tool-wide mixed coverage through actual preload/IPC/API-manager routing.
 

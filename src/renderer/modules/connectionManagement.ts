@@ -516,28 +516,26 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
             data: {
                 sortOption,
                 // Map persisted connections to UI-level data with isActive property
-                connections: sortedConnections.map(
-                    (conn: Connection): UIConnectionData => ({
-                        id: conn.id,
-                        connectionType: conn.connectionType,
-                        name: conn.name,
-                        url: conn.url,
-                        environment: conn.environment,
-                        authenticationType: conn.authenticationType,
-                        lastUsedAt: conn.lastUsedAt,
-                        createdAt: conn.createdAt,
-                        // If highlightConnectionId is set (tool-specific modal), use it to mark as active
-                        // Otherwise, mark none as active since there's no global active connection
-                        isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
-                        browserType: conn.browserType,
-                        browserProfile: conn.browserProfile,
-                        browserProfileName: conn.browserProfileName,
-                        category: conn.category,
-                        environmentColor: conn.environmentColor,
-                        categoryColor: conn.categoryColor,
-                        enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
-                    }),
-                ),
+                connections: sortedConnections.map((conn: Connection): UIConnectionData => ({
+                    id: conn.id,
+                    connectionType: conn.connectionType,
+                    name: conn.name,
+                    url: conn.url,
+                    environment: conn.environment,
+                    authenticationType: conn.authenticationType,
+                    lastUsedAt: conn.lastUsedAt,
+                    createdAt: conn.createdAt,
+                    // If highlightConnectionId is set (tool-specific modal), use it to mark as active
+                    // Otherwise, mark none as active since there's no global active connection
+                    isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
+                    browserType: conn.browserType,
+                    browserProfile: conn.browserProfile,
+                    browserProfileName: conn.browserProfileName,
+                    category: conn.category,
+                    environmentColor: conn.environmentColor,
+                    categoryColor: conn.categoryColor,
+                    enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
+                })),
             },
         });
     } catch (error) {
@@ -614,7 +612,7 @@ async function promptForImpersonationUser(connectionId: string, context?: Impers
             }
             if (payload.channel !== SELECT_IMPERSONATION_USER_MODAL_CHANNELS.selectUser) return;
             const index = (payload.data as { index?: number | null } | undefined)?.index;
-            void finish(typeof index === "number" && Number.isInteger(index) ? users[index] ?? null : null);
+            void finish(typeof index === "number" && Number.isInteger(index) ? (users[index] ?? null) : null);
         };
         onBrowserWindowModalMessage(messageHandler);
         onBrowserWindowModalClosed(closedHandler);
@@ -1077,8 +1075,8 @@ export async function loadConnections(): Promise<void> {
                         <div class="connection-name">${conn.name}</div>
                         ${getEnvBadgeMarkup(conn as Connection)}
                         <span class="auth-type-badge connection-product-badge" title="${escapeHtml(CONNECTION_PRODUCTS[resolveConnectionType(conn.connectionType)].description)}">${escapeHtml(
-                    connectionProductLabel(conn.connectionType),
-                )}</span>
+                            connectionProductLabel(conn.connectionType),
+                        )}</span>
                     </div>
                     <div class="connection-actions">
                         ${
@@ -1921,7 +1919,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
 
         // Build connection from parsed data
         const connection: Connection = {
-            id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
+            id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
             name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
             url: parsed.url,
             environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
@@ -1959,7 +1957,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
 
     // Standard connection building for non-connection-string types
     const connection: Connection = {
-        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
+        id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
         environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
@@ -2422,8 +2420,8 @@ export async function loadSidebarConnections(): Promise<void> {
                             <span class="auth-type-badge connection-product-badge" title="${escapeHtml(
                                 CONNECTION_PRODUCTS[resolveConnectionType(conn.connectionType)].description,
                             )}" aria-label="${escapeHtml(CONNECTION_PRODUCTS[resolveConnectionType(conn.connectionType)].description)}">${escapeHtml(
-                connectionProductLabel(conn.connectionType),
-            )}</span>
+                                connectionProductLabel(conn.connectionType),
+                            )}</span>
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
                             ${warningBadge}
                         </div>

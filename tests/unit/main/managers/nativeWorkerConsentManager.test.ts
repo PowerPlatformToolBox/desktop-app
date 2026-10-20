@@ -196,7 +196,9 @@ describe("NativeWorkerConsentManager", () => {
     });
 
     it("binds the local feed path and exact package bytes into consent identity", () => {
-        const first = nativeWorkerConsentFingerprint(nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: resolve("/tmp/feed-a"), packageSha512: "a".repeat(86) + "==" } }, "worker"));
+        const first = nativeWorkerConsentFingerprint(
+            nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: resolve("/tmp/feed-a"), packageSha512: "a".repeat(86) + "==" } }, "worker"),
+        );
         const changedPath = nativeWorkerConsentFingerprint(
             nativeWorkerConsentSnapshot({ ...identity, source: { kind: "local-feed", path: resolve("/tmp/feed-b"), packageSha512: "a".repeat(86) + "==" } }, "worker"),
         );

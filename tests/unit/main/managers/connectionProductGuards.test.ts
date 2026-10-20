@@ -6,9 +6,17 @@ import type { ConnectionsManager } from "../../../../src/main/managers/connectio
 import type { Connection } from "../../../../src/common/types/connection";
 
 const finops: Connection = {
-    id: "finops", name: "F&O", connectionType: "financeOperations", url: "https://example.operations.dynamics.com",
-    environment: "Dev", authenticationType: "clientSecret", createdAt: "2026-10-07T00:00:00Z",
-    clientId: "app-id", clientSecret: "secret", tenantId: "tenant-id", accessToken: "existing-token",
+    id: "finops",
+    name: "F&O",
+    connectionType: "financeOperations",
+    url: "https://example.operations.dynamics.com",
+    environment: "Dev",
+    authenticationType: "clientSecret",
+    createdAt: "2026-10-07T00:00:00Z",
+    clientId: "app-id",
+    clientSecret: "secret",
+    tenantId: "tenant-id",
+    accessToken: "existing-token",
 };
 
 describe("connection product guards", () => {
@@ -23,11 +31,7 @@ describe("connection product guards", () => {
 
     it("keeps Dataverse-only authentication methods blocked for F&O", async () => {
         const auth = new AuthManager({} as BrowserManager);
-        const requests = [
-            () => auth.authenticateUsernamePassword(finops),
-            () => auth.acquirePowerPlatformToken(finops),
-            () => auth.refreshAccessToken(finops, "refresh-token"),
-        ];
+        const requests = [() => auth.authenticateUsernamePassword(finops), () => auth.acquirePowerPlatformToken(finops), () => auth.refreshAccessToken(finops, "refresh-token")];
         for (const request of requests) {
             await expect(request()).rejects.toThrow("requires a Dataverse connection");
         }

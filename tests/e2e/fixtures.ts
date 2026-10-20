@@ -191,12 +191,36 @@ export const test = base.extend<AppFixtures>({
                 { id: "e2e-single-connection", name: "E2E Single Connection" },
                 { id: "e2e-finops-connection", name: "E2E F&O Connection", features: { connections: 1, connectionTypes: ["financeOperations"] } },
                 { id: "e2e-mixed-connections", name: "E2E Mixed Connections", features: { connections: 2, connectionTypes: ["dataverse", "financeOperations"] } },
-                { id: "e2e-typed-connections", name: "E2E Typed Connections", features: { connections: { slots: [{ label: "Dataverse accounts" }, { label: "F&O customers", connectionTypes: ["financeOperations"] }] } } },
-                { id: "e2e-typed-optional", name: "E2E Typed Optional", features: { connections: { slots: [{ label: 'Accounts </script><img src=x onerror="window.slotLabelInjected=true">', required: false }, { label: "Required F&O customers", connectionTypes: ["financeOperations"] }, { label: "Optional comparison", required: false, connectionTypes: ["dataverse", "financeOperations"] }] } } },
+                {
+                    id: "e2e-typed-connections",
+                    name: "E2E Typed Connections",
+                    features: { connections: { slots: [{ label: "Dataverse accounts" }, { label: "F&O customers", connectionTypes: ["financeOperations"] }] } },
+                },
+                {
+                    id: "e2e-typed-optional",
+                    name: "E2E Typed Optional",
+                    features: {
+                        connections: {
+                            slots: [
+                                { label: 'Accounts </script><img src=x onerror="window.slotLabelInjected=true">', required: false },
+                                { label: "Required F&O customers", connectionTypes: ["financeOperations"] },
+                                { label: "Optional comparison", required: false, connectionTypes: ["dataverse", "financeOperations"] },
+                            ],
+                        },
+                    },
+                },
                 { id: "e2e-typed-single", name: "E2E Typed Single", features: { connections: { slots: [{ label: "F&O customer lookup", connectionTypes: ["financeOperations"] }] } } },
                 { id: "e2e-typed-ten", name: "E2E Typed Ten", features: { connections: { slots: Array.from({ length: 10 }, (_, index) => ({ label: `Accounts environment ${index + 1}` })) } } },
-                { id: "e2e-typed-all-optional", name: "E2E Typed All Optional", features: { connections: { slots: [{ label: "Optional customer lookup", required: false, connectionTypes: ["financeOperations"] }] } } },
-                { id: "e2e-mixed-explorer", name: "Dataverse + F&O Explorer", features: JSON.parse(fs.readFileSync(path.resolve(__dirname, "./tool-fixtures/dataverse-finance-operations/package.json"), "utf8")).features },
+                {
+                    id: "e2e-typed-all-optional",
+                    name: "E2E Typed All Optional",
+                    features: { connections: { slots: [{ label: "Optional customer lookup", required: false, connectionTypes: ["financeOperations"] }] } },
+                },
+                {
+                    id: "e2e-mixed-explorer",
+                    name: "Dataverse + F&O Explorer",
+                    features: JSON.parse(fs.readFileSync(path.resolve(__dirname, "./tool-fixtures/dataverse-finance-operations/package.json"), "utf8")).features,
+                },
                 { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
             ];
             if (connectionScenario) toolDefinitions.push({ id: "e2e-scenario", name: "E2E Scenario", features: connectionScenario.features });
@@ -258,9 +282,14 @@ export const test = base.extend<AppFixtures>({
                                 createdAt: "2026-10-01T00:00:00.000Z",
                             },
                             {
-                                id: "e2e-finops", name: "E2E Finance Operations", connectionType: "financeOperations",
-                                url: "https://finops.operations.dynamics.com", environment: "Dev", authenticationType: "interactive",
-                                clientId: "11111111-1111-1111-1111-111111111111", tenantId: "22222222-2222-2222-2222-222222222222",
+                                id: "e2e-finops",
+                                name: "E2E Finance Operations",
+                                connectionType: "financeOperations",
+                                url: "https://finops.operations.dynamics.com",
+                                environment: "Dev",
+                                authenticationType: "interactive",
+                                clientId: "11111111-1111-1111-1111-111111111111",
+                                tenantId: "22222222-2222-2222-2222-222222222222",
                                 createdAt: "2026-10-01T00:00:00.000Z",
                             },
                         ],

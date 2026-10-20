@@ -239,13 +239,20 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
 }
 
 // Expose toolboxAPI to the tool window
-contextBridge.exposeInMainWorld("financeOperationsAPI", createFinanceOperationsAPI(async <T>(method: FinanceOperationsMethod, path: string, body?: unknown, options?: FinanceOperationsOptions) => {
-    const result = await ipcInvoke(FINANCE_OPERATIONS_CHANNELS.REQUEST, method, path, body, options) as { ok: boolean; response: FinanceOperationsResponse<T>; error: { message: string; code?: string; status?: number; requestId?: string; retryAfter?: string } };
-    // Electron drops custom properties on Error instances crossing contextBridge.
-    // Reject with a plain structured object so HTTP diagnostics reach tool code.
-    if (!result.ok) throw { name: "FinanceOperationsError", ...result.error };
-    return result.response as FinanceOperationsResponse<T>;
-}));
+contextBridge.exposeInMainWorld(
+    "financeOperationsAPI",
+    createFinanceOperationsAPI(async <T>(method: FinanceOperationsMethod, path: string, body?: unknown, options?: FinanceOperationsOptions) => {
+        const result = (await ipcInvoke(FINANCE_OPERATIONS_CHANNELS.REQUEST, method, path, body, options)) as {
+            ok: boolean;
+            response: FinanceOperationsResponse<T>;
+            error: { message: string; code?: string; status?: number; requestId?: string; retryAfter?: string };
+        };
+        // Electron drops custom properties on Error instances crossing contextBridge.
+        // Reject with a plain structured object so HTTP diagnostics reach tool code.
+        if (!result.ok) throw { name: "FinanceOperationsError", ...result.error };
+        return result.response as FinanceOperationsResponse<T>;
+    }),
+);
 
 contextBridge.exposeInMainWorld("toolboxAPI", {
     workers: workerToolAPI,

@@ -151,14 +151,17 @@ test("JSON import/export, incomplete credentials, product search/sort/filter res
         expect(connection).not.toHaveProperty("accessToken");
         expect(connection).not.toHaveProperty("refreshToken");
     }
-    const missingSecret = await window.evaluate(async (id) => {
-        try {
-            await globalThis.window.toolboxAPI.connections.authenticate(id);
-            return "";
-        } catch (error) {
-            return (error as Error).message;
-        }
-    }, imported.find((connection) => connection.connectionType === "financeOperations")!.id);
+    const missingSecret = await window.evaluate(
+        async (id) => {
+            try {
+                await globalThis.window.toolboxAPI.connections.authenticate(id);
+                return "";
+            } catch (error) {
+                return (error as Error).message;
+            }
+        },
+        imported.find((connection) => connection.connectionType === "financeOperations")!.id,
+    );
     expect(missingSecret).toContain("Client Secret");
     await clickTool(window, "e2e-typed-single");
     const picker = await modalWith(electronApp, "#connections-list-container");
@@ -202,21 +205,23 @@ test("real token refresh and test-connection handlers preserve saved state on tr
                             ? { error: "invalid_grant", error_description: "Fixture credentials rejected" }
                             : { access_token: "fixture-renewed-token", token_type: "Bearer", expires_in: 3600, ext_expires_in: 3600, scope: new URLSearchParams(body).get("scope") }
                         : probe
-                        ? state.failProbe
-                            ? { error: { message: "Fixture permission denied" } }
-                            : { value: [] }
-                        : url.pathname.includes("discovery/instance")
-                        ? {
-                              tenant_discovery_endpoint: `${authority}/v2.0/.well-known/openid-configuration`,
-                              metadata: [{ preferred_network: "login.microsoftonline.com", preferred_cache: "login.microsoftonline.com", aliases: ["login.microsoftonline.com", "login.windows.net"] }],
-                          }
-                        : {
-                              authorization_endpoint: `${authority}/oauth2/v2.0/authorize`,
-                              token_endpoint: `${authority}/oauth2/v2.0/token`,
-                              issuer: `${authority}/v2.0`,
-                              jwks_uri: `${authority}/discovery/v2.0/keys`,
-                              end_session_endpoint: `${authority}/oauth2/v2.0/logout`,
-                          };
+                          ? state.failProbe
+                              ? { error: { message: "Fixture permission denied" } }
+                              : { value: [] }
+                          : url.pathname.includes("discovery/instance")
+                            ? {
+                                  tenant_discovery_endpoint: `${authority}/v2.0/.well-known/openid-configuration`,
+                                  metadata: [
+                                      { preferred_network: "login.microsoftonline.com", preferred_cache: "login.microsoftonline.com", aliases: ["login.microsoftonline.com", "login.windows.net"] },
+                                  ],
+                              }
+                            : {
+                                  authorization_endpoint: `${authority}/oauth2/v2.0/authorize`,
+                                  token_endpoint: `${authority}/oauth2/v2.0/token`,
+                                  issuer: `${authority}/v2.0`,
+                                  jwks_uri: `${authority}/discovery/v2.0/keys`,
+                                  end_session_endpoint: `${authority}/oauth2/v2.0/logout`,
+                              };
                     if (respond) respond(response);
                     else request.emit("response", response);
                     response.emit("data", Buffer.from(JSON.stringify(result)));

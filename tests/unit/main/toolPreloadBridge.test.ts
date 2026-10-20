@@ -70,8 +70,14 @@ describe("tool preload connection APIs", () => {
         const { api, setContext } = loadToolApi();
         setContext({ toolId: "finops-tool", connectionId: "finops-id" });
         mockIpcInvoke.mockResolvedValue({
-            id: "finops-id", name: "F&O", url: "https://example.operations.dynamics.com", environment: "Dev",
-            connectionType: "financeOperations", accessToken: "private-token", clientSecret: "private-secret", password: "private-password",
+            id: "finops-id",
+            name: "F&O",
+            url: "https://example.operations.dynamics.com",
+            environment: "Dev",
+            connectionType: "financeOperations",
+            accessToken: "private-token",
+            clientSecret: "private-secret",
+            password: "private-password",
         });
         const connection = await api.connections.getConnection(0);
         expect(connection.connectionType).toBe("financeOperations");

@@ -4,13 +4,13 @@ Tracking issue: [PowerPlatformToolBox/desktop-app#504 — Add support for D365 O
 
 Status as of 2026-10-12: phases 1–4 are complete for the upstream PR on `finops-connection`, including live verification and sanitized fixture coverage. Shipping versions, release-specific compatibility metadata, publication and registry backend rollout are tracked separately as upstream release-process tasks.
 
-| Phase                                | Implementation status                          | Acceptance / outstanding work                                                                                                       |
-| ------------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — Authentication and contract      | Complete                                       | Both authentication flows, renewal, paging and restricted-user checks passed; sanitized fixture coverage completed on 2026-10-10    |
-| 2 — Model, storage, compatibility    | Complete                                       | Automated migration, compatibility, product guards, and legacy regression checks passed                                             |
-| 3 — Authentication and OData manager | Complete                                       | Automated transport coverage and all named live API checks passed; live validation and permission-denial fixtures captured          |
-| 4 — Exposure, headless, UX | Complete | Desktop/headless acceptance passed; upstream release-process tasks tracked separately below |
-| 5 — Batch / transactions             | Not started; later scope                       | Not required for the initial phases 1–4 release                                                                                     |
+| Phase                                | Implementation status    | Acceptance / outstanding work                                                                                                    |
+| ------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Authentication and contract      | Complete                 | Both authentication flows, renewal, paging and restricted-user checks passed; sanitized fixture coverage completed on 2026-10-10 |
+| 2 — Model, storage, compatibility    | Complete                 | Automated migration, compatibility, product guards, and legacy regression checks passed                                          |
+| 3 — Authentication and OData manager | Complete                 | Automated transport coverage and all named live API checks passed; live validation and permission-denial fixtures captured       |
+| 4 — Exposure, headless, UX           | Complete                 | Desktop/headless acceptance passed; upstream release-process tasks tracked separately below                                      |
+| 5 — Batch / transactions             | Not started; later scope | Not required for the initial phases 1–4 release                                                                                  |
 
 See the [manual testing record](FINANCE_OPERATIONS_MANUAL_TESTING.md#remaining-live-acceptance-checks) for individual results. Deferred or unavailable tests remain explicit verification gaps; they do not count as passes.
 
@@ -270,20 +270,20 @@ Exit: fixture-based transport coverage passes and sandbox verification covers bo
 
 Status: complete for the upstream PR. Local implementation and live execution acceptance passed. Remaining shipping and backend rollout tasks belong to the upstream release process and are tracked separately.
 
-| Item                                                                 | Status   | Evidence / remaining work                                                                                |
-| -------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| IPC registration, sender/slot routing and lifecycle cleanup          | Complete | Implemented; real tool-to-main IPC fixture checks passed                                                 |
-| Browser and headless API exposure                                    | Complete | Shared facade implemented; live reads passed in both runtimes                                            |
-| Matching internal/public declarations and package references         | Complete | Declaration consumer checks passed; package dry run includes F&O declarations                            |
-| Minimum-version compatibility mechanism and author guidance | Complete | Existing minAPI mechanism documented; release-specific values assigned by upstream at release preparation |
-| API and registration documentation                                   | Complete | Tool-author documentation, plan and manual guide available                                               |
-| F&O forms, supported authentication fields and registration guidance | Complete | Add/edit UI and automated checks passed                                                                  |
-| Product badges, connection-list type filter and picker compatibility | Complete | Product filter/clear behavior and picker regression tests passed                                         |
-| Safe connection events and metadata                                  | Complete | Implemented using existing event/context paths                                                           |
-| Small desktop/headless sample                                        | Complete | Local sample includes both entry points and MCP configuration; live headless test passed                 |
-| Same read in desktop and unattended client-secret execution          | Complete | User confirmed live acceptance on 2026-10-08                                                             |
-| Legacy Dataverse usability                                           | Complete | Regression checks passed                                                                                 |
-| Registry client mapping and package fallback | Complete | Desktop accepts connection_types and preserves manifest requirements when the registry omits the field |
+| Item                                                                 | Status   | Evidence / remaining work                                                                                 |
+| -------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| IPC registration, sender/slot routing and lifecycle cleanup          | Complete | Implemented; real tool-to-main IPC fixture checks passed                                                  |
+| Browser and headless API exposure                                    | Complete | Shared facade implemented; live reads passed in both runtimes                                             |
+| Matching internal/public declarations and package references         | Complete | Declaration consumer checks passed; package dry run includes F&O declarations                             |
+| Minimum-version compatibility mechanism and author guidance          | Complete | Existing minAPI mechanism documented; release-specific values assigned by upstream at release preparation |
+| API and registration documentation                                   | Complete | Tool-author documentation, plan and manual guide available                                                |
+| F&O forms, supported authentication fields and registration guidance | Complete | Add/edit UI and automated checks passed                                                                   |
+| Product badges, connection-list type filter and picker compatibility | Complete | Product filter/clear behavior and picker regression tests passed                                          |
+| Safe connection events and metadata                                  | Complete | Implemented using existing event/context paths                                                            |
+| Small desktop/headless sample                                        | Complete | Local sample includes both entry points and MCP configuration; live headless test passed                  |
+| Same read in desktop and unattended client-secret execution          | Complete | User confirmed live acceptance on 2026-10-08                                                              |
+| Legacy Dataverse usability                                           | Complete | Regression checks passed                                                                                  |
+| Registry client mapping and package fallback                         | Complete | Desktop accepts connection_types and preserves manifest requirements when the registry omits the field    |
 
 Exit: an F&O tool completes the same read in a desktop window and an unattended client-secret invocation; old Dataverse tools remain usable. Acceptance passed. Phase 4 PR implementation is complete; release publication is not claimed.
 
@@ -291,12 +291,12 @@ Exit: an F&O tool completes the same read in a desktop window and an unattended 
 
 These tasks remain pending outside the implementation phases. Upstream release maintainers own their scheduling and completion; PR completion does not imply that packages, a desktop release or backend changes have shipped.
 
-| Task | Status | Release responsibility |
-| --- | --- | --- |
-| Select shipping desktop/types/validator versions | Upstream pending | Choose the first releases carrying F&O support |
-| Finalize release-specific minimum-version metadata | Upstream pending | Set the sample's features.minAPI and document the selected shipping minimum once versions are agreed |
-| Publish matching types/validation packages and desktop release | Upstream pending | Run upstream publication and desktop release workflows |
-| Registry connection_types ingestion/schema/view rollout | Upstream pending | Coordinate the registry backend changes and deployment; desktop mapping and manifest fallback are already implemented |
+| Task                                                           | Status           | Release responsibility                                                                                                |
+| -------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Select shipping desktop/types/validator versions               | Upstream pending | Choose the first releases carrying F&O support                                                                        |
+| Finalize release-specific minimum-version metadata             | Upstream pending | Set the sample's features.minAPI and document the selected shipping minimum once versions are agreed                  |
+| Publish matching types/validation packages and desktop release | Upstream pending | Run upstream publication and desktop release workflows                                                                |
+| Registry connection_types ingestion/schema/view rollout        | Upstream pending | Coordinate the registry backend changes and deployment; desktop mapping and manifest fallback are already implemented |
 
 ### [ ] Phase 5 — Batch and transaction helpers
 

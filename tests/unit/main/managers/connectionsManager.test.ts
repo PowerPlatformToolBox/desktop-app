@@ -26,10 +26,15 @@ describe("ConnectionsManager", () => {
     });
 
     describe("connection products", () => {
-        const finops = () => makeConnection({
-            connectionType: "financeOperations", url: "https://example.operations.dynamics.com/data/",
-            authenticationType: "clientSecret", clientId: "app-id", tenantId: "tenant-id", clientSecret: "secret",
-        });
+        const finops = () =>
+            makeConnection({
+                connectionType: "financeOperations",
+                url: "https://example.operations.dynamics.com/data/",
+                authenticationType: "clientSecret",
+                clientId: "app-id",
+                tenantId: "tenant-id",
+                clientSecret: "secret",
+            });
 
         it("migrates stored legacy records once without changing secrets or identity", () => {
             manager.addConnection(makeConnection({ clientSecret: "already-stored-secret", category: "Existing" }));
@@ -72,12 +77,15 @@ describe("ConnectionsManager", () => {
         });
 
         it("rejects invalid imported product/auth combinations without discarding valid entries", () => {
-            const result = manager.importConnections({ version: 1, connections: [
-                { ...finops(), connectionType: "unknown" },
-                { ...finops(), authenticationType: "usernamePassword" },
-                { ...finops(), powerPlatformAccessToken: "untrusted-token" },
-                makeConnection({ id: "valid" }),
-            ] });
+            const result = manager.importConnections({
+                version: 1,
+                connections: [
+                    { ...finops(), connectionType: "unknown" },
+                    { ...finops(), authenticationType: "usernamePassword" },
+                    { ...finops(), powerPlatformAccessToken: "untrusted-token" },
+                    makeConnection({ id: "valid" }),
+                ],
+            });
             expect(result).toMatchObject({ imported: 1, skipped: 3 });
             expect(manager.getConnections()[0].connectionType).toBe("dataverse");
         });

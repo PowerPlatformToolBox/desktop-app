@@ -56,9 +56,10 @@ export class ConnectionsManager {
     private migrateLegacyConnectionTypes(): void {
         const connections = this.store.get("connections");
         if (connections.some((connection) => connection.connectionType === undefined)) {
-            this.store.set("connections", connections.map((connection) =>
-                connection.connectionType === undefined ? { ...connection, connectionType: "dataverse" as const } : connection,
-            ));
+            this.store.set(
+                "connections",
+                connections.map((connection) => (connection.connectionType === undefined ? { ...connection, connectionType: "dataverse" as const } : connection)),
+            );
         }
     }
 

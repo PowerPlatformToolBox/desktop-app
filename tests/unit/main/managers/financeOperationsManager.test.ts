@@ -10,14 +10,34 @@ jest.mock("../../../../src/main/utilities/financeOperationsHttp", () => ({
 }));
 
 describe("FinanceOperationsManager authentication and replay", () => {
-    const connection: Connection = { id: "erp", name: "ERP", connectionType: "financeOperations", url: "https://erp.example/data/", environment: "Test", authenticationType: "clientSecret", clientId: "app", clientSecret: "secret", tenantId: "tenant", createdAt: "2026-10-07", accessToken: "saved", tokenExpiry: new Date(Date.now() + 3600000).toISOString() };
+    const connection: Connection = {
+        id: "erp",
+        name: "ERP",
+        connectionType: "financeOperations",
+        url: "https://erp.example/data/",
+        environment: "Test",
+        authenticationType: "clientSecret",
+        clientId: "app",
+        clientSecret: "secret",
+        tenantId: "tenant",
+        createdAt: "2026-10-07",
+        accessToken: "saved",
+        tokenExpiry: new Date(Date.now() + 3600000).toISOString(),
+    };
     const authenticateClientSecret = jest.fn().mockResolvedValue({ accessToken: "renewed", expiresOn: new Date() });
     const acquireTokenSilently = jest.fn().mockResolvedValue({ accessToken: "silent", expiresOn: new Date() });
     const updateConnectionTokens = jest.fn();
     const getConnectionById = jest.fn(() => ({ ...connection }));
-    const manager = new FinanceOperationsManager({ getConnectionById, updateConnectionTokens } as unknown as ConnectionsManager, { authenticateClientSecret, acquireTokenSilently } as unknown as AuthManager);
+    const manager = new FinanceOperationsManager(
+        { getConnectionById, updateConnectionTokens } as unknown as ConnectionsManager,
+        { authenticateClientSecret, acquireTokenSilently } as unknown as AuthManager,
+    );
     const http = financeOperationsHttp as jest.Mock;
-    beforeEach(() => { jest.clearAllMocks(); getConnectionById.mockImplementation(() => ({ ...connection })); http.mockResolvedValue({ status: 200, headers: {}, body: { value: [] } }); });
+    beforeEach(() => {
+        jest.clearAllMocks();
+        getConnectionById.mockImplementation(() => ({ ...connection }));
+        http.mockResolvedValue({ status: 200, headers: {}, body: { value: [] } });
+    });
     it("reuses an unexpired token with the normalized OData URL", async () => {
         await manager.request("erp", "GET", "Customers?$top=1");
         expect(authenticateClientSecret).not.toHaveBeenCalled();

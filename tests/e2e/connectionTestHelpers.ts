@@ -7,7 +7,12 @@ export async function modalWith(app: ElectronApplication, selector = "#connectio
         .poll(
             async () => {
                 for (const candidate of app.windows())
-                    if (await candidate.locator(selector).count().catch(() => 0)) {
+                    if (
+                        await candidate
+                            .locator(selector)
+                            .count()
+                            .catch(() => 0)
+                    ) {
                         modal = candidate;
                         return true;
                     }

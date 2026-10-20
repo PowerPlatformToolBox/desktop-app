@@ -391,11 +391,11 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
     const requirements = resolveConnectionRequirements(manifest.features);
     const slotCount = requirements.explicit ? requirements.max : getConnectionSlotCount(context);
     const usesArrays = hasConnectionArrays(context);
-    const connectionIds = Array.from({ length: slotCount }, (_, index) => (usesArrays ? context.connectionIds?.[index] ?? null : context.connectionId ?? null));
+    const connectionIds = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionIds?.[index] ?? null) : (context.connectionId ?? null)));
     const connectionNames = Array.from({ length: slotCount }, (_, index) =>
-        usesArrays ? context.connectionNames?.[index] ?? (requirements.explicit ? null : "") : index === 0 ? context.connectionName ?? (requirements.explicit ? null : "") : null,
+        usesArrays ? (context.connectionNames?.[index] ?? (requirements.explicit ? null : "")) : index === 0 ? (context.connectionName ?? (requirements.explicit ? null : "")) : null,
     );
-    const connectionUrls = Array.from({ length: slotCount }, (_, index) => (usesArrays ? context.connectionUrls?.[index] ?? null : context.connectionUrl ?? null));
+    const connectionUrls = Array.from({ length: slotCount }, (_, index) => (usesArrays ? (context.connectionUrls?.[index] ?? null) : (context.connectionUrl ?? null)));
     const getConnection = async (target: ConnectionTarget) => toToolSafeConnection(resolveConnection(manifest, context, services, target));
 
     const requireHeaderConsent = (...headerSets: ReadonlyArray<Readonly<Record<string, string>>>) => {
@@ -760,7 +760,7 @@ export async function invokeHeadlessTool(manifest: ToolManifest, input: Record<s
             connectionIds: validated,
             connectionNames: assigned.map((connection) => connection?.name ?? null),
             connectionUrls: assigned.map((connection) => connection?.url ?? null),
-            authTokens: assigned.map((connection, index) => (connection ? context.authTokens?.[index] ?? (index === 0 ? context.authToken : null) ?? null : null)),
+            authTokens: assigned.map((connection, index) => (connection ? (context.authTokens?.[index] ?? (index === 0 ? context.authToken : null) ?? null) : null)),
             connectionId: assigned[0]?.id,
             connectionName: assigned[0]?.name,
             connectionUrl: assigned[0]?.url,
