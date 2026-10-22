@@ -57,6 +57,10 @@ src/main/managers/myManager.ts  →  tests/unit/main/managers/myManager.test.ts
 Import the module under test directly — Jest will automatically apply the
 `electron` and `electron-store` mocks via `moduleNameMapper` in `jest.config.ts`.
 
+The test TypeScript configuration explicitly includes renderer ambient declarations
+and overrides the main configuration's renderer exclusion. This makes globals such
+as `window.toolboxAPI` available consistently in both CLI and VS Code Jest runs.
+
 ### New e2e test
 
 Create a `*.spec.ts` file in `tests/e2e/` and import `test` and `expect` from

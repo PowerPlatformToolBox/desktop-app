@@ -6,6 +6,7 @@ import type { AddressInfo } from "net";
 import os from "os";
 import path from "path";
 import type { ToolManifest } from "../../../../src/common/types";
+import { CONNECTION_SELECTION_INSTRUCTIONS } from "../../../../src/main/mcp/headlessInputRequirements";
 import { invokeHeadlessTool } from "../../../../src/main/mcp/headlessToolRuntime";
 import { McpServerManager } from "../../../../src/main/mcp/mcpServer";
 
@@ -153,9 +154,23 @@ describe("MCP agent-driven headless input flow", () => {
         expect(tools.find((tool) => tool.name === "window-only")!.description).toContain("defaultExecutionMode: windowed");
     });
 
+    it("requires a chat connection picker in initialization and every connection-dependent tool description", async () => {
+        expect(client.getInstructions()).toBe(CONNECTION_SELECTION_INSTRUCTIONS);
+        const { tools } = await client.listTools();
+        for (const name of ["pptb_list_connections", "single", "compare", "window-only"]) {
+            expect(tools.find((tool) => tool.name === name)!.description).toContain(CONNECTION_SELECTION_INSTRUCTIONS);
+        }
+        expect(CONNECTION_SELECTION_INSTRUCTIONS).toContain("wait for the user's explicit selection");
+        expect(CONNECTION_SELECTION_INSTRUCTIONS).toContain("even if only one connection exists or connections are already signed-in");
+        expect(CONNECTION_SELECTION_INSTRUCTIONS).toContain("Never choose, probe, or iterate through other connections");
+        expect(CONNECTION_SELECTION_INSTRUCTIONS).toContain("If the user cancels or has not selected a connection, stop");
+        expect(tools.find((tool) => tool.name === "pptb_authenticate_connections")!.description).toContain('skip connections whose authStatus is "signed-in"');
+    });
+
     it("lists connections with environment and auth status but never IDs or secrets", async () => {
         const response = await client.callTool({ name: "pptb_list_connections", arguments: {} });
         expect(response.structuredContent).toEqual({
+            nextSteps: [CONNECTION_SELECTION_INSTRUCTIONS],
             connections: [
                 { name: "Contoso Dev", environment: "Dev", url: "https://dev.example.test", authenticationType: "interactive", authStatus: "signed-in" },
                 { name: "Contoso Prod", environment: "Production", url: "https://prod.example.test", authenticationType: "interactive", authStatus: "sign-in-required" },
@@ -168,6 +183,29 @@ describe("MCP agent-driven headless input flow", () => {
         }
         const filtered = await client.callTool({ name: "pptb_list_connections", arguments: { environment: "production" } });
         expect((filtered.structuredContent as any).connections.map((connection: { name: string }) => connection.name)).toEqual(["Contoso Prod"]);
+    });
+
+    it("still requires a picker when the only saved connection is already authenticated", async () => {
+        connections = [connections[0]];
+        const listed = await client.callTool({ name: "pptb_list_connections", arguments: {} });
+        expect(listed.structuredContent).toMatchObject({
+            connections: [{ name: "Contoso Dev", authStatus: "signed-in" }],
+            nextSteps: [CONNECTION_SELECTION_INSTRUCTIONS],
+        });
+        expect(invokeHeadlessTool).not.toHaveBeenCalled();
+        expect(authManager.authenticateInteractive).not.toHaveBeenCalled();
+    });
+
+    it("uses only the picked signed-in connection without authenticating or probing other environments", async () => {
+        const response = await client.callTool({ name: "single", arguments: { entityName: "account", __pptb: { connectionNames: ["Contoso Dev"] } } });
+        expect(response.isError).not.toBe(true);
+        expect(invokeHeadlessTool).toHaveBeenCalledTimes(1);
+        expect((invokeHeadlessTool as jest.Mock).mock.calls[0][2]).toMatchObject({ connectionIds: ["conn-dev"], connectionNames: ["Contoso Dev"], authTokens: ["dev-token"] });
+        expect(authManager.authenticateInteractive).not.toHaveBeenCalled();
+        expect(authManager.authenticateClientSecret).not.toHaveBeenCalled();
+        expect(authManager.authenticateUsernamePassword).not.toHaveBeenCalled();
+        expect(authManager.acquireTokenSilently).not.toHaveBeenCalled();
+        expect(authManager.refreshAccessToken).not.toHaveBeenCalled();
     });
 
     it("defaults to headless and returns connections plus missing parameters in one input_required response", async () => {
@@ -184,6 +222,8 @@ describe("MCP agent-driven headless input flow", () => {
             ["Contoso UAT", "UAT"],
         ]);
         expect(payload.nextSteps.join(" ")).toContain("pptb_authenticate_connections");
+        expect(payload.nextSteps.join(" ")).toContain("wait for the user's explicit selection");
+        expect(payload.nextSteps.join(" ")).toContain("Never choose, probe, or iterate through other connections");
         expect(payload.nextSteps.join(" ")).toContain('"windowed"');
         expect(JSON.stringify(response)).not.toContain("dev-token");
         expect(invokeHeadlessTool).not.toHaveBeenCalled();
