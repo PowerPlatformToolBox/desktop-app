@@ -409,6 +409,7 @@ export interface ToolboxAPI {
     fetchToolIdeas: () => Promise<ToolIdea[]>;
     submitToolIdea: (idea: ToolIdeaSubmission) => Promise<void>;
     upvoteToolIdea: (ideaId: string) => Promise<ToolIdeaUpvoteResult>;
+    removeToolIdeaVote: (ideaId: string) => Promise<ToolIdeaUpvoteResult>;
 
     // Split layout namespace
     splitLayout: SplitLayoutAPI;

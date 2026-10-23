@@ -28,6 +28,7 @@ import {
     WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
+import { validateIdeaSubmission } from "../common/utils/ideas";
 import { captureException, captureMessage, logInfo as logSentryInfo, recordSentryTelemetryDisabled } from "../common/sentryHelper";
 import type { DataverseHeaderConsentDecision } from "../common/types";
 import {
@@ -1433,26 +1434,15 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.SUBMIT, async (_, idea: ToolIdeaSubmission) => {
-            if (!idea || typeof idea.title !== "string" || typeof idea.description !== "string") {
-                throw new Error("A title and description are required.");
-            }
-            const title = idea.title.trim();
-            const description = idea.description.trim();
-            const email = typeof idea.email === "string" ? idea.email.trim() : "";
-            if (!title || title.length > 120) {
-                throw new Error("The title must be between 1 and 120 characters.");
-            }
-            if (!description || description.length > 3000) {
-                throw new Error("The description must be between 1 and 3000 characters.");
-            }
-            if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-                throw new Error("Enter a valid contact email address.");
-            }
-            await this.toolManager.submitToolIdea({ title, description, email: email || undefined });
+            await this.toolManager.submitToolIdea(validateIdeaSubmission(idea));
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.UPVOTE, async (_, ideaId: string) => {
             return this.toolManager.upvoteToolIdea(ideaId);
+        });
+
+        ipcMain.handle(TOOL_IDEA_CHANNELS.REMOVE_VOTE, async (_, ideaId: string) => {
+            return this.toolManager.removeToolIdeaVote(ideaId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -3222,7 +3212,7 @@ class ToolBoxApp {
                         },
                     },
                     {
-                        label: "Suggest a Tool",
+                        label: "Share an idea",
                         click: () => {
                             this.mainWindow?.webContents.send("open-suggest-tool-modal");
                         },

@@ -324,7 +324,7 @@ export async function loadMarketplace(options?: { forceRefresh?: boolean }): Pro
                 <p>No matching tools</p>
                 <p class="empty-state-hint">${emptyMessage}</p>
                 ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="marketplace-clear-filters-link">Clear all filters</a>' : ""}
-                <button type="button" class="fluent-button fluent-button-primary" id="marketplace-suggest-tool-empty-btn">Suggest a Tool</button>
+                <button type="button" class="fluent-button fluent-button-primary" id="marketplace-suggest-tool-empty-btn">Share an idea</button>
             </div>
         `;
 

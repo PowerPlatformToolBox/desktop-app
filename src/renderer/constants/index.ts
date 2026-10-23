@@ -35,6 +35,7 @@ export const ACTIVITY_BAR_ICONS = [
     { id: "tools-icon", file: "tools.svg" },
     { id: "connections-icon", file: "connections.svg" },
     { id: "marketplace-icon", file: "marketplace.svg" },
+    { id: "ideas-icon", file: "ideas.svg" },
     { id: "search-icon", file: "search.svg" },
     { id: "consent-icon", file: "consent-shield.svg" },
     { id: "logs-icon", file: "mcp.svg" },

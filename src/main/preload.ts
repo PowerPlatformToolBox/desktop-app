@@ -176,6 +176,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     fetchToolIdeas: () => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.FETCH),
     submitToolIdea: (idea: unknown) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.SUBMIT, idea),
     upvoteToolIdea: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.UPVOTE, ideaId),
+    removeToolIdeaVote: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.REMOVE_VOTE, ideaId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),

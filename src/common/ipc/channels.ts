@@ -107,6 +107,7 @@ export const TOOL_IDEA_CHANNELS = {
     FETCH: "tool-idea:fetch",
     SUBMIT: "tool-idea:submit",
     UPVOTE: "tool-idea:upvote",
+    REMOVE_VOTE: "tool-idea:remove-vote",
 } as const;
 
 // Tool Window-related IPC channels

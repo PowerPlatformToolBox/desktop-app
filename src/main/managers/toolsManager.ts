@@ -488,6 +488,10 @@ export class ToolManager extends EventEmitter {
         return this.registryManager.upvoteToolIdea(ideaId);
     }
 
+    async removeToolIdeaVote(ideaId: string): Promise<ToolIdeaUpvoteResult> {
+        return this.registryManager.removeToolIdeaVote(ideaId);
+    }
+
     // ========================================================================
     // DEBUG MODE ONLY: Legacy npm-based installation for tool developers
     // ========================================================================
