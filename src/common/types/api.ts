@@ -286,6 +286,8 @@ export interface ToolboxAPI {
     installTool: (packageName: string) => Promise<Tool>;
     uninstallTool: (packageName: string, toolId: string) => Promise<void>;
     getToolWebviewHtml: (packageName: string) => Promise<string | null>;
+    /** SVG markup of a tool's icon (bundled path or allowlisted https URL), or null if unavailable. */
+    getToolIconSvg: (toolId: string, iconPath: string) => Promise<string | null>;
     getToolContext: (packageName: string, connectionUrl?: string, accessToken?: string) => Promise<ToolContext>;
     getLatestToolVersion: (packageName: string) => Promise<string | null>;
     updateTool: (packageName: string) => Promise<Tool>;
