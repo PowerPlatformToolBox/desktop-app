@@ -2197,11 +2197,13 @@ body.dark-theme .consent-status.revoked {
     color: var(--text-secondary);
     display: flex;
     align-items: center;
+    height: 24px;
     gap: 6px;
     cursor: pointer;
     transition: color 0.2s ease;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 0 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
 }
 
 .connection-status[hidden] {
@@ -2223,6 +2225,7 @@ body.dark-theme .consent-status.revoked {
 
 .connection-status.connected {
     font-weight: 500;
+    border-color: currentColor;
 }
 
 .connection-status.connected::before {
@@ -2288,6 +2291,7 @@ body.dark-theme .consent-status.revoked {
     place-items: center;
     width: 26px;
     height: 24px;
+    flex: 0 0 26px;
     padding: 0;
     border: 1px solid var(--border-color);
     border-radius: 3px;
@@ -2295,6 +2299,7 @@ body.dark-theme .consent-status.revoked {
     background: var(--bg-color);
     font-size: 11px;
     font-weight: 700;
+    line-height: 1;
     cursor: pointer;
 }
 
@@ -2319,7 +2324,7 @@ body.dark-theme .consent-status.revoked {
     border-style: dashed;
     color: var(--text-color-secondary, var(--text-color));
     background: transparent;
-    opacity: 0.65;
+    opacity: 0.8;
 }
 
 .connection-slot-square.available:hover,
