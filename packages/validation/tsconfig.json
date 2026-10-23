@@ -13,6 +13,7 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "moduleResolution": "node16",
+        "resolveJsonModule": true,
         "allowSyntheticDefaultImports": true
     },
     "include": ["src"]

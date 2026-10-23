@@ -6,6 +6,7 @@ import type { ToolRegistryEntry } from "../../../../src/common/types";
 import { ToolRegistryManager } from "../../../../src/main/managers/toolRegistryManager";
 import { ToolManager } from "../../../../src/main/managers/toolsManager";
 import { VersionManager } from "../../../../src/main/managers/versionManager";
+import { readWorkerMetadata } from "../../../../src/main/utils/workerMetadata";
 
 const worker: WorkerDeclaration = {
     kind: "dotnet-tool",
@@ -48,6 +49,12 @@ describe("worker metadata loading and persistence", () => {
         jest.spyOn(manager, "trackToolDownload").mockResolvedValue();
         return manager;
     }
+
+    it("keeps installed workers loadable with unregistered capabilities during migration", () => {
+        const toolPath = path.join(root, "legacy-tool");
+        writePackage(toolPath, { workers: { engine: worker }, invocation: { version: "1.0.0", capabilities: ["legacy-custom-tag"] } });
+        expect(readWorkerMetadata(toolPath, { features: { minAPI: "1.2.0" } })).toEqual(canonical);
+    });
 
     it.each([
         ["registry", "explicit"],

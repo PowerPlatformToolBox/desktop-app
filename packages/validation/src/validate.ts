@@ -1,5 +1,6 @@
 // @pptb/validate — core validation logic
 // Single source of truth for both the pptb-validate CLI and the web intake platform.
+import { BUNDLED_CAPABILITY_CATALOG, validateCapabilityDeclarations, type CapabilityCatalog } from "./capabilities";
 
 export interface Contributor {
     name: string;
@@ -84,6 +85,7 @@ export interface InvocationConfig {
 }
 
 export interface PPTBConfig {
+    $schema?: string;
     invocation?: InvocationConfig;
     agents?: AgentsConfig;
     workers?: Record<string, WorkerDeclaration>;
@@ -204,7 +206,7 @@ export const VALID_CONNECTION_REQUIREMENT_VALUES = ["required", "optional"] as c
  * Keep in sync with BUILT_IN_CAPABILITY_TAGS in
  * src/main/managers/toolRegistryManager.ts in the desktop app.
  */
-export const KNOWN_CAPABILITY_TAGS = ["fetchxml", "entity-picker", "record-selector", "solution-selector", "webresource-editor", "plugin-inspector", "pcf-control-builder"];
+export const KNOWN_CAPABILITY_TAGS = BUNDLED_CAPABILITY_CATALOG.capabilities.map((entry) => entry.tag);
 
 const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$/;
 
@@ -530,7 +532,14 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
 // validatePPTBConfig
 // ---------------------------------------------------------------------------
 
-export function validatePPTBConfig(config: PPTBConfig, packageJson?: Pick<ToolPackageJson, "features">): ValidationResult {
+export interface ValidatePPTBConfigOptions {
+    /** Pass the live catalog for submission checks; the default is a release-time offline snapshot. */
+    capabilityCatalog?: CapabilityCatalog;
+    /** Desktop migration only: retain installed-tool launches while reporting invalid declarations. */
+    capabilityValidation?: "error" | "warning";
+}
+
+export function validatePPTBConfig(config: PPTBConfig, packageJson?: Pick<ToolPackageJson, "features">, options: ValidatePPTBConfigOptions = {}): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -539,7 +548,8 @@ export function validatePPTBConfig(config: PPTBConfig, packageJson?: Pick<ToolPa
         return { valid: false, errors, warnings };
     }
 
-    const VALID_ROOT_KEYS = ["invocation", "agents", "workers"];
+    const VALID_ROOT_KEYS = ["$schema", "invocation", "agents", "workers"];
+    if (config.$schema !== undefined && typeof config.$schema !== "string") errors.push("$schema must be a string");
     const unknownRootKeys = Object.keys(config).filter((k) => !VALID_ROOT_KEYS.includes(k));
     if (unknownRootKeys.length > 0) {
         warnings.push(`pptb.config.json contains unrecognised root keys: ${unknownRootKeys.join(", ")}`);
@@ -581,21 +591,8 @@ export function validatePPTBConfig(config: PPTBConfig, packageJson?: Pick<ToolPa
             }
 
             if (inv.capabilities !== undefined) {
-                if (!Array.isArray(inv.capabilities)) {
-                    errors.push("invocation.capabilities must be an array");
-                } else {
-                    inv.capabilities.forEach((cap, idx) => {
-                        if (typeof cap !== "string" || cap.trim().length === 0) {
-                            errors.push(`invocation.capabilities[${idx}] must be a non-empty string`);
-                        } else if (!KNOWN_CAPABILITY_TAGS.includes(cap.trim())) {
-                            warnings.push(
-                                `invocation.capabilities[${idx}] "${cap}" is not a recognised capability tag. ` +
-                                    `Known tags: ${KNOWN_CAPABILITY_TAGS.join(", ")}. ` +
-                                    "If this is a new tag, ensure it has been added to the capability registry.",
-                            );
-                        }
-                    });
-                }
+                const diagnostics = validateCapabilityDeclarations(inv.capabilities, options.capabilityCatalog ?? BUNDLED_CAPABILITY_CATALOG);
+                (options.capabilityValidation === "warning" ? warnings : errors).push(...diagnostics);
             }
         }
     }

@@ -39,6 +39,9 @@ jobs:
             - name: Run unit tests
               run: pnpm run test:unit
 
+            - name: Check generated capability declarations and schema
+              run: pnpm --filter @pptb/validate check:generated
+
             - name: Upload coverage
               if: always()
               uses: actions/upload-artifact@v4

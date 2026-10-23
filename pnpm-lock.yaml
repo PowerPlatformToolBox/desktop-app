@@ -141,8 +141,8 @@ importers:
     packages/types:
         dependencies:
             "@pptb/validate":
-                specifier: 1.0.5
-                version: 1.0.5
+                specifier: workspace:*
+                version: link:../validation
 
     packages/validation:
         dependencies:
@@ -156,6 +156,9 @@ importers:
             "@types/tar":
                 specifier: ^7.0.87
                 version: 7.0.87
+            prettier:
+                specifier: ^3.9.10
+                version: 3.9.10
             typescript:
                 specifier: ^5.4.0
                 version: 5.9.3
@@ -909,10 +912,6 @@ packages:
     "@playwright/test@1.60.0":
         resolution: { integrity: sha512-O71yZIbAh/PxDMNGns37GHBIfrVkEVyn+AXyIa5dOTfb4/xNvRWV+Vv/NMbNCtODB/pO7vLlF2OTmMVLhmr7Ag== }
         engines: { node: ">=18" }
-        hasBin: true
-
-    "@pptb/validate@1.0.5":
-        resolution: { integrity: sha512-zi5WUWAnWm/JFf4oq3ffoeyEpVwV/8qHy+oaJ95kvi+QYnpDqXFFi0uoTt1pBGI+G1Ws6ljmEtxfGbxn/bAhhA== }
         hasBin: true
 
     "@rollup/rollup-android-arm-eabi@4.63.3":
@@ -5045,10 +5044,6 @@ snapshots:
     "@playwright/test@1.60.0":
         dependencies:
             playwright: 1.60.0
-
-    "@pptb/validate@1.0.5":
-        dependencies:
-            tar: 7.5.21
 
     "@rollup/rollup-android-arm-eabi@4.63.3":
         optional: true

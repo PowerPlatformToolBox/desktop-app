@@ -145,7 +145,7 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
 | Field                               | Required | Rules                                                                                                                                                                                                                              |
 | ----------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `invocation.version`                | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes.                                                                                   |
-| `invocation.capabilities`           | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`.                                                                                                      |
+| `invocation.capabilities`           | ❌       | Unique approved active registry tags (e.g. `["entity-picker"]`), used for discovery. Unknown tags, incorrect case, and whitespace are validation errors; custom/private tags are not allowed.                                      |
 | `invocation.prefill`                | ❌       | JSON-schema-style object describing data callers can pre-populate                                                                                                                                                                  |
 | `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                                                                                                    |
 | `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                                                                                                       |
@@ -161,6 +161,31 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
 | `agents.headlessEntry`              | ❌       | Path to the compiled automated runtime entry point                                                                                                                                                                                 |
 
 > \*\* Required only when the `invocation` object is present.
+
+#### Approved capabilities and editor guidance
+
+Set `PPTB_CAPABILITY_CATALOG_URL` to the public catalog endpoint in your tool
+project's `.env` or shell environment. Until the endpoint is deployed/configured,
+the CLI explicitly reports that it uses the bundled snapshot, not live approval.
+
+```bash
+pnpm exec pptb-validate capabilities
+pnpm exec pptb-validate --require-live
+pnpm exec pptb-validate --offline
+pnpm exec pptb-validate schema --require-live > pptb.config.schema.json
+```
+
+Use `--require-live` for submission checks; a missing/unavailable catalog fails
+instead of falling back. Normal local validation may use an explicitly reported
+last-known-good cache or bundled snapshot.
+
+Add `"$schema": "./node_modules/@pptb/types/pptb.config.schema.json"` to your config
+for bundled editor suggestions, or reference `./pptb.config.schema.json` after
+generating the current schema. `CapabilityTag` is now a closed generated union;
+newly approved tags reach the live validator before the next types release.
+These are discovery tags, not API permissions. New tags require registry approval.
+See the repository's [catalog guide](../../docs/CAPABILITY_CATALOG.md) for the HTTP
+contract and migration policy.
 
 **Example `pptb.config.json`:**
 

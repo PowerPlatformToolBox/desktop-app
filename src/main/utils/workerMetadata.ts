@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { validatePPTBConfig, type PPTBConfig, type WorkerDeclaration } from "../../../packages/validation/src/validate";
 import type { NormalizedWorkerDeclaration } from "../../common/types";
+import { logWarn } from "../../common/logger";
 
 export function normalizeWorkerMetadata(value: unknown, minAPI: unknown): Record<string, NormalizedWorkerDeclaration> {
     const result = validatePPTBConfig({ workers: value as Record<string, WorkerDeclaration> }, { features: { minAPI: minAPI as string } });
@@ -15,7 +16,9 @@ export function readWorkerMetadata(toolPath: string, packageJson: Parameters<typ
     const config: unknown = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     if (config === null || typeof config !== "object" || Array.isArray(config)) throw new Error("pptb.config.json must be a JSON object");
     if (!Object.prototype.hasOwnProperty.call(config, "workers")) return undefined;
-    const result = validatePPTBConfig(config as PPTBConfig, packageJson);
+    // Runtime worker loading must not enforce new submission rules on installed tools' discovery tags.
+    const result = validatePPTBConfig(config as PPTBConfig, packageJson, { capabilityValidation: "warning" });
+    for (const warning of result.warnings) logWarn(`[ToolRegistry] ${warning}`, { toolPath });
     if (!result.valid) throw new Error(`Invalid worker declarations: ${result.errors.join("; ")}`);
     return (result.packageInfo as PPTBConfig).workers as Record<string, NormalizedWorkerDeclaration>;
 }

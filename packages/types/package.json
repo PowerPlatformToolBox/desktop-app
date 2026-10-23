@@ -24,7 +24,7 @@
         "pptb-validate": "./bin/pptb-validate.js"
     },
     "dependencies": {
-        "@pptb/validate": "1.0.5"
+        "@pptb/validate": "workspace:*"
     },
     "files": [
         "index.d.ts",
@@ -32,6 +32,8 @@
         "dataverseAPI.d.ts",
         "powerplatformAPI.d.ts",
         "pptbConfig.d.ts",
+        "capabilityTags.d.ts",
+        "pptb.config.schema.json",
         "toolManifest.d.ts",
         "bin/",
         "README.md"

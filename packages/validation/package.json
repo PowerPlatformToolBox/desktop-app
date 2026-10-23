@@ -21,6 +21,12 @@
     },
     "packageManager": "pnpm@10.18.3",
     "exports": {
+        "./catalog-node": {
+            "types": "./dist/catalog-node.d.ts",
+            "default": "./dist/catalog-node.js"
+        },
+        "./pptb.config.schema.json": "./dist/pptb.config.schema.json",
+        "./capability-catalog.json": "./dist/capability-catalog.json",
         ".": {
             "default": "./dist/index.js",
             "types": "./dist/index.d.ts"
@@ -38,8 +44,10 @@
         "dist"
     ],
     "scripts": {
-        "build": "tsc",
-        "prepublishOnly": "npm run build",
+        "build": "tsc && node dist/generate.js",
+        "check:generated": "tsc && node dist/generate.js --check",
+        "refresh:catalog": "tsc && node dist/generate.js --refresh && tsc",
+        "prepublishOnly": "pnpm run build",
         "version:beta": "pnpm version prerelease --preid beta --no-git-tag-version",
         "version:stable": "pnpm version patch --no-git-tag-version",
         "publish:stable": "pnpm publish --access public --tag latest --no-git-checks",
@@ -48,6 +56,7 @@
     "devDependencies": {
         "@types/node": "^20.19.21",
         "@types/tar": "^7.0.87",
+        "prettier": "^3.9.10",
         "typescript": "^5.4.0"
     },
     "dependencies": {

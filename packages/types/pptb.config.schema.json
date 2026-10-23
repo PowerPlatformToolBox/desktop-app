@@ -1,0 +1,210 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Power Platform ToolBox tool configuration",
+    "$comment": "Capability catalog bundled-2026-10-21, published 2026-10-21T00:00:00.000Z. Cross-field rules are checked by pptb-validate.",
+    "type": "object",
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "Location of this configuration's JSON Schema."
+        },
+        "invocation": {
+            "type": "object",
+            "required": ["version"],
+            "properties": {
+                "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*)?(\\+[0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*)?$"
+                },
+                "capabilities": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "description": "Approved discovery tags only. New tags require registry approval; these are not API permissions.",
+                    "items": {
+                        "oneOf": [
+                            {
+                                "const": "entity-picker",
+                                "description": "Browse and select a Dataverse entity (table)"
+                            },
+                            {
+                                "const": "fetchxml",
+                                "description": "Accept or process FetchXML queries"
+                            },
+                            {
+                                "const": "pcf-control-builder",
+                                "description": "Build or scaffold PCF controls"
+                            },
+                            {
+                                "const": "plugin-inspector",
+                                "description": "Inspect or manage plugins and assemblies"
+                            },
+                            {
+                                "const": "record-selector",
+                                "description": "Browse and select a Dataverse record"
+                            },
+                            {
+                                "const": "solution-selector",
+                                "description": "Pick a Power Platform solution"
+                            },
+                            {
+                                "const": "webresource-editor",
+                                "description": "Edit or manage web resources"
+                            }
+                        ]
+                    }
+                },
+                "prefill": {
+                    "type": "object",
+                    "properties": {
+                        "properties": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "$ref": "#/definitions/property"
+                            }
+                        }
+                    }
+                },
+                "returnTopic": {
+                    "type": "object",
+                    "properties": {
+                        "properties": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "$ref": "#/definitions/property"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "agents": {
+            "type": "object",
+            "required": ["version", "headless"],
+            "properties": {
+                "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*)?(\\+[0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*)?$"
+                },
+                "headless": {
+                    "type": "boolean"
+                },
+                "invokable": {
+                    "type": "boolean"
+                },
+                "modes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["one-way", "two-way"]
+                    }
+                },
+                "defaultMode": {
+                    "type": "string",
+                    "enum": ["one-way", "two-way"]
+                },
+                "timeoutMS": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "executionModes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["windowed", "headless"]
+                    }
+                },
+                "defaultExecutionMode": {
+                    "type": "string",
+                    "enum": ["windowed", "headless"]
+                },
+                "headlessEntry": {
+                    "type": "string"
+                }
+            }
+        },
+        "workers": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+                "not": {
+                    "enum": ["__proto__", "constructor", "prototype"]
+                }
+            },
+            "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "packageId", "packageVersion", "command", "dotnet", "platforms"],
+                "properties": {
+                    "kind": {
+                        "const": "dotnet-tool"
+                    },
+                    "packageId": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "pattern": "^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*$"
+                    },
+                    "packageVersion": {
+                        "type": "string",
+                        "pattern": "^\\d+(?:\\.\\d+){0,3}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+                    },
+                    "command": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$"
+                    },
+                    "dotnet": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["targetFramework", "minimumRuntimeVersion"],
+                        "properties": {
+                            "targetFramework": {
+                                "enum": ["net8.0", "net9.0", "net10.0"]
+                            },
+                            "minimumRuntimeVersion": {
+                                "type": "string",
+                                "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                            },
+                            "rollForward": {
+                                "enum": ["Disable", "Latest", "Minor", "Major"]
+                            }
+                        }
+                    },
+                    "platforms": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                            "enum": ["all", "windows-x64", "windows-arm64", "macos-x64", "macos-arm64", "linux-x64", "linux-arm64"]
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "property": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "enum": {
+                    "type": "array",
+                    "minItems": 1
+                },
+                "items": {
+                    "$ref": "#/definitions/property"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}

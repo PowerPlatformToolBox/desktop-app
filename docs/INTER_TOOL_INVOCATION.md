@@ -383,7 +383,7 @@ The following tags are registered in the official capability registry. Use them 
 | `record-selector`   | Browse and select a Dataverse record         |
 | `solution-selector` | Pick a Power Platform solution               |
 
-> **Note:** The registry is configurable without an app update — new tags are added to the Supabase `capability_tags` table and become immediately discoverable at runtime via `getKnownCapabilityTags()`. The TypeScript `KnownCapabilityTag` union type and `pptb-validate` are updated in the next `@pptb/types` release.
+> **Note:** The registry is configurable without an app update. Approved active tags are fetched at runtime from Supabase. The updated `pptb-validate` can use the public catalog configured through `PPTB_CAPABILITY_CATALOG_URL`; its bundled snapshot and the generated TypeScript union update with package releases. See the [catalog guide](./CAPABILITY_CATALOG.md).
 
 > **IDE auto-complete:** Import `CapabilityTag` from `@pptb/types/pptbConfig` to get IntelliSense for known tags:
 >
@@ -764,11 +764,15 @@ npx pptb-validate
 The validator checks:
 
 - `invocation.version` is present and a valid semver string.
-- `invocation.capabilities` (when present) is an array of non-empty strings where each value is a recognised capability tag (warning issued for unrecognised tags — see well-known tags above).
+- `invocation.capabilities` (when present) contains unique approved active tags. Unknown tags, duplicates, incorrect case, surrounding whitespace, and blank/non-string values are errors. Custom/private tags are not supported.
 - `invocation.prefill.properties` values are valid JSON-schema property descriptors.
 - `invocation.returnTopic.properties` values are valid JSON-schema property descriptors.
 
-The validator prints the list of known capability tags in its output summary so you can quickly check which tags are available.
+Run `pnpm exec pptb-validate capabilities` for tags and descriptions. Catalog diagnostics
+identify the source and revision. Use `--require-live` for submission checks;
+normal local checks may explicitly fall back to cached or bundled data.
+For config autocomplete, add
+`"$schema": "./node_modules/@pptb/types/pptb.config.schema.json"`.
 
 ### TypeScript types
 

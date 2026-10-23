@@ -7,6 +7,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
+import { BUNDLED_CAPABILITY_CATALOG } from "../../../packages/validation/src/capabilities";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { captureException } from "../../common/sentryHelper";
 import {
@@ -248,20 +249,9 @@ interface SupabaseCapabilityTagRow {
  * fetched at startup; this list ensures the app always has a baseline set of
  * known tags so tools can be validated even in an offline scenario.
  *
- * **Keep in sync with `KNOWN_CAPABILITY_TAGS` in `packages/lib/validate.js`.**
- * Since the validator is a standalone Node.js CLI that cannot import from the
- * Electron/TypeScript source tree, both lists must be updated together whenever
- * new tags are added to the Supabase `capability_tags` table.
+ * Shared with the validator and generated editor artifacts.
  */
-const BUILT_IN_CAPABILITY_TAGS: CapabilityTagEntry[] = [
-    { tag: "fetchxml", description: "Accept or process FetchXML queries" },
-    { tag: "entity-picker", description: "Browse and select a Dataverse entity (table)" },
-    { tag: "record-selector", description: "Browse and select a Dataverse record" },
-    { tag: "solution-selector", description: "Pick a Power Platform solution" },
-    { tag: "webresource-editor", description: "Edit or manage web resources" },
-    { tag: "plugin-inspector", description: "Inspect or manage plugins and assemblies" },
-    { tag: "pcf-control-builder", description: "Build or scaffold PCF controls" },
-];
+const BUILT_IN_CAPABILITY_TAGS: CapabilityTagEntry[] = BUNDLED_CAPABILITY_CATALOG.capabilities;
 
 /**
  * Manages tool installation from a registry (marketplace)
@@ -1733,8 +1723,8 @@ export class ToolRegistryManager extends EventEmitter {
                 throw new Error(`Supabase capability_tags query failed: ${error.message}`);
             }
 
-            if (!data || data.length === 0) {
-                logInfo("[ToolRegistry] No capability tags found in Supabase, using built-in fallback");
+            if (!data) {
+                logWarn("[ToolRegistry] Capability query returned no data, using built-in fallback");
                 return null;
             }
 

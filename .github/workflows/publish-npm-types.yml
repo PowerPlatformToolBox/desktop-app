@@ -47,6 +47,19 @@ jobs:
                   node-version: "20"
                   # REMOVED: registry-url (This is what causes the ENEEDAUTH error)
 
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.18.3
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Check capability artifacts and build shared validator
+              run: |
+                  pnpm --filter @pptb/validate check:generated
+                  pnpm --filter @pptb/validate build
+
             - name: Get version
               id: version
               run: |
@@ -58,14 +71,14 @@ jobs:
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
             - name: Sync @pptb/types version
-              working-directory: ./packages
+              working-directory: ./packages/types
               run: |
-                  npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+                  pnpm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
             - name: Publish @pptb/types to npm
-              working-directory: ./packages
+              working-directory: ./packages/types
               run: |
-                  npm publish --access public --tag ${{ inputs.tag }} --provenance
+                  pnpm publish --access public --tag ${{ inputs.tag }} --provenance --no-git-checks
               env:
                   # Use an empty config to ignore the root .npmrc that you mentioned
                   NPM_CONFIG_USERCONFIG: /dev/null

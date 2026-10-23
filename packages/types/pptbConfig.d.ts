@@ -41,42 +41,23 @@
  * ```
  */
 
-/**
- * Well-known capability tags defined in the Power Platform ToolBox capability registry.
- *
- * Using one of these values provides IDE auto-complete and ensures compatibility with the
- * official capability discovery system (`toolboxAPI.invocation.findToolsByCapability`).
- * The authoritative list is maintained in the Supabase `capability_tags` table so new
- * tags can be added without an app update. Fetch the current list at runtime via
- * `toolboxAPI.invocation.getKnownCapabilityTags()`.
- *
- * | Tag                  | Description                                           |
- * | -------------------- | ----------------------------------------------------- |
- * | `fetchxml`           | Accept or process FetchXML queries                    |
- * | `entity-picker`      | Browse and select a Dataverse entity (table)          |
- * | `record-selector`    | Browse and select a Dataverse record                  |
- * | `solution-selector`  | Pick a Power Platform solution                        |
- * | `webresource-editor` | Edit or manage web resources                          |
- * | `plugin-inspector`   | Inspect or manage plugins and assemblies              |
- * | `pcf-control-builder`| Build or scaffold PCF controls                        |
- */
-export type KnownCapabilityTag = "fetchxml" | "entity-picker" | "record-selector" | "solution-selector" | "webresource-editor" | "plugin-inspector" | "pcf-control-builder";
+import type { KnownCapabilityTag } from "./capabilityTags";
+export type { KnownCapabilityTag } from "./capabilityTags";
 
 /**
  * A capability tag string accepted by `invocation.capabilities` and
  * `toolboxAPI.invocation.findToolsByCapability()`.
  *
- * `KnownCapabilityTag` values offer IDE auto-complete and are validated by
- * `pptb-validate`. Custom strings are permitted for organisation-internal tags,
- * but will produce a validation warning unless the tag appears in the official
- * capability registry.
+ * Approved tags from the bundled catalog provide IDE auto-complete. Custom tags
+ * are not accepted. Newly approved tags appear in the next types release; the
+ * live catalog used by `pptb-validate` can recognize them before that release.
  *
  * @example
  * ```json
  * { "invocation": { "version": "1.0.0", "capabilities": ["fetchxml", "entity-picker"] } }
  * ```
  */
-export type CapabilityTag = KnownCapabilityTag | string;
+export type CapabilityTag = KnownCapabilityTag;
 
 /** A JSON-schema-style property descriptor used inside invocation definitions. */
 export interface JsonSchemaProperty {
@@ -163,9 +144,8 @@ export interface InvocationConfig {
      * Capability tags declared by this tool.
      *
      * Callers use `toolboxAPI.invocation.findToolsByCapability(tag)` to discover tools
-     * that advertise a given capability. Prefer `KnownCapabilityTag` values for IDE
-     * auto-complete; custom strings are accepted but will produce a `pptb-validate`
-     * warning unless the tag is present in the official capability registry.
+     * that advertise a given capability. Only approved active registry tags are
+     * accepted by `pptb-validate`; new tags require registry approval.
      *
      * Use `toolboxAPI.invocation.getKnownCapabilityTags()` at runtime to retrieve the
      * full list from the registry (backed by a configurable Supabase table so new tags
@@ -210,6 +190,8 @@ export interface NormalizedWorkerDeclaration extends WorkerDeclaration {
 
 /** Optional package-root config, validated alongside package.json by pptb-validate. */
 export interface PPTBConfig {
+    /** JSON Schema location, e.g. ./node_modules/@pptb/types/pptb.config.schema.json. */
+    $schema?: string;
     /** Invocation contract – how this tool can be called by other tools. */
     invocation?: InvocationConfig;
     /** Agent contract – how this tool can be called by external automation. */

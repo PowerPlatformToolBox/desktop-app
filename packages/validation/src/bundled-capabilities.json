@@ -1,0 +1,14 @@
+{
+    "schemaVersion": 1,
+    "revision": "bundled-2026-10-21",
+    "publishedAt": "2026-10-21T00:00:00.000Z",
+    "capabilities": [
+        { "tag": "entity-picker", "description": "Browse and select a Dataverse entity (table)" },
+        { "tag": "fetchxml", "description": "Accept or process FetchXML queries" },
+        { "tag": "pcf-control-builder", "description": "Build or scaffold PCF controls" },
+        { "tag": "plugin-inspector", "description": "Inspect or manage plugins and assemblies" },
+        { "tag": "record-selector", "description": "Browse and select a Dataverse record" },
+        { "tag": "solution-selector", "description": "Pick a Power Platform solution" },
+        { "tag": "webresource-editor", "description": "Edit or manage web resources" }
+    ]
+}
