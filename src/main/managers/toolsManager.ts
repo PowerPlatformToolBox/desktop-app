@@ -18,7 +18,9 @@ import {
     ToolIdeaUpvoteResult,
     ToolManifest,
     ToolRegistryEntry,
+    ToolReviewContext,
 } from "../../common/types";
+import { resolveReviewVersion } from "../../common/utils/toolReview";
 import { readWorkerMetadata } from "../utils/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
 import { ProxyManager } from "./proxyManager";
@@ -465,8 +467,22 @@ export class ToolManager extends EventEmitter {
     /**
      * Submit (or update) this install's star rating/comment for a tool
      */
-    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
-        return this.registryManager.submitToolRating(toolId, rating, comment);
+    async submitToolRating(toolId: string, rating: number, comment?: string, toolVersion?: string): Promise<{ rating?: number; ratingCount?: number }> {
+        // Authoritative gate: installation state and version are re-read from local metadata at submit time.
+        const version = resolveReviewVersion(this.getToolReviewContext(toolId), toolVersion);
+        return this.registryManager.submitToolRating(toolId, rating, comment, version);
+    }
+
+    /**
+     * Resolve whether a tool is installed locally, based on the installed-tool manifest.
+     * Throws if the manifest cannot be read so callers never assume the tool is installed.
+     */
+    getToolReviewContext(toolId: string): ToolReviewContext {
+        const manifest = typeof toolId === "string" && toolId ? this.registryManager.getInstalledManifestStrict(toolId) : null;
+        if (!manifest) {
+            return { toolId, installed: false };
+        }
+        return { toolId, installed: true, version: manifest.version, repository: manifest.repository };
     }
 
     /**

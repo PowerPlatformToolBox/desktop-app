@@ -1400,14 +1400,22 @@ class ToolBoxApp {
         });
 
         // Submit (or update) this install's star rating/comment for a tool
-        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string) => {
+        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string, toolVersion?: string) => {
+            if (typeof toolId !== "string" || !toolId) {
+                throw new Error("A tool is required to submit a review.");
+            }
             if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
                 throw new Error("Rating must be an integer between 1 and 5");
             }
             const trimmedComment = typeof comment === "string" ? comment.trim().slice(0, 500) : undefined;
-            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined);
+            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined, toolVersion);
             this.settingsManager.setMyToolRating(toolId, rating, trimmedComment || undefined);
             return aggregate;
+        });
+
+        // Resolve installation state (and installed version) used to gate reviews
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_REVIEW_CONTEXT, (_, toolId: string) => {
+            return this.toolManager.getToolReviewContext(toolId);
         });
 
         // Get this install's previously submitted rating/comment for a tool, if any

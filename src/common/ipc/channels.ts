@@ -95,6 +95,7 @@ export const TOOL_CHANNELS = {
     SUBMIT_TOOL_RATING: "submit-tool-rating",
     /** Get the current install's previously submitted rating/comment for a tool, if any. */
     GET_MY_TOOL_RATING: "get-my-tool-rating",
+    GET_TOOL_REVIEW_CONTEXT: "get-tool-review-context",
 } as const;
 
 // Tool concern report ("Report a Concern") IPC channels

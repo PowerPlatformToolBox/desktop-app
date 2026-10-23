@@ -1,3 +1,4 @@
+import { TOOL_REVIEW_GITHUB_REMINDER, TOOL_REVIEW_VERSION_MAX_LENGTH } from "../../../common/utils/toolReview";
 import { escapeHtml } from "../../utils/toolIconResolver";
 import { getModalStyles } from "../sharedStyles";
 
@@ -11,6 +12,10 @@ export interface RateToolModalViewModel {
     isDarkTheme: boolean;
     existingRating?: number;
     existingComment?: string;
+    /** Installed version from local metadata; empty/undefined means the reviewer must enter it. */
+    installedVersion?: string;
+    /** True when a valid github.com issues link exists for the tool. */
+    hasIssuesLink?: boolean;
 }
 
 const MAX_COMMENT_LENGTH = 500;
@@ -65,8 +70,49 @@ export function getRateToolModalView(model: RateToolModalViewModel): ModalViewTe
         text-align: right;
         color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.5)" : "rgba(0, 0, 0, 0.5)"};
     }
+
+    [hidden] {
+        display: none !important;
+    }
+
+    .rate-tool-version {
+        font-size: 13px;
+    }
+
+    .rate-tool-version-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.16)"};
+        background: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"};
+        color: ${model.isDarkTheme ? "#fff" : "#000"};
+        font-family: inherit;
+        font-size: 13px;
+    }
+
+    .rate-tool-version-confirm {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        margin-top: 8px;
+        font-size: 12px;
+    }
+
+    .rate-tool-reminder {
+        font-size: 12px;
+        line-height: 1.4;
+        color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)"};
+    }
+
+    .rate-tool-reminder a {
+        color: inherit;
+        text-decoration: underline;
+        cursor: pointer;
+    }
 </style>`;
 
+    const installedVersion = (model.installedVersion ?? "").trim();
     const existingRating = typeof model.existingRating === "number" ? Math.min(5, Math.max(1, Math.round(model.existingRating))) : 0;
     const stars = [1, 2, 3, 4, 5]
         .map(
@@ -86,6 +132,17 @@ export function getRateToolModalView(model: RateToolModalViewModel): ModalViewTe
     </div>
     <div class="modal-body">
         <div class="form-group">
+            <div id="rate-tool-version-installed" class="rate-tool-version"${installedVersion ? "" : " hidden"}>Reviewing installed version: <strong id="rate-tool-version-value">${escapeHtml(installedVersion)}</strong></div>
+            <div id="rate-tool-version-manual"${installedVersion ? " hidden" : ""}>
+                <label for="rate-tool-version-input">Installed version (required)</label>
+                <input id="rate-tool-version-input" class="rate-tool-version-input" type="text" maxlength="${TOOL_REVIEW_VERSION_MAX_LENGTH}" placeholder="Version of the tool you installed" />
+            </div>
+            <label id="rate-tool-version-confirm-row" class="rate-tool-version-confirm" hidden>
+                <input id="rate-tool-version-confirm" type="checkbox" />
+                <span id="rate-tool-version-confirm-text"></span>
+            </label>
+        </div>
+        <div class="form-group">
             <div id="rate-tool-stars" class="star-rating">${stars}</div>
         </div>
         <div class="form-group">
@@ -93,6 +150,7 @@ export function getRateToolModalView(model: RateToolModalViewModel): ModalViewTe
             <textarea id="rate-tool-comment" class="rate-tool-comment" maxlength="${MAX_COMMENT_LENGTH}" placeholder="What did you think of this tool?">${escapeHtml(model.existingComment ?? "")}</textarea>
             <span id="rate-tool-comment-count" class="rate-tool-comment-count">0/${MAX_COMMENT_LENGTH}</span>
         </div>
+        <p class="rate-tool-reminder" id="rate-tool-reminder">${escapeHtml(TOOL_REVIEW_GITHUB_REMINDER)}${model.hasIssuesLink ? ' <a id="rate-tool-issues-link" role="link" tabindex="0">Open the tool\'s GitHub issues</a>' : ""}</p>
         <div id="rate-tool-feedback" class="modal-feedback"></div>
     </div>
     <div class="modal-footer">

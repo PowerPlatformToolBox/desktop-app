@@ -388,6 +388,48 @@ Query taking too long to filter by version
 
 ---
 
+## Review Tool Version (`ratings.tool_version`)
+
+The desktop review dialog only accepts reviews for locally installed tools and sends the installed version as `p_tool_version` to the existing `submit_tool_rating` RPC. The column is nullable and never required globally: older desktop clients that omit it (or send `NULL`) keep working. Do not backfill historical reviews.
+
+### 1. Column and validation trigger
+
+```sql
+BEGIN;
+
+ALTER TABLE public.ratings ADD COLUMN IF NOT EXISTS tool_version text;
+
+CREATE OR REPLACE FUNCTION public.require_rating_tool_version()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    NEW.tool_version := regexp_replace(NEW.tool_version, '^[[:space:]]+|[[:space:]]+$', '', 'g');
+    IF NEW.tool_version IS NOT NULL AND length(NEW.tool_version) NOT BETWEEN 1 AND 100 THEN
+        RAISE EXCEPTION 'Tool version must contain 1 to 100 characters when supplied' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS require_rating_tool_version ON public.ratings;
+CREATE TRIGGER require_rating_tool_version
+BEFORE INSERT OR UPDATE OF tool_version ON public.ratings
+FOR EACH ROW EXECUTE FUNCTION public.require_rating_tool_version();
+
+COMMIT;
+```
+
+### 2. RPC change (required before shipping the desktop build)
+
+The desktop calls `submit_tool_rating` with `p_tool_id`, `p_install_id`, `p_rating`, `p_comment` and now also `p_tool_version`. The function must accept the new parameter **as a trailing parameter with `DEFAULT NULL` in a single function** — adding it as a second overload would make 4-argument calls ambiguous. Replace the existing function rather than adding one:
+
+1. Capture the live definition: `SELECT pg_get_functiondef('public.submit_tool_rating(uuid, text, integer, text)'::regprocedure);` (adjust the argument types to match your database).
+2. `DROP FUNCTION public.submit_tool_rating(<existing argument types>);` and re-create it with the same body, signature and grants plus `p_tool_version text DEFAULT NULL`, writing `tool_version = p_tool_version` on insert and `tool_version = COALESCE(EXCLUDED.tool_version, ratings.tool_version)` in the `ON CONFLICT ... DO UPDATE` branch so an older client re-rating does not erase a stored version.
+3. Re-apply the original `GRANT EXECUTE` statements (the drop removes them), in the same transaction.
+
+Staging checks: a 4-argument call and a call with `p_tool_version => NULL` succeed; `'  1.2.3 '` is stored as `1.2.3`; `''`, whitespace-only and 101-character values fail with SQLSTATE `23514`; aggregates (`rating`, `rating_count`) are unchanged for existing rows.
+
+---
+
 ## Next Steps
 
 After completing the database changes:

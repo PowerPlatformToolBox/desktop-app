@@ -1128,6 +1128,19 @@ export class ToolRegistryManager extends EventEmitter {
         return tools.find((tool) => tool.id === toolId) || null;
     }
 
+    /**
+     * Like getInstalledManifestSync, but throws when the manifest cannot be read or parsed so callers
+     * can distinguish "not installed" from "installation state unknown".
+     */
+    getInstalledManifestStrict(toolId: string): ToolManifest | null {
+        if (!fs.existsSync(this.manifestPath)) {
+            return null;
+        }
+        const parsed = JSON.parse(fs.readFileSync(this.manifestPath, "utf-8")) as { tools?: Record<string, unknown>[] };
+        const entry = (parsed.tools ?? []).find((candidate) => candidate?.id === toolId);
+        return entry ? this.normalizeManifestEntry(entry) : null;
+    }
+
     private readInstalledManifest(): ToolManifest[] {
         if (!fs.existsSync(this.manifestPath)) {
             return [];
@@ -1452,7 +1465,7 @@ export class ToolRegistryManager extends EventEmitter {
      * aggregate rating/count server-side. Unlike the silent analytics trackers
      * above, failures are rethrown so the UI can show the user an error.
      */
-    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
+    async submitToolRating(toolId: string, rating: number, comment?: string, toolVersion?: string): Promise<{ rating?: number; ratingCount?: number }> {
         if (!this.supabase || this.useLocalFallback) {
             throw new Error("Rating submission requires an online connection to the tool registry.");
         }
@@ -1470,6 +1483,8 @@ export class ToolRegistryManager extends EventEmitter {
                 p_install_id: installId,
                 p_rating: rating,
                 p_comment: comment ?? null,
+                // Omitted when unknown so the payload stays compatible with callers/RPCs that predate tool_version.
+                ...(toolVersion !== undefined ? { p_tool_version: toolVersion } : {}),
             });
 
             if (error) {
@@ -1488,7 +1503,7 @@ export class ToolRegistryManager extends EventEmitter {
             logError(`[ToolRegistry] Failed to submit rating for ${toolId}`, error);
             captureException(error instanceof Error ? error : new Error(String(error)), {
                 tags: { operation: "submitToolRating" },
-                extra: { toolId },
+                extra: { toolId, toolVersion },
             });
             throw error instanceof Error ? error : new Error(String(error));
         }

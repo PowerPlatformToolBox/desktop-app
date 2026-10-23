@@ -10,7 +10,7 @@ import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, D
 import { Connection } from "./connection";
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSourceIssue, ProxySettings, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
+import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolReviewContext, ToolRegistryEntry, ToolSettings } from "./tool";
 import { ToolIdea, ToolIdeaSubmission, ToolIdeaUpvoteResult } from "./toolIdea";
 
 /**
@@ -403,7 +403,9 @@ export interface ToolboxAPI {
     /** Install the beta (pre-release) npm package for a registry tool and return the loaded Tool. */
     installPrereleaseToolFromNpm: (npmPackageName: string) => Promise<Tool>;
     /** Submit (or update) this install's star rating/comment for a tool; returns the recomputed aggregate. */
-    submitToolRating: (toolId: string, rating: number, comment?: string) => Promise<ToolRatingAggregate>;
+    submitToolRating: (toolId: string, rating: number, comment?: string, toolVersion?: string) => Promise<ToolRatingAggregate>;
+    /** Resolve whether a tool is installed locally (and its installed version) before allowing a review. Rejects if the state cannot be loaded. */
+    getToolReviewContext: (toolId: string) => Promise<ToolReviewContext>;
     /** Get this install's previously submitted rating/comment for a tool, if any. */
     getMyToolRating: (toolId: string) => Promise<MyToolRating | null>;
     fetchToolIdeas: () => Promise<ToolIdea[]>;
