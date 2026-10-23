@@ -31,6 +31,7 @@ import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constan
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utils/mockRegistry";
 import { normalizeWorkerMetadata, readWorkerMetadata } from "../utils/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
+import { mapIdeas, mapIdeaVoteResult, validateIdeaId, validateIdeaSubmission } from "../../common/utils/ideas";
 import { ProxyManager } from "./proxyManager";
 
 /**
@@ -1127,6 +1128,19 @@ export class ToolRegistryManager extends EventEmitter {
         return tools.find((tool) => tool.id === toolId) || null;
     }
 
+    /**
+     * Like getInstalledManifestSync, but throws when the manifest cannot be read or parsed so callers
+     * can distinguish "not installed" from "installation state unknown".
+     */
+    getInstalledManifestStrict(toolId: string): ToolManifest | null {
+        if (!fs.existsSync(this.manifestPath)) {
+            return null;
+        }
+        const parsed = JSON.parse(fs.readFileSync(this.manifestPath, "utf-8")) as { tools?: Record<string, unknown>[] };
+        const entry = (parsed.tools ?? []).find((candidate) => candidate?.id === toolId);
+        return entry ? this.normalizeManifestEntry(entry) : null;
+    }
+
     private readInstalledManifest(): ToolManifest[] {
         if (!fs.existsSync(this.manifestPath)) {
             return [];
@@ -1451,7 +1465,7 @@ export class ToolRegistryManager extends EventEmitter {
      * aggregate rating/count server-side. Unlike the silent analytics trackers
      * above, failures are rethrown so the UI can show the user an error.
      */
-    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
+    async submitToolRating(toolId: string, rating: number, comment?: string, toolVersion?: string): Promise<{ rating?: number; ratingCount?: number }> {
         if (!this.supabase || this.useLocalFallback) {
             throw new Error("Rating submission requires an online connection to the tool registry.");
         }
@@ -1469,6 +1483,8 @@ export class ToolRegistryManager extends EventEmitter {
                 p_install_id: installId,
                 p_rating: rating,
                 p_comment: comment ?? null,
+                // Omitted when unknown so the payload stays compatible with callers/RPCs that predate tool_version.
+                ...(toolVersion !== undefined ? { p_tool_version: toolVersion } : {}),
             });
 
             if (error) {
@@ -1487,7 +1503,7 @@ export class ToolRegistryManager extends EventEmitter {
             logError(`[ToolRegistry] Failed to submit rating for ${toolId}`, error);
             captureException(error instanceof Error ? error : new Error(String(error)), {
                 tags: { operation: "submitToolRating" },
-                extra: { toolId },
+                extra: { toolId, toolVersion },
             });
             throw error instanceof Error ? error : new Error(String(error));
         }
@@ -1545,29 +1561,16 @@ export class ToolRegistryManager extends EventEmitter {
             throw new Error("Install ID is unavailable; cannot load tool ideas.");
         }
 
-        const { data, error } = await this.supabase.rpc("get_tool_ideas", { p_install_id: this.installIdManager.getInstallId() });
+        const { data, error } = await this.supabase.rpc("get_ideas", { p_install_id: this.installIdManager.getInstallId() });
         if (error) {
             throw new Error(error.message ?? JSON.stringify(error));
         }
 
-        return (Array.isArray(data) ? data : []).flatMap((row: Record<string, unknown>) => {
-            if (typeof row.id !== "string" || typeof row.title !== "string" || typeof row.description !== "string") {
-                return [];
-            }
-            return [
-                {
-                    id: row.id,
-                    title: row.title,
-                    description: row.description,
-                    upvotes: typeof row.upvotes === "number" ? row.upvotes : 0,
-                    createdAt: typeof row.created_at === "string" ? row.created_at : "",
-                    hasUpvoted: row.has_upvoted === true,
-                },
-            ];
-        });
+        return mapIdeas(data);
     }
 
     async submitToolIdea(idea: ToolIdeaSubmission): Promise<void> {
+        idea = validateIdeaSubmission(idea);
         if (!this.supabase || this.useLocalFallback) {
             throw new Error("Submitting a tool idea requires an online connection to the tool registry.");
         }
@@ -1576,6 +1579,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         const { error } = await this.supabase.from("tool_ideas").insert({
+            idea_type: idea.ideaType,
             title: idea.title.trim(),
             description: idea.description.trim(),
             email: idea.email?.trim() || null,
@@ -1588,17 +1592,23 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     async upvoteToolIdea(ideaId: string): Promise<ToolIdeaUpvoteResult> {
+        return this.changeToolIdeaVote(ideaId, "upvote_tool_idea");
+    }
+
+    async removeToolIdeaVote(ideaId: string): Promise<ToolIdeaUpvoteResult> {
+        return this.changeToolIdeaVote(ideaId, "remove_tool_idea_vote");
+    }
+
+    private async changeToolIdeaVote(ideaId: string, rpc: "upvote_tool_idea" | "remove_tool_idea_vote"): Promise<ToolIdeaUpvoteResult> {
         if (!this.supabase || this.useLocalFallback) {
-            throw new Error("Upvoting tool ideas requires an online connection to the tool registry.");
+            throw new Error("Changing idea votes requires an online connection to the tool registry.");
         }
         if (!this.installIdManager) {
             throw new Error("Install ID is unavailable; cannot upvote a tool idea.");
         }
-        if (typeof ideaId !== "string" || !ideaId.trim()) {
-            throw new Error("A tool idea ID is required.");
-        }
+        validateIdeaId(ideaId);
 
-        const { data, error } = await this.supabase.rpc("upvote_tool_idea", {
+        const { data, error } = await this.supabase.rpc(rpc, {
             p_idea_id: ideaId,
             p_install_id: this.installIdManager.getInstallId(),
         });
@@ -1606,11 +1616,7 @@ export class ToolRegistryManager extends EventEmitter {
             throw new Error(error.message ?? JSON.stringify(error));
         }
 
-        const row = Array.isArray(data) ? data[0] : data;
-        return {
-            upvotes: typeof row?.upvotes === "number" ? row.upvotes : 0,
-            hasUpvoted: row?.has_upvoted === true,
-        };
+        return mapIdeaVoteResult(data);
     }
 
     /**

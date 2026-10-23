@@ -28,6 +28,7 @@ import {
     WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
+import { validateIdeaSubmission } from "../common/utils/ideas";
 import { captureException, captureMessage, logInfo as logSentryInfo, recordSentryTelemetryDisabled } from "../common/sentryHelper";
 import type { DataverseHeaderConsentDecision } from "../common/types";
 import {
@@ -1399,14 +1400,22 @@ class ToolBoxApp {
         });
 
         // Submit (or update) this install's star rating/comment for a tool
-        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string) => {
+        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string, toolVersion?: string) => {
+            if (typeof toolId !== "string" || !toolId) {
+                throw new Error("A tool is required to submit a review.");
+            }
             if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
                 throw new Error("Rating must be an integer between 1 and 5");
             }
             const trimmedComment = typeof comment === "string" ? comment.trim().slice(0, 500) : undefined;
-            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined);
+            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined, toolVersion);
             this.settingsManager.setMyToolRating(toolId, rating, trimmedComment || undefined);
             return aggregate;
+        });
+
+        // Resolve installation state (and installed version) used to gate reviews
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_REVIEW_CONTEXT, (_, toolId: string) => {
+            return this.toolManager.getToolReviewContext(toolId);
         });
 
         // Get this install's previously submitted rating/comment for a tool, if any
@@ -1433,26 +1442,15 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.SUBMIT, async (_, idea: ToolIdeaSubmission) => {
-            if (!idea || typeof idea.title !== "string" || typeof idea.description !== "string") {
-                throw new Error("A title and description are required.");
-            }
-            const title = idea.title.trim();
-            const description = idea.description.trim();
-            const email = typeof idea.email === "string" ? idea.email.trim() : "";
-            if (!title || title.length > 120) {
-                throw new Error("The title must be between 1 and 120 characters.");
-            }
-            if (!description || description.length > 3000) {
-                throw new Error("The description must be between 1 and 3000 characters.");
-            }
-            if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-                throw new Error("Enter a valid contact email address.");
-            }
-            await this.toolManager.submitToolIdea({ title, description, email: email || undefined });
+            await this.toolManager.submitToolIdea(validateIdeaSubmission(idea));
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.UPVOTE, async (_, ideaId: string) => {
             return this.toolManager.upvoteToolIdea(ideaId);
+        });
+
+        ipcMain.handle(TOOL_IDEA_CHANNELS.REMOVE_VOTE, async (_, ideaId: string) => {
+            return this.toolManager.removeToolIdeaVote(ideaId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -3222,7 +3220,7 @@ class ToolBoxApp {
                         },
                     },
                     {
-                        label: "Suggest a Tool",
+                        label: "Share an idea",
                         click: () => {
                             this.mainWindow?.webContents.send("open-suggest-tool-modal");
                         },

@@ -14,6 +14,7 @@ import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUr
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
 import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
+import { getToolReviewUnavailableMessage, resolveToolReviewAccess } from "../utils/toolReviewAccess";
 import { openRateToolModal } from "./rateToolModal";
 import { openReportConcernModal } from "./reportConcernModal";
 import { launchTool, openLocalPageAsTab } from "./toolManagement";
@@ -324,7 +325,7 @@ export async function loadMarketplace(options?: { forceRefresh?: boolean }): Pro
                 <p>No matching tools</p>
                 <p class="empty-state-hint">${emptyMessage}</p>
                 ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="marketplace-clear-filters-link">Clear all filters</a>' : ""}
-                <button type="button" class="fluent-button fluent-button-primary" id="marketplace-suggest-tool-empty-btn">Suggest a Tool</button>
+                <button type="button" class="fluent-button fluent-button-primary" id="marketplace-suggest-tool-empty-btn">Share an idea</button>
             </div>
         `;
 
@@ -670,7 +671,8 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const iconHtml = buildToolIconHtml(tool);
 
     const linkItems: string[] = [];
-    linkItems.push(`<a id="tool-detail-rate-link" class="tool-detail-tab-link" href="#" role="button">Rate this tool</a>`);
+    // Hidden until this tool's installation state resolves as installed.
+    const rateMarkup = `<span id="tool-detail-rate-wrap" style="display:none"><a id="tool-detail-rate-link" class="tool-detail-tab-link" href="#" role="button">Rate this tool</a><span aria-hidden="true"> • </span></span>`;
     const repositoryUrl = normalizeRepositoryUrl(tool.repository);
     if (repositoryUrl) {
         linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(repositoryUrl)}" data-url="${escapeHtml(repositoryUrl)}">Repository</a>`);
@@ -680,7 +682,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(websiteUrl)}" data-url="${escapeHtml(websiteUrl)}">Website</a>`);
     }
     linkItems.push(`<a id="tool-detail-report-link" class="tool-detail-tab-link tool-detail-tab-link-warning" href="#" role="button">Report a concern</a>`);
-    const linksMarkup = linkItems.length ? `<div class="tool-detail-tab-links">${linkItems.join('<span aria-hidden="true"> • </span>')}</div>` : "";
+    const linksMarkup = `<div class="tool-detail-tab-links">${rateMarkup}${linkItems.join('<span aria-hidden="true"> • </span>')}</div>`;
 
     const readmePlaceholder = tool.readmeUrl ? "Loading README..." : "README is not available for this tool.";
     const unsupportedAttr = tool.isSupported === false ? `disabled title="This tool is not compatible with your version of Power Platform ToolBox"` : "";
@@ -732,7 +734,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const rateLink = panel.querySelector<HTMLAnchorElement>("#tool-detail-rate-link");
     rateLink?.addEventListener("click", (e) => {
         e.preventDefault();
-        openRateToolModal({ id: tool.id, name: tool.name })
+        openRateToolModal({ id: tool.id, name: tool.name, repository: tool.repository })
             .then((aggregate) => {
                 if (!aggregate) return;
                 const metaList = panel.querySelector<HTMLElement>("#tool-detail-tab-meta-list");
@@ -763,7 +765,24 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const uninstallBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-uninstall-btn");
     const prereleaseBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-prerelease-btn");
     const installedBadge = panel.querySelector<HTMLElement>("#tool-detail-installed-badge");
+    const rateWrap = panel.querySelector<HTMLElement>("#tool-detail-rate-wrap");
+    let rateRefreshToken = 0;
+    // Rating is offered only after this tool's own installation state resolves as installed.
+    const refreshRateAvailability = async (toolInstalled: boolean): Promise<void> => {
+        const token = ++rateRefreshToken;
+        if (rateWrap) rateWrap.style.display = "none";
+        if (!toolInstalled) return;
+        const access = await resolveToolReviewAccess(tool.id);
+        if (token !== rateRefreshToken || !panel.isConnected) return;
+        if (access.status === "eligible") {
+            if (rateWrap) rateWrap.style.display = "";
+        } else if (access.status === "unknown") {
+            logError("Failed to resolve tool installation state for review", access.error);
+            await window.toolboxAPI.utils.showNotification({ title: "Review unavailable", body: getToolReviewUnavailableMessage(access) ?? "", type: "error" }).catch(() => undefined);
+        }
+    };
     const setInstalledState = (toolInstalled: boolean): void => {
+        void refreshRateAvailability(toolInstalled);
         if (installBtn) {
             installBtn.style.display = toolInstalled ? "none" : "inline-flex";
             installBtn.disabled = false;
