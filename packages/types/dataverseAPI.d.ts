@@ -16,6 +16,7 @@ declare namespace DataverseAPI {
         headers?: AdditionalHeaders;
         body?: unknown;
         contentId?: string;
+        changesetId?: string;
     }
 
     export interface BatchResult {

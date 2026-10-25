@@ -2067,7 +2067,7 @@ export class DataverseManager {
             response.rawBody,
             responseContentType,
             validatedRequests.map((request) => request.contentId as string),
-            transaction,
+            transaction || validatedRequests.some((request) => request.changesetId !== undefined),
         );
         const batchHeaders = selectDataverseBatchResponseHeaders(response.headers);
         return Object.keys(batchHeaders).length > 0 ? results.map((result) => ({ ...result, batchHeaders })) : results;
