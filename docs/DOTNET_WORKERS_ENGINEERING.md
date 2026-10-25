@@ -167,7 +167,13 @@ The broker derives the exact live tool instance from the sender's `WebContents`,
 then validates the loaded identity against current package/config source before
 consent, discovery, preparation and immediately before spawn. Preparation
 authority includes a source fingerprint over canonical path and package/config
-bytes. Each asynchronous boundary rechecks live consent revision and source.
+bytes. Each asynchronous boundary during preparation, and the final pre-launch
+check, rechecks live consent revision and source. Once launched, the connection
+uses the captured identity: per-message checks enforce sender/handle ownership,
+owner availability, cancellation and consent revision without resolving package
+identity, reading manifests or hashing the local package again. Owner disposal,
+navigation, tool mutations and consent revocation invalidate the connection.
+Every new launch, including an explicit restart, performs source validation again.
 Handles and events are scoped to the owning instance; another instance of the
 same tool cannot use them. Normal npm installation does not discover .NET,
 download packages or start workers. No credentials are passed to the worker.
