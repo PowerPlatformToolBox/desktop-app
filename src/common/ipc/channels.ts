@@ -79,6 +79,7 @@ export const TOOL_CHANNELS = {
     GET_LOCAL_TOOL_WEBVIEW_HTML: "get-local-tool-webview-html",
     OPEN_DIRECTORY_PICKER: "open-directory-picker",
     FETCH_REGISTRY_TOOLS: "fetch-registry-tools",
+    GET_REGISTRY_ISSUES: "get-registry-issues",
     FETCH_COMMUNITY_LINKS: "fetch-community-links",
     INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
     CHECK_TOOL_UPDATES: "check-tool-updates",
@@ -94,6 +95,7 @@ export const TOOL_CHANNELS = {
     SUBMIT_TOOL_RATING: "submit-tool-rating",
     /** Get the current install's previously submitted rating/comment for a tool, if any. */
     GET_MY_TOOL_RATING: "get-my-tool-rating",
+    GET_TOOL_REVIEW_CONTEXT: "get-tool-review-context",
 } as const;
 
 // Tool concern report ("Report a Concern") IPC channels
@@ -106,6 +108,7 @@ export const TOOL_IDEA_CHANNELS = {
     FETCH: "tool-idea:fetch",
     SUBMIT: "tool-idea:submit",
     UPVOTE: "tool-idea:upvote",
+    REMOVE_VOTE: "tool-idea:remove-vote",
 } as const;
 
 // Tool Window-related IPC channels

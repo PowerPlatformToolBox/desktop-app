@@ -1,4 +1,6 @@
 import type { Page } from "playwright";
+import fs from "fs";
+import path from "path";
 import { expect, test } from "./fixtures";
 
 /**
@@ -79,6 +81,45 @@ test.describe("Navigation", () => {
         await categoryColor.check();
         await expect(categoryThickness).toBeEnabled();
         await expect(environmentThickness).toBeDisabled();
+    });
+
+    test("color thickness rejects invalid keyboard input and only saves whole numbers from 1 to 10", async ({ electronApp, window }) => {
+        await window.locator("#settings-activity-btn").click();
+        const userDataPath = await electronApp.evaluate(({ app }) => app.getPath("userData"));
+        const readSettings = (): Record<string, unknown> => JSON.parse(fs.readFileSync(path.join(userDataPath, "user-settings.json"), "utf8"));
+        const saveButton = window.locator("#sidebar-save-settings-btn");
+        const controls = [
+            { id: "#sidebar-category-color-thickness", key: "categoryColorThickness" },
+            { id: "#sidebar-environment-color-thickness", key: "environmentColorThickness" },
+        ];
+
+        for (const { id } of controls) {
+            await window.locator(id).fill("6");
+        }
+        await saveButton.click();
+        await expect.poll(() => controls.map(({ key }) => readSettings()[key])).toEqual([6, 6]);
+
+        for (const { id, key } of controls) {
+            const input = window.locator(id);
+            for (const invalidValue of ["500", "0", "-1", "1.5", ""]) {
+                await input.fill("");
+                if (invalidValue) await input.pressSequentially(invalidValue);
+                await saveButton.click();
+
+                await expect(input).toHaveValue(invalidValue);
+                expect(await input.evaluate((element: HTMLInputElement) => element.validity.valid)).toBe(false);
+                expect(readSettings()[key]).toBe(6);
+            }
+            await input.fill("6");
+        }
+
+        for (const validValue of ["1", "10"]) {
+            for (const { id } of controls) {
+                await window.locator(id).fill(validValue);
+            }
+            await saveButton.click();
+            await expect.poll(() => controls.map(({ key }) => readSettings()[key])).toEqual([Number(validValue), Number(validValue)]);
+        }
     });
 
     test("marketplace section is reachable", async ({ window }) => {

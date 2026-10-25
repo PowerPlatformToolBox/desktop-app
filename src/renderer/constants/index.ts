@@ -35,6 +35,7 @@ export const ACTIVITY_BAR_ICONS = [
     { id: "tools-icon", file: "tools.svg" },
     { id: "connections-icon", file: "connections.svg" },
     { id: "marketplace-icon", file: "marketplace.svg" },
+    { id: "ideas-icon", file: "ideas.svg" },
     { id: "search-icon", file: "search.svg" },
     { id: "consent-icon", file: "consent-shield.svg" },
     { id: "logs-icon", file: "mcp.svg" },
@@ -63,5 +64,4 @@ export const DEFAULT_SHOW_CATEGORY_COLOR = true;
 export const DEFAULT_SHOW_ENVIRONMENT_COLOR = true;
 export const DEFAULT_CATEGORY_COLOR_THICKNESS = 5;
 export const DEFAULT_ENVIRONMENT_COLOR_THICKNESS = 5;
-export const MIN_COLOR_BORDER_THICKNESS = 1;
-export const MAX_COLOR_BORDER_THICKNESS = 10;
+export { MIN_COLOR_BORDER_THICKNESS, MAX_COLOR_BORDER_THICKNESS } from "../../common/types/settings";

@@ -15,7 +15,7 @@ import {
     ToolSettings,
     UserSettings,
 } from "../../common/types";
-import { buildPreviewFeatureFlags } from "../../common/types/settings";
+import { buildPreviewFeatureFlags, isValidColorBorderThickness, MAX_COLOR_BORDER_THICKNESS, MIN_COLOR_BORDER_THICKNESS } from "../../common/types/settings";
 import { AZURE_BLOB_BASE_URL } from "../constants";
 
 /**
@@ -216,6 +216,12 @@ export class SettingsManager {
      * Update user settings
      */
     updateUserSettings(settings: Partial<UserSettings>): void {
+        for (const key of ["categoryColorThickness", "environmentColorThickness"] as const) {
+            if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                this.validateColorBorderThickness(key, settings[key]);
+            }
+        }
+
         Object.entries(settings).forEach(([key, value]) => {
             if (key === "marketplaceSources" && Array.isArray(value)) {
                 this.store.set(key as keyof UserSettings, this.normalizeMarketplaceSources(value as MarketplaceSource[]));
@@ -247,6 +253,8 @@ export class SettingsManager {
      * Set a specific setting value
      */
     setSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): void {
+        this.validateColorBorderThickness(key, value);
+
         if (key === "sentryTelemetryConsent") {
             this.setSentryTelemetryConsent(normalizeTelemetryConsent(value));
             return;
@@ -258,6 +266,12 @@ export class SettingsManager {
         }
 
         this.store.set(key, value);
+    }
+
+    private validateColorBorderThickness(key: keyof UserSettings, value: unknown): void {
+        if ((key === "categoryColorThickness" || key === "environmentColorThickness") && !isValidColorBorderThickness(value)) {
+            throw new RangeError(`${key} must be a whole number between ${MIN_COLOR_BORDER_THICKNESS} and ${MAX_COLOR_BORDER_THICKNESS} pixels.`);
+        }
     }
 
     getSentryTelemetryConsent(): TelemetryConsentChoice | null {

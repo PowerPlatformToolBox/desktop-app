@@ -14,6 +14,7 @@ export interface DataverseBatchRequest {
     headers?: Record<string, string>;
     body?: unknown;
     contentId?: string;
+    changesetId?: string;
 }
 
 export interface DataverseBatchResult {

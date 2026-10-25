@@ -275,10 +275,13 @@ Returned as an MCP error result (`isError: true`) so clients do not validate it 
 
 ### Typical agent loop
 
-1. Call the tool. If the result is `input_required`, show the user `availableConnections` (name + environment) for each slot and ask for any `parameters`.
-2. Call `pptb_authenticate_connections` for every selected connection whose `authStatus` is not `signed-in`. Multi-connection tools need all slots authenticated.
-3. Retry the tool with `__pptb.connectionNames` in slot order plus the parameter values.
-4. Backup only: if the user prefers the PPTB UI, retry with `__pptb.executionMode: "windowed"`.
+1. Before invoking a connection-dependent tool for a new task, call `pptb_list_connections`. Always show a connection picker in the agent chat (using the client's user-input/selection UI when available), with each connection's name, environment, and URL. Wait for the user's explicit selection, even when only one connection exists or connections are already signed in. Authentication status must never be used to choose an environment.
+2. For only the user-picked connections, skip authentication when `authStatus` is `signed-in`; otherwise call `pptb_authenticate_connections` and wait for success. Multi-connection tools need every selected slot authenticated. If the user cancels or has not made a selection, stop without authenticating or invoking the tool.
+3. Invoke the requested tool with only the user-picked names in `__pptb.connectionNames` in slot order, plus the parameter values. If the result is `input_required`, collect the missing inputs without silently choosing a connection.
+4. Keep the selection for follow-up calls and retries within the same task. Never probe or iterate through other connections to locate a record, including after an empty result or error. To change environments, show the picker again and wait for a new user selection.
+5. Backup only: if the user prefers the PPTB UI, retry with `__pptb.executionMode: "windowed"`.
+
+This workflow is advertised through MCP initialization instructions, connection-dependent tool descriptions and connection-name schemas, the `nextSteps` returned by `pptb_list_connections`, and `input_required` guidance. Chat selection is performed by the MCP client: the server cannot independently verify that a caller-supplied connection name came from a user interaction. Clients must honor this contract; it is not a server-enforced approval boundary.
 
 Tool authors can improve the prompts agents show by adding `title` and `description` to `invocation.prefill` properties.
 

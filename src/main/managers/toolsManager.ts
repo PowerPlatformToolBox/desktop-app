@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import spawn from "cross-spawn";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
@@ -18,7 +18,9 @@ import {
     ToolIdeaUpvoteResult,
     ToolManifest,
     ToolRegistryEntry,
+    ToolReviewContext,
 } from "../../common/types";
+import { resolveReviewVersion } from "../../common/utils/toolReview";
 import { readWorkerMetadata } from "../utils/workerMetadata";
 import { InstallIdManager } from "./installIdManager";
 import { ProxyManager } from "./proxyManager";
@@ -311,8 +313,8 @@ export class ToolManager extends EventEmitter {
     /**
      * Fetch available tools from registry
      */
-    async fetchAvailableTools(): Promise<ToolRegistryEntry[]> {
-        const registryTools = await this.registryManager.fetchRegistry();
+    async fetchAvailableTools(options?: { forceRefresh?: boolean }): Promise<ToolRegistryEntry[]> {
+        const registryTools = await this.registryManager.fetchRegistry(options);
 
         return registryTools.map((registryTool) => ({
             id: registryTool.id,
@@ -465,8 +467,22 @@ export class ToolManager extends EventEmitter {
     /**
      * Submit (or update) this install's star rating/comment for a tool
      */
-    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
-        return this.registryManager.submitToolRating(toolId, rating, comment);
+    async submitToolRating(toolId: string, rating: number, comment?: string, toolVersion?: string): Promise<{ rating?: number; ratingCount?: number }> {
+        // Authoritative gate: installation state and version are re-read from local metadata at submit time.
+        const version = resolveReviewVersion(this.getToolReviewContext(toolId), toolVersion);
+        return this.registryManager.submitToolRating(toolId, rating, comment, version);
+    }
+
+    /**
+     * Resolve whether a tool is installed locally, based on the installed-tool manifest.
+     * Throws if the manifest cannot be read so callers never assume the tool is installed.
+     */
+    getToolReviewContext(toolId: string): ToolReviewContext {
+        const manifest = typeof toolId === "string" && toolId ? this.registryManager.getInstalledManifestStrict(toolId) : null;
+        if (!manifest) {
+            return { toolId, installed: false };
+        }
+        return { toolId, installed: true, version: manifest.version, repository: manifest.repository };
     }
 
     /**
@@ -486,6 +502,10 @@ export class ToolManager extends EventEmitter {
 
     async upvoteToolIdea(ideaId: string): Promise<ToolIdeaUpvoteResult> {
         return this.registryManager.upvoteToolIdea(ideaId);
+    }
+
+    async removeToolIdeaVote(ideaId: string): Promise<ToolIdeaUpvoteResult> {
+        return this.registryManager.removeToolIdeaVote(ideaId);
     }
 
     // ========================================================================
@@ -519,11 +539,9 @@ export class ToolManager extends EventEmitter {
 
     private async checkPackageManager(command: string): Promise<boolean> {
         return new Promise((resolve) => {
-            const isWindows = process.platform === "win32";
-            const cmd = isWindows ? `${command}.cmd` : command;
             const env = this.buildEnv();
 
-            const check = spawn(cmd, ["--version"], { env });
+            const check = spawn(command, ["--version"], { env });
 
             check.on("close", (code: number) => {
                 resolve(code === 0);
@@ -544,14 +562,14 @@ export class ToolManager extends EventEmitter {
         const hasPnpm = await this.checkPackageManager("pnpm");
         if (hasPnpm) {
             logInfo(`[ToolManager] Found pnpm globally installed`);
-            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm", env: this.buildEnv() };
+            return { command: "pnpm", name: "pnpm", env: this.buildEnv() };
         }
 
         // Fallback to npm
         const hasNpm = await this.checkPackageManager("npm");
         if (hasNpm) {
             logInfo(`[ToolManager] Found npm globally installed`);
-            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm", env: this.buildEnv() };
+            return { command: "npm", name: "npm", env: this.buildEnv() };
         }
 
         logError(`[ToolManager] Neither pnpm nor npm found globally installed`);
@@ -580,8 +598,7 @@ export class ToolManager extends EventEmitter {
                     ? ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]
                     : ["install", packageName, "--prefix", this.toolsDirectory, "--no-optional", "--production"];
 
-            // Don't use shell: true to avoid issues with spaces in paths
-            // The command array is already in the correct format for spawn
+            // cross-spawn handles Windows .cmd shims and escapes arguments without shell: true.
             const install = spawn(pkgManager.command, args, { env: pkgManager.env });
 
             let stderr = "";

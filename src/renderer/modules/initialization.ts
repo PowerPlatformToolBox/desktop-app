@@ -48,6 +48,7 @@ import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCre
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { initializeTitlebar } from "./titlebarManagement";
 import { openToolIdeasModal } from "./toolIdeasModal";
+import { openIdeasTab } from "./ideasManagement";
 import {
     applyAppearanceSettings,
     closeAllTools,
@@ -267,6 +268,9 @@ export async function initializeApplication(): Promise<void> {
  * Set up Activity Bar navigation
  */
 function setupActivityBar(): void {
+    document.getElementById("ideas-activity-btn")?.addEventListener("click", () => {
+        openIdeasTab().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+    });
     const activityItems = document.querySelectorAll(".activity-item");
     activityItems.forEach((item) => {
         item.addEventListener("click", () => {

@@ -3,6 +3,173 @@
 @use "./styles/mixins" as *;
 @use "./styles/homepage" as *;
 
+.ideas-board {
+    height: 100%;
+    overflow-y: auto;
+    padding: 28px 32px 36px;
+    box-sizing: border-box;
+    color: var(--text-primary);
+    background: var(--bg-color);
+
+    .ideas-toolbar,
+    .idea-card-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+    .ideas-toolbar {
+        margin-bottom: 12px;
+    }
+
+    h1,
+    h2,
+    h3 {
+        margin: 0;
+    }
+    h1 {
+        flex: 1;
+        font-size: 24px;
+    }
+    h2 {
+        flex: 1;
+        min-width: 160px;
+        font-size: 16px;
+        overflow-wrap: anywhere;
+        line-height: 1.35;
+    }
+    h3 {
+        font-size: 13px;
+        margin-top: 12px;
+    }
+    .ideas-intro {
+        margin: 0 0 6px;
+        line-height: 1.5;
+    }
+    .ideas-triage-note {
+        max-width: 1000px;
+        margin: 0 0 24px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+    }
+    .ideas-filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: 12px 16px;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .ideas-filter {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 190px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .ideas-select-wrap {
+        position: relative;
+        display: block;
+
+        &::after {
+            position: absolute;
+            top: 50%;
+            right: 15px;
+            width: 7px;
+            height: 7px;
+            border-right: 1.5px solid currentColor;
+            border-bottom: 1.5px solid currentColor;
+            content: "";
+            pointer-events: none;
+            transform: translateY(-70%) rotate(45deg);
+        }
+
+        select {
+            display: block;
+            width: 100%;
+            min-height: 40px;
+            padding: 8px 36px 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            background-color: var(--bg-color);
+            background-image: none !important;
+            appearance: none !important;
+            cursor: pointer;
+        }
+
+        select::-ms-expand {
+            display: none;
+        }
+    }
+    #ideas-refresh {
+        min-height: 40px;
+        margin-left: 0;
+    }
+    .ideas-error {
+        color: var(--error-color, #c42b1c);
+    }
+    #ideas-list {
+        display: grid;
+        gap: 16px;
+    }
+    .idea-card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 20px 22px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--card-background);
+        overflow-wrap: anywhere;
+    }
+    .idea-card-header {
+        width: 100%;
+    }
+    .idea-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .idea-badge {
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 3px 10px;
+        font-size: 12px;
+    }
+    .idea-description {
+        margin: 0;
+        white-space: pre-wrap;
+        line-height: 1.5;
+    }
+    .idea-badges + .idea-card-header {
+        margin-top: 2px;
+    }
+    button:disabled {
+        opacity: 0.6;
+        cursor: default;
+    }
+
+    @media (max-width: 720px) {
+        .ideas-board {
+            padding: 20px 16px 28px;
+
+            .ideas-filter {
+                flex: 1 1 160px;
+            }
+        }
+    }
+    button:focus-visible,
+    select:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: 2px;
+    }
+}
+
 .native-worker-consent-review fluent-button {
     cursor: pointer;
     white-space: normal;
@@ -2030,11 +2197,13 @@ body.dark-theme .consent-status.revoked {
     color: var(--text-secondary);
     display: flex;
     align-items: center;
+    height: 24px;
     gap: 6px;
     cursor: pointer;
     transition: color 0.2s ease;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 0 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
 }
 
 .connection-status[hidden] {
@@ -2056,6 +2225,7 @@ body.dark-theme .consent-status.revoked {
 
 .connection-status.connected {
     font-weight: 500;
+    border-color: currentColor;
 }
 
 .connection-status.connected::before {
@@ -2121,6 +2291,7 @@ body.dark-theme .consent-status.revoked {
     place-items: center;
     width: 26px;
     height: 24px;
+    flex: 0 0 26px;
     padding: 0;
     border: 1px solid var(--border-color);
     border-radius: 3px;
@@ -2128,6 +2299,7 @@ body.dark-theme .consent-status.revoked {
     background: var(--bg-color);
     font-size: 11px;
     font-weight: 700;
+    line-height: 1;
     cursor: pointer;
 }
 
@@ -2152,7 +2324,7 @@ body.dark-theme .consent-status.revoked {
     border-style: dashed;
     color: var(--text-color-secondary, var(--text-color));
     background: transparent;
-    opacity: 0.65;
+    opacity: 0.8;
 }
 
 .connection-slot-square.available:hover,
@@ -2224,6 +2396,72 @@ body.dark-theme .consent-status.revoked {
 
 .empty-state-link:hover {
     text-decoration: underline;
+}
+
+/* Marketplace load error and source issues */
+.marketplace-load-error-title {
+    font-weight: 600;
+    color: var(--text-color, #323130);
+}
+
+.marketplace-load-error-details {
+    max-width: 640px;
+    margin: 12px auto;
+    padding: 10px 12px;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    font-size: 12px;
+    color: #a4262c;
+    background: #fde7e9;
+    border: 1px solid #f1bbbc;
+    border-radius: 4px;
+}
+
+.marketplace-load-error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
+.marketplace-source-issues {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #8a6d3b;
+    background: #fff4ce;
+    border: 1px solid #ffb900;
+    border-radius: 4px;
+}
+
+.marketplace-source-issues.has-errors {
+    color: #a4262c;
+    background: #fde7e9;
+    border-color: #f1bbbc;
+}
+
+.marketplace-source-issues p {
+    margin: 0 0 6px;
+    font-weight: 600;
+}
+
+.marketplace-source-issues ul {
+    margin: 0;
+    padding-left: 18px;
+    word-break: break-word;
+}
+
+body.dark-theme .marketplace-load-error-details,
+body.dark-theme .marketplace-source-issues.has-errors {
+    color: #f1bbbc;
+    background: #442726;
+    border-color: #6e3b3b;
+}
+
+body.dark-theme .marketplace-source-issues {
+    color: #d4c89f;
+    background: #3a3a2a;
+    border-color: #8a7d3b;
 }
 
 /* Modal */

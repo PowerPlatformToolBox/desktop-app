@@ -136,6 +136,19 @@ export interface MyToolRating {
 }
 
 /**
+ * Installation state used to decide whether a tool can be reviewed. Resolved from the
+ * canonical installed-tool manifest in the main process, keyed by the stable tool id.
+ */
+export interface ToolReviewContext {
+    toolId: string;
+    installed: boolean;
+    /** Installed version from local installation metadata (undefined if unavailable). */
+    version?: string;
+    /** Repository URL recorded in the installed tool's metadata. */
+    repository?: string;
+}
+
+/**
  * Aggregate rating result returned after submitting a rating (recomputed server-side).
  */
 export interface ToolRatingAggregate {

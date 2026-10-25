@@ -46,6 +46,28 @@ describe("Dataverse batch utilities", () => {
         ).toThrow("duplicate Dataverse content ID");
     });
 
+    it("groups requests with the same changeset ID while leaving other requests independent", () => {
+        const encoded = encodeDataverseBatch([
+            { method: "POST", url: "accounts", changesetId: "create-related-records" },
+            { method: "GET", url: "accounts" },
+            { method: "PATCH", url: "accounts(1)", changesetId: "create-related-records" },
+            { method: "DELETE", url: "accounts(2)", changesetId: "delete-record" },
+        ]);
+        const changesets = Array.from(encoded.body.matchAll(/Content-Type: multipart\/mixed; boundary=(changeset_[^\r\n]+)\r\n\r\n([\s\S]*?)--\1--\r\n/g));
+
+        expect(changesets).toHaveLength(2);
+        expect(changesets[0][2]).toContain("POST /api/data/v9.2/accounts HTTP/1.1");
+        expect(changesets[0][2]).toContain("PATCH /api/data/v9.2/accounts(1) HTTP/1.1");
+        expect(changesets[0][2]).not.toContain("GET /api/data/v9.2/accounts HTTP/1.1");
+        expect(changesets[1][2]).toContain("DELETE /api/data/v9.2/accounts(2) HTTP/1.1");
+        expect(encoded.body.indexOf("GET /api/data/v9.2/accounts HTTP/1.1")).toBeGreaterThan(encoded.body.indexOf(`--${changesets[0][1]}--`));
+        expect(encoded.body.indexOf("GET /api/data/v9.2/accounts HTTP/1.1")).toBeLessThan(encoded.body.indexOf(`--${changesets[1][1]}`));
+    });
+
+    it("rejects empty changeset IDs", () => {
+        expect(() => validateBatchRequests([{ method: "POST", url: "accounts", changesetId: " " }], false)).toThrow("Invalid Dataverse changeset ID");
+    });
+
     it("encodes independent batch operations using CRLF and application/http", () => {
         const encoded = encodeDataverseBatch([
             { method: "GET", url: "accounts?$top=1" },

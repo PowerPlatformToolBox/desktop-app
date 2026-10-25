@@ -6,6 +6,13 @@ import { Theme } from "./common";
 import { Connection } from "./connection";
 import { MyToolRating } from "./tool";
 
+export const MIN_COLOR_BORDER_THICKNESS = 1;
+export const MAX_COLOR_BORDER_THICKNESS = 10;
+
+export function isValidColorBorderThickness(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value >= MIN_COLOR_BORDER_THICKNESS && value <= MAX_COLOR_BORDER_THICKNESS;
+}
+
 /**
  * Sort options for installed tools
  */
@@ -104,6 +111,18 @@ export interface MarketplaceSource {
     url: string;
     enabled: boolean;
     description?: string;
+}
+
+/**
+ * Problem encountered while loading a marketplace source.
+ * "error" means the source failed to load; "warning" means it loaded from a degraded path (e.g. backup mirror).
+ */
+export interface MarketplaceSourceIssue {
+    sourceId: string;
+    sourceLabel: string;
+    sourceType: MarketplaceSource["type"];
+    severity: "error" | "warning";
+    message: string;
 }
 
 /**

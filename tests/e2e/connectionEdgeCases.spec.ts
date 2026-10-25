@@ -56,6 +56,51 @@ test("startup repairs missing IDs on disk without shifting later slots", async (
     expect(await window.evaluate((id) => window.toolboxAPI.getToolConnectionSlots(id), toolId)).toEqual(settings.toolConnectionSlots[toolId]);
 });
 
+test("aligns connection squares after the primary connection in the footer", async ({ electronApp, window }) => {
+    await assignConnections(electronApp, window);
+    const squares = window.locator("#connection-slot-squares");
+    await expect(squares.locator(".connection-slot-square")).toHaveCount(3);
+
+    const layout = await window.evaluate(() => {
+        const squaresElement = document.getElementById("connection-slot-squares")!;
+        const statusElement = document.getElementById("connection-status")!;
+        const square = squaresElement.querySelector(".connection-slot-square")!;
+        const squareStyle = getComputedStyle(square);
+        const statusStyle = getComputedStyle(statusElement);
+        const squareBounds = square.getBoundingClientRect();
+        const statusBounds = statusElement.getBoundingClientRect();
+        return {
+            squaresParent: squaresElement.parentElement?.className,
+            squaresLeft: squaresElement.getBoundingClientRect().left,
+            statusRight: statusBounds.right,
+            squareHeight: squareBounds.height,
+            statusHeight: statusBounds.height,
+            statusBorderWidth: statusStyle.borderTopWidth,
+            statusBorderStyle: statusStyle.borderTopStyle,
+            statusBorderColor: statusStyle.borderTopColor,
+            statusColor: statusStyle.color,
+            squareCenterY: squareBounds.top + squareBounds.height / 2,
+            statusCenterY: statusBounds.top + statusBounds.height / 2,
+            borderWidth: squareStyle.borderTopWidth,
+            borderStyle: squareStyle.borderTopStyle,
+            borderColor: squareStyle.borderTopColor,
+        };
+    });
+
+    expect(layout.squaresParent).toContain("footer-content");
+    expect(layout.squaresLeft).toBeGreaterThanOrEqual(layout.statusRight);
+    expect(Math.abs(layout.squareCenterY - layout.statusCenterY)).toBeLessThanOrEqual(1);
+    expect(layout.squareHeight).toBe(24);
+    expect(layout.statusHeight).toBe(layout.squareHeight);
+    expect(layout.statusBorderWidth).toBe("1px");
+    expect(layout.statusBorderStyle).toBe("solid");
+    expect(layout.statusBorderColor).toBe(layout.statusColor);
+    expect(layout.statusBorderColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(layout.borderWidth).toBe("1px");
+    expect(layout.borderStyle).toBe("solid");
+    expect(layout.borderColor).not.toBe("rgba(0, 0, 0, 0)");
+});
+
 test("duplicate action and renderer session restore preserve all three connections", async ({ electronApp, window }) => {
     await assignConnections(electronApp, window);
     await electronApp.evaluate(({ ipcMain }) => {

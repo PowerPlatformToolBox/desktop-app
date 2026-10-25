@@ -38,6 +38,10 @@ pnpm run test:e2e           # run all e2e tests
 pnpm run test:e2e:ui        # open Playwright UI mode
 ```
 
+The E2E CI job is pinned to `ubuntu-24.04` because Playwright 1.60.0 does not
+support Ubuntu 26.04. Keep the runner on a supported Ubuntu release when updating
+Playwright; do not switch to `ubuntu-latest` without checking compatibility.
+
 ### All tests
 
 ```bash
@@ -56,6 +60,10 @@ src/main/managers/myManager.ts  →  tests/unit/main/managers/myManager.test.ts
 
 Import the module under test directly — Jest will automatically apply the
 `electron` and `electron-store` mocks via `moduleNameMapper` in `jest.config.ts`.
+
+The test TypeScript configuration explicitly includes renderer ambient declarations
+and overrides the main configuration's renderer exclusion. This makes globals such
+as `window.toolboxAPI` available consistently in both CLI and VS Code Jest runs.
 
 ### New e2e test
 

@@ -4,7 +4,7 @@
  */
 
 import { logError } from "../../common/logger";
-import { buildPreviewFeatureFlags, type MarketplaceSource, type ProxySettings } from "../../common/types";
+import { buildPreviewFeatureFlags, isValidColorBorderThickness, type MarketplaceSource, type ProxySettings } from "../../common/types";
 import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
@@ -544,6 +544,21 @@ export async function saveSettings(): Promise<void> {
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
+    for (const [input, label] of [
+        [categoryColorThicknessInput, "Category Color Thickness"],
+        [environmentColorThicknessInput, "Environment Color Thickness"],
+    ] as const) {
+        if (input && !isValidColorBorderThickness(input.valueAsNumber)) {
+            input.reportValidity();
+            await window.toolboxAPI.utils.showNotification({
+                title: "Invalid Color Thickness",
+                body: `${label} must be a whole number between ${MIN_COLOR_BORDER_THICKNESS} and ${MAX_COLOR_BORDER_THICKNESS} pixels.`,
+                type: "error",
+            });
+            return;
+        }
+    }
+
     let terminalFont = terminalFontSelect.value;
 
     // If custom option is selected, use the custom input value
@@ -554,12 +569,8 @@ export async function saveSettings(): Promise<void> {
     const notificationDuration = notificationDurationSelect ? Number(notificationDurationSelect.value) : DEFAULT_NOTIFICATION_DURATION;
     const showCategoryColor = showCategoryColorCheck ? showCategoryColorCheck.checked : DEFAULT_SHOW_CATEGORY_COLOR;
     const showEnvironmentColor = showEnvironmentColorCheck ? showEnvironmentColorCheck.checked : DEFAULT_SHOW_ENVIRONMENT_COLOR;
-    const categoryColorThickness = categoryColorThicknessInput
-        ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(categoryColorThicknessInput.value) || DEFAULT_CATEGORY_COLOR_THICKNESS))
-        : DEFAULT_CATEGORY_COLOR_THICKNESS;
-    const environmentColorThickness = environmentColorThicknessInput
-        ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS))
-        : DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
+    const categoryColorThickness = categoryColorThicknessInput ? categoryColorThicknessInput.valueAsNumber : DEFAULT_CATEGORY_COLOR_THICKNESS;
+    const environmentColorThickness = environmentColorThicknessInput ? environmentColorThicknessInput.valueAsNumber : DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
     const previewFeatures = collectPreviewFeatureFlagsFromSettingsPanel();
     const enablePreviewFeatures = Object.values(previewFeatures).some((enabled) => enabled === true);
     const marketplaceSources = collectMarketplaceSourcesFromSettingsPanel();
@@ -747,11 +758,11 @@ function hasUnsavedChanges(): boolean {
     if (showCategoryColorCheck && showCategoryColorCheck.checked !== (originalSettings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR)) return true;
     if (showEnvironmentColorCheck && showEnvironmentColorCheck.checked !== (originalSettings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR)) return true;
     if (categoryColorThicknessInput) {
-        const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(categoryColorThicknessInput.value) || DEFAULT_CATEGORY_COLOR_THICKNESS));
+        const val = categoryColorThicknessInput.valueAsNumber;
         if (val !== (originalSettings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS)) return true;
     }
     if (environmentColorThicknessInput) {
-        const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS));
+        const val = environmentColorThicknessInput.valueAsNumber;
         if (val !== (originalSettings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS)) return true;
     }
 
@@ -814,7 +825,7 @@ export function renderSettingsContent(panel: HTMLElement): void {
                         <p class="settings-vscode-item-description">Thickness in pixels of the category color border displayed under the tool tab (${MIN_COLOR_BORDER_THICKNESS}–${MAX_COLOR_BORDER_THICKNESS} px).</p>
                     </div>
                     <div class="settings-vscode-item-control">
-                        <input type="number" id="sidebar-category-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" value="${DEFAULT_CATEGORY_COLOR_THICKNESS}" />
+                        <input type="number" id="sidebar-category-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" required value="${DEFAULT_CATEGORY_COLOR_THICKNESS}" />
                     </div>
                 </div>
 
@@ -837,7 +848,7 @@ export function renderSettingsContent(panel: HTMLElement): void {
                         <p class="settings-vscode-item-description">Thickness in pixels of the environment color border displayed around the tool panel (${MIN_COLOR_BORDER_THICKNESS}–${MAX_COLOR_BORDER_THICKNESS} px).</p>
                     </div>
                     <div class="settings-vscode-item-control">
-                        <input type="number" id="sidebar-environment-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" value="${DEFAULT_ENVIRONMENT_COLOR_THICKNESS}" />
+                        <input type="number" id="sidebar-environment-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" required value="${DEFAULT_ENVIRONMENT_COLOR_THICKNESS}" />
                     </div>
                 </div>
             </section>

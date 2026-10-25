@@ -29,6 +29,7 @@ import {
 } from "../utils/dataverseBatch";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
+import type { ProxyManager } from "./proxyManager";
 
 /**
  * Dataverse API response type
@@ -77,12 +78,14 @@ const ENTITY_RELATED_METADATA_BASE_PATH_SET: Set<string> = new Set(ENTITY_RELATE
 export class DataverseManager {
     private connectionsManager: ConnectionsManager;
     private authManager: AuthManager;
+    private readonly proxyManager?: ProxyManager;
     private readonly requestContext = new AsyncLocalStorage<string | null>();
     private readonly additionalHeadersContext = new AsyncLocalStorage<Record<string, string>>();
 
-    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager) {
+    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager, proxyManager?: ProxyManager) {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
+        this.proxyManager = proxyManager;
     }
 
     withImpersonation<T>(callerObjectId: string | null, operation: () => Promise<T>): Promise<T> {
@@ -801,6 +804,7 @@ export class DataverseManager {
                 port: 443,
                 path: urlObj.pathname,
                 method: "GET",
+                agent: this.proxyManager?.getAgentForUrl(url),
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/xml",
@@ -895,6 +899,7 @@ export class DataverseManager {
                 port: 443,
                 path: urlObj.pathname + urlObj.search,
                 method: method,
+                agent: this.proxyManager?.getAgentForUrl(url),
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/json",
@@ -2062,7 +2067,7 @@ export class DataverseManager {
             response.rawBody,
             responseContentType,
             validatedRequests.map((request) => request.contentId as string),
-            transaction,
+            transaction || validatedRequests.some((request) => request.changesetId !== undefined),
         );
         const batchHeaders = selectDataverseBatchResponseHeaders(response.headers);
         return Object.keys(batchHeaders).length > 0 ? results.map((result) => ({ ...result, batchHeaders })) : results;

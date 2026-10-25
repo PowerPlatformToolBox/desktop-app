@@ -161,7 +161,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     openDirectoryPicker: () => ipcRenderer.invoke(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER),
 
     // Registry-based tools (new primary method)
-    fetchRegistryTools: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS),
+    fetchRegistryTools: (options?: { forceRefresh?: boolean }) => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, options),
+    getRegistryIssues: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_REGISTRY_ISSUES),
     fetchCommunityLinks: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS),
     getKnownCapabilityTags: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
@@ -170,11 +171,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     isToolUpdating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.IS_TOOL_UPDATING, toolId),
     checkBetaPackage: (npmPackageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_BETA_PACKAGE, npmPackageName),
     installPrereleaseToolFromNpm: (npmPackageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, npmPackageName),
-    submitToolRating: (toolId: string, rating: number, comment?: string) => ipcRenderer.invoke(TOOL_CHANNELS.SUBMIT_TOOL_RATING, toolId, rating, comment),
+    submitToolRating: (toolId: string, rating: number, comment?: string, toolVersion?: string) => ipcRenderer.invoke(TOOL_CHANNELS.SUBMIT_TOOL_RATING, toolId, rating, comment, toolVersion),
+    getToolReviewContext: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_REVIEW_CONTEXT, toolId),
     getMyToolRating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_MY_TOOL_RATING, toolId),
     fetchToolIdeas: () => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.FETCH),
     submitToolIdea: (idea: unknown) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.SUBMIT, idea),
     upvoteToolIdea: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.UPVOTE, ideaId),
+    removeToolIdeaVote: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.REMOVE_VOTE, ideaId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),

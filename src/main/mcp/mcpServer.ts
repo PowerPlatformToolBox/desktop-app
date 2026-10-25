@@ -14,6 +14,7 @@ import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
 import { HeadlessJobRecord, HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
 import { PowerPlatformManager } from "../managers/powerplatformManager";
+import type { ProxyManager } from "../managers/proxyManager";
 import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { ToolManager } from "../managers/toolsManager";
@@ -21,16 +22,17 @@ import { ToolWindowManager } from "../managers/toolWindowManager";
 import { logInvocation } from "./agentInvocationLogger";
 import { AgentExecutionMode, AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
 import {
-    AUTHENTICATE_CONNECTIONS_TOOL_NAME,
+    AUTHENTICATE_CONNECTIONS_NAME,
     AuthenticationRequirement,
     buildConnectionSlots,
+    CONNECTION_SELECTION_INSTRUCTIONS,
     ConnectionRequirement,
     createInputRequiredResult,
     describeMissingParameters,
     hasRequirements,
     hasReusableToken,
     InputRequirements,
-    LIST_CONNECTIONS_TOOL_NAME,
+    LIST_CONNECTIONS_NAME,
     MAX_CONNECTION_NAMES,
     partitionValidationErrors,
     summarizeConnection,
@@ -301,11 +303,11 @@ export class McpServerManager {
         this.toolWindowManager = twm;
     }
 
-    setConnectionAuthManagers(connectionsManager: ConnectionsManager, authManager: AuthManager): void {
+    setConnectionAuthManagers(connectionsManager: ConnectionsManager, authManager: AuthManager, proxyManager?: ProxyManager): void {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
-        this.dataverseManager = new DataverseManager(connectionsManager, authManager);
-        this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager);
+        this.dataverseManager = new DataverseManager(connectionsManager, authManager, proxyManager);
+        this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager, proxyManager);
     }
 
     setJobChangeHandler(handler: ((jobId: string) => void) | null): void {
@@ -695,7 +697,7 @@ export class McpServerManager {
                 if (!authResult) {
                     if (!allowInteractive) {
                         throw new SignInRequiredError(
-                            `Connection '${connection.name}' requires interactive sign-in. Call ${AUTHENTICATE_CONNECTIONS_TOOL_NAME} for it after the user confirms, then retry.`,
+                            `Connection '${connection.name}' requires interactive sign-in. Call ${AUTHENTICATE_CONNECTIONS_NAME} for it after the user confirms, then retry.`,
                         );
                     }
                     authResult = await this.authManager.authenticateInteractive(connection);
@@ -863,11 +865,12 @@ export class McpServerManager {
     private getBuiltInToolDefinitions(): McpToolDefinition[] {
         return [
             {
-                name: LIST_CONNECTIONS_TOOL_NAME,
+                name: LIST_CONNECTIONS_NAME,
                 title: "List PPTB connections",
                 description:
                     "Lists saved Power Platform ToolBox connections with name, environment type (Dev/Test/UAT/Production), URL, authentication type, and authStatus. " +
-                    "Use it to let the user pick connections for PPTB tools. Never returns IDs, secrets, or tokens.",
+                    "Never returns IDs, secrets, or tokens. " +
+                    CONNECTION_SELECTION_INSTRUCTIONS,
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -876,18 +879,22 @@ export class McpServerManager {
                 },
                 outputSchema: {
                     type: "object",
-                    properties: { connections: { type: "array", items: { type: "object" } } },
-                    required: ["connections"],
+                    properties: {
+                        connections: { type: "array", items: { type: "object" } },
+                        nextSteps: { type: "array", items: { type: "string" } },
+                    },
+                    required: ["connections", "nextSteps"],
                 },
                 annotations: { readOnlyHint: true, openWorldHint: false },
             },
             {
-                name: AUTHENTICATE_CONNECTIONS_TOOL_NAME,
+                name: AUTHENTICATE_CONNECTIONS_NAME,
                 title: "Authenticate PPTB connections",
                 description:
                     "Signs in to saved PPTB connections so headless tools can use them. Cached, silent, client-secret, and username/password authentication are tried first; " +
-                    "interactive connections open a browser sign-in on the user's machine. Call it only for connections the user selected. Returns per-connection status, never tokens. " +
-                    `If this call times out while the user signs in, call ${LIST_CONNECTIONS_TOOL_NAME} to confirm authStatus before retrying.`,
+                    "interactive connections open a browser sign-in on the user's machine. Call it only after showing the connection picker in the agent chat and receiving the user's explicit selection. " +
+                    'Authenticate only that selection; skip connections whose authStatus is "signed-in". Never authenticate other connections to search for a record. Returns per-connection status, never tokens. ' +
+                    `If this call times out while the user signs in, call ${LIST_CONNECTIONS_NAME} to confirm authStatus before retrying.`,
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -896,7 +903,7 @@ export class McpServerManager {
                             items: { type: "string" },
                             minItems: 1,
                             maxItems: MAX_CONNECTION_NAMES,
-                            description: "Saved PPTB connection names to authenticate.",
+                            description: 'Only names explicitly picked by the user in the connection picker whose authStatus is not "signed-in". Never infer names from authentication status.',
                         },
                     },
                     required: ["connectionNames"],
@@ -920,7 +927,7 @@ export class McpServerManager {
         const connections = (this.connectionsManager?.getConnections() ?? [])
             .filter((connection) => !environment || connection.environment.toLowerCase() === environment)
             .map((connection) => summarizeConnection(connection, now));
-        return createStructuredSuccess({ connections });
+        return createStructuredSuccess({ connections, nextSteps: [CONNECTION_SELECTION_INSTRUCTIONS] });
     }
 
     private async handleAuthenticateConnections(args: Record<string, unknown>, reportProgress: (progress: number, total: number, message: string) => Promise<void>): Promise<CallToolResult> {
@@ -1075,7 +1082,7 @@ export class McpServerManager {
             }
         }
 
-        const server = new McpServer({ name: "pptb-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
+        const server = new McpServer({ name: "pptb-mcp", version: "1.0.0" }, { capabilities: { tools: {} }, instructions: CONNECTION_SELECTION_INSTRUCTIONS });
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
         const agentTools = await this.getAgentTools();
@@ -1092,7 +1099,7 @@ export class McpServerManager {
                     return {
                         name: tool.displayName,
                         title: tool.displayName,
-                        description: `${tool.description} [modes: ${tool.invocationModes.join(", ")}; default: ${tool.defaultInvocationMode}; executionModes: ${tool.executionModes.join(", ")}; defaultExecutionMode: ${tool.defaultExecutionMode}${connectionHint}; returnsData: ${hasObjectProperties(tool.outputSchema) ? "yes" : "no"}]`,
+                        description: `${tool.description} [modes: ${tool.invocationModes.join(", ")}; default: ${tool.defaultInvocationMode}; executionModes: ${tool.executionModes.join(", ")}; defaultExecutionMode: ${tool.defaultExecutionMode}${connectionHint}; returnsData: ${hasObjectProperties(tool.outputSchema) ? "yes" : "no"}]${range && range.max > 0 ? ` ${CONNECTION_SELECTION_INSTRUCTIONS}` : ""}`,
                         inputSchema: {
                             ...tool.inputSchema,
                             properties: {
@@ -1121,7 +1128,8 @@ export class McpServerManager {
                                         },
                                         connectionName: {
                                             type: "string",
-                                            description: "Legacy alias for connectionNames[0]. Must match the first name when both are supplied.",
+                                            description:
+                                                "Legacy alias for connectionNames[0]. Only use a name explicitly picked by the user in the agent chat. Must match the first name when both are supplied.",
                                         },
                                         connectionNames: {
                                             type: "array",
@@ -1129,7 +1137,8 @@ export class McpServerManager {
                                             maxItems: MAX_CONNECTION_NAMES,
                                             description:
                                                 "Saved PPTB connection names in slot order: index 0 is primary, index 1 secondary, and later indexes address additional slots. " +
-                                                `If omitted or incomplete for a headless call, PPTB replies with input_required listing the available connections (name and environment) for the user to choose; ${LIST_CONNECTIONS_TOOL_NAME} returns the same list.`,
+                                                "Only use names explicitly picked by the user in the agent chat; always show the connection picker first, regardless of authentication status. Never probe other environments. " +
+                                                `If omitted or incomplete for a headless call, PPTB replies with input_required listing the available connections (name and environment) for the user to choose; ${LIST_CONNECTIONS_NAME} returns the same list.`,
                                         },
                                     },
                                 },
@@ -1144,10 +1153,10 @@ export class McpServerManager {
         server.server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
             const toolArgs = isRecord(request.params.arguments) ? request.params.arguments : {};
 
-            if (request.params.name === LIST_CONNECTIONS_TOOL_NAME) {
+            if (request.params.name === LIST_CONNECTIONS_NAME) {
                 return this.handleListConnections(toolArgs);
             }
-            if (request.params.name === AUTHENTICATE_CONNECTIONS_TOOL_NAME) {
+            if (request.params.name === AUTHENTICATE_CONNECTIONS_NAME) {
                 const progressToken = request.params._meta?.progressToken;
                 return await this.handleAuthenticateConnections(toolArgs, async (progress, total, message) => {
                     if (progressToken === undefined) {

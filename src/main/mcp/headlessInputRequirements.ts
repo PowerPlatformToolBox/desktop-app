@@ -3,9 +3,18 @@ import { ConnectionSlotRange, connectionTargetLabel } from "../../common/connect
 import { Connection } from "../../common/types";
 import { JsonObjectSchema } from "./schemaConverter";
 
-export const LIST_CONNECTIONS_TOOL_NAME = "pptb_list_connections";
-export const AUTHENTICATE_CONNECTIONS_TOOL_NAME = "pptb_authenticate_connections";
+export const LIST_CONNECTIONS_NAME = "pptb_list_connections";
+export const AUTHENTICATE_CONNECTIONS_NAME = "pptb_authenticate_connections";
 export const MAX_CONNECTION_NAMES = 10;
+
+export const CONNECTION_SELECTION_INSTRUCTIONS =
+    `Before invoking a PPTB tool that uses connections for a new task, call ${LIST_CONNECTIONS_NAME}, show a connection picker in the agent chat ` +
+    "(use the client's user-input/selection UI when available), and wait for the user's explicit selection. Show each connection's name, environment, and URL. " +
+    "Always show the picker, even if only one connection exists or connections are already signed-in. Authentication status is not permission to choose a connection. " +
+    `For the user-selected connections only, skip authentication when authStatus is "signed-in"; otherwise call ${AUTHENTICATE_CONNECTIONS_NAME} and wait for successful authentication. ` +
+    "Invoke the requested tool with only the user-picked names in __pptb.connectionNames, in slot order. Keep that selection for follow-up calls and retries within the same task. " +
+    "Never choose, probe, or iterate through other connections to find a record, including after an empty result or error. To change environments, show the picker again and wait for a new user selection. " +
+    "If the user cancels or has not selected a connection, stop; do not authenticate or invoke a connection-dependent tool.";
 
 const TOKEN_REUSE_BUFFER_MS = 60_000;
 
@@ -176,15 +185,20 @@ export function createInputRequiredResult(params: {
         const { minConnections, maxConnections } = requirements.connections;
         const countText = minConnections === maxConnections ? `${minConnections}` : `${minConnections} to ${maxConnections}`;
         steps.push(
-            `Ask the user to choose ${countText} connection(s) from requirements.connections.availableConnections (show each name with its environment). ` +
+            `Show a connection picker in the agent chat for ${countText} connection(s) from requirements.connections.availableConnections ` +
+                `(show each name, environment, and URL) and wait for the user's explicit selection, even if only one connection exists or connections are already signed-in. ` +
                 `Pass the chosen names in __pptb.connectionNames in slot order (see requirements.connections.slots).`,
         );
     }
 
     if (requirements.connections || requirements.authentication) {
         steps.push(
-            `Before retrying, call ${AUTHENTICATE_CONNECTIONS_TOOL_NAME} with {"connectionNames": [...]} for every selected connection whose authStatus is not "signed-in" ` +
-                `(and for every connection listed in requirements.authentication). Interactive connections open a browser sign-in on the user's machine, so tell the user first.`,
+            "Use only connections explicitly picked by the user for this task. Never choose, probe, or iterate through other connections to find a record, including after an empty result or error.",
+        );
+        steps.push(
+            `Skip authentication for selected connections whose authStatus is "signed-in". Before retrying, call ${AUTHENTICATE_CONNECTIONS_NAME} with {"connectionNames": [...]} ` +
+                `only for user-selected connections whose authStatus is not "signed-in" (and user-selected connections listed in requirements.authentication), and wait for successful authentication. ` +
+                `Interactive connections open a browser sign-in on the user's machine, so tell the user first.`,
         );
     }
 

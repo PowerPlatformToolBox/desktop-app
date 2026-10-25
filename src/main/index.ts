@@ -28,6 +28,7 @@ import {
     WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
+import { validateIdeaSubmission } from "../common/utils/ideas";
 import { captureException, captureMessage, logInfo as logSentryInfo, recordSentryTelemetryDisabled } from "../common/sentryHelper";
 import type { DataverseHeaderConsentDecision } from "../common/types";
 import {
@@ -243,17 +244,25 @@ class ToolBoxApp {
             this.browserManager = new BrowserManager();
             this.authManager = new AuthManager(this.browserManager, this.proxyManager);
             this.terminalManager = new TerminalManager();
-            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager, this.proxyManager);
             this.dataverseHeaderConsentManager = new DataverseHeaderConsentManager(
                 this.settingsManager,
                 () => this.mainWindow?.webContents ?? null,
                 (webContentsId) => this.toolWindowManager?.getToolIdentityByWebContents(webContentsId) ?? null,
             );
-            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
+            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager, this.proxyManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
-            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
+            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager, this.proxyManager);
             this.proxyManager.setCredentialPromptHandler((authInfo) => this.promptForProxyCredentials(authInfo.host || "proxy", authInfo.port));
+            this.proxyManager.setFailureNotifier((notice) => {
+                this.api.showNotification({
+                    title: notice.title,
+                    body: notice.message,
+                    type: "error",
+                    duration: 15000,
+                });
+            });
             this.mcpServerManager.setStatusChangeHandler((status, error) => {
                 if (this.mainWindow && !this.mainWindow.isDestroyed()) {
                     this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
@@ -479,6 +488,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_REGISTRY_ISSUES);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
@@ -1322,9 +1332,14 @@ class ToolBoxApp {
             });
         });
 
-        // Fetch available tools from registry
-        ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async () => {
-            return await this.toolManager.fetchAvailableTools();
+        // Fetch available tools from registry (throws when every enabled marketplace source fails)
+        ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async (_, options?: { forceRefresh?: boolean }) => {
+            return await this.toolManager.fetchAvailableTools({ forceRefresh: options?.forceRefresh === true });
+        });
+
+        // Failed or degraded marketplace sources from the last successful registry fetch
+        ipcMain.handle(TOOL_CHANNELS.GET_REGISTRY_ISSUES, () => {
+            return this.toolManager.getRegistryManager().getRegistryIssues();
         });
 
         // Fetch community resource links from Supabase (returns null on failure; renderer falls back to bundled data)
@@ -1385,14 +1400,22 @@ class ToolBoxApp {
         });
 
         // Submit (or update) this install's star rating/comment for a tool
-        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string) => {
+        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string, toolVersion?: string) => {
+            if (typeof toolId !== "string" || !toolId) {
+                throw new Error("A tool is required to submit a review.");
+            }
             if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
                 throw new Error("Rating must be an integer between 1 and 5");
             }
             const trimmedComment = typeof comment === "string" ? comment.trim().slice(0, 500) : undefined;
-            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined);
+            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined, toolVersion);
             this.settingsManager.setMyToolRating(toolId, rating, trimmedComment || undefined);
             return aggregate;
+        });
+
+        // Resolve installation state (and installed version) used to gate reviews
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_REVIEW_CONTEXT, (_, toolId: string) => {
+            return this.toolManager.getToolReviewContext(toolId);
         });
 
         // Get this install's previously submitted rating/comment for a tool, if any
@@ -1419,26 +1442,15 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.SUBMIT, async (_, idea: ToolIdeaSubmission) => {
-            if (!idea || typeof idea.title !== "string" || typeof idea.description !== "string") {
-                throw new Error("A title and description are required.");
-            }
-            const title = idea.title.trim();
-            const description = idea.description.trim();
-            const email = typeof idea.email === "string" ? idea.email.trim() : "";
-            if (!title || title.length > 120) {
-                throw new Error("The title must be between 1 and 120 characters.");
-            }
-            if (!description || description.length > 3000) {
-                throw new Error("The description must be between 1 and 3000 characters.");
-            }
-            if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-                throw new Error("Enter a valid contact email address.");
-            }
-            await this.toolManager.submitToolIdea({ title, description, email: email || undefined });
+            await this.toolManager.submitToolIdea(validateIdeaSubmission(idea));
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.UPVOTE, async (_, ideaId: string) => {
             return this.toolManager.upvoteToolIdea(ideaId);
+        });
+
+        ipcMain.handle(TOOL_IDEA_CHANNELS.REMOVE_VOTE, async (_, ideaId: string) => {
+            return this.toolManager.removeToolIdeaVote(ideaId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -1784,7 +1796,7 @@ class ToolBoxApp {
 
                 const https = await import("https");
                 return new Promise<string | null>((resolve) => {
-                    const req = https.get(parsedUrl.toString(), { timeout: 5000 }, (res) => {
+                    const req = https.get(parsedUrl.toString(), { timeout: 5000, agent: this.proxyManager.getAgentForUrl(parsedUrl.toString()) }, (res) => {
                         const status = res.statusCode ?? 0;
                         const contentType = res.headers["content-type"] ?? "image/png";
 
@@ -3208,7 +3220,7 @@ class ToolBoxApp {
                         },
                     },
                     {
-                        label: "Suggest a Tool",
+                        label: "Share an idea",
                         click: () => {
                             this.mainWindow?.webContents.send("open-suggest-tool-modal");
                         },

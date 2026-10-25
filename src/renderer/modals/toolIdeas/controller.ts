@@ -3,98 +3,53 @@ export function getToolIdeasModalControllerScript(): string {
 <script>
 (() => {
     const api = window.toolboxAPI && window.toolboxAPI.toolIdeas;
-    const list = document.getElementById("tool-ideas-list");
     const feedback = document.getElementById("tool-ideas-feedback");
     const form = document.getElementById("tool-idea-form");
     const submitButton = document.getElementById("tool-idea-submit-btn");
     const closeButton = document.getElementById("tool-ideas-close-btn");
+    let saving = false;
 
     const setFeedback = (message, isError) => {
-        if (!feedback) return;
-        feedback.textContent = message || "";
+        feedback.textContent = message;
         feedback.style.display = message ? "block" : "none";
-        feedback.classList.toggle("error", !!isError);
+        feedback.classList.toggle("error", isError);
         feedback.classList.toggle("success", !isError && !!message);
     };
 
-    const renderIdeas = (ideas) => {
-        if (!list) return;
-        list.replaceChildren();
-        if (!ideas.length) {
-            const empty = document.createElement("p");
-            empty.className = "tool-idea-empty";
-            empty.textContent = "No ideas yet. Be the first to suggest one!";
-            list.appendChild(empty);
-            return;
-        }
-        ideas.forEach((idea) => {
-            const card = document.createElement("article");
-            card.className = "tool-idea";
-            const header = document.createElement("div");
-            header.className = "tool-idea-header";
-            const title = document.createElement("h5");
-            title.className = "tool-idea-title";
-            title.textContent = idea.title;
-            const vote = document.createElement("button");
-            vote.className = "fluent-button fluent-button-secondary tool-idea-vote";
-            vote.type = "button";
-            vote.textContent = idea.hasUpvoted ? "▲ " + idea.upvotes + " Voted" : "▲ " + idea.upvotes + " Upvote";
-            vote.disabled = idea.hasUpvoted;
-            vote.addEventListener("click", async () => {
-                vote.disabled = true;
-                try {
-                    await api.upvote(idea.id);
-                    await loadIdeas();
-                } catch (error) {
-                    vote.disabled = false;
-                    setFeedback(error instanceof Error ? error.message : "Failed to upvote this idea.", true);
-                }
-            });
-            header.append(title, vote);
-            const description = document.createElement("p");
-            description.className = "tool-idea-description";
-            description.textContent = idea.description;
-            card.append(header, description);
-            list.appendChild(card);
-        });
-    };
+    if (!api) {
+        submitButton.disabled = true;
+        setFeedback("The Ideas service is unavailable. Close this form and try again.", true);
+    }
 
-    const loadIdeas = async () => {
-        if (!api || !list) return;
-        list.textContent = "Loading ideas…";
-        try {
-            renderIdeas(await api.fetch());
-        } catch (error) {
-            list.textContent = "Ideas could not be loaded.";
-            setFeedback(error instanceof Error ? error.message : "Ideas could not be loaded.", true);
-        }
-    };
-
-    form?.addEventListener("submit", async (event) => {
+    form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        if (!(form instanceof HTMLFormElement) || !(submitButton instanceof HTMLButtonElement) || !api) return;
+        if (saving || !api || !form.reportValidity()) return;
+        const ideaType = document.getElementById("tool-idea-type");
         const title = document.getElementById("tool-idea-title");
         const description = document.getElementById("tool-idea-description");
         const email = document.getElementById("tool-idea-email");
-        if (!(title instanceof HTMLInputElement) || !(description instanceof HTMLTextAreaElement) || !(email instanceof HTMLInputElement)) return;
+        saving = true;
         submitButton.disabled = true;
-        submitButton.textContent = "Submitting…";
+        submitButton.textContent = "Submitting...";
         setFeedback("", false);
         try {
-            await api.submit({ title: title.value, description: description.value, email: email.value });
+            await api.submit({ ideaType: ideaType.value, title: title.value, description: description.value, email: email.value });
             form.reset();
             setFeedback("Thanks! Your idea has been submitted.", false);
-            await loadIdeas();
+            window.modalBridge?.send("idea-submitted");
+            await window.modalBridge?.close();
         } catch (error) {
             setFeedback(error instanceof Error ? error.message : "Failed to submit your idea.", true);
         } finally {
+            saving = false;
             submitButton.disabled = false;
-            submitButton.textContent = "Submit Idea";
+            submitButton.textContent = "Share an idea";
         }
     });
 
-    closeButton?.addEventListener("click", () => window.modalBridge?.close());
-    void loadIdeas();
+    closeButton.addEventListener("click", () => {
+        Promise.resolve(window.modalBridge?.close()).catch((error) => setFeedback(error instanceof Error ? error.message : "The form could not be closed.", true));
+    });
 })();
 </script>`;
 }
