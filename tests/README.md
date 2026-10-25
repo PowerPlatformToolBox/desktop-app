@@ -38,6 +38,10 @@ pnpm run test:e2e           # run all e2e tests
 pnpm run test:e2e:ui        # open Playwright UI mode
 ```
 
+The E2E CI job is pinned to `ubuntu-24.04` because Playwright 1.60.0 does not
+support Ubuntu 26.04. Keep the runner on a supported Ubuntu release when updating
+Playwright; do not switch to `ubuntu-latest` without checking compatibility.
+
 ### All tests
 
 ```bash
