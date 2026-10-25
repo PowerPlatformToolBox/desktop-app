@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import spawn from "cross-spawn";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
@@ -539,11 +539,9 @@ export class ToolManager extends EventEmitter {
 
     private async checkPackageManager(command: string): Promise<boolean> {
         return new Promise((resolve) => {
-            const isWindows = process.platform === "win32";
-            const cmd = isWindows ? `${command}.cmd` : command;
             const env = this.buildEnv();
 
-            const check = spawn(cmd, ["--version"], { env });
+            const check = spawn(command, ["--version"], { env });
 
             check.on("close", (code: number) => {
                 resolve(code === 0);
@@ -564,14 +562,14 @@ export class ToolManager extends EventEmitter {
         const hasPnpm = await this.checkPackageManager("pnpm");
         if (hasPnpm) {
             logInfo(`[ToolManager] Found pnpm globally installed`);
-            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm", env: this.buildEnv() };
+            return { command: "pnpm", name: "pnpm", env: this.buildEnv() };
         }
 
         // Fallback to npm
         const hasNpm = await this.checkPackageManager("npm");
         if (hasNpm) {
             logInfo(`[ToolManager] Found npm globally installed`);
-            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm", env: this.buildEnv() };
+            return { command: "npm", name: "npm", env: this.buildEnv() };
         }
 
         logError(`[ToolManager] Neither pnpm nor npm found globally installed`);
@@ -600,8 +598,7 @@ export class ToolManager extends EventEmitter {
                     ? ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]
                     : ["install", packageName, "--prefix", this.toolsDirectory, "--no-optional", "--production"];
 
-            // Don't use shell: true to avoid issues with spaces in paths
-            // The command array is already in the correct format for spawn
+            // cross-spawn handles Windows .cmd shims and escapes arguments without shell: true.
             const install = spawn(pkgManager.command, args, { env: pkgManager.env });
 
             let stderr = "";
