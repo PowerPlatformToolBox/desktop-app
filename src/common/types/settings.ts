@@ -6,6 +6,13 @@ import { Theme } from "./common";
 import { Connection } from "./connection";
 import { MyToolRating } from "./tool";
 
+export const MIN_COLOR_BORDER_THICKNESS = 1;
+export const MAX_COLOR_BORDER_THICKNESS = 10;
+
+export function isValidColorBorderThickness(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value >= MIN_COLOR_BORDER_THICKNESS && value <= MAX_COLOR_BORDER_THICKNESS;
+}
+
 /**
  * Sort options for installed tools
  */

@@ -119,6 +119,7 @@
 - **⚙️ Settings Management**:
     - User settings for the ToolBox application
     - Individual tool-specific settings
+    - Category and environment color thickness must be whole numbers from 1 to 10 pixels; invalid keyboard input blocks saving and displays a validation message.
 - **🎨 Modern Interface**: Built with Microsoft Fluent UI components for a consistent, accessible experience aligned with Power Platform
 - **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
 - **🔔 Notifications**: Built-in notification system to keep users informed

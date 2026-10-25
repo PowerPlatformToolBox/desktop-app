@@ -81,6 +81,27 @@ describe("SettingsManager", () => {
         });
     });
 
+    describe.each(["categoryColorThickness", "environmentColorThickness"] as const)("%s validation", (key) => {
+        it.each([1, 5, 10])("persists valid thickness %s through both write paths", (value) => {
+            manager.updateUserSettings({ [key]: value });
+            expect(manager.getUserSettings()[key]).toBe(value);
+            manager.setSetting(key, value);
+            expect(manager.getSetting(key)).toBe(value);
+        });
+
+        it.each([500, 11, 0, -1, 1.5, NaN, Infinity, -Infinity, "5", null, undefined])("rejects invalid thickness %s without changing settings", (value) => {
+            manager.setSetting(key, 5);
+
+            expect(() => manager.updateUserSettings({ theme: "dark", [key]: value })).toThrow(/must be a whole number between 1 and 10 pixels/);
+            expect(manager.getSetting("theme")).toBe("system");
+            expect(manager.getSetting(key)).toBe(5);
+
+            // Exercise malformed values that can arrive from untyped IPC callers.
+            expect(() => manager.setSetting(key, value as never)).toThrow(RangeError);
+            expect(manager.getSetting(key)).toBe(5);
+        });
+    });
+
     describe("Sentry telemetry consent", () => {
         it("stores a yes consent choice", () => {
             manager.setSentryTelemetryConsent("yes");
