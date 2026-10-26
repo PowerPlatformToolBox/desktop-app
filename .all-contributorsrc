@@ -77,6 +77,13 @@
             "avatar_url": "https://avatars.githubusercontent.com/u/31017244?v=4",
             "profile": "https://markcarrington.dev/",
             "contributions": ["bug", "code", "design", "doc", "maintenance", "test", "userTesting"]
+        },
+        {
+            "login": "mbwilding",
+            "name": "Matthew Wilding",
+            "avatar_url": "https://avatars.githubusercontent.com/u/8856912?v=4",
+            "profile": "https://github.com/mbwilding",
+            "contributions": ["code", "platform", "userTesting"]
         }
     ],
     "contributorsPerLine": 7
