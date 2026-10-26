@@ -210,22 +210,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 Created & maintained by **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)**
 
-Supporting Team:
-
-- **[Matt Berg](https://github.com/MattBerg11)** — _The Product Whisperer_  
-  Turns ideas into features and chaos into clarity.
-- **[Carl Cookson](https://github.com/LinkeD365)** — _Bug Crusher_ 🐞💥  
-  First to test, first to build, first to break things so others don’t.
-- **[Lars Hildebrandt](https://github.com/cyco77)** — _The Box Breaker_ 📦 🚀  
-  Always thinking beyond boundaries and making bold ideas actually work.
-- **[Mohsin Mirza](https://github.com/mohsinonxrm)** — _The Triple Threat_ ⚔️  
-  Tester, implementor, and tool author — a one-person strike team.
-- **[Oleksandr Olashyn](https://github.com/OOlashyn)** — _The UI Polisher_ 🎨  
-  Focused on refining the toolbox UI and elevating the overall experience.
-- **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
-  Generates ideas and relentlessly pushes the team forward.
-- **[Mike Ochs](https://github.com/mikefactorial)** - _The Idea Factory_ 💡  
-  Constantly brainstorming new features and improvements to keep the toolbox evolving.
+Checkout the amazing team behind this project on this **[page](https://www.powerplatformtoolbox.com/team)**.
 
 > If you wish to officially be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
