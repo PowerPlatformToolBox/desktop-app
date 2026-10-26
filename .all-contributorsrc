@@ -70,7 +70,15 @@
             "avatar_url": "https://avatars.githubusercontent.com/u/37546897?v=4",
             "profile": "https://github.com/darkwheel",
             "contributions": ["bug", "code", "maintenance"]
+        },
+        {
+            "login": "MarkMpn",
+            "name": "Mark Carrington",
+            "avatar_url": "https://avatars.githubusercontent.com/u/31017244?v=4",
+            "profile": "https://markcarrington.dev/",
+            "contributions": ["bug", "code", "design", "doc", "maintenance", "test", "userTesting"]
         }
     ],
     "contributorsPerLine": 7
 }
+
