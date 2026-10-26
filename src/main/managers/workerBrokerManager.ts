@@ -84,7 +84,7 @@ export class WorkerBrokerManager {
             beforeLaunch: (owner, workerId) => {
                 const launch = this.launches.get(launchKey(owner, workerId));
                 if (!launch) throw new WorkerProcessError("NOT_AUTHORIZED");
-                this.check(launch);
+                this.checkSource(launch);
                 dependencies.process?.beforeLaunch?.(owner, workerId);
             },
             prepare: (owner, workerId, signal) => {
@@ -109,7 +109,13 @@ export class WorkerBrokerManager {
 
     private check(launch: Launch): void {
         launch.abort.signal.throwIfAborted();
+        if (launch.sender.isDestroyed()) throw new WorkerProcessError("NOT_AUTHORIZED");
         if (this.shuttingDown || this.closedOwners.has(ownerKey(launch.owner)) || this.mutations.has(launch.owner.toolId)) throw new WorkerProcessError("OWNER_UNAVAILABLE");
+        launch.lease?.assertCurrent();
+    }
+
+    private checkSource(launch: Launch): void {
+        this.check(launch);
         const live = this.resolve(launch.sender, launch.workerId);
         if (
             ownerKey(live.owner) !== ownerKey(launch.owner) ||
@@ -117,7 +123,6 @@ export class WorkerBrokerManager {
             nativeWorkerConsentFingerprint(nativeWorkerConsentSnapshot(live.identity, launch.workerId)) !== launch.fingerprint
         )
             throw new WorkerProcessError("SOURCE_CHANGED");
-        launch.lease?.assertCurrent();
     }
 
     start(sender: WebContents, workerId: string): WorkerProcessStart {
@@ -159,7 +164,7 @@ export class WorkerBrokerManager {
     }
 
     private async prepare(launch: Launch): Promise<WorkerLaunchDescriptor> {
-        this.check(launch);
+        this.checkSource(launch);
         try {
             launch.lease = await this.dependencies.consent.authorizeLease(launch.sender, launch.workerId, launch.abort.signal);
         } catch (error) {
@@ -167,11 +172,11 @@ export class WorkerBrokerManager {
             if (error instanceof Error && error.message === "Native worker consent rejected") throw new WorkerProcessError("CONSENT_REJECTED");
             throw error;
         }
-        this.check(launch);
+        this.checkSource(launch);
         const declaration = launch.lease.approval.declaration;
-        const control = { signal: launch.abort.signal, assertCurrent: () => this.check(launch) };
+        const control = { signal: launch.abort.signal, assertCurrent: () => this.checkSource(launch) };
         const discovered = await this.dependencies.discovery.discover(declaration.dotnet, declaration.platforms, control);
-        this.check(launch);
+        this.checkSource(launch);
         if (!discovered.ok) throw new WorkerProcessError(discovered.error.code);
         const request = freezeAuthority(
             JSON.parse(
@@ -192,7 +197,7 @@ export class WorkerBrokerManager {
         );
         launch.request = request;
         const approve = async (candidate: DotNetToolPreparationRequest): Promise<boolean> => {
-            this.check(launch);
+            this.checkSource(launch);
             return dotNetStableJson(candidate) === dotNetStableJson(request);
         };
         const preparation =
@@ -202,7 +207,7 @@ export class WorkerBrokerManager {
                 agentForUrl: this.dependencies.agentForUrl ? (url) => this.dependencies.agentForUrl?.(url) : undefined,
             });
         const prepared = await preparation.prepare(request, control);
-        this.check(launch);
+        this.checkSource(launch);
         if (
             dotNetStableJson(prepared.identity) !== dotNetStableJson(request.identity) ||
             dotNetStableJson(prepared.selection) !== dotNetStableJson(request.selection) ||
@@ -230,7 +235,7 @@ export class WorkerBrokerManager {
 
     private owned(sender: WebContents, handle: WorkerProcessHandle): Launch {
         const launch = [...this.launches.values()].find((candidate) => candidate.handle === handle);
-        if (!launch || sender !== launch.sender || ownerKey(this.resolve(sender, launch.workerId).owner) !== ownerKey(launch.owner)) throw new WorkerProcessError("NOT_AUTHORIZED");
+        if (!launch || sender !== launch.sender || sender.isDestroyed()) throw new WorkerProcessError("NOT_AUTHORIZED");
         return launch;
     }
 

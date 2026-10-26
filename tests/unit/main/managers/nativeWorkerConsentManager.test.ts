@@ -106,6 +106,44 @@ describe("NativeWorkerConsentManager", () => {
         expect(() => lease.assertCurrent()).toThrow("revoked");
     });
 
+    it("checks established leases against captured consent without resolving identity again", async () => {
+        const resolver = jest.fn((owner: WebContents) => identities.get(owner.id) ?? null);
+        manager.dispose();
+        manager = new NativeWorkerConsentManager(store, () => webContents(main), resolver, 1_000);
+        const pending = manager.authorizeLease(webContents(sender), "worker");
+        respond("allow-once");
+        const lease = await pending;
+        resolver.mockClear();
+        identities.delete(sender.id);
+        for (let index = 0; index < 20; index++) lease.assertCurrent();
+        expect(resolver).not.toHaveBeenCalled();
+        manager.revoke(webContents(main), lease.approval.fingerprint);
+        expect(() => lease.assertCurrent()).toThrow("revoked");
+    });
+
+    it.each(["abort", "destroy", "dispose"])("invalidates an established lease on %s", async (change) => {
+        const abort = new AbortController();
+        const pending = manager.authorizeLease(webContents(sender), "worker", abort.signal);
+        respond("allow-once");
+        const lease = await pending;
+        if (change === "abort") abort.abort();
+        if (change === "destroy") sender.destroy();
+        if (change === "dispose") manager.dispose();
+        expect(() => lease.assertCurrent()).toThrow();
+    });
+
+    it("does not revive a revoked lease when the same identity is approved again", async () => {
+        const pending = manager.authorizeLease(webContents(sender), "worker");
+        respond("allow-once");
+        const oldLease = await pending;
+        manager.revoke(webContents(main), oldLease.approval.fingerprint);
+        const renewed = manager.authorizeLease(webContents(sender), "worker");
+        respond("allow-once");
+        const newLease = await renewed;
+        expect(() => oldLease.assertCurrent()).toThrow("revoked");
+        expect(() => newLease.assertCurrent()).not.toThrow();
+    });
+
     it("cancels only the aborted owner of a shared prompt", async () => {
         const abort = new AbortController();
         const firstLease = manager.authorizeLease(webContents(sender), "worker", abort.signal);

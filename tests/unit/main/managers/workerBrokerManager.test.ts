@@ -92,6 +92,8 @@ describe("WorkerBrokerManager", () => {
     let launch: jest.Mock;
     let errors: jest.Mock;
     let startupFailures: jest.Mock;
+    let resolveIdentity: jest.Mock;
+    let resolveConsentIdentity: jest.Mock;
     let children: Child[];
     let expectedShutdownFailure: string | undefined;
 
@@ -123,11 +125,9 @@ describe("WorkerBrokerManager", () => {
             },
         };
         identities = new Map([first, second].map((sender) => [web(sender), { owner: { toolId: "tool-a", instanceId: `instance-${sender.id}` }, identity, sourceFingerprint: "a".repeat(64) }]));
-        consent = new NativeWorkerConsentManager(
-            { getNativeWorkerConsentRows: () => [], setNativeWorkerConsentRows: () => undefined },
-            () => web(main),
-            (sender, workerId) => (workerId === "engine" ? (identities.get(sender)?.identity ?? null) : null),
-        );
+        resolveIdentity = jest.fn((sender: WebContents, workerId: string) => (workerId === "engine" ? (identities.get(sender) ?? null) : null));
+        resolveConsentIdentity = jest.fn((sender: WebContents, workerId: string) => (workerId === "engine" ? (identities.get(sender)?.identity ?? null) : null));
+        consent = new NativeWorkerConsentManager({ getNativeWorkerConsentRows: () => [], setNativeWorkerConsentRows: () => undefined }, () => web(main), resolveConsentIdentity);
         discover = jest.fn(async (): Promise<DotNetDiscoveryResult> => ({ ok: true, value: selection() }));
         prepare = jest.fn(async (request: DotNetToolPreparationRequest): Promise<DotNetPreparedTool> => ({
             identity: request.identity,
@@ -152,7 +152,7 @@ describe("WorkerBrokerManager", () => {
             return child;
         });
         broker = new WorkerBrokerManager({
-            resolve: (sender, workerId) => (workerId === "engine" ? (identities.get(sender) ?? null) : null),
+            resolve: resolveIdentity,
             consent,
             discovery: { discover },
             preparationRoot: "/cache",
@@ -223,6 +223,58 @@ describe("WorkerBrokerManager", () => {
         expect(() => broker.onMessage(web(second), started.handle, receive)).toThrow("NOT_AUTHORIZED");
         expect(() => broker.snapshot(web(second), started.handle)).toThrow("NOT_AUTHORIZED");
         await expect(broker.stop(web(second), started.handle)).rejects.toThrow("NOT_AUTHORIZED");
+        expect(() => broker.send(web(new Sender(first.id)), started.handle, { jsonrpc: "2.0", method: "ping" })).toThrow("NOT_AUTHORIZED");
+    });
+
+    it("uses the captured identity for established connections without resolving source or consent identity", async () => {
+        const started = await start();
+        resolveIdentity.mockClear();
+        resolveConsentIdentity.mockClear();
+        resolveIdentity.mockImplementation(() => {
+            throw new Error("Unexpected source resolution");
+        });
+        resolveConsentIdentity.mockImplementation(() => {
+            throw new Error("Unexpected consent identity resolution");
+        });
+        const receive = jest.fn();
+        const terminal = jest.fn();
+        broker.onMessage(web(first), started.handle, receive);
+        broker.onTerminal(web(first), started.handle, terminal);
+        for (let id = 0; id < 20; id++) {
+            await broker.send(web(first), started.handle, { jsonrpc: "2.0", id, method: "ping" });
+            children[0].frame({ jsonrpc: "2.0", id, result: {} });
+        }
+        await tick();
+        expect(receive).toHaveBeenCalledTimes(20);
+        expect(broker.snapshot(web(first), started.handle).state).toBe("running");
+        await broker.stop(web(first), started.handle);
+        expect(terminal).toHaveBeenCalledTimes(1);
+        expect(resolveIdentity).not.toHaveBeenCalled();
+        expect(resolveConsentIdentity).not.toHaveBeenCalled();
+        expect(() => broker.start(web(first), "engine")).toThrow("Unexpected source resolution");
+    });
+
+    it("keeps a running worker bound to its launch identity and validates a changed identity on restart", async () => {
+        const started = await start();
+        identity.declaration.packageVersion = "2.0.0";
+        identities.set(web(first), { ...identities.get(web(first))!, sourceFingerprint: "d".repeat(64) });
+        await broker.send(web(first), started.handle, { jsonrpc: "2.0", method: "ping" });
+        await broker.stop(web(first), started.handle);
+        await start();
+        expect(prepare.mock.calls[0][0].declaration.packageVersion).toBe("1.0.0");
+        expect(prepare.mock.calls[1][0].declaration.packageVersion).toBe("2.0.0");
+        expect(prepare.mock.calls[1][0].identity.sourceFingerprint).not.toBe(prepare.mock.calls[0][0].identity.sourceFingerprint);
+    });
+
+    it("rejects traffic to a destroyed owner and suppresses worker delivery", async () => {
+        const started = await start();
+        const receive = jest.fn();
+        broker.onMessage(web(first), started.handle, receive);
+        first.destroyed = true;
+        expect(() => broker.send(web(first), started.handle, { jsonrpc: "2.0", method: "ping" })).toThrow("NOT_AUTHORIZED");
+        children[0].frame({ jsonrpc: "2.0", method: "progress" });
+        await tick();
+        expect(receive).not.toHaveBeenCalled();
     });
 
     it("owner disposal stops only that instance and blocks further starts", async () => {
@@ -280,10 +332,27 @@ describe("WorkerBrokerManager", () => {
         const firstStart = await start();
         const secondStart = await start(second);
         consent.revoke(web(main), prompt().fingerprint);
+        expect(() => broker.send(web(first), firstStart.handle, { jsonrpc: "2.0", method: "ping" })).toThrow();
         await tick();
         expect(children.every((child) => child.stdin.destroyed)).toBe(true);
         expect(() => broker.snapshot(web(first), firstStart.handle)).toThrow();
         expect(() => broker.snapshot(web(second), secondStart.handle)).toThrow();
+    });
+
+    it.each(["source", "declaration", "closed"])("rejects %s changes at the final pre-launch boundary", async (change) => {
+        const original = prepare.getMockImplementation()!;
+        prepare.mockImplementation(async (request, control) => {
+            const prepared = await original(request, control);
+            if (change === "source") identities.set(web(first), { ...identities.get(web(first))!, sourceFingerprint: "d".repeat(64) });
+            if (change === "declaration") identity.declaration.packageVersion = "2.0.0";
+            if (change === "closed") first.destroyed = true;
+            return prepared;
+        });
+        const started = broker.start(web(first), "engine");
+        allow();
+        await expect(started.ready).rejects.toThrow();
+        await tick();
+        expect(launch).not.toHaveBeenCalled();
     });
 
     it("blocks starts throughout tool mutation and waits for preparation to settle before deleting", async () => {
