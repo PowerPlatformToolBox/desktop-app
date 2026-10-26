@@ -108,7 +108,7 @@
 
 ## Known Issues
 
-- No open issues currently tracked for installers. Please report problems on GitHub so we can investigate quickly.
+- Windows ARM installer currently does not have the application executable included (v1.2.7): Please use the insider version that has the issue resolved. Fix will be part of v1.2.8 release.
 
 ## Features Overview
 
