@@ -24,13 +24,17 @@ describe("resolveToolIconFile", () => {
         expect(resolveToolIconFile(base, "icons/icon.png")).toBeNull();
     });
 
-    it("rejects URLs and absolute paths, which aren't bundled icons", () => {
+    it("rejects URLs and drive or network paths, which aren't bundled icons", () => {
         // Marketplace icons are loaded by the renderer from their blob URL, never by the host.
         expect(resolveToolIconFile(base, "https://pptb.blob.core.windows.net/tools/packages/x-1.0.0/x-1.0.0.svg")).toBeNull();
         expect(resolveToolIconFile(base, "pptb-webview://other-tool/icon.svg")).toBeNull();
         expect(resolveToolIconFile(base, "file:///etc/icon.svg")).toBeNull();
         expect(resolveToolIconFile(base, "C:\\icons\\icon.svg")).toBeNull();
-        expect(resolveToolIconFile(base, path.resolve("/elsewhere/icon.svg"))).toBeNull();
+        expect(resolveToolIconFile(base, "\\\\server\\share\\icon.svg")).toBeNull();
+    });
+
+    it("treats a leading slash as the dist root, like the renderer's pptb-webview URL", () => {
+        expect(resolveToolIconFile(base, "/icons/icon.svg")).toBe(path.join(dist, "icons", "icon.svg"));
     });
 });
 
