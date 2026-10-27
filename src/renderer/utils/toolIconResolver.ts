@@ -18,7 +18,7 @@ export function escapeHtml(text: string): string {
  * @param toolId - The tool identifier
  * @param iconPath - The icon path - can be:
  *   - Relative path for installed tools (e.g., "icon.svg" or "icons/icon.svg")
- *   - Full GitHub Release URL for marketplace display (e.g., "https://github.com/.../icon.svg")
+ *   - Full URL for marketplace display, in the tool's package folder in blob storage (e.g., "https://<account>.blob.core.windows.net/tools/packages/<tool-id>-<version>/<tool-id>-<version>.svg")
  * @returns Resolved icon URL suitable for use in img src attribute
  */
 export function resolveToolIconUrl(toolId: string, iconPath: string | undefined): string | undefined {
@@ -26,7 +26,7 @@ export function resolveToolIconUrl(toolId: string, iconPath: string | undefined)
         return undefined;
     }
 
-    // If it's already a full HTTP(S) URL (e.g., from GitHub Release for marketplace), return as-is
+    // If it's already a full HTTP(S) URL (e.g., a marketplace icon in blob storage), return as-is
     if (iconPath.startsWith("http://") || iconPath.startsWith("https://")) {
         return iconPath;
     }
@@ -158,8 +158,37 @@ export function planToolIcon(svg: string): ToolIconPlan {
 
 export type ToolIconSvgLoader = (toolId: string, iconPath: string) => Promise<string | null>;
 
-/** Load icon markup through the main process. */
-const defaultIconSvgLoader: ToolIconSvgLoader = (toolId, iconPath) => (window as unknown as { toolboxAPI: { getToolIconSvg: ToolIconSvgLoader } }).toolboxAPI.getToolIconSvg(toolId, iconPath);
+/** Largest icon SVG the renderer will use, matching the host's limit for bundled icons. */
+const MAX_TOOL_ICON_BYTES = 512 * 1024;
+
+const MARKETPLACE_ICON_TIMEOUT_MS = 10_000;
+
+/** Marketplace icons are processed at intake and stored with the tool package in blob storage. */
+function isMarketplaceIconUrl(url: string): boolean {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === "https:" && /\.blob\.core\.windows\.net$/i.test(parsed.hostname);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Load a marketplace icon's markup from its own URL in the tool's package folder in blob storage.
+ * No other host is fetched. Returns null when the URL isn't a blob storage URL or the icon can't be
+ * fetched, is too large or isn't an SVG, so the caller falls back to a mask on the URL (as before).
+ */
+export async function fetchMarketplaceIconSvg(url: string, fetchImpl: typeof fetch = (input, init) => fetch(input, init)): Promise<string | null> {
+    if (!isMarketplaceIconUrl(url)) return null;
+    const response = await fetchImpl(url, { credentials: "omit", redirect: "error", signal: AbortSignal.timeout(MARKETPLACE_ICON_TIMEOUT_MS) });
+    if (!response.ok || Number(response.headers.get("content-length")) > MAX_TOOL_ICON_BYTES) return null;
+    const svg = await response.text();
+    return svg.length <= MAX_TOOL_ICON_BYTES && /<svg[\s>]/i.test(svg) ? svg : null;
+}
+
+/** Load icon markup: bundled icons through the main process, marketplace icons from their URL. */
+const defaultIconSvgLoader: ToolIconSvgLoader = (toolId, iconPath) =>
+    /^https?:\/\//i.test(iconPath) ? fetchMarketplaceIconSvg(iconPath) : (window as unknown as { toolboxAPI: { getToolIconSvg: ToolIconSvgLoader } }).toolboxAPI.getToolIconSvg(toolId, iconPath);
 
 /** How long an icon that couldn't be loaded keeps using the fallback before it's tried again. */
 const FAILED_ICON_RETRY_MS = 60_000;
@@ -207,11 +236,12 @@ function loadToolIconPlan(key: string, toolId: string, iconPath: string, loadSvg
 /**
  * Render SVG tool icons placed by `generateToolIconHtml`.
  *
- * The icon markup comes from the main process and is used as a `data:` URL, so it works for
- * locally loaded tools too (a CSS mask on a `pptb-webview://` URL is a cross-origin load that
- * fails). Colour SVGs are drawn as an <img>; single-colour SVGs stay a CSS mask so they follow
- * the light/dark theme. If the markup can't be loaded, the icon falls back to a mask on the
- * original URL (and to the fallback icon if that URL doesn't load).
+ * The icon markup is used as a `data:` URL. Bundled icons (installed, npm and locally loaded
+ * tools) are read by the main process, because a CSS mask on a `pptb-webview://` URL is a
+ * cross-origin load that fails; marketplace icons are fetched from their own URL. Colour SVGs
+ * are drawn as an <img> in their authored colours; single-colour SVGs stay a CSS mask so they
+ * follow the light/dark theme, as they always have. If the markup can't be loaded, the icon
+ * falls back to a mask on the original URL (and to the fallback icon if that URL doesn't load).
  *
  * We avoid putting URLs inside an inline `style="..."` string during HTML generation;
  * instead, we set them via DOM APIs to reduce injection risk and to keep escaping correct.

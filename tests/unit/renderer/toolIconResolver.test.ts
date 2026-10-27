@@ -3,6 +3,7 @@
 import {
     applyToolIconMasks,
     clearToolIconCache,
+    fetchMarketplaceIconSvg,
     generateToolIconHtml,
     getFallbackIconUrl,
     isMonochromeSvg,
@@ -13,6 +14,7 @@ import {
 
 const COLOUR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="#0E5A9C" d="M0 0h64v64H0z"/><path stroke="#fff" d="M8 8l48 48"/></svg>';
 const MONO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h24v24H0z"/></svg>';
+const MARKETPLACE_ICON = "https://pptb.blob.core.windows.net/tools/packages/my-tool-1.0.0/my-tool-1.0.0.svg";
 
 describe("resolveToolIconUrl", () => {
     it("maps bundled SVG paths to the tool's pptb-webview origin", () => {
@@ -98,7 +100,7 @@ class FakeIcon {
     readonly style = { setProperty: (name: string, value: string) => void this.styles.set(name, value) };
 
     constructor(toolId: string, iconPath: string) {
-        this.attributes.set("data-pptb-icon-url", `pptb-webview://${toolId}/${iconPath}`);
+        this.attributes.set("data-pptb-icon-url", /^https:/.test(iconPath) ? iconPath : `pptb-webview://${toolId}/${iconPath}`);
         this.attributes.set("data-pptb-tool-id", toolId);
         this.attributes.set("data-pptb-icon-path", iconPath);
         this.attributes.set("aria-label", `${toolId} icon`);
@@ -144,6 +146,35 @@ describe("applyToolIconMasks", () => {
         expect(mono.replacedWith).toBeNull();
         expect(mono.getAttribute("data-pptb-icon-state")).toBe("mask");
         expect(mono.styles.get("--pptb-icon-url")).toBe(`url(${JSON.stringify(svgToDataUrl(MONO_SVG))})`);
+    });
+
+    it("keeps every existing single-colour icon style as a theme mask", async () => {
+        // The icon styles published tools use today: currentColor (most of them), black-only and white-only.
+        const svgs: Record<string, string> = {
+            "current-color": MONO_SVG,
+            "black-only": '<svg xmlns="http://www.w3.org/2000/svg" fill="#000000" viewBox="0 0 18 18"><path d="M0 0h9v9H0z"/></svg>',
+            "white-only": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#FFF" d="M0 0h24v24H0z"/></svg>',
+        };
+        const icons = Object.keys(svgs).map((toolId) => new FakeIcon(toolId, "icons/icon.svg"));
+
+        await applyToolIconMasks(rootOf(...icons), async (toolId) => svgs[toolId]);
+
+        for (const icon of icons) {
+            expect(icon.replacedWith).toBeNull();
+            expect(icon.getAttribute("data-pptb-icon-state")).toBe("mask");
+        }
+    });
+
+    it("draws marketplace icons from their URL's markup: colour as an <img>, monochrome as a mask", async () => {
+        const colour = new FakeIcon("colour-tool", MARKETPLACE_ICON.replace("my-tool", "colour-tool"));
+        const mono = new FakeIcon("mono-tool", MARKETPLACE_ICON.replace("my-tool", "mono-tool"));
+        const loader = jest.fn(async (_toolId: string, iconPath: string) => (iconPath.includes("colour-tool") ? COLOUR_SVG : MONO_SVG));
+
+        await applyToolIconMasks(rootOf(colour, mono), loader);
+
+        expect(loader).toHaveBeenCalledWith("colour-tool", MARKETPLACE_ICON.replace("my-tool", "colour-tool"));
+        expect(colour.replacedWith?.src).toBe(svgToDataUrl(COLOUR_SVG));
+        expect(mono.getAttribute("data-pptb-icon-state")).toBe("mask");
     });
 
     it("falls back to a mask on the original URL when the loader throws or rejects", async () => {
@@ -194,5 +225,37 @@ describe("applyToolIconMasks", () => {
 
         expect(loader).toHaveBeenCalledTimes(2);
         expect(retried.replacedWith?.src).toBe(svgToDataUrl(COLOUR_SVG));
+    });
+});
+
+describe("fetchMarketplaceIconSvg", () => {
+    const respond = (body: string, init: ResponseInit = {}) => jest.fn(async () => new Response(body, init)) as unknown as jest.Mock & typeof fetch;
+
+    it("fetches the SVG from its own URL without following redirects or sending credentials", async () => {
+        const fetchImpl = respond(COLOUR_SVG);
+        await expect(fetchMarketplaceIconSvg(MARKETPLACE_ICON, fetchImpl)).resolves.toBe(COLOUR_SVG);
+        expect(fetchImpl).toHaveBeenCalledWith(MARKETPLACE_ICON, expect.objectContaining({ redirect: "error", credentials: "omit" }));
+    });
+
+    it("only fetches from the tool package in blob storage, never GitHub or any other host", async () => {
+        const fetchImpl = respond(COLOUR_SVG);
+        for (const url of [
+            "http://pptb.blob.core.windows.net/x.svg",
+            "https://raw.githubusercontent.com/o/r/main/icon.svg",
+            "https://github.com/o/r/releases/download/v1/icon.svg",
+            "https://xyz.supabase.co/storage/v1/object/public/icons/icon.svg",
+            "https://blob.core.windows.net.example.com/icon.svg",
+            "not a url",
+        ]) {
+            await expect(fetchMarketplaceIconSvg(url, fetchImpl)).resolves.toBeNull();
+        }
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it("returns null for failed, oversized or non-SVG responses", async () => {
+        await expect(fetchMarketplaceIconSvg(MARKETPLACE_ICON, respond("missing", { status: 404 }))).resolves.toBeNull();
+        await expect(fetchMarketplaceIconSvg(MARKETPLACE_ICON, respond(`<svg>${" ".repeat(512 * 1024)}</svg>`))).resolves.toBeNull();
+        await expect(fetchMarketplaceIconSvg(MARKETPLACE_ICON, respond("<svg></svg>", { headers: { "content-length": String(1024 * 1024) } }))).resolves.toBeNull();
+        await expect(fetchMarketplaceIconSvg(MARKETPLACE_ICON, respond("<html></html>"))).resolves.toBeNull();
     });
 });

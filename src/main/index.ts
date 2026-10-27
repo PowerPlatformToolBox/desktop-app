@@ -79,7 +79,7 @@ import { ToolInstallationCoordinator } from "./utils/appWorkerLifecycle";
 import { mergeDataverseHeaders } from "./utils/dataverseBatch";
 import { authorizeFilesystemCaller } from "./utils/filesystemAuthorization";
 import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utils/nativeWorkerIdentity";
-import { fetchRemoteToolIconSvg, readToolIconSvg } from "./utils/toolIcon";
+import { readToolIconSvg } from "./utils/toolIcon";
 import { WorkerQuitCoordinator } from "./utils/workerQuit";
 import { registerWorkerToolIpcHandlers } from "./utils/workerToolIpc";
 import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
@@ -1497,14 +1497,12 @@ class ToolBoxApp {
             return this.toolManager.getToolWebviewHtml(packageName);
         });
 
-        // Tool icon SVG markup, so the renderer can show colour icons as images and
-        // monochrome (currentColor) icons as theme masks without cross-origin loads.
-        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_ICON_SVG, async (_, toolId: unknown, iconPath: unknown) => {
+        // Bundled tool icon SVG markup, so the renderer can show colour icons as images and
+        // monochrome (currentColor) icons as theme masks. A mask on a pptb-webview:// URL is a
+        // cross-origin load, which fails for that scheme. URLs (marketplace icons) return null.
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_ICON_SVG, (_, toolId: unknown, iconPath: unknown) => {
             if (typeof toolId !== "string" || typeof iconPath !== "string" || !iconPath) return null;
             try {
-                if (/^https:\/\//i.test(iconPath)) {
-                    return await fetchRemoteToolIconSvg(iconPath);
-                }
                 const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
                 const toolBaseDir = tool ? this.browserviewProtocolManager.getToolBaseDirectory(tool) : null;
                 return toolBaseDir ? readToolIconSvg(toolBaseDir, iconPath) : null;
