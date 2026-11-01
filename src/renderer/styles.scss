@@ -4226,8 +4226,8 @@ body.dark-theme .search-filter-btn.active img {
 }
 
 .tool-item-icon-img {
-    width: 20px;
-    height: 20px;
+    width: 25px;
+    height: 25px;
 }
 
 img.tool-item-icon-img {
@@ -4246,6 +4246,11 @@ img.tool-item-icon-img {
     mask-size: contain;
     -webkit-mask-position: center;
     mask-position: center;
+}
+
+/* Until applyToolIconMasks has set a mask, keep the placeholder empty instead of a solid square. */
+.pptb-svg-mask-icon:not([data-pptb-icon-state="mask"]):not([data-pptb-icon-state="url"]) {
+    background-color: transparent;
 }
 
 .tool-item-icon-text {

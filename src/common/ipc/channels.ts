@@ -73,6 +73,7 @@ export const TOOL_CHANNELS = {
     INSTALL_TOOL: "install-tool",
     UNINSTALL_TOOL: "uninstall-tool",
     GET_TOOL_WEBVIEW_HTML: "get-tool-webview-html",
+    GET_TOOL_ICON_SVG: "get-tool-icon-svg",
     GET_TOOL_CONTEXT: "get-tool-context",
     GET_TOOL_WEBVIEW_URL: "get-tool-webview-url",
     LOAD_LOCAL_TOOL: "load-local-tool",
