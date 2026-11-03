@@ -112,6 +112,10 @@ export class PowerPlatformManager {
 
         const getScopes = (): string[] => ["https://api.powerplatform.com/.default"];
 
+        if (connection.authenticationType === "external") {
+            throw new Error(`Connection '${connection.name}' is provided by ${connection.providerName ?? "an extension"} and does not support Power Platform API access.`);
+        }
+
         if (connection.authenticationType === "interactive" && connection.msalAccountId) {
             await this.ensureMsalCacheOrClearTokens(connection, connectionId, `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`);
 

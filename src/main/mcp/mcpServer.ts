@@ -705,6 +705,16 @@ export class McpServerManager {
                 break;
             case "connectionString":
                 throw new Error(`Connection '${connection.name}' uses unsupported authenticationType 'connectionString' for headless token acquisition.`);
+            case "external": {
+                // Extension providers may need user input (sign-in, justification), so only refresh previously opened connections silently
+                if (!connection.accessToken && !allowInteractive) {
+                    throw new SignInRequiredError(
+                        `Connection '${connection.name}' is provided by ${connection.providerName ?? "an extension"} and requires sign-in. Call ${AUTHENTICATE_CONNECTIONS_NAME} for it after the user confirms, then retry.`,
+                    );
+                }
+                const external = await this.connectionsManager.authenticateExternalConnection(connection.id, connection.accessToken ? "refresh" : "connect");
+                return external.accessToken;
+            }
             default:
                 throw new Error(`Unsupported authentication type for connection '${connection.name}'.`);
         }

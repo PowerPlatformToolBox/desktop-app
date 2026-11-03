@@ -4,7 +4,7 @@ import { ConnectionIds, ConnectionTarget, legacyConnectionIds, normalizeConnecti
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { addConnectionSlotsBreadcrumb, captureException } from "../../common/sentryHelper";
-import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
+import { LastUsedToolConnectionInfo, ProviderAuthenticateToolContext, Tool } from "../../common/types";
 import type { DataverseUser } from "../../common/types/dataverse";
 import { ToolBoxEvent } from "../../common/types/events";
 import type { LoadedToolIdentity } from "../utils/nativeWorkerIdentity";
@@ -1072,6 +1072,21 @@ export class ToolWindowManager {
                 const connectionInfo = this.toolConnectionInfo.get(instanceId);
                 return connectionInfo?.connectionIds[targetIndex] ?? null;
             }
+        }
+        return null;
+    }
+
+    /**
+     * Identity of the tool instance currently assigned this connection, for connection providers
+     * that want to log or restrict access per tool. If several open tool instances share the
+     * connection, the first match is returned; callers should treat this as best-effort.
+     */
+    getProviderToolContextByConnectionId(connectionId: string): ProviderAuthenticateToolContext | null {
+        for (const [instanceId, connectionInfo] of this.toolConnectionInfo.entries()) {
+            if (!connectionInfo.connectionIds.includes(connectionId)) continue;
+            const identity = this.loadedToolIdentities.get(instanceId);
+            if (!identity) continue;
+            return { toolId: identity.toolId, toolName: identity.toolName, toolVersion: identity.toolVersion, instanceId };
         }
         return null;
     }

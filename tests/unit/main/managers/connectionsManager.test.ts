@@ -218,4 +218,92 @@ describe("ConnectionsManager", () => {
             expect(result.warnings.some((w) => w.includes("clientSecret"))).toBe(true);
         });
     });
+
+    // -----------------------------------------------------------------------
+    // Extension-provided (external) connections
+    // -----------------------------------------------------------------------
+    describe("external connection source", () => {
+        const externalId = "ext:my-ext/data8:client%2Fconn";
+        let authenticate: jest.Mock;
+
+        function makeExternal(): Connection {
+            return makeConnection({ id: externalId, name: "Client / Conn", authenticationType: "external", providerId: "my-ext/data8", providerName: "Data8", readOnly: true });
+        }
+
+        beforeEach(() => {
+            authenticate = jest.fn(async () => ({ accessToken: "provider-token", expiresOn: new Date(Date.now() + 60 * 60 * 1000) }));
+            manager.setExternalConnectionSource({
+                getConnections: () => [makeExternal()],
+                getConnectionById: (id: string) => (id === externalId ? makeExternal() : null),
+                authenticate,
+            });
+        });
+
+        it("appends external connections after local connections", () => {
+            manager.addConnection(makeConnection({ id: "local-1" }));
+            expect(manager.getConnections().map((c) => c.id)).toEqual(["local-1", externalId]);
+            expect(manager.getLocalConnections().map((c) => c.id)).toEqual(["local-1"]);
+        });
+
+        it("rejects adding, deleting or editing provider-owned fields", () => {
+            expect(() => manager.addConnection(makeExternal())).toThrow();
+            expect(() => manager.deleteConnection(externalId)).toThrow();
+            expect(() => manager.updateConnection(externalId, { name: "Renamed" })).toThrow();
+        });
+
+        it("allows local customisation of editable fields", () => {
+            manager.updateConnection(externalId, { environmentColor: "#ff0000" });
+            expect(manager.getConnectionById(externalId)!.environmentColor).toBe("#ff0000");
+        });
+
+        it("excludes external connections from export", () => {
+            manager.addConnection(makeConnection({ id: "local-1" }));
+            const exported = manager.exportConnections();
+            expect(exported.connections).toHaveLength(1);
+        });
+
+        it("authenticates through the provider and caches the token in memory", async () => {
+            const first = await manager.getExternalAccessToken(externalId);
+            expect(first.accessToken).toBe("provider-token");
+            expect(authenticate).toHaveBeenCalledWith(externalId, "connect", undefined);
+            expect(manager.getConnectionById(externalId)!.accessToken).toBe("provider-token");
+
+            await manager.getExternalAccessToken(externalId);
+            expect(authenticate).toHaveBeenCalledTimes(1);
+        });
+
+        it("asks the provider to refresh when the cached token is about to expire", async () => {
+            manager.updateConnectionTokens(externalId, { accessToken: "old", expiresOn: new Date(Date.now() + 60 * 1000) });
+            const result = await manager.getExternalAccessToken(externalId);
+            expect(authenticate).toHaveBeenCalledWith(externalId, "refresh", undefined);
+            expect(result.accessToken).toBe("provider-token");
+        });
+
+        it("passes the resolved tool context to the provider when a resolver is set", async () => {
+            const toolContext = { toolId: "fetchxml-studio", toolName: "FetchXML Studio", toolVersion: "1.0.0", instanceId: "fetchxml-studio-123-abc" };
+            manager.setToolContextResolver((id) => (id === externalId ? toolContext : null));
+
+            await manager.getExternalAccessToken(externalId);
+            expect(authenticate).toHaveBeenCalledWith(externalId, "connect", toolContext);
+
+            await manager.authenticateExternalConnection(externalId, "refresh");
+            expect(authenticate).toHaveBeenCalledWith(externalId, "refresh", toolContext);
+        });
+
+        it("always calls the provider when explicitly authenticating", async () => {
+            await manager.authenticateExternalConnection(externalId, "connect");
+            await manager.authenticateExternalConnection(externalId, "connect");
+            expect(authenticate).toHaveBeenCalledTimes(2);
+        });
+
+        it("clears cached tokens", async () => {
+            await manager.getExternalAccessToken(externalId);
+            manager.clearConnectionTokens(externalId);
+            expect(manager.getConnectionById(externalId)!.accessToken).toBeUndefined();
+        });
+
+        it("rejects unknown external connections", async () => {
+            await expect(manager.getExternalAccessToken("ext:my-ext/data8:missing")).rejects.toThrow();
+        });
+    });
 });

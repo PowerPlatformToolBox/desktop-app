@@ -12,6 +12,7 @@ export * from "./tool";
 
 // Connection-related types
 export * from "./connection";
+export * from "./connectionProvider";
 
 // Terminal-related types
 export * from "./terminal";

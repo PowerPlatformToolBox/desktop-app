@@ -78,7 +78,8 @@ export function getSelectMultiConnectionModalControllerScript(
         const labels = {
             interactive: "Microsoft Login",
             clientSecret: "Client Secret",
-            usernamePassword: "Username/Password"
+            usernamePassword: "Username/Password",
+            external: "Extension"
         };
         return labels[authType] || authType;
     };
@@ -364,7 +365,7 @@ ${sortingUtilities}
     };
 
     const handleConnectClick = async (connectionId, listType) => {
-        const button = document.querySelector(\`.connect-button[data-connection-id="\${connectionId}"][data-list="\${listType}"]\`);
+        const button = document.querySelector(\`.connect-button[data-connection-id="\${CSS.escape(connectionId)}"][data-list="\${listType}"]\`);
         if (!button) return;
 
         // Disable button and show loading state
@@ -522,7 +523,7 @@ ${sortingUtilities}
                     renderConnections(allConnections);
                 } else if (payload.data?.success === false) {
                     // Authentication failed - restore the connect button
-                    const button = document.querySelector(\`.connect-button[data-connection-id="\${payload.data.connectionId}"][data-list="\${payload.data.listType}"]\`);
+                    const button = document.querySelector(\`.connect-button[data-connection-id="\${CSS.escape(String(payload.data.connectionId))}"][data-list="\${payload.data.listType}"]\`);
                     if (button) {
                         button.disabled = false;
                         button.textContent = 'Connect';
@@ -603,7 +604,7 @@ function getConnectionSlotsModalControllerScript(
     const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
     const sanitizeSortOption = (value) => value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION;
     const escapeHtml = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    const formatAuthType = (authType) => ({ interactive: "Microsoft Login", clientSecret: "Client Secret", usernamePassword: "Username/Password" }[authType] || authType);
+    const formatAuthType = (authType) => ({ interactive: "Microsoft Login", clientSecret: "Client Secret", usernamePassword: "Username/Password", external: "Extension" }[authType] || authType);
 ${sortingUtilities}
 
     const renderRail = () => {

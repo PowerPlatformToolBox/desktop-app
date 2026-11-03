@@ -35,6 +35,7 @@ import {
     AttributeMetadataType,
     DataverseBatchRequest,
     EntityRelatedMetadataPath,
+    isExternalConnectionId,
     LastUsedToolEntry,
     LastUsedToolUpdate,
     MetadataOperationOptions,
@@ -52,6 +53,9 @@ import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
+import { ConnectionProviderManager } from "./managers/connectionProviderManager";
+import { createUtilityProcessProviderFactory } from "./managers/connectionProviderProcess";
+import { ConnectionProviderPromptManager } from "./managers/connectionProviderPromptManager";
 import { DataverseHeaderConsentManager } from "./managers/dataverseHeaderConsentManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { DotNetDiscoveryManager } from "./managers/dotnetDiscoveryManager";
@@ -114,6 +118,9 @@ class ToolBoxApp {
     private proxyManager: ProxyManager;
     private installIdManager: InstallIdManager;
     private connectionsManager: ConnectionsManager;
+    private connectionProviderManager: ConnectionProviderManager;
+    private connectionProviderPromptManager: ConnectionProviderPromptManager;
+    private connectionProvidersStarted = false; // Providers are registered once startup MSAL cleanup has run
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private protocolHandlerManager: ProtocolHandlerManager;
@@ -243,6 +250,17 @@ class ToolBoxApp {
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
             this.authManager = new AuthManager(this.browserManager, this.proxyManager);
+            this.connectionProviderPromptManager = new ConnectionProviderPromptManager(() => this.modalWindowManager?.getVisibleModalWindow() ?? this.mainWindow, this.settingsManager);
+            this.connectionProviderManager = new ConnectionProviderManager({
+                processFactory: createUtilityProcessProviderFactory(),
+                acquireEntraToken: async (providerId, request) => {
+                    const result = await this.authManager.acquireEntraTokenForProvider(providerId, request);
+                    return { accessToken: result.accessToken, expiresOn: result.expiresOn.toISOString(), username: result.username };
+                },
+                prompt: (providerName, request) => this.connectionProviderPromptManager.prompt(providerName, request),
+            });
+            this.connectionsManager.setExternalConnectionSource(this.connectionProviderManager);
+            this.connectionsManager.setToolContextResolver((connectionId) => this.toolWindowManager?.getProviderToolContextByConnectionId(connectionId) ?? null);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager, this.proxyManager);
             this.dataverseHeaderConsentManager = new DataverseHeaderConsentManager(
@@ -318,6 +336,18 @@ class ToolBoxApp {
     }
 
     /**
+     * Register any connection providers declared by an installed extension
+     */
+    private registerConnectionProviders(toolId: string): void {
+        const tool = this.toolManager.getTool(toolId);
+        const rootPath = tool?.localPath ?? this.toolManager.getInstalledManifestSync(toolId)?.installPath;
+        if (!rootPath) return;
+        this.connectionProviderManager.registerExtension(toolId, rootPath).catch((error) => {
+            logError(`[ConnectionProviders] Failed to register providers for ${toolId}`, error);
+        });
+    }
+
+    /**
      * Set up event listeners
      */
     private setupEventListeners(): void {
@@ -343,6 +373,15 @@ class ToolBoxApp {
         // Listen to tool manager events
         this.toolManager.on("tool:loaded", (tool) => {
             this.api.emitEvent(ToolBoxEvent.TOOL_LOADED, tool);
+            if (this.connectionProvidersStarted) this.registerConnectionProviders(tool.id);
+        });
+
+        this.toolManager.on("tool:uninstalled", (toolId: string) => {
+            this.connectionProviderManager.unregisterExtension(toolId);
+        });
+
+        this.connectionProviderManager.on("connections-changed", (providerId: string) => {
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { providerId, connectionsRefreshed: true });
         });
 
         this.toolManager.on("tool:unloaded", (tool) => {
@@ -479,6 +518,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.CONFIGURE_APP_REGISTRATION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.EXPORT_CONNECTIONS);
         ipcMain.removeHandler(CONNECTION_CHANNELS.IMPORT_CONNECTIONS);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTION_PROVIDERS);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_CONNECTION_PROVIDERS);
 
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
@@ -910,6 +951,7 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.DELETE_CONNECTION, (_, id) => {
+            if (isExternalConnectionId(id)) throw new Error("Connections provided by extensions cannot be deleted.");
             const deletionBlocker = this.toolWindowManager?.getConnectionDeletionBlocker(id) ?? null;
             if (deletionBlocker) throw new Error(deletionBlocker);
             this.connectionsManager.deleteConnection(id);
@@ -926,7 +968,7 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.GET_CATEGORIES, () => {
-            const connections = this.connectionsManager.getConnections();
+            const connections = this.connectionsManager.getLocalConnections();
             const categoryMap = new Map<string, string | undefined>();
             for (const conn of connections) {
                 if (conn.category && !categoryMap.has(conn.category)) {
@@ -939,9 +981,22 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, async (_, id) => {
-            const connection = this.connectionsManager.getConnections().find((c) => c.id === id);
+            const connection = this.connectionsManager.getConnectionById(id);
             if (!connection) {
                 throw new Error("Connection not found");
+            }
+
+            // Extension-provided connections always go through the provider's authentication flow when opened
+            if (connection.authenticationType === "external") {
+                logInfo(`[ConnectionAuth] Authenticating extension-provided connection: ${connection.name} (${id})`);
+                try {
+                    await this.connectionsManager.authenticateExternalConnection(id, "connect");
+                } catch (error) {
+                    throw new Error(`Authentication failed: ${(error as Error).message}`);
+                }
+                this.notifiedExpiredTokens.clear();
+                this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+                return;
             }
 
             // Determine authentication strategy based on token state
@@ -1085,6 +1140,15 @@ class ToolBoxApp {
             return this.connectionsManager.isConnectionTokenExpired(connectionId);
         });
 
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_PROVIDERS, () => {
+            return this.connectionProviderManager.getProviders();
+        });
+
+        ipcMain.handle(CONNECTION_CHANNELS.REFRESH_CONNECTION_PROVIDERS, async () => {
+            await this.connectionProviderManager.refreshConnections();
+            return this.connectionProviderManager.getProviders();
+        });
+
         // Re-authenticate connection (refresh token flow)
         ipcMain.handle(CONNECTION_CHANNELS.REFRESH_TOKEN, async (_, connectionId) => {
             const connection = this.connectionsManager.getConnectionById(connectionId);
@@ -1093,6 +1157,14 @@ class ToolBoxApp {
             }
 
             try {
+                // Extension-provided connections are refreshed by their provider
+                if (connection.authenticationType === "external") {
+                    await this.connectionsManager.authenticateExternalConnection(connectionId, "refresh");
+                    this.notifiedExpiredTokens.clear();
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+                    return { success: true };
+                }
+
                 // Use MSAL silent acquisition for interactive auth with MSAL account
                 if (connection.authenticationType === "interactive" && connection.msalAccountId) {
                     const tokenResult = await this.authManager.acquireTokenSilently(connection);
@@ -4253,6 +4325,12 @@ class ToolBoxApp {
             await this.authManager.cleanup();
             this.connectionsManager.clearAllConnectionTokens();
 
+            // Start connection providers contributed by installed extensions
+            this.connectionProvidersStarted = true;
+            for (const tool of this.toolManager.getAllTools()) {
+                this.registerConnectionProviders(tool.id);
+            }
+
             app.on("activate", () => {
                 // On macOS the app stays alive after the window is closed.
                 // When the user clicks the Dock icon (or the tray "Open" item),
@@ -4284,6 +4362,8 @@ class ToolBoxApp {
                     await this.mcpServerManager.stop();
                     this.autoUpdateManager.disableAutoUpdateChecks();
                     this.stopTokenExpiryChecks();
+                    this.connectionProviderManager.dispose();
+                    this.connectionProviderPromptManager.dispose();
                     await this.authManager.cleanup();
                     this.connectionsManager.clearAllConnectionTokens();
                     this.trayManager?.destroy();

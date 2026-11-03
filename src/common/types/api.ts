@@ -8,6 +8,7 @@ import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, Native
 import { CommunityLinksCollection } from "./communityLinks";
 import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, DataverseUser, DataverseUserPage } from "./dataverse";
 import { Connection } from "./connection";
+import { ConnectionProviderInfo } from "./connectionProvider";
 import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSourceIssue, ProxySettings, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolReviewContext, ToolRegistryEntry, ToolSettings } from "./tool";
@@ -29,6 +30,10 @@ export interface ConnectionsAPI {
     authenticate: (connectionId: string) => Promise<void>;
     exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<Connection>[] }>;
     importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
+    /** Connection providers contributed by extensions */
+    getProviders: () => Promise<ConnectionProviderInfo[]>;
+    /** Reload connections from all extension connection providers */
+    refreshProviders: () => Promise<ConnectionProviderInfo[]>;
     /** ConnectionId-based system-users lookup for the connection-selection modals (used before a tool instance exists). */
     getSystemUsersForConnection: (connectionId: string) => Promise<DataverseUser[]>;
     searchSystemUsersForConnection: (connectionId: string, search?: string, nextLink?: string) => Promise<DataverseUserPage>;

@@ -58,6 +58,24 @@ describe("ToolWindowManager connection slot routing", () => {
         expect(manager.getConnectionDeletionBlocker("third-id")).toBeNull();
     });
 
+    it("resolves the tool identity currently assigned to a connection, for connection providers", () => {
+        const { manager } = createManager();
+        (manager as any).toolInstanceNames.set("open-tool", "Open Tool");
+        (manager as any).toolConnectionInfo.set("open-tool", {
+            connectionIds: ["primary-id", null, "third-id"],
+            impersonatedUsers: [null, null, null],
+        });
+        (manager as any).loadedToolIdentities.set("open-tool", { toolId: "fetchxml-studio", toolName: "FetchXML Studio", toolVersion: "1.0.0", sourcePath: "/some/local/path" });
+
+        expect(manager.getProviderToolContextByConnectionId("third-id")).toEqual({
+            toolId: "fetchxml-studio",
+            toolName: "FetchXML Studio",
+            toolVersion: "1.0.0",
+            instanceId: "open-tool",
+        });
+        expect(manager.getProviderToolContextByConnectionId("unused-id")).toBeNull();
+    });
+
     it("routes legacy aliases and arbitrary numeric targets to stable array indexes", () => {
         const { manager } = createManager();
         const view = new BrowserView();

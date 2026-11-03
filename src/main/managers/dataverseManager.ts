@@ -180,6 +180,12 @@ export class DataverseManager {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }
 
+        // Extension-provided connections: tokens are issued by the owning connection provider
+        if (connection.authenticationType === "external") {
+            const result = await this.connectionsManager.getExternalAccessToken(connectionId);
+            return { connection: result.connection, accessToken: result.accessToken };
+        }
+
         // Strategy 1: Interactive auth with MSAL account - use silent token acquisition
         // MSAL automatically handles token refresh if expired (no local server needed for refresh)
         if (connection.authenticationType === "interactive" && connection.msalAccountId) {

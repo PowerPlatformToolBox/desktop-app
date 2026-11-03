@@ -5,7 +5,20 @@
 /**
  * Authentication type for Dataverse connection
  */
-export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
+export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString" | "external";
+
+/**
+ * Prefix used for the IDs of connections supplied by extension connection providers.
+ * Full format: `ext:<providerId>:<providerConnectionId>`
+ */
+export const EXTERNAL_CONNECTION_ID_PREFIX = "ext:";
+
+/**
+ * Returns true when the connection ID belongs to an extension connection provider
+ */
+export function isExternalConnectionId(id: string | null | undefined): boolean {
+    return typeof id === "string" && id.startsWith(EXTERNAL_CONNECTION_ID_PREFIX);
+}
 
 /**
  * Browser type for interactive authentication
@@ -57,6 +70,14 @@ export interface Connection {
     powerPlatformAccessToken?: string;
     // Expiry for the Power Platform access token
     powerPlatformTokenExpiry?: string;
+    // Extension connection provider that supplied this connection (authenticationType "external")
+    providerId?: string;
+    // Display name of the extension connection provider
+    providerName?: string;
+    // Connections from extension providers cannot be edited, deleted or exported
+    readOnly?: boolean;
+    // Free-text description supplied by the connection provider
+    description?: string;
 }
 
 /**
@@ -70,7 +91,7 @@ export function isConnection(obj: unknown): obj is Connection {
         typeof conn.name === "string" &&
         typeof conn.url === "string" &&
         (conn.environment === "Dev" || conn.environment === "Test" || conn.environment === "UAT" || conn.environment === "Production") &&
-        (conn.authenticationType === "interactive" || conn.authenticationType === "clientSecret" || conn.authenticationType === "usernamePassword")
+        (conn.authenticationType === "interactive" || conn.authenticationType === "clientSecret" || conn.authenticationType === "usernamePassword" || conn.authenticationType === "external")
     );
 }
 
@@ -95,6 +116,9 @@ export interface UIConnectionData {
     categoryColor?: string;
     hasIncompleteCredentials?: boolean;
     enabledForPowerPlatformAPI?: boolean;
+    providerId?: string;
+    providerName?: string;
+    readOnly?: boolean;
 }
 
 /**

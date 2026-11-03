@@ -20,8 +20,10 @@
 /// <reference path="./powerplatformAPI.d.ts" />
 /// <reference path="./pptbConfig.d.ts" />
 /// <reference path="./toolManifest.d.ts" />
+/// <reference path="./connectionProvider.d.ts" />
 
 // Re-export all namespaces for convenience
+export * from "./connectionProvider";
 export * from "./dataverseAPI";
 export * from "./powerplatformAPI";
 export * from "./pptbConfig";

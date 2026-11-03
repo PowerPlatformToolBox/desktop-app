@@ -76,6 +76,12 @@ export async function initializeApplication(): Promise<void> {
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
         initializeTitlebar();
 
+        // Register toolbox event listeners (connection/tool updates, terminal output, etc.) as early
+        // as possible. The main process can start emitting events (e.g. connection provider registration
+        // completing) as soon as the app is ready, which can race ahead of renderer initialization; events
+        // sent before this listener is registered are lost (ipcRenderer does not replay missed messages).
+        setupToolboxEventListeners();
+
         initializeBrowserWindowModals();
         window.api.on("open-suggest-tool-modal", () => {
             openToolIdeasModal().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
@@ -195,9 +201,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
-
-        // Set up toolbox event listeners
-        setupToolboxEventListeners();
 
         // Set up filter dropdown toggles for VSCode-style UI
         setupFilterDropdownToggles();

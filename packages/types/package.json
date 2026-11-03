@@ -33,6 +33,7 @@
         "powerplatformAPI.d.ts",
         "pptbConfig.d.ts",
         "toolManifest.d.ts",
+        "connectionProvider.d.ts",
         "bin/",
         "README.md"
     ],

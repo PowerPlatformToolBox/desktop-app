@@ -61,6 +61,8 @@ export const CONNECTION_CHANNELS = {
     CONFIGURE_APP_REGISTRATION: "configure-app-registration",
     EXPORT_CONNECTIONS: "export-connections",
     IMPORT_CONNECTIONS: "import-connections",
+    GET_CONNECTION_PROVIDERS: "get-connection-providers",
+    REFRESH_CONNECTION_PROVIDERS: "refresh-connection-providers",
 } as const;
 
 // Tool-related IPC channels

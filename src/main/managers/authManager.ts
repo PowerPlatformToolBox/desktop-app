@@ -641,6 +641,8 @@ export class AuthManager {
                 case "connectionString":
                     // Connection string should have been parsed to its actual auth type
                     throw new Error("Connection string must be parsed before testing. Please check the connection configuration.");
+                case "external":
+                    throw new Error("Connections provided by extensions are managed by their provider and cannot be tested here.");
                 default:
                     throw new Error("Invalid authentication type");
             }
@@ -940,6 +942,45 @@ export class AuthManager {
             logError("Token refresh failed", error);
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
+    }
+
+    /**
+     * Acquire a Microsoft Entra ID token on behalf of an extension connection provider.
+     * MSAL instances are isolated per provider and app registration. Silent acquisition is tried
+     * first; an interactive browser login is used when no cached account can satisfy the request.
+     */
+    async acquireEntraTokenForProvider(
+        providerId: string,
+        request: { clientId: string; tenantId?: string; scopes: string[]; loginHint?: string; forceInteractive?: boolean },
+    ): Promise<{ accessToken: string; expiresOn: Date; username?: string }> {
+        const tenantId = request.tenantId || "organizations";
+        const msalApp = this.getMsalApp(`provider:${providerId}:${request.clientId}:${tenantId}`, request.clientId, tenantId);
+
+        if (!request.forceInteractive) {
+            const accounts = await msalApp.getTokenCache().getAllAccounts();
+            const account = (request.loginHint && accounts.find((acc) => acc.username.toLowerCase() === request.loginHint!.toLowerCase())) || accounts[0];
+            if (account) {
+                try {
+                    const response = await msalApp.acquireTokenSilent({ account, scopes: request.scopes });
+                    return {
+                        accessToken: response.accessToken,
+                        expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                        username: response.account?.username,
+                    };
+                } catch (error) {
+                    logInfo(`[AuthManager] Silent token acquisition for provider ${providerId} failed; starting interactive login`);
+                }
+            }
+        }
+
+        const port = await this.findAvailablePort();
+        const redirectUri = `http://localhost:${port}`;
+        const authCodeUrl = await msalApp.getAuthCodeUrl({ scopes: request.scopes, redirectUri, loginHint: request.loginHint });
+        // The default system browser is used; provider connections have no browser profile settings
+        const browserContext = { id: `provider:${providerId}`, name: providerId, url: "", environment: "Production", authenticationType: "external", createdAt: "" } as Connection;
+        const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, browserContext, request.scopes, redirectUri, msalApp);
+        const account = authResult.msalAccountId ? await msalApp.getTokenCache().getAccountByHomeId(authResult.msalAccountId) : null;
+        return { accessToken: authResult.accessToken, expiresOn: authResult.expiresOn, username: account?.username };
     }
 
     /**

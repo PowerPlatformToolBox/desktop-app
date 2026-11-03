@@ -208,6 +208,13 @@ export class ModalWindowManager {
         }
     }
 
+    /**
+     * The modal window, if it is currently shown. Used to parent secondary dialogs so they stack above it.
+     */
+    getVisibleModalWindow(): BrowserWindow | null {
+        return this.modalWindow && !this.modalWindow.isDestroyed() && this.modalWindow.isVisible() ? this.modalWindow : null;
+    }
+
     private bringModalToFront(): void {
         if (!this.currentOptions || !this.modalWindow || this.modalWindow.isDestroyed() || !this.modalWindow.isVisible()) {
             return;
