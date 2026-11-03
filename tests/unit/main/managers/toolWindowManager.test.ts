@@ -225,6 +225,15 @@ describe("ToolWindowManager prevent-close behavior", () => {
 
         expect(result).toBe(false);
         expect(manager.hasPreventCloseTools()).toBe(true);
+        expect(dialog.showMessageBoxSync).toHaveBeenCalledWith(
+            mainWindow,
+            expect.objectContaining({
+                buttons: ["Cancel", "Ignore && Close"],
+                normalizeAccessKeys: true,
+                defaultId: 0,
+                cancelId: 0,
+            }),
+        );
     });
 
     it("allows app close confirmation without clearing prevent-close before shutdown commits", () => {
@@ -267,6 +276,15 @@ describe("ToolWindowManager prevent-close behavior", () => {
 
         expect(result).toBe(false);
         expect((manager as any).toolViews.has("tool-1")).toBe(true);
+        expect(dialog.showMessageBoxSync).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                buttons: ["Cancel", "Ignore && Close"],
+                normalizeAccessKeys: true,
+                defaultId: 0,
+                cancelId: 0,
+            }),
+        );
     });
 
     it("closes the tool when close is prevented and user selects Ignore & Close", async () => {
