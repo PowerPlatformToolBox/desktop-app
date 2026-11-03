@@ -1440,7 +1440,14 @@ class ToolBoxApp {
         // Update a tool to the latest version
         ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (event, toolId) => {
             if (event.sender !== this.mainWindow?.webContents || event.sender.isDestroyed()) throw new Error("Tool mutation requires the trusted main window");
-            const manifest = await this.workerBrokerManager.withToolMutation(toolId, () => this.toolManager.updateTool(toolId));
+            const manifest = await this.workerBrokerManager.withToolMutation(toolId, async () => {
+                // Stop any connection provider processes this tool contributed before its directory gets
+                // replaced; otherwise a still-running provider process (cwd locked to the old directory on
+                // Windows) can make the rename/overwrite fail with EBUSY/EPERM. `tool:loaded` re-registers
+                // providers from the new directory once the update finishes loading the tool.
+                await this.connectionProviderManager.unregisterExtension(toolId);
+                return this.toolManager.updateTool(toolId);
+            });
             const maxConnections = resolveConnectionSlots(manifest.features).max;
             if (this.settingsManager.limitToolConnectionSlots(toolId, maxConnections)) {
                 this.api.showNotification({
@@ -1541,6 +1548,10 @@ class ToolBoxApp {
             if (!tool) throw new Error("Tool uninstall target was not found");
             const targetId = tool.id;
             await this.workerBrokerManager.withToolMutation(targetId, async () => {
+                // Stop any connection provider processes this tool contributed, and wait for them to actually
+                // exit, before deleting its directory. Otherwise, on Windows, the provider process's cwd keeps
+                // the directory locked and removal fails with EBUSY/EPERM.
+                await this.connectionProviderManager.unregisterExtension(targetId);
                 await this.toolManager.uninstallTool(targetId);
                 this.settingsManager.removeInstalledTool(packageName);
                 if (targetId !== packageName) this.settingsManager.removeInstalledTool(targetId);

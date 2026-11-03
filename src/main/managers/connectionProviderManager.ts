@@ -69,6 +69,8 @@ const TENANT_PATTERN = /^[A-Za-z0-9.-]{1,128}$/;
 const VALID_ENVIRONMENTS = new Set<Connection["environment"]>(["Dev", "Test", "UAT", "Production"]);
 const MAX_CONNECTIONS_PER_PROVIDER = 5000;
 const INIT_TIMEOUT_MS = 30_000;
+/** Safety cap while waiting for a killed provider process to actually exit (e.g. before deleting its directory). */
+const PROCESS_EXIT_TIMEOUT_MS = 5_000;
 
 /**
  * Read the connection provider declarations from an extension's package.json.
@@ -160,7 +162,7 @@ export class ConnectionProviderManager extends EventEmitter {
     async registerExtension(extensionId: string, rootPath: string): Promise<void> {
         if (this.disposed) return;
         const declarations = readConnectionProviderDeclarations(rootPath);
-        this.unregisterExtension(extensionId, declarations.length === 0);
+        await this.unregisterExtension(extensionId, declarations.length === 0);
         if (declarations.length === 0) return;
 
         const resolvedRoot = path.resolve(rootPath);
@@ -203,15 +205,21 @@ export class ConnectionProviderManager extends EventEmitter {
     }
 
     /**
-     * Stop and remove all providers contributed by an extension
+     * Stop and remove all providers contributed by an extension.
+     *
+     * Resolves only once the provider's process has actually exited (or a safety timeout elapses), so callers
+     * that need to delete the extension's directory afterwards (e.g. uninstall/update) don't race a process that
+     * still holds that directory as its cwd, which would otherwise fail with EBUSY/EPERM on Windows.
      */
-    unregisterExtension(extensionId: string, notify = true): void {
+    async unregisterExtension(extensionId: string, notify = true): Promise<void> {
+        const stops: Promise<void>[] = [];
         for (const runtime of [...this.providers.values()]) {
             if (runtime.extensionId !== extensionId) continue;
-            this.stopProvider(runtime, "Provider was unregistered");
+            stops.push(this.stopProvider(runtime, "Provider was unregistered"));
             this.providers.delete(runtime.key);
             if (notify && runtime.connections.length > 0) this.emit("connections-changed", runtime.key);
         }
+        await Promise.all(stops);
     }
 
     getProviders(): ConnectionProviderInfo[] {
@@ -500,21 +508,39 @@ export class ConnectionProviderManager extends EventEmitter {
         };
     }
 
-    private stopProvider(runtime: ProviderRuntime, reason: string): void {
+    private stopProvider(runtime: ProviderRuntime, reason: string): Promise<void> {
         const proc = runtime.process;
         this.resetRuntime(runtime, new Error(reason), "stopped");
-        if (proc) {
+        if (!proc) return Promise.resolve();
+
+        try {
+            proc.postMessage({ type: "call", id: 0, method: "dispose", args: [] });
+        } catch {
+            // Process may already be gone
+        }
+
+        return new Promise<void>((resolve) => {
+            let settled = false;
+            const settle = () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve();
+            };
+            // Safety net in case the process ignores termination (or we can't observe its exit at all).
+            const timer = setTimeout(settle, PROCESS_EXIT_TIMEOUT_MS);
             try {
-                proc.postMessage({ type: "call", id: 0, method: "dispose", args: [] });
+                proc.onExit(() => settle());
             } catch {
-                // Process may already be gone
+                // Fall back to the timeout above
             }
             try {
                 proc.kill();
             } catch (error) {
                 logWarn(`[ConnectionProviders] Failed to stop ${runtime.key}`, error);
+                settle();
             }
-        }
+        });
     }
 
     private resetRuntime(runtime: ProviderRuntime, error: Error, status: ConnectionProviderInfo["status"]): void {
