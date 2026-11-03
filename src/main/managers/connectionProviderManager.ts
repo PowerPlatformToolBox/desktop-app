@@ -67,6 +67,7 @@ interface ProviderRuntime {
 const DECLARATION_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 const TENANT_PATTERN = /^[A-Za-z0-9.-]{1,128}$/;
 const VALID_ENVIRONMENTS = new Set<Connection["environment"]>(["Dev", "Test", "UAT", "Production"]);
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
 const MAX_CONNECTIONS_PER_PROVIDER = 5000;
 const INIT_TIMEOUT_MS = 30_000;
 /** Safety cap while waiting for a killed provider process to actually exit (e.g. before deleting its directory). */
@@ -345,6 +346,7 @@ export class ConnectionProviderManager extends EventEmitter {
                 createdAt: new Date(0).toISOString(),
                 username: typeof info.username === "string" ? info.username : undefined,
                 category: typeof info.category === "string" && info.category ? info.category : runtime.displayName,
+                categoryColor: typeof info.categoryColor === "string" && HEX_COLOR_PATTERN.test(info.categoryColor) ? info.categoryColor : undefined,
                 description: typeof info.description === "string" ? info.description : undefined,
                 providerId: runtime.key,
                 providerName: runtime.displayName,

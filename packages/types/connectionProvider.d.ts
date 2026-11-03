@@ -50,6 +50,11 @@ export interface ProviderConnectionInfo {
     environment?: "Dev" | "Test" | "UAT" | "Production";
     /** Group shown in the connections list. Defaults to the provider's display name. */
     category?: string;
+    /**
+     * Colour applied to the category badge/group for this connection, as a 6-digit hex string
+     * (e.g. "#6b2fb3"). Ignored if not a valid hex colour.
+     */
+    categoryColor?: string;
     username?: string;
     description?: string;
 }

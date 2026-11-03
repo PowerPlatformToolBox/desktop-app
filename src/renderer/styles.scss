@@ -7308,6 +7308,21 @@ body.dark-theme .global-search-item-badge.badge-settings {
     }
 }
 
+/* Non-interactive colour swatch on category group header for provider-supplied (read-only) groups */
+.connection-group-color-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    outline: 1px solid rgba(0, 0, 0, 0.2);
+    outline-offset: 1px;
+
+    .dark-theme & {
+        outline-color: rgba(255, 255, 255, 0.25);
+    }
+}
+
 /* Export button on category group header */
 .connection-group-export-btn {
     background: none;

@@ -67,15 +67,16 @@ The TypeScript definitions are in `@pptb/types` (`connectionProvider.d.ts`).
 
 ### Connection fields
 
-| Field         | Required | Notes                                                                  |
-| ------------- | -------- | ---------------------------------------------------------------------- |
-| `id`          | Yes      | Unique within the provider; max 512 characters, no control characters. |
-| `name`        | Yes      |                                                                        |
-| `url`         | Yes      | Must be HTTPS. Only the origin is kept.                                |
-| `environment` | No       | `Dev`, `Test`, `UAT` or `Production` (the default).                    |
-| `category`    | No       | Group in the sidebar. Defaults to the provider's display name.         |
-| `username`    | No       | Shown in connection details.                                           |
-| `description` | No       |                                                                        |
+| Field           | Required | Notes                                                                                                                                                                                       |
+| --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | Yes      | Unique within the provider; max 512 characters, no control characters.                                                                                                                      |
+| `name`          | Yes      |                                                                                                                                                                                             |
+| `url`           | Yes      | Must be HTTPS. Only the origin is kept.                                                                                                                                                     |
+| `environment`   | No       | `Dev`, `Test`, `UAT` or `Production` (the default).                                                                                                                                         |
+| `category`      | No       | Group in the sidebar. Defaults to the provider's display name.                                                                                                                              |
+| `categoryColor` | No       | 6-digit hex colour (e.g. `#6b2fb3`) for the category badge/group. Enforced for every user instead of being picked locally, so set this for consistent branding; invalid values are ignored. |
+| `username`      | No       | Shown in connection details.                                                                                                                                                                |
+| `description`   | No       |                                                                                                                                                                                             |
 
 Invalid and duplicate entries are skipped, and a warning is logged. A provider can return at most 5,000 connections.
 
@@ -117,7 +118,7 @@ The app renders every field itself from this schema - a provider can only descri
 - **Opening a connection** (sidebar, connection pickers, tool launch): this always calls `authenticate(id, { reason: "connect" })`, so providers that need approval on each session always get to run their flow. This happens on _every_ open, including when the same connection is already open in another tool - the host does not deduplicate these calls - so a provider that prompts the user should cache the issued token per connection id and return it directly while still valid, and reuse the last justification whenever a new token is needed, instead of asking again on each open.
 - **Dataverse calls**: These reuse the token while it is valid for more than 5 more minutes. Otherwise they call `authenticate(id, { reason: "refresh" })` if a token was issued before, or `"connect"` if not. When handling `"refresh"`, avoid prompting the user if you can.
 - **Tool context**: `context.tool` identifies the tool instance currently using the connection (`toolId`, `toolName`, `toolVersion`, `instanceId`) - only non-sensitive identity, no filesystem paths. It is resolved from whichever open tool instance the connection is currently assigned to, so it is omitted when the connection is activated or refreshed from the main app window rather than from within a tool, and is best-effort (one of the matches, arbitrarily) when several open tool instances share the same connection. Providers can use it to log which tool is requesting access, or to reject the request by throwing from `authenticate`.
-- **Read-only**: Provider connections cannot be edited, deleted, exported or used for categories. Only the colours and the last-used time can be customised, and those customisations are kept in memory only.
+- **Read-only**: Provider connections cannot be edited, deleted or exported. Only the environment colour and the last-used time can be customised locally, and those customisations are kept in memory only (lost on restart). The category colour is not locally editable - set `categoryColor` on the connection itself so the colour is the same, and persists, for every user.
 - **Tokens**: These are kept in memory and never written to disk.
 - **Power Platform API**: This is not supported for provider connections; only Dataverse is.
 - **MCP**: Headless or unattended MCP calls fail with "sign-in required" when no token is cached, because providers may need user interaction.

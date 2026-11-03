@@ -39,6 +39,12 @@ export interface ProviderConnectionInfo {
     url: string;
     environment?: Connection["environment"];
     category?: string;
+    /**
+     * Colour applied to the category badge/group for this connection, as a 6-digit hex string (e.g. "#6b2fb3").
+     * Providers for internal/shared tools should set this so every user of the tool sees the same colour,
+     * rather than each person picking (and losing, on restart) their own. Ignored if not a valid hex colour.
+     */
+    categoryColor?: string;
     username?: string;
     description?: string;
 }

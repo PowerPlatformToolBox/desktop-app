@@ -2407,12 +2407,22 @@ export async function loadSidebarConnections(): Promise<void> {
                     const escapedKey = escapeHtml(displayKey);
                     const catColor = groupKey !== "" ? groupConns.find((c: Connection) => c.categoryColor)?.categoryColor || "" : "";
                     const safeCatColor = catColor && /^#[0-9A-Fa-f]{6}$/.test(catColor) ? escapeHtml(catColor) : "";
+                    // Groups made up entirely of provider-supplied connections have their colour set by the
+                    // provider itself (enforced, consistent across users) rather than chosen locally, so show
+                    // a plain swatch instead of an editable colour picker for them.
+                    const isProviderGroup = groupKey !== "" && groupConns.every((c: Connection) => c.readOnly);
                     const colorSwatchHtml =
-                        groupKey !== ""
-                            ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(
-                                  groupKey,
-                              )}" title="Change category color" />`
-                            : "";
+                        groupKey === ""
+                            ? ""
+                            : isProviderGroup
+                              ? safeCatColor
+                                  ? `<span class="connection-group-color-swatch" style="background-color: ${safeCatColor};" title="Category colour set by ${escapeHtml(
+                                        groupConns[0]?.providerName || "the extension",
+                                    )}"></span>`
+                                  : ""
+                              : `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(
+                                    groupKey,
+                                )}" title="Change category color" />`;
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
                     <div class="connection-group" data-category="${escapedKey}">

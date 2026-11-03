@@ -22,7 +22,7 @@ const EXTERNAL_TOKEN_MIN_VALIDITY_MS = 5 * 60 * 1000;
 /**
  * Fields of an external connection that the user may change locally (kept in memory only)
  */
-const EXTERNAL_EDITABLE_FIELDS: (keyof Connection)[] = ["categoryColor", "environmentColor", "lastUsedAt"];
+const EXTERNAL_EDITABLE_FIELDS: (keyof Connection)[] = ["environmentColor", "lastUsedAt"];
 
 /**
  * Sensitive fields that should be encrypted in DataverseConnection objects
