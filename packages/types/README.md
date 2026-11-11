@@ -832,15 +832,19 @@ Core platform features organized into namespaces:
     - Events available:
         - `tool:loaded` - A tool has been loaded
         - `tool:unloaded` - A tool has been unloaded
-        - `connection:created` - A new connection was created
-        - `connection:updated` - An existing connection was updated
-        - `connection:deleted` - A connection was deleted
+        - `connection:created` - A new connection was created; data contains allowlisted connection metadata only
+        - `connection:updated` - An existing connection was updated; data contains `id` and optional `updates` (allowlisted metadata), `isActive`, or `tokenRefreshed`
+        - `connection:deleted` - A connection was deleted; data contains `id` only
         - `notification:shown` - A notification was displayed
         - `terminal:created` - A new terminal was created
         - `terminal:closed` - A terminal was closed
         - `terminal:output` - Terminal produced output
         - `terminal:command:completed` - A terminal command finished executing
         - `terminal:error` - A terminal error occurred
+
+    Connection events are sanitized before broadcasting or retention in event history. Connection metadata is limited to `id`, `name`, `url`, `environment`, `createdAt`, `lastUsedAt`,
+    `isActive`, `category`, `environmentColor`, `categoryColor`, `enabledForPowerPlatformAPI`, and `scopesForPowerPlatformAPI`. Credentials, tokens, authentication details, and unknown fields
+    are not included. An update that changes only credentials still emits an event with an empty `updates` object.
 
 - **off(callback: (event: any, payload: ToolBoxEventPayload) => void)**: void
     - Removes a previously registered event listener
