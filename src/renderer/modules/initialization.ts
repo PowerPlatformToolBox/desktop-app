@@ -6,6 +6,7 @@
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
+import { ToolBoxEvent } from "../../common/types";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -32,6 +33,7 @@ import { initializeDataverseHeaderConsentModal } from "./consent/dataverseHeader
 import { initializeNativeWorkerConsentModal } from "./consent/nativeWorkerConsentModal";
 import { openSentryConsentModal } from "./consent/sentryConsentModal";
 import { initializeGlobalSearch } from "./globalSearchManagement";
+import { updateMcpActivityStatus } from "./mcpServerStatus";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { openAgentInvocationLogsTab } from "./mcpManagement";
@@ -46,6 +48,7 @@ import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCre
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { initializeTitlebar } from "./titlebarManagement";
 import { openToolIdeasModal } from "./toolIdeasModal";
+import { openIdeasTab } from "./ideasManagement";
 import {
     applyAppearanceSettings,
     closeAllTools,
@@ -265,6 +268,9 @@ export async function initializeApplication(): Promise<void> {
  * Set up Activity Bar navigation
  */
 function setupActivityBar(): void {
+    document.getElementById("ideas-activity-btn")?.addEventListener("click", () => {
+        openIdeasTab().catch((error) => logError(error instanceof Error ? error : new Error(String(error))));
+    });
     const activityItems = document.querySelectorAll(".activity-item");
     activityItems.forEach((item) => {
         item.addEventListener("click", () => {
@@ -639,6 +645,8 @@ function setupModalButtons(): void {
  * Set up application event listeners
  */
 function setupApplicationEventListeners(): void {
+    setupMcpServerStatusIndicator();
+
     // Home page listener
     window.toolboxAPI.onShowHomePage(() => {
         showHomePage();
@@ -698,6 +706,43 @@ function setupApplicationEventListeners(): void {
             logError(error instanceof Error ? error : new Error(String(error)));
         });
     });
+}
+
+function setupMcpServerStatusIndicator(): void {
+    let hasReceivedStatusEvent = false;
+
+    window.toolboxAPI.events.on((_event, payload) => {
+        if (!payload || typeof payload !== "object") {
+            return;
+        }
+
+        const eventPayload = payload as { event?: unknown; data?: { status?: unknown; error?: unknown } };
+        if (eventPayload.event !== ToolBoxEvent.MCP_SERVER_STATUS_CHANGED) {
+            return;
+        }
+
+        const status = eventPayload.data?.status;
+        if (status !== "starting" && status !== "running" && status !== "stopped" && status !== "error") {
+            return;
+        }
+
+        hasReceivedStatusEvent = true;
+        updateMcpActivityStatus(status, typeof eventPayload.data?.error === "string" ? eventPayload.data.error : undefined);
+    });
+
+    void window.toolboxAPI.mcpServer
+        .getDetails()
+        .then((details) => {
+            if (!hasReceivedStatusEvent) {
+                updateMcpActivityStatus(details.status, details.error);
+            }
+        })
+        .catch((error) => {
+            logError("Failed to load MCP server status", error);
+            if (!hasReceivedStatusEvent) {
+                updateMcpActivityStatus("error");
+            }
+        });
 }
 
 /**

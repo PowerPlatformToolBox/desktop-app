@@ -7,7 +7,7 @@ import { addConnectionSlotsBreadcrumb, captureException } from "../../common/sen
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import type { DataverseUser } from "../../common/types/dataverse";
 import { ToolBoxEvent } from "../../common/types/events";
-import type { LoadedToolIdentity } from "../utilities/nativeWorkerIdentity";
+import type { LoadedToolIdentity } from "../utils/nativeWorkerIdentity";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
@@ -989,7 +989,8 @@ export class ToolWindowManager {
                     title: "Tool closure blocked",
                     message: `${toolName} is preventing closure.`,
                     detail: "This tool needs to complete an operation. Are you sure you want to close it?",
-                    buttons: ["Cancel", "Ignore & Close"],
+                    buttons: ["Cancel", "Ignore && Close"],
+                    normalizeAccessKeys: true,
                     defaultId: 0,
                     cancelId: 0,
                     noLink: true,
@@ -1497,7 +1498,8 @@ export class ToolWindowManager {
             title: "App closure blocked",
             message: "One or more tools are preventing app closure.",
             detail: `${toolNames.length > 0 ? `Tools: ${toolNames.join(", ")}.\n\n` : ""}Close anyway?`,
-            buttons: ["Cancel", "Ignore & Close"],
+            buttons: ["Cancel", "Ignore && Close"],
+            normalizeAccessKeys: true,
             defaultId: 0,
             cancelId: 0,
             noLink: true,

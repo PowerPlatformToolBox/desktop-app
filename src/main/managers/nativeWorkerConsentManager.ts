@@ -5,7 +5,7 @@ import { isAbsolute, resolve } from "path";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../common/ipc/channels";
 import { DOTNET_NUGET_ORG_SOURCE, type DotNetPackageSource } from "../../common/types/dotnetTool";
 import type { NativeWorkerConsentDecision, NativeWorkerConsentDescriptor, NativeWorkerConsentRecord, NativeWorkerConsentRequest, WorkerDeclaration } from "../../common/types";
-import { normalizeWorkerMetadata } from "../utilities/workerMetadata";
+import { normalizeWorkerMetadata } from "../utils/workerMetadata";
 
 export interface NativeWorkerIdentity {
     toolId: string;
@@ -150,10 +150,11 @@ export class NativeWorkerConsentManager extends EventEmitter {
         const fingerprint = nativeWorkerConsentFingerprint(this.snapshot(sender, workerId));
         const revision = this.revisions.get(fingerprint) ?? 0;
         const approval = await this.authorize(sender, workerId, signal);
+        if (approval.fingerprint !== fingerprint || nativeWorkerConsentFingerprint(this.snapshot(sender, workerId)) !== fingerprint) throw new Error("Native worker consent revoked or source changed");
         const assertCurrent = (): void => {
             signal?.throwIfAborted();
-            if ((this.revisions.get(fingerprint) ?? 0) !== revision || approval.fingerprint !== fingerprint || nativeWorkerConsentFingerprint(this.snapshot(sender, workerId)) !== fingerprint)
-                throw new Error("Native worker consent revoked or source changed");
+            if (this.disposed || sender.isDestroyed()) throw new Error("Native worker consent caller closed or disposed");
+            if ((this.revisions.get(fingerprint) ?? 0) !== revision) throw new Error("Native worker consent revoked");
         };
         assertCurrent();
         return Object.freeze({ approval, assertCurrent });

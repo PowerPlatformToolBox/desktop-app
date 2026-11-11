@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         fetch: () => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.FETCH),
         submit: (idea: unknown) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.SUBMIT, idea),
         upvote: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.UPVOTE, ideaId),
+        removeVote: (ideaId: string) => ipcRenderer.invoke(TOOL_IDEA_CHANNELS.REMOVE_VOTE, ideaId),
     },
     utils: {
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),

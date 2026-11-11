@@ -86,6 +86,12 @@ export interface JsonSchemaProperty {
     enum?: string[];
     /** Describes the items of an array property. */
     items?: JsonSchemaProperty;
+    /** Short human-readable label. Shown to the user when an agent must ask for this value. */
+    title?: string;
+    /** Explains the value. Shown to the user when an agent must ask for this value. */
+    description?: string;
+    /** Marks the property as required. Missing required values are requested from the user via the MCP agent. */
+    required?: boolean;
 }
 
 /** A JSON-schema-style object definition: a map of named property descriptors. */
@@ -117,8 +123,8 @@ export type AgentExecutionMode = "windowed" | "headless";
  * - `modes`: supported MCP invocation modes for this tool.
  * - `defaultMode`: fallback mode when the caller does not specify one.
  * - `timeoutMS`: optional timeout hint, in milliseconds, for two-way calls.
- * - `executionModes`: supported execution modes for this tool.
- * - `defaultExecutionMode`: fallback execution mode when the caller does not specify one.
+ * - `executionModes`: supported execution modes for this tool. When both are listed, `headless` is used by default and `windowed` is a backup.
+ * - `defaultExecutionMode`: currently ignored by the MCP server (headless is preferred whenever supported); may be removed in a future release.
  * - `headlessEntry`: path to the compiled automated runtime entry point.
  */
 export interface AgentsConfig {
@@ -136,7 +142,7 @@ export interface AgentsConfig {
     timeoutMS?: number;
     /** Execution modes supported by the tool. */
     executionModes?: AgentExecutionMode[];
-    /** Default execution mode when an agent does not request one explicitly. */
+    /** Currently ignored: headless is preferred whenever supported. May be removed in a future release. */
     defaultExecutionMode?: AgentExecutionMode;
     /** Path to the compiled automated runtime entry point. */
     headlessEntry?: string;

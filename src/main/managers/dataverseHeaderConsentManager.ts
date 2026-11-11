@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { WebContents } from "electron";
 import { DATAVERSE_HEADER_CONSENT_CHANNELS } from "../../common/ipc/channels";
 import { DataverseAdditionalHeaders, DataverseBatchRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest } from "../../common/types";
-import { validateAndSnapshotHeaders, validateBatchRequests } from "../utilities/dataverseBatch";
+import { validateAndSnapshotHeaders, validateBatchRequests } from "../utils/dataverseBatch";
 import { SettingsManager } from "./settingsManager";
 
 interface PendingConsent {

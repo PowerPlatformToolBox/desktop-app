@@ -14,6 +14,7 @@ export interface DataverseBatchRequest {
     headers?: Record<string, string>;
     body?: unknown;
     contentId?: string;
+    changesetId?: string;
 }
 
 export interface DataverseBatchResult {
@@ -21,6 +22,8 @@ export interface DataverseBatchResult {
     status: number;
     statusText?: string;
     headers: Record<string, string>;
+    /** Selected headers from the outer HTTP batch response, shared by every operation result. */
+    batchHeaders?: Record<string, string>;
     body?: unknown;
 }
 
@@ -112,10 +115,7 @@ export type EntityRelatedMetadataBasePath = "Attributes" | "Keys" | "ManyToOneRe
  * Allowed related metadata paths. Supports nested lookups such as Attributes(LogicalName='accountnumber')/OptionSet
  */
 export type EntityRelatedMetadataPath =
-    | EntityRelatedMetadataBasePath
-    | `${EntityRelatedMetadataBasePath}/${string}`
-    | `${EntityRelatedMetadataBasePath}(${string})`
-    | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
+    EntityRelatedMetadataBasePath | `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
 
 /**
  * Runtime-safe list of supported base segments for related metadata retrieval

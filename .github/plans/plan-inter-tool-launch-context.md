@@ -3,7 +3,7 @@
 ## Request summary
 
 Enable tools to programmatically launch other installed tools, pass typed "prefill" data into them,
-and receive a return value when the callee finishes.  The feature follows the VS Code Extension Host
+and receive a return value when the callee finishes. The feature follows the VS Code Extension Host
 pattern already used for tool isolation, routing all communication through the Electron IPC bridge
 so no tool ever has direct access to another tool's process.
 
@@ -76,27 +76,30 @@ Rationale:
 ### Data Architect
 
 **Part 1 — `pptb.config.json` schema & validation**
+
 - Add `packages/pptbConfig.d.ts` — TypeScript types for `PPTBConfig`, `InvocationConfig`,
   `JsonSchemaObject` and `JsonSchemaProperty`.
 - Update `packages/lib/validate.js` — add `validatePPTBConfig(config)` function that checks:
-  - `invocation.version` is required and must be a valid semver string.
-  - `invocation.prefill` (optional) must be a `JsonSchemaObject` with valid `properties`.
-  - `invocation.returnTopic` (optional) must be a `JsonSchemaObject` with valid `properties`.
-  - Unknown root keys emit warnings (not errors).
+    - `invocation.version` is required and must be a valid semver string.
+    - `invocation.prefill` (optional) must be a `JsonSchemaObject` with valid `properties`.
+    - `invocation.returnTopic` (optional) must be a `JsonSchemaObject` with valid `properties`.
+    - Unknown root keys emit warnings (not errors).
 - Update `packages/bin/pptb-validate.js` — auto-discover `pptb.config.json` in the same directory
   as `package.json` and call `validatePPTBConfig` when found; report results in the same
   human-readable / `--json` output format.
 
 **Part 2 — IPC Channels**
+
 - Add to `TOOL_WINDOW_CHANNELS` in `src/common/ipc/channels.ts`:
-  - `LAUNCH_WITH_CONTEXT: "tool-window:launch-with-context"`
-  - `RETURN_INVOCATION_DATA: "tool-window:return-invocation-data"`
+    - `LAUNCH_WITH_CONTEXT: "tool-window:launch-with-context"`
+    - `RETURN_INVOCATION_DATA: "tool-window:return-invocation-data"`
 
 ### Tech Designer
 
 **Part 3 — Main Process: ToolWindowManager**
 
 New private field:
+
 ```ts
 private pendingInvocations: Map<
     string, // calleeInstanceId
@@ -115,7 +118,7 @@ New / updated methods in `src/main/managers/toolWindowManager.ts`:
   optional 5th parameter; when `pendingInvocations` has an entry for `instanceId` the context
   message (`toolbox:context`) includes `callerInstanceId` and `prefillData`.
 - `launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId,
-  secondaryConnectionId, prefillData)` — stores pending invocation entry then delegates to
+secondaryConnectionId, prefillData)` — stores pending invocation entry then delegates to
   `launchTool`; returns a Promise resolved by `resolveInvocation`.
 - `resolveInvocation(calleeInstanceId, returnData)` — pops the pending entry, sends
   `toolbox:invocation-result` IPC push to the caller BrowserView (if still alive), resolves the
@@ -124,6 +127,7 @@ New / updated methods in `src/main/managers/toolWindowManager.ts`:
   `null` and send `toolbox:invocation-result` to the caller (prevents hang).
 
 IPC handlers to add in `setupIpcHandlers()` / `removeIpcHandlers()` / `destroy()`:
+
 - `LAUNCH_WITH_CONTEXT` → `launchToolWithContext(...)`
 - `RETURN_INVOCATION_DATA` → `resolveInvocation(...)`
 
@@ -146,7 +150,7 @@ invocation: {
 ```
 
 - `getLaunchContext` reads `toolContext.prefillData`; returns `null` when the field is absent,
-  `null`, `undefined`, or not a plain object.  Uses explicit `=== null || === undefined` guard
+  `null`, `undefined`, or not a plain object. Uses explicit `=== null || === undefined` guard
   (not truthiness check) to correctly handle empty-object `{}` prefill data.
 - `returnData` invokes `RETURN_INVOCATION_DATA` with the caller's `instanceId` and the payload.
 - `launchTool` fetches the target tool manifest via `TOOL_CHANNELS.GET_TOOL`, generates a callee
@@ -155,24 +159,27 @@ invocation: {
 **Part 5 — Renderer**
 
 `src/renderer/modules/toolManagement.ts`:
+
 - Extend `LaunchToolOptions` with two new optional fields:
-  - `prefillData?: Record<string, unknown>`
-  - `callerInstanceId?: string`
+    - `prefillData?: Record<string, unknown>`
+    - `callerInstanceId?: string`
 - In `launchTool()`, when `options.callerInstanceId` is set call
   `window.toolboxAPI.launchToolWithContext(callerInstanceId, instanceId, tool,
-  primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {})` instead of the
+primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {})` instead of the
   standard `launchToolWindow` path.
 
 `src/main/preload.ts`:
+
 - Expose `launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId,
-  secondaryConnectionId, prefillData)` → `ipcRenderer.invoke(LAUNCH_WITH_CONTEXT, ...)`.
+secondaryConnectionId, prefillData)` → `ipcRenderer.invoke(LAUNCH_WITH_CONTEXT, ...)`.
 
 `src/common/types/api.ts`:
+
 - Add `launchToolWithContext(...)` to the renderer `ToolboxAPI` type.
 
 ### App Developer
 
-*(see Execution log below)*
+_(see Execution log below)_
 
 ### Critic
 
@@ -267,20 +274,20 @@ Status: **APPROVED**
 
 ## Files changed
 
-| File | Change |
-|------|--------|
-| `src/common/ipc/channels.ts` | Add `LAUNCH_WITH_CONTEXT`, `RETURN_INVOCATION_DATA` to `TOOL_WINDOW_CHANNELS` |
+| File                                     | Change                                                                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/common/ipc/channels.ts`             | Add `LAUNCH_WITH_CONTEXT`, `RETURN_INVOCATION_DATA` to `TOOL_WINDOW_CHANNELS`                                                         |
 | `src/main/managers/toolWindowManager.ts` | `pendingInvocations` map; `launchToolWithContext`; `resolveInvocation`; `launchTool` prefill param; `closeTool` null-resolve on close |
-| `src/main/toolPreloadBridge.ts` | `toolboxAPI.invocation` namespace; import `TOOL_CHANNELS`, `TOOL_WINDOW_CHANNELS` |
-| `src/main/preload.ts` | Expose `launchToolWithContext` to renderer |
-| `src/renderer/modules/toolManagement.ts` | Extend `LaunchToolOptions`; route through `launchToolWithContext` |
-| `src/common/types/api.ts` | Add `launchToolWithContext` to renderer API type |
-| `packages/toolboxAPI.d.ts` | Add `InvocationAPI` interface; update `API` interface |
-| `packages/README.md` | Inter-tool invocation section + API reference entry |
-| `packages/pptbConfig.d.ts` | New file — TypeScript types for `pptb.config.json` |
-| `packages/lib/validate.js` | `validatePPTBConfig` function |
-| `packages/bin/pptb-validate.js` | Auto-discover and validate `pptb.config.json` |
-| `.gitignore` | Restored `.DS_Store` entry |
+| `src/main/toolPreloadBridge.ts`          | `toolboxAPI.invocation` namespace; import `TOOL_CHANNELS`, `TOOL_WINDOW_CHANNELS`                                                     |
+| `src/main/preload.ts`                    | Expose `launchToolWithContext` to renderer                                                                                            |
+| `src/renderer/modules/toolManagement.ts` | Extend `LaunchToolOptions`; route through `launchToolWithContext`                                                                     |
+| `src/common/types/api.ts`                | Add `launchToolWithContext` to renderer API type                                                                                      |
+| `packages/toolboxAPI.d.ts`               | Add `InvocationAPI` interface; update `API` interface                                                                                 |
+| `packages/README.md`                     | Inter-tool invocation section + API reference entry                                                                                   |
+| `packages/pptbConfig.d.ts`               | New file — TypeScript types for `pptb.config.json`                                                                                    |
+| `packages/lib/validate.js`               | `validatePPTBConfig` function                                                                                                         |
+| `packages/bin/pptb-validate.js`          | Auto-discover and validate `pptb.config.json`                                                                                         |
+| `.gitignore`                             | Restored `.DS_Store` entry                                                                                                            |
 
 ## Validation steps
 
@@ -298,6 +305,6 @@ Status: **APPROVED**
 - **Prefill data size**: no size limit is enforced at IPC level; very large objects could slow IPC.
   Mitigated by documenting that `prefillData` should contain identifiers/configs, not large
   payloads.
-- **Rollback**: all changes are additive (new channels, new methods, new API namespace).  The
-  existing `LAUNCH` channel and `launchToolWindow` path are untouched.  Reverting this PR requires
+- **Rollback**: all changes are additive (new channels, new methods, new API namespace). The
+  existing `LAUNCH` channel and `launchToolWindow` path are untouched. Reverting this PR requires
   only removing the new symbols; no migration is needed.

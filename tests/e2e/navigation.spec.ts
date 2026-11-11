@@ -1,4 +1,6 @@
 import type { Page } from "playwright";
+import fs from "fs";
+import path from "path";
 import { expect, test } from "./fixtures";
 
 /**
@@ -56,6 +58,68 @@ test.describe("Navigation", () => {
         await expect(window.locator("#settings-tab-scroll-area")).toBeVisible({ timeout: 10_000 });
         await expect(window.locator("#sidebar-theme-select")).toBeVisible({ timeout: 10_000 });
         await expect(window.locator("#sidebar-save-settings-btn")).toBeVisible({ timeout: 10_000 });
+    });
+
+    test("color thickness controls follow their corresponding color settings", async ({ window }) => {
+        await window.locator("#settings-activity-btn").click();
+
+        const categoryColor = window.locator("#sidebar-show-category-color-check");
+        const categoryThickness = window.locator("#sidebar-category-color-thickness");
+        const environmentColor = window.locator("#sidebar-show-environment-color-check");
+        const environmentThickness = window.locator("#sidebar-environment-color-thickness");
+
+        await expect(categoryThickness).toBeEnabled({ timeout: 10_000 });
+        await expect(environmentThickness).toBeEnabled({ timeout: 10_000 });
+
+        await categoryColor.uncheck();
+        await expect(categoryThickness).toBeDisabled();
+        await expect(environmentThickness).toBeEnabled();
+
+        await environmentColor.uncheck();
+        await expect(environmentThickness).toBeDisabled();
+
+        await categoryColor.check();
+        await expect(categoryThickness).toBeEnabled();
+        await expect(environmentThickness).toBeDisabled();
+    });
+
+    test("color thickness rejects invalid keyboard input and only saves whole numbers from 1 to 10", async ({ electronApp, window }) => {
+        await window.locator("#settings-activity-btn").click();
+        const userDataPath = await electronApp.evaluate(({ app }) => app.getPath("userData"));
+        const readSettings = (): Record<string, unknown> => JSON.parse(fs.readFileSync(path.join(userDataPath, "user-settings.json"), "utf8"));
+        const saveButton = window.locator("#sidebar-save-settings-btn");
+        const controls = [
+            { id: "#sidebar-category-color-thickness", key: "categoryColorThickness" },
+            { id: "#sidebar-environment-color-thickness", key: "environmentColorThickness" },
+        ];
+
+        for (const { id } of controls) {
+            await window.locator(id).fill("6");
+        }
+        await saveButton.click();
+        await expect.poll(() => controls.map(({ key }) => readSettings()[key])).toEqual([6, 6]);
+
+        for (const { id, key } of controls) {
+            const input = window.locator(id);
+            for (const invalidValue of ["500", "0", "-1", "1.5", ""]) {
+                await input.fill("");
+                if (invalidValue) await input.pressSequentially(invalidValue);
+                await saveButton.click();
+
+                await expect(input).toHaveValue(invalidValue);
+                expect(await input.evaluate((element: HTMLInputElement) => element.validity.valid)).toBe(false);
+                expect(readSettings()[key]).toBe(6);
+            }
+            await input.fill("6");
+        }
+
+        for (const validValue of ["1", "10"]) {
+            for (const { id } of controls) {
+                await window.locator(id).fill(validValue);
+            }
+            await saveButton.click();
+            await expect.poll(() => controls.map(({ key }) => readSettings()[key])).toEqual([Number(validValue), Number(validValue)]);
+        }
     });
 
     test("marketplace section is reachable", async ({ window }) => {
@@ -151,5 +215,27 @@ test.describe("Navigation", () => {
 
         await window.keyboard.press("Escape");
         await expect(overlay).toBeHidden({ timeout: 10_000 });
+    });
+
+    test("global search filters settings through category tabs", async ({ window }) => {
+        await window.keyboard.press("Meta+Shift+P");
+
+        const overlay = window.locator("#global-search-overlay");
+        const input = window.locator("#global-search-input");
+        await expect(overlay).toBeVisible({ timeout: 10_000 });
+        await input.fill("Theme");
+
+        const settingsTab = window.getByRole("tab", { name: /Settings/ });
+        await expect(settingsTab).toContainText("1");
+        await settingsTab.click();
+        await expect(settingsTab).toHaveAttribute("aria-selected", "true");
+        await expect(window.locator("#global-search-results")).toContainText("Theme");
+
+        const installedTab = window.getByRole("tab", { name: /Installed Tools/ });
+        await installedTab.click();
+        await expect(installedTab).toHaveAttribute("aria-selected", "true");
+        await expect(window.locator("#global-search-results")).toContainText('No results for "Theme"');
+
+        await window.keyboard.press("Escape");
     });
 });

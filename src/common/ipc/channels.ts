@@ -73,12 +73,14 @@ export const TOOL_CHANNELS = {
     INSTALL_TOOL: "install-tool",
     UNINSTALL_TOOL: "uninstall-tool",
     GET_TOOL_WEBVIEW_HTML: "get-tool-webview-html",
+    GET_TOOL_ICON_SVG: "get-tool-icon-svg",
     GET_TOOL_CONTEXT: "get-tool-context",
     GET_TOOL_WEBVIEW_URL: "get-tool-webview-url",
     LOAD_LOCAL_TOOL: "load-local-tool",
     GET_LOCAL_TOOL_WEBVIEW_HTML: "get-local-tool-webview-html",
     OPEN_DIRECTORY_PICKER: "open-directory-picker",
     FETCH_REGISTRY_TOOLS: "fetch-registry-tools",
+    GET_REGISTRY_ISSUES: "get-registry-issues",
     FETCH_COMMUNITY_LINKS: "fetch-community-links",
     INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
     CHECK_TOOL_UPDATES: "check-tool-updates",
@@ -94,6 +96,7 @@ export const TOOL_CHANNELS = {
     SUBMIT_TOOL_RATING: "submit-tool-rating",
     /** Get the current install's previously submitted rating/comment for a tool, if any. */
     GET_MY_TOOL_RATING: "get-my-tool-rating",
+    GET_TOOL_REVIEW_CONTEXT: "get-tool-review-context",
 } as const;
 
 // Tool concern report ("Report a Concern") IPC channels
@@ -106,6 +109,7 @@ export const TOOL_IDEA_CHANNELS = {
     FETCH: "tool-idea:fetch",
     SUBMIT: "tool-idea:submit",
     UPVOTE: "tool-idea:upvote",
+    REMOVE_VOTE: "tool-idea:remove-vote",
 } as const;
 
 // Tool Window-related IPC channels
@@ -184,6 +188,7 @@ export const UTIL_CHANNELS = {
     CHECK_CONNECTIONS: "check-connections",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
+    TEST_PROXY_CONNECTION: "test-proxy-connection",
     FETCH_FAVICON: "fetch-favicon",
     OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
     RESTART_APP: "restart-app",
@@ -322,6 +327,8 @@ export const MCP_SERVER_CHANNELS = {
     STOP: "mcp-server:stop",
     CONFIGURE_CLAUDE_DESKTOP: "mcp-server:configure-claude-desktop",
     CONFIGURE_VSCODE: "mcp-server:configure-vscode",
+    DISCONNECT_CLAUDE_DESKTOP: "mcp-server:disconnect-claude-desktop",
+    DISCONNECT_VSCODE: "mcp-server:disconnect-vscode",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

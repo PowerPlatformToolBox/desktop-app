@@ -1,4 +1,4 @@
-import { encodeDataverseBatch, parseDataverseBatchResponse, validateAndSnapshotHeaders, validateBatchRequests, validateDataverseRelativeUrl } from "../../../../src/main/utilities/dataverseBatch";
+import { encodeDataverseBatch, parseDataverseBatchResponse, validateAndSnapshotHeaders, validateBatchRequests, validateDataverseRelativeUrl } from "../../../../src/main/utils/dataverseBatch";
 
 describe("Dataverse batch utilities", () => {
     it("snapshots valid headers and rejects conflicting case-insensitive duplicates", () => {

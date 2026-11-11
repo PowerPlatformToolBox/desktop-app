@@ -13,6 +13,7 @@ import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../ut
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { ToolUpdateState } from "../utils/toolUpdateState";
 import { getToolLibrary, loadMarketplace, loadToolsLibrary, openToolDetail } from "./marketplaceManagement";
+import { getToolReviewUnavailableMessage, resolveToolReviewAccess } from "../utils/toolReviewAccess";
 import { openRateToolModal } from "./rateToolModal";
 import { openReportConcernModal } from "./reportConcernModal";
 import { switchSidebar } from "./sidebarManagement";
@@ -647,7 +648,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
             <img src="${detailsIconPath}" class="context-menu-icon" alt="" />
             <span>See Details</span>
         </div>
-        <div class="context-menu-item" data-menu-action="rate">
+        <div class="context-menu-item" data-menu-action="rate" style="display:none" aria-hidden="true">
             <img src="${rateIconPath}" class="context-menu-icon" alt="" />
             <span>Rate this tool</span>
         </div>
@@ -765,7 +766,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
         }
 
         if (action === "rate") {
-            const aggregate = await openRateToolModal({ id: tool.id, name: tool.name });
+            const aggregate = await openRateToolModal({ id: tool.id, name: tool.name, repository: tool.repository || libraryTool?.repository });
             if (aggregate) {
                 await loadSidebarTools();
                 await loadMarketplace();
@@ -805,6 +806,19 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
     });
 
     activeToolContextMenu = { menu, anchor, cleanup };
+
+    // Rating stays hidden until this specific tool's installation state resolves as installed.
+    void resolveToolReviewAccess(tool.id).then(async (access) => {
+        const rateItem = menu.querySelector<HTMLElement>('[data-menu-action="rate"]');
+        if (!rateItem || !menu.isConnected) return;
+        if (access.status === "eligible") {
+            rateItem.style.display = "";
+            rateItem.removeAttribute("aria-hidden");
+        } else if (access.status === "unknown") {
+            logError("Failed to resolve tool installation state for review", access.error);
+            await window.toolboxAPI.utils.showNotification({ title: "Review unavailable", body: getToolReviewUnavailableMessage(access) ?? "", type: "error" }).catch(() => undefined);
+        }
+    });
 }
 
 /**

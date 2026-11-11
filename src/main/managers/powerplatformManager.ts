@@ -3,6 +3,7 @@ import { logError, logWarn } from "../../common/logger";
 import { Connection } from "../../common/types";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
+import type { ProxyManager } from "./proxyManager";
 
 interface PowerPlatformError {
     error?: {
@@ -54,10 +55,12 @@ const ALLOWED_METHODS: ReadonlySet<PowerPlatformMethod> = new Set<PowerPlatformM
 export class PowerPlatformManager {
     private connectionsManager: ConnectionsManager;
     private authManager: AuthManager;
+    private readonly proxyManager?: ProxyManager;
 
-    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager) {
+    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager, proxyManager?: ProxyManager) {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
+        this.proxyManager = proxyManager;
     }
 
     async request(connectionId: string, category: PowerPlatformCategory, method: string, relativePath = "", body?: unknown, customHeaders?: Record<string, string>): Promise<unknown> {
@@ -254,6 +257,7 @@ export class PowerPlatformManager {
                 path: urlObj.pathname + urlObj.search,
                 method,
                 headers,
+                agent: this.proxyManager?.getAgentForUrl(url),
             };
 
             const req = https.request(options, (res) => {

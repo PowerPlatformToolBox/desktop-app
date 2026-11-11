@@ -8,6 +8,6 @@ export async function openToolIdeasModal(): Promise<void> {
         id: "tool-ideas-modal",
         html: `${styles}\n${body}\n${getToolIdeasModalControllerScript()}`,
         width: 560,
-        height: 760,
+        height: 620,
     });
 }

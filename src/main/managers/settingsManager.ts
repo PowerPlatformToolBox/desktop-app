@@ -10,11 +10,12 @@ import {
     MarketplaceSource,
     MyToolRating,
     NativeWorkerConsentRecord,
+    ProxySettings,
     TelemetryConsentChoice,
     ToolSettings,
     UserSettings,
 } from "../../common/types";
-import { buildPreviewFeatureFlags } from "../../common/types/settings";
+import { buildPreviewFeatureFlags, isValidColorBorderThickness, MAX_COLOR_BORDER_THICKNESS, MIN_COLOR_BORDER_THICKNESS } from "../../common/types/settings";
 import { AZURE_BLOB_BASE_URL } from "../constants";
 
 /**
@@ -65,6 +66,12 @@ export class SettingsManager {
                 enablePreviewFeatures: false, // Show preview/experimental features in the UI
                 previewFeatures: buildPreviewFeatureFlags(), // Per-feature preview toggles
                 marketplaceSources: this.getDefaultMarketplaceSources(),
+                proxy: {
+                    mode: "auto",
+                    manualProxyUrl: "",
+                    noProxyList: [],
+                    caBundlePath: "",
+                },
             },
         });
 
@@ -143,6 +150,23 @@ export class SettingsManager {
         return this.normalizeMarketplaceSources(storedSources as MarketplaceSource[] | undefined);
     }
 
+    private normalizeProxySettings(proxy?: ProxySettings): ProxySettings {
+        const normalizedMode = proxy?.mode === "manual" || proxy?.mode === "none" ? proxy.mode : "auto";
+        const normalizedNoProxyList = Array.isArray(proxy?.noProxyList)
+            ? proxy?.noProxyList
+                  .filter((entry): entry is string => typeof entry === "string")
+                  .map((entry) => entry.trim())
+                  .filter((entry) => entry.length > 0)
+            : [];
+
+        return {
+            mode: normalizedMode,
+            manualProxyUrl: typeof proxy?.manualProxyUrl === "string" ? proxy.manualProxyUrl.trim() : "",
+            noProxyList: normalizedNoProxyList,
+            caBundlePath: typeof proxy?.caBundlePath === "string" ? proxy.caBundlePath.trim() : "",
+        };
+    }
+
     private persistMarketplaceSources(sources: MarketplaceSource[]): void {
         this.store.set("marketplaceSources", this.normalizeMarketplaceSources(sources));
     }
@@ -184,6 +208,7 @@ export class SettingsManager {
             ...settings,
             marketplaceSources: this.getMarketplaceSourcesFromStore(),
             sentryTelemetryConsent: normalizeTelemetryConsent(settings.sentryTelemetryConsent),
+            proxy: this.normalizeProxySettings(settings.proxy as ProxySettings | undefined),
         };
     }
 
@@ -191,6 +216,12 @@ export class SettingsManager {
      * Update user settings
      */
     updateUserSettings(settings: Partial<UserSettings>): void {
+        for (const key of ["categoryColorThickness", "environmentColorThickness"] as const) {
+            if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                this.validateColorBorderThickness(key, settings[key]);
+            }
+        }
+
         Object.entries(settings).forEach(([key, value]) => {
             if (key === "marketplaceSources" && Array.isArray(value)) {
                 this.store.set(key as keyof UserSettings, this.normalizeMarketplaceSources(value as MarketplaceSource[]));
@@ -199,6 +230,11 @@ export class SettingsManager {
 
             if (key === "sentryTelemetryConsent") {
                 this.setSentryTelemetryConsent(normalizeTelemetryConsent(value));
+                return;
+            }
+
+            if (key === "proxy") {
+                this.store.set("proxy", this.normalizeProxySettings(value as ProxySettings | undefined));
                 return;
             }
 
@@ -217,12 +253,25 @@ export class SettingsManager {
      * Set a specific setting value
      */
     setSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): void {
+        this.validateColorBorderThickness(key, value);
+
         if (key === "sentryTelemetryConsent") {
             this.setSentryTelemetryConsent(normalizeTelemetryConsent(value));
             return;
         }
 
+        if (key === "proxy") {
+            this.store.set("proxy", this.normalizeProxySettings(value as ProxySettings | undefined));
+            return;
+        }
+
         this.store.set(key, value);
+    }
+
+    private validateColorBorderThickness(key: keyof UserSettings, value: unknown): void {
+        if ((key === "categoryColorThickness" || key === "environmentColorThickness") && !isValidColorBorderThickness(value)) {
+            throw new RangeError(`${key} must be a whole number between ${MIN_COLOR_BORDER_THICKNESS} and ${MAX_COLOR_BORDER_THICKNESS} pixels.`);
+        }
     }
 
     getSentryTelemetryConsent(): TelemetryConsentChoice | null {

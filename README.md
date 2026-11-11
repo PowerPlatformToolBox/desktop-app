@@ -38,7 +38,7 @@
     <a href="https://www.powerplatformtoolbox.com" alt="Website">
       <img src="https://img.shields.io/website?url=https%3A%2F%2Fwww.powerplatformtoolbox.com" />
     </a>
-    
+
 </p>
 
 <p align="center">
@@ -108,7 +108,7 @@
 
 ## Known Issues
 
-- No open issues currently tracked for installers. Please report problems on GitHub so we can investigate quickly.
+- Windows ARM installer currently does not have the application executable included (v1.2.7): Please use the insider version that has the issue resolved. Fix will be part of v1.2.8 release.
 
 ## Features Overview
 
@@ -119,6 +119,7 @@
 - **⚙️ Settings Management**:
     - User settings for the ToolBox application
     - Individual tool-specific settings
+    - Category and environment color thickness must be whole numbers from 1 to 10 pixels; invalid keyboard input blocks saving and displays a validation message.
 - **🎨 Modern Interface**: Built with Microsoft Fluent UI components for a consistent, accessible experience aligned with Power Platform
 - **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
 - **🔔 Notifications**: Built-in notification system to keep users informed
@@ -209,22 +210,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 Created & maintained by **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)**
 
-Supporting Team:
-
-- **[Matt Berg](https://github.com/MattBerg11)** — _The Product Whisperer_  
-  Turns ideas into features and chaos into clarity.
-- **[Carl Cookson](https://github.com/LinkeD365)** — _Bug Crusher_ 🐞💥  
-  First to test, first to build, first to break things so others don’t.
-- **[Lars Hildebrandt](https://github.com/cyco77)** — _The Box Breaker_ 📦 🚀  
-  Always thinking beyond boundaries and making bold ideas actually work.
-- **[Mohsin Mirza](https://github.com/mohsinonxrm)** — _The Triple Threat_ ⚔️  
-  Tester, implementor, and tool author — a one-person strike team.
-- **[Oleksandr Olashyn](https://github.com/OOlashyn)** — _The UI Polisher_ 🎨  
-  Focused on refining the toolbox UI and elevating the overall experience.
-- **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
-   Generates ideas and relentlessly pushes the team forward.
-- **[Mike Ochs](https://github.com/mikefactorial)** - _The Idea Factory_ 💡  
-   Constantly brainstorming new features and improvements to keep the toolbox evolving.
+Checkout the amazing team behind this project on this **[page](https://www.powerplatformtoolbox.com/team)**.
 
 > If you wish to officially be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
@@ -249,6 +235,8 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://www.larshildebrandt.de/"><img src="https://avatars.githubusercontent.com/u/1198698?v=4?s=100" width="100px;" alt="Lars Hildebrandt"/><br /><sub><b>Lars Hildebrandt</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=cyco77" title="Code">💻</a> <a href="#design-cyco77" title="Design">🎨</a> <a href="#ideas-cyco77" title="Ideas, Planning, & Feedback">🤔</a> <a href="#plugin-cyco77" title="Plugin/utility libraries">🔌</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/darkwheel"><img src="https://avatars.githubusercontent.com/u/37546897?v=4?s=100" width="100px;" alt="darkwheel"/><br /><sub><b>darkwheel</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/issues?q=author%3Adarkwheel" title="Bug reports">🐛</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=darkwheel" title="Code">💻</a> <a href="#maintenance-darkwheel" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://markcarrington.dev/"><img src="https://avatars.githubusercontent.com/u/31017244?v=4?s=100" width="100px;" alt="Mark Carrington"/><br /><sub><b>Mark Carrington</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/issues?q=author%3AMarkMpn" title="Bug reports">🐛</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=MarkMpn" title="Code">💻</a> <a href="#design-MarkMpn" title="Design">🎨</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=MarkMpn" title="Documentation">📖</a> <a href="#maintenance-MarkMpn" title="Maintenance">🚧</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=MarkMpn" title="Tests">⚠️</a> <a href="#userTesting-MarkMpn" title="User Testing">📓</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mbwilding"><img src="https://avatars.githubusercontent.com/u/8856912?v=4?s=100" width="100px;" alt="Matthew Wilding"/><br /><sub><b>Matthew Wilding</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mbwilding" title="Code">💻</a> <a href="#platform-mbwilding" title="Packaging/porting to new platform">📦</a> <a href="#userTesting-mbwilding" title="User Testing">📓</a></td>
     </tr>
   </tbody>
 </table>

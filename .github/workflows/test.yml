@@ -52,7 +52,8 @@ jobs:
     # -------------------------------------------------------------------------
     e2e-tests:
         name: E2E Tests (Playwright, shard ${{ matrix.shard }}/2)
-        runs-on: ubuntu-latest
+        # Keep the runner on a release supported by the pinned Playwright version.
+        runs-on: ubuntu-24.04
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         strategy:
             fail-fast: false

@@ -13,7 +13,7 @@ import type {
     WorkerProcessState,
     WorkerRpcMessage,
 } from "../../common/types/workerProcess";
-import { BoundedWorkerReader, immutableWorkerMessage, WORKER_PROCESS_LIMITS } from "../utilities/workerStdio";
+import { BoundedWorkerReader, immutableWorkerMessage, WORKER_PROCESS_LIMITS } from "../utils/workerStdio";
 
 export interface WorkerChild {
     readonly pid?: number;
@@ -45,9 +45,15 @@ export interface WorkerProcessDependencies {
 }
 
 export class WorkerProcessError extends Error {
-    constructor(readonly code: string) {
-        super(`Worker transport: ${code}`);
+    readonly details?: string;
+    constructor(
+        readonly code: string,
+        message?: string,
+        options?: ErrorOptions & { details?: string },
+    ) {
+        super(message ?? `Worker transport: ${code}`, options);
         this.name = "WorkerProcessError";
+        if (options?.details) this.details = options.details;
     }
 }
 
@@ -80,7 +86,6 @@ interface WorkerRecord {
     outputClosed: Set<"stdout" | "stderr">;
     preparation?: Promise<void>;
     preparationSettled: boolean;
-    preparationFailure?: Error;
     treeKillDispatched: boolean;
     treeKillSucceeded: boolean;
     verificationWaiters: Set<() => void>;
@@ -323,13 +328,12 @@ export class WorkerProcessManager {
             if (child.stdout.destroyed || child.stdout.readableEnded || child.stdin.destroyed || child.stdin.writableEnded) return this.fail(record, "STDIO_CLOSED");
             await this.enqueue(record, { jsonrpc: "2.0", id: record.startupId, method: "platform/initialize", params: { protocol: "jsonrpc-stdio-v1", protocolVersion: 1 } });
         } catch (error) {
-            if (error instanceof Error && "code" in error && (error.code === "WORKSPACE_INVALID" || error.code === "RESTORE_STOP_UNVERIFIED")) record.preparationFailure = error;
             if (record.state === "starting" || record.state === "running") {
                 const code =
                     this.dependencies.preserveStartupErrorCodes && error instanceof Error && "code" in error && typeof error.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)
                         ? error.code
                         : "STARTUP_FAILED";
-                this.fail(record, code);
+                this.fail(record, code, error instanceof Error ? error : undefined);
             }
         } finally {
             record.preparationSettled = true;
@@ -512,7 +516,6 @@ export class WorkerProcessManager {
         const record = this.authorize(owner, handle);
         await this.stop(owner, handle);
         await limited(record.preparation ?? Promise.resolve(), this.limits.startupTimeoutMs);
-        if (record.preparationFailure) throw record.preparationFailure;
         if (record.treeKillSucceeded && !record.cleaned) {
             await new Promise<void>((resolve) => {
                 const settled = (): void => {
@@ -576,11 +579,12 @@ export class WorkerProcessManager {
         else end();
     }
 
-    private fail(record: WorkerRecord, code: string): void {
+    private fail(record: WorkerRecord, code: string, cause?: Error): void {
         if (record.cleaned || record.state === "failed" || record.state === "exited") return;
         record.state = "failed";
         record.failure = code;
-        record.rejectReady(new WorkerProcessError(code));
+        const details = cause && "details" in cause && typeof (cause as { details?: unknown }).details === "string" ? (cause as { details: string }).details : undefined;
+        record.rejectReady(new WorkerProcessError(code, undefined, { cause, details }));
         void this.beginStop(record, false);
         this.notifyTerminal(record);
     }
@@ -638,7 +642,7 @@ export class WorkerProcessManager {
     }
 
     private cleanup(record: WorkerRecord): void {
-        if (record.cleaned || !record.stopPromise || !record.preparationSettled || record.preparationFailure || record.forcing) return;
+        if (record.cleaned || !record.stopPromise || !record.preparationSettled || record.forcing) return;
         if (record.child && (!record.exitSeen || record.outputClosed.size !== 2 || (record.treeKillDispatched && !record.treeKillSucceeded))) return;
         record.cleaned = true;
         clearTimeout(record.startupTimer);

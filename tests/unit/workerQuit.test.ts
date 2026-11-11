@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { WorkerQuitCoordinator } from "../../src/main/utilities/workerQuit";
+import { WorkerQuitCoordinator } from "../../src/main/utils/workerQuit";
 
 describe("WorkerQuitCoordinator", () => {
     const tick = async () => {

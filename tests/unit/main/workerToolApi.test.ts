@@ -3,7 +3,7 @@ import { WORKER_CHANNELS } from "../../../src/common/ipc/channels";
 import type { WorkerProcessHandle, WorkerProcessSnapshot, WorkerRpcMessage } from "../../../src/common/types/workerProcess";
 import type { WorkerToolEvent, WorkerToolIpcResult } from "../../../src/common/types/workerToolApi";
 import { createWorkerToolAPI } from "../../../src/common/types/workerToolApiClient";
-import { registerWorkerToolIpcHandlers } from "../../../src/main/utilities/workerToolIpc";
+import { registerWorkerToolIpcHandlers } from "../../../src/main/utils/workerToolIpc";
 
 const handle = "worker-handle-1" as WorkerProcessHandle;
 const readySnapshot: WorkerProcessSnapshot = {

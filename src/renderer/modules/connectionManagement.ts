@@ -494,27 +494,25 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
             data: {
                 sortOption,
                 // Map persisted connections to UI-level data with isActive property
-                connections: sortedConnections.map(
-                    (conn: Connection): UIConnectionData => ({
-                        id: conn.id,
-                        name: conn.name,
-                        url: conn.url,
-                        environment: conn.environment,
-                        authenticationType: conn.authenticationType,
-                        lastUsedAt: conn.lastUsedAt,
-                        createdAt: conn.createdAt,
-                        // If highlightConnectionId is set (tool-specific modal), use it to mark as active
-                        // Otherwise, mark none as active since there's no global active connection
-                        isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
-                        browserType: conn.browserType,
-                        browserProfile: conn.browserProfile,
-                        browserProfileName: conn.browserProfileName,
-                        category: conn.category,
-                        environmentColor: conn.environmentColor,
-                        categoryColor: conn.categoryColor,
-                        enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
-                    }),
-                ),
+                connections: sortedConnections.map((conn: Connection): UIConnectionData => ({
+                    id: conn.id,
+                    name: conn.name,
+                    url: conn.url,
+                    environment: conn.environment,
+                    authenticationType: conn.authenticationType,
+                    lastUsedAt: conn.lastUsedAt,
+                    createdAt: conn.createdAt,
+                    // If highlightConnectionId is set (tool-specific modal), use it to mark as active
+                    // Otherwise, mark none as active since there's no global active connection
+                    isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
+                    browserType: conn.browserType,
+                    browserProfile: conn.browserProfile,
+                    browserProfileName: conn.browserProfileName,
+                    category: conn.category,
+                    environmentColor: conn.environmentColor,
+                    categoryColor: conn.categoryColor,
+                    enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
+                })),
             },
         });
     } catch (error) {

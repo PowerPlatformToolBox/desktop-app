@@ -38,6 +38,14 @@ export function convertPPTBSchemaToJsonSchema(pptbSchema: unknown): JsonObjectSc
         result.enum = pptbSchema.enum;
     }
 
+    // Surfaced to agents so they can explain to the user what value is being requested.
+    if (typeof pptbSchema.title === "string" && pptbSchema.title.trim()) {
+        result.title = pptbSchema.title;
+    }
+    if (typeof pptbSchema.description === "string" && pptbSchema.description.trim()) {
+        result.description = pptbSchema.description;
+    }
+
     if (type === "array" && isRecord(pptbSchema.items)) {
         result.items = convertPPTBSchemaToJsonSchema(pptbSchema.items);
     }

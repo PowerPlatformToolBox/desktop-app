@@ -30,6 +30,7 @@ import { logInfo } from "../common/logger";
 import type { DataverseBatchRequest, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 import { createWorkerToolAPI } from "../common/types/workerToolApiClient";
 import type { WorkerToolEvent } from "../common/types/workerToolApi";
+import { toToolSafeConnection } from "../common/utils/toolSafeConnection";
 
 // Tool context received from main process
 let toolContext: Record<string, unknown> | null = null;
@@ -184,54 +185,6 @@ const powerPlatformApi = POWER_PLATFORM_CATEGORIES.reduce(
     },
     {} as Record<PowerPlatformCategory, ReturnType<typeof buildPowerPlatformCategoryClient>>,
 );
-
-type ToolSafeConnection = {
-    id: string;
-    name: string;
-    url: string;
-    environment: "Dev" | "Test" | "UAT" | "Production";
-    createdAt?: string;
-    lastUsedAt?: string;
-    isActive?: boolean;
-    category?: string;
-    environmentColor?: string;
-    categoryColor?: string;
-    enabledForPowerPlatformAPI?: boolean;
-    scopesForPowerPlatformAPI?: string[];
-};
-
-function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
-    if (!connection || typeof connection !== "object") {
-        return null;
-    }
-
-    const source = connection as Record<string, unknown>;
-    const environment = source.environment;
-
-    if (typeof source.id !== "string" || typeof source.name !== "string" || typeof source.url !== "string") {
-        return null;
-    }
-
-    if (environment !== "Dev" && environment !== "Test" && environment !== "UAT" && environment !== "Production") {
-        return null;
-    }
-
-    return {
-        id: source.id,
-        name: source.name,
-        url: source.url,
-        environment,
-        createdAt: typeof source.createdAt === "string" ? source.createdAt : undefined,
-        lastUsedAt: typeof source.lastUsedAt === "string" ? source.lastUsedAt : undefined,
-        isActive: typeof source.isActive === "boolean" ? source.isActive : undefined,
-        category: typeof source.category === "string" ? source.category : undefined,
-        environmentColor: typeof source.environmentColor === "string" ? source.environmentColor : undefined,
-        categoryColor: typeof source.categoryColor === "string" ? source.categoryColor : undefined,
-        enabledForPowerPlatformAPI: typeof source.enabledForPowerPlatformAPI === "boolean" ? source.enabledForPowerPlatformAPI : undefined,
-        scopesForPowerPlatformAPI:
-            Array.isArray(source.scopesForPowerPlatformAPI) && source.scopesForPowerPlatformAPI.every((scope) => typeof scope === "string") ? source.scopesForPowerPlatformAPI : undefined,
-    };
-}
 
 // Expose toolboxAPI to the tool window
 contextBridge.exposeInMainWorld("toolboxAPI", {

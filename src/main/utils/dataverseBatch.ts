@@ -10,6 +10,8 @@ export const MAX_DATAVERSE_BATCH_REQUEST_BYTES = 16 * 1024 * 1024;
 export const MAX_DATAVERSE_BATCH_RESPONSE_BYTES = 16 * 1024 * 1024;
 export const MAX_DATAVERSE_BATCH_TOTAL_HEADERS = 4096;
 
+const DATAVERSE_BATCH_RESPONSE_HEADERS = ["x-ms-dop-hint", "x-ms-ratelimit-burst-remaining-xrm-requests", "x-ms-ratelimit-time-remaining-xrm-requests"] as const;
+
 const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const CONTENT_ID_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
 function hasControlCharacters(value: string): boolean {
@@ -23,6 +25,15 @@ export interface EncodedDataverseBatch {
     body: string;
     contentType: string;
     boundary: string;
+}
+
+export function selectDataverseBatchResponseHeaders(headers: Record<string, string>): Record<string, string> {
+    const selected: Record<string, string> = {};
+    for (const name of DATAVERSE_BATCH_RESPONSE_HEADERS) {
+        const value = headers[name];
+        if (value !== undefined) selected[name] = value;
+    }
+    return selected;
 }
 
 export function validateAndSnapshotHeaders(headers?: Record<string, string>): DataverseAdditionalHeaders {
@@ -154,6 +165,9 @@ export function validateBatchRequests(requests: DataverseBatchRequest[], transac
             if (transaction && method === "GET") {
                 throw new Error("Dataverse transactions cannot contain read operations");
             }
+            if (request.changesetId !== undefined && (typeof request.changesetId !== "string" || !request.changesetId.trim())) {
+                throw new Error(`Invalid Dataverse changeset ID at index ${index}`);
+            }
             const contentId = request.contentId ?? String(index + 1);
             if (!CONTENT_ID_PATTERN.test(contentId) || contentIds.has(contentId)) {
                 throw new Error(`Invalid or duplicate Dataverse content ID: ${contentId}`);
@@ -211,17 +225,40 @@ function encodeHttpPart(request: Readonly<DataverseBatchRequest>): string {
     ].join("\r\n");
 }
 
+function encodeChangeset(requests: ReadonlyArray<Readonly<DataverseBatchRequest>>): string {
+    const changesetBoundary = `changeset_${randomUUID()}`;
+    const changeset = requests.map((request) => `--${changesetBoundary}\r\n${encodeHttpPart(request)}\r\n`).join("") + `--${changesetBoundary}--\r\n`;
+    return `Content-Type: multipart/mixed; boundary=${changesetBoundary}\r\n\r\n${changeset}`;
+}
+
 export function encodeDataverseBatch(requests: DataverseBatchRequest[], transaction = false): EncodedDataverseBatch {
     const validated = validateBatchRequests(requests, transaction);
     const boundary = `batch_${randomUUID()}`;
     let body: string;
 
     if (transaction) {
-        const changesetBoundary = `changeset_${randomUUID()}`;
-        const changeset = validated.map((request) => `--${changesetBoundary}\r\n${encodeHttpPart(request)}\r\n`).join("") + `--${changesetBoundary}--\r\n`;
-        body = `--${boundary}\r\nContent-Type: multipart/mixed; boundary=${changesetBoundary}\r\n\r\n${changeset}--${boundary}--\r\n`;
+        body = `--${boundary}\r\n${encodeChangeset(validated)}--${boundary}--\r\n`;
     } else {
-        body = validated.map((request) => `--${boundary}\r\n${encodeHttpPart(request)}\r\n`).join("") + `--${boundary}--\r\n`;
+        const parts: Array<{ changesetId?: string; requests: ReadonlyArray<Readonly<DataverseBatchRequest>> }> = [];
+        const changesets = new Map<string, Array<Readonly<DataverseBatchRequest>>>();
+        for (const request of validated) {
+            if (request.changesetId === undefined) {
+                parts.push({ requests: [request] });
+                continue;
+            }
+
+            let changeset = changesets.get(request.changesetId);
+            if (!changeset) {
+                changeset = [];
+                changesets.set(request.changesetId, changeset);
+                parts.push({ changesetId: request.changesetId, requests: changeset });
+            }
+            changeset.push(request);
+        }
+        body = parts
+            .map(({ changesetId, requests: partRequests }) => `--${boundary}\r\n${changesetId === undefined ? `${encodeHttpPart(partRequests[0])}\r\n` : encodeChangeset(partRequests)}`)
+            .join("");
+        body += `--${boundary}--\r\n`;
     }
 
     if (Buffer.byteLength(body, "utf8") > MAX_DATAVERSE_BATCH_REQUEST_BYTES) {

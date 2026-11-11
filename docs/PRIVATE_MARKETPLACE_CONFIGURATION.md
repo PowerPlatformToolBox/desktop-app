@@ -263,7 +263,7 @@ az storage blob generate-sas \
 ## Notes
 
 - The app merges marketplace sources in order and gives private sources precedence over the built-in marketplace for duplicate tool IDs.
-- If a source URL is invalid or unreachable, the app logs a warning and continues with the other enabled sources.
+- If a source URL is invalid, unreachable, returns a non-200 status, times out (20 seconds), or returns invalid JSON, the app continues with the other enabled sources and shows a banner above the marketplace tool list naming the failed source and the reason. If every enabled source fails, the marketplace shows the error with **Retry** and **Copy details**. Failures are captured in Sentry with only the error code or HTTP status; the source URL, host, label, and error message are never sent.
 - The built-in marketplace URL is derived from the configured Azure Blob environment value when available.
 
 ## Troubleshooting

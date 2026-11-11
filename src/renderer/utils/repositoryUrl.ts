@@ -1,3 +1,5 @@
+import { buildToolIssuesUrl } from "../../common/utils/toolReview";
+
 export function normalizeRepositoryUrl(repository?: string): string | null {
     if (typeof repository !== "string") return null;
     const trimmed = repository.trim();
@@ -37,4 +39,9 @@ export function buildToolIssueUrl(repository?: string, toolName?: string): strin
     } catch {
         return null;
     }
+}
+
+/** `https://github.com/<owner>/<repo>/issues` for a tool repository, or null when it is not a valid HTTPS github.com repository. */
+export function buildToolIssuesListUrl(repository?: string): string | null {
+    return buildToolIssuesUrl(repository);
 }

@@ -16,7 +16,7 @@ Execute the following SQL in your Supabase SQL Editor:
 
 ```sql
 -- Add min_api column to the tools table
-ALTER TABLE tools 
+ALTER TABLE tools
   ADD COLUMN IF NOT EXISTS min_api TEXT;
 
 -- Add a comment to explain the column
@@ -29,7 +29,7 @@ Add an index to improve query performance when filtering by version:
 
 ```sql
 -- Create index on the version column for faster lookups
-CREATE INDEX IF NOT EXISTS idx_tools_min_api ON tools(min_api) 
+CREATE INDEX IF NOT EXISTS idx_tools_min_api ON tools(min_api)
   WHERE min_api IS NOT NULL;
 ```
 
@@ -42,7 +42,7 @@ If you have RLS enabled, ensure the new column is included:
 -- Just verify that SELECT policies allow reading this column
 
 -- Example verification query:
-SELECT 
+SELECT
   schemaname,
   tablename,
   policyname,
@@ -51,7 +51,7 @@ SELECT
   cmd,
   qual,
   with_check
-FROM pg_policies 
+FROM pg_policies
 WHERE tablename = 'tools';
 ```
 
@@ -68,8 +68,8 @@ For tools that already exist without version information:
 -- No action needed - columns default to NULL
 
 -- Option 2: Set to earliest supported version
-UPDATE tools 
-SET 
+UPDATE tools
+SET
   min_api = '1.0.0'
 WHERE min_api IS NULL;
 ```
@@ -82,43 +82,34 @@ If you have access to the tool packages, you can extract the version information
 
 ```javascript
 // Example Node.js script to backfill version data
-const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const path = require('path');
+const { createClient } = require("@supabase/supabase-js");
+const fs = require("fs");
+const path = require("path");
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 async function backfillVersions() {
-  // Get all tools without version info
-  const { data: tools, error } = await supabase
-    .from('tools')
-    .select('id, packagename')
-    .is('min_api', null);
+    // Get all tools without version info
+    const { data: tools, error } = await supabase.from("tools").select("id, packagename").is("min_api", null);
 
-  for (const tool of tools) {
-    try {
-      // Download and extract tool package
-      const packageJsonPath = `./temp/${tool.id}/package.json`;
+    for (const tool of tools) {
+        try {
+            // Download and extract tool package
+            const packageJsonPath = `./temp/${tool.id}/package.json`;
 
-      if (fs.existsSync(packageJsonPath)) {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-        const minAPI = packageJson.features?.minAPI;
+            if (fs.existsSync(packageJsonPath)) {
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+                const minAPI = packageJson.features?.minAPI;
 
-        // Update database
-        await supabase
-          .from('tools')
-          .update({ min_api: minAPI })
-          .eq('id', tool.id);
+                // Update database
+                await supabase.from("tools").update({ min_api: minAPI }).eq("id", tool.id);
 
-        console.log(`Updated ${tool.id}: minAPI=${minAPI}`);
-      }
-    } catch (error) {
-      console.error(`Failed to process ${tool.id}:`, error);
+                console.log(`Updated ${tool.id}: minAPI=${minAPI}`);
+            }
+        } catch (error) {
+            console.error(`Failed to process ${tool.id}:`, error);
+        }
     }
-  }
 }
 
 backfillVersions();
@@ -134,8 +125,8 @@ Add check constraints to ensure data quality:
 
 ```sql
 -- Ensure versions follow semver format (basic check)
-ALTER TABLE tools 
-  ADD CONSTRAINT check_min_api_format 
+ALTER TABLE tools
+  ADD CONSTRAINT check_min_api_format
   CHECK (min_api IS NULL OR min_api ~ '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$');
 
 -- Note: These are basic checks. Full semver validation should happen in application code.
@@ -147,22 +138,22 @@ In your tool intake/update API:
 
 ```typescript
 interface ToolSubmission {
-  id: string;
-  name: string;
-  version: string;
-  minAPI?: string;
-  // ... other fields
+    id: string;
+    name: string;
+    version: string;
+    minAPI?: string;
+    // ... other fields
 }
 
 function validateToolVersions(tool: ToolSubmission): string[] {
-  const errors: string[] = [];
-  
-  // Validate minAPI format
-  if (tool.minAPI && !isValidSemver(tool.minAPI)) {
-    errors.push('Invalid minAPI format. Must be valid semver (e.g., 1.0.0)');
-  }
-  
-  return errors;
+    const errors: string[] = [];
+
+    // Validate minAPI format
+    if (tool.minAPI && !isValidSemver(tool.minAPI)) {
+        errors.push("Invalid minAPI format. Must be valid semver (e.g., 1.0.0)");
+    }
+
+    return errors;
 }
 ```
 
@@ -175,7 +166,7 @@ function validateToolVersions(tool: ToolSubmission): string[] {
 Update your existing tool query to include the new fields:
 
 ```sql
-SELECT 
+SELECT
   t.id,
   t.name,
   t.version,
@@ -194,9 +185,9 @@ When creating or updating tools:
 
 ```sql
 INSERT INTO tools (
-  id, 
-  name, 
-  version, 
+  id,
+  name,
+  version,
   min_api,        -- NEW
   -- ... other fields
 ) VALUES (
@@ -216,13 +207,9 @@ Create a new API endpoint or update existing ones to filter by compatibility:
 ```typescript
 // Example Supabase Edge Function
 export async function getCompatibleTools(toolboxVersion: string) {
-  const { data, error } = await supabase
-    .from('tools')
-    .select('*')
-    .or(`min_api.is.null,min_api.lte.${toolboxVersion}`)
-    .eq('status', 'active');
-    
-  return data;
+    const { data, error } = await supabase.from("tools").select("*").or(`min_api.is.null,min_api.lte.${toolboxVersion}`).eq("status", "active");
+
+    return data;
 }
 ```
 
@@ -236,12 +223,12 @@ export async function getCompatibleTools(toolboxVersion: string) {
 
 ```sql
 -- Check columns exist
-SELECT 
-  column_name, 
-  data_type, 
+SELECT
+  column_name,
+  data_type,
   is_nullable
-FROM information_schema.columns 
-WHERE table_name = 'tools' 
+FROM information_schema.columns
+WHERE table_name = 'tools'
   AND column_name IN ('min_api');
 
 -- Expected output:
@@ -253,11 +240,11 @@ WHERE table_name = 'tools'
 
 ```sql
 -- Check indexes exist
-SELECT 
-  indexname, 
-  indexdef 
-FROM pg_indexes 
-WHERE tablename = 'tools' 
+SELECT
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE tablename = 'tools'
   AND indexname LIKE '%api%';
 
 -- Expected output should include:
@@ -306,20 +293,20 @@ DELETE FROM tools WHERE id = 'test-tool-001';
 **1. Tools with version information:**
 
 ```sql
-SELECT 
+SELECT
   COUNT(*) FILTER (WHERE min_api IS NOT NULL) as with_min_api,
   COUNT(*) as total
-FROM tools 
+FROM tools
 WHERE status = 'active';
 ```
 
 **2. Version distribution:**
 
 ```sql
-SELECT 
+SELECT
   min_api,
   COUNT(*) as tool_count
-FROM tools 
+FROM tools
 WHERE status = 'active' AND min_api IS NOT NULL
 GROUP BY min_api
 ORDER BY min_api DESC;
@@ -330,12 +317,12 @@ ORDER BY min_api DESC;
 ```sql
 -- Note: This is a simple string comparison, not proper semver
 -- Use this for monitoring only, not for actual compatibility checks
-SELECT 
+SELECT
   id,
   name,
   version,
   min_api
-FROM tools 
+FROM tools
 WHERE status = 'active'
   AND (min_api > '1.0.0');
 ```
@@ -372,25 +359,74 @@ SELECT id, min_api FROM tools;
 ### Common Issues
 
 **Issue 1: Column not found**
+
 ```
 Error: column "min_api" does not exist
 ```
+
 **Solution:** Run the ALTER TABLE command to add the columns.
 
 **Issue 2: Invalid semver format**
+
 ```
 Error: new row violates check constraint "check_min_api_format"
 ```
+
 **Solution:** Ensure version strings follow semantic versioning format (X.Y.Z).
 
 **Issue 3: Performance degradation**
+
 ```
 Query taking too long to filter by version
 ```
-**Solution:** 
+
+**Solution:**
+
 - Verify indexes are created
 - Analyze query plan: `EXPLAIN ANALYZE SELECT ... WHERE min_api ...`
 - Consider application-level filtering instead of database
+
+---
+
+## Review Tool Version (`ratings.tool_version`)
+
+The desktop review dialog only accepts reviews for locally installed tools and sends the installed version as `p_tool_version` to the existing `submit_tool_rating` RPC. The column is nullable and never required globally: older desktop clients that omit it (or send `NULL`) keep working. Do not backfill historical reviews.
+
+### 1. Column and validation trigger
+
+```sql
+BEGIN;
+
+ALTER TABLE public.ratings ADD COLUMN IF NOT EXISTS tool_version text;
+
+CREATE OR REPLACE FUNCTION public.require_rating_tool_version()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    NEW.tool_version := regexp_replace(NEW.tool_version, '^[[:space:]]+|[[:space:]]+$', '', 'g');
+    IF NEW.tool_version IS NOT NULL AND length(NEW.tool_version) NOT BETWEEN 1 AND 100 THEN
+        RAISE EXCEPTION 'Tool version must contain 1 to 100 characters when supplied' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS require_rating_tool_version ON public.ratings;
+CREATE TRIGGER require_rating_tool_version
+BEFORE INSERT OR UPDATE OF tool_version ON public.ratings
+FOR EACH ROW EXECUTE FUNCTION public.require_rating_tool_version();
+
+COMMIT;
+```
+
+### 2. RPC change (required before shipping the desktop build)
+
+The desktop calls `submit_tool_rating` with `p_tool_id`, `p_install_id`, `p_rating`, `p_comment` and now also `p_tool_version`. The function must accept the new parameter **as a trailing parameter with `DEFAULT NULL` in a single function** — adding it as a second overload would make 4-argument calls ambiguous. Replace the existing function rather than adding one:
+
+1. Capture the live definition: `SELECT pg_get_functiondef('public.submit_tool_rating(uuid, text, integer, text)'::regprocedure);` (adjust the argument types to match your database).
+2. `DROP FUNCTION public.submit_tool_rating(<existing argument types>);` and re-create it with the same body, signature and grants plus `p_tool_version text DEFAULT NULL`, writing `tool_version = p_tool_version` on insert and `tool_version = COALESCE(EXCLUDED.tool_version, ratings.tool_version)` in the `ON CONFLICT ... DO UPDATE` branch so an older client re-rating does not erase a stored version.
+3. Re-apply the original `GRANT EXECUTE` statements (the drop removes them), in the same transaction.
+
+Staging checks: a 4-argument call and a call with `p_tool_version => NULL` succeed; `'  1.2.3 '` is stored as `1.2.3`; `''`, whitespace-only and 101-character values fail with SQLSTATE `23514`; aggregates (`rating`, `rating_count`) are unchanged for existing rows.
 
 ---
 

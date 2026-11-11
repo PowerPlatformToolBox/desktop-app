@@ -9,6 +9,21 @@
 export const DATAVERSE_API_VERSION = "v9.2";
 
 /**
+ * Maximum size of the `$metadata` (CSDL/EDMX) document returned by
+ * `getCSDLDocument`, applied to the downloaded bytes and to the decompressed
+ * output. Environments with Dynamics 365 apps routinely exceed 20–60 MB
+ * decompressed, far above the `$batch` response limit.
+ */
+export const MAX_DATAVERSE_METADATA_RESPONSE_BYTES = 256 * 1024 * 1024;
+
+/**
+ * Default maximum size of a single (non-`$batch`) Dataverse Web API response.
+ * A 5,000-row page that selects every column can exceed 16 MB, so this is
+ * deliberately larger than `MAX_DATAVERSE_BATCH_RESPONSE_BYTES`.
+ */
+export const MAX_DATAVERSE_RESPONSE_BYTES = 128 * 1024 * 1024;
+
+/**
  * Tool Registry Configuration
  * @deprecated Use Supabase instead
  */

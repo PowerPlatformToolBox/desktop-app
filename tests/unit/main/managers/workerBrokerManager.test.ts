@@ -1,5 +1,4 @@
 /// <reference types="jest" />
-import { execFile, type ChildProcess } from "child_process";
 import { createHash } from "crypto";
 import type { WebContents } from "electron";
 import { EventEmitter } from "events";
@@ -8,13 +7,13 @@ import { StreamMessageReader } from "vscode-jsonrpc/node";
 import { NATIVE_WORKER_CONSENT_CHANNELS } from "../../../../src/common/ipc/channels";
 import type { DotNetPreparedTool, DotNetToolPreparationRequest } from "../../../../src/common/types/dotnetTool";
 import type { DotNetDiscoveryResult, DotNetDiscoverySelection } from "../../../../src/common/types/dotnetWorker";
-import { defaultExec, DotNetToolPreparationError } from "../../../../src/main/managers/dotnetToolManager";
+import { DotNetToolPreparationError } from "../../../../src/main/managers/dotnetToolManager";
 import { NativeWorkerConsentManager, type NativeWorkerIdentity } from "../../../../src/main/managers/nativeWorkerConsentManager";
 import { WorkerBrokerManager, type WorkerBrokerIdentity } from "../../../../src/main/managers/workerBrokerManager";
 import type { WorkerChild, WorkerLaunchOptions } from "../../../../src/main/managers/workerProcessManager";
-import { dotNetStableJson } from "../../../../src/main/utilities/dotnetToolPreparation";
+import { dotNetStableJson } from "../../../../src/main/utils/dotnetToolPreparation";
 
-jest.mock("child_process", () => ({ execFile: jest.fn(), spawn: jest.fn() }));
+jest.mock("child_process", () => ({ spawn: jest.fn() }));
 
 class Sender extends EventEmitter {
     readonly send = jest.fn();
@@ -67,7 +66,6 @@ class Child extends EventEmitter implements WorkerChild {
 }
 
 function selection(): DotNetDiscoverySelection {
-    const version = { major: 10, minor: 0, patch: 100, version: "10.0.100", directory: "/dotnet/sdk" };
     return {
         hostPath: "/dotnet/dotnet",
         hostRoot: "/dotnet",
@@ -75,12 +73,8 @@ function selection(): DotNetDiscoverySelection {
         platform: "macos-arm64",
         nativeRid: "osx-arm64",
         platformMatrixVersion: 1,
-        sdk: version,
-        sdkRuntime: version,
-        runtime: { ...version, version: "10.0.1", patch: 1 },
-        sdkRuntimeConfigPath: "/dotnet/sdk/dotnet.runtimeconfig.json",
+        runtime: { major: 10, minor: 0, patch: 1, version: "10.0.1", directory: "/dotnet/shared/Microsoft.NETCore.App" },
         nativeRollForward: "Major",
-        sdkPin: { sdk: { version: version.version, rollForward: "disable", allowPrerelease: false, paths: ["$host$"] } },
         attempts: [],
     };
 }
@@ -98,6 +92,8 @@ describe("WorkerBrokerManager", () => {
     let launch: jest.Mock;
     let errors: jest.Mock;
     let startupFailures: jest.Mock;
+    let resolveIdentity: jest.Mock;
+    let resolveConsentIdentity: jest.Mock;
     let children: Child[];
     let expectedShutdownFailure: string | undefined;
 
@@ -129,30 +125,24 @@ describe("WorkerBrokerManager", () => {
             },
         };
         identities = new Map([first, second].map((sender) => [web(sender), { owner: { toolId: "tool-a", instanceId: `instance-${sender.id}` }, identity, sourceFingerprint: "a".repeat(64) }]));
-        consent = new NativeWorkerConsentManager(
-            { getNativeWorkerConsentRows: () => [], setNativeWorkerConsentRows: () => undefined },
-            () => web(main),
-            (sender, workerId) => (workerId === "engine" ? (identities.get(sender)?.identity ?? null) : null),
-        );
+        resolveIdentity = jest.fn((sender: WebContents, workerId: string) => (workerId === "engine" ? (identities.get(sender) ?? null) : null));
+        resolveConsentIdentity = jest.fn((sender: WebContents, workerId: string) => (workerId === "engine" ? (identities.get(sender)?.identity ?? null) : null));
+        consent = new NativeWorkerConsentManager({ getNativeWorkerConsentRows: () => [], setNativeWorkerConsentRows: () => undefined }, () => web(main), resolveConsentIdentity);
         discover = jest.fn(async (): Promise<DotNetDiscoveryResult> => ({ ok: true, value: selection() }));
-        prepare = jest.fn(
-            async (request: DotNetToolPreparationRequest): Promise<DotNetPreparedTool> => ({
-                identity: request.identity,
-                declarationFingerprint: createHash("sha256").update(dotNetStableJson(request.declaration)).digest("hex"),
-                preparationFingerprint: "b".repeat(64),
-                workspace: "/cache/worker",
-                manifestPath: "/cache/worker/.config/dotnet-tools.json",
-                packageId: request.declaration.packageId,
-                packageVersion: request.declaration.packageVersion,
-                command: request.declaration.command,
-                entryPoint: "/cache/worker/Worker.dll",
-                runtimeConfigPath: "/cache/worker/Worker.runtimeconfig.json",
-                depsPath: "/cache/worker/Worker.deps.json",
-                selection: request.selection,
-                integrityHash: "c".repeat(64),
-                reused: false,
-            }),
-        );
+        prepare = jest.fn(async (request: DotNetToolPreparationRequest): Promise<DotNetPreparedTool> => ({
+            identity: request.identity,
+            declarationFingerprint: createHash("sha256").update(dotNetStableJson(request.declaration)).digest("hex"),
+            workspace: "/cache/worker",
+            packageId: request.declaration.packageId,
+            packageVersion: request.declaration.packageVersion,
+            packageSha512: `${"b".repeat(86)}==`,
+            command: request.declaration.command,
+            entryPoint: "/cache/worker/Worker.dll",
+            runtimeConfigPath: "/cache/worker/Worker.runtimeconfig.json",
+            depsPath: "/cache/worker/Worker.deps.json",
+            selection: request.selection,
+            reused: false,
+        }));
         children = [];
         errors = jest.fn();
         startupFailures = jest.fn();
@@ -162,7 +152,7 @@ describe("WorkerBrokerManager", () => {
             return child;
         });
         broker = new WorkerBrokerManager({
-            resolve: (sender, workerId) => (workerId === "engine" ? (identities.get(sender) ?? null) : null),
+            resolve: resolveIdentity,
             consent,
             discovery: { discover },
             preparationRoot: "/cache",
@@ -233,6 +223,58 @@ describe("WorkerBrokerManager", () => {
         expect(() => broker.onMessage(web(second), started.handle, receive)).toThrow("NOT_AUTHORIZED");
         expect(() => broker.snapshot(web(second), started.handle)).toThrow("NOT_AUTHORIZED");
         await expect(broker.stop(web(second), started.handle)).rejects.toThrow("NOT_AUTHORIZED");
+        expect(() => broker.send(web(new Sender(first.id)), started.handle, { jsonrpc: "2.0", method: "ping" })).toThrow("NOT_AUTHORIZED");
+    });
+
+    it("uses the captured identity for established connections without resolving source or consent identity", async () => {
+        const started = await start();
+        resolveIdentity.mockClear();
+        resolveConsentIdentity.mockClear();
+        resolveIdentity.mockImplementation(() => {
+            throw new Error("Unexpected source resolution");
+        });
+        resolveConsentIdentity.mockImplementation(() => {
+            throw new Error("Unexpected consent identity resolution");
+        });
+        const receive = jest.fn();
+        const terminal = jest.fn();
+        broker.onMessage(web(first), started.handle, receive);
+        broker.onTerminal(web(first), started.handle, terminal);
+        for (let id = 0; id < 20; id++) {
+            await broker.send(web(first), started.handle, { jsonrpc: "2.0", id, method: "ping" });
+            children[0].frame({ jsonrpc: "2.0", id, result: {} });
+        }
+        await tick();
+        expect(receive).toHaveBeenCalledTimes(20);
+        expect(broker.snapshot(web(first), started.handle).state).toBe("running");
+        await broker.stop(web(first), started.handle);
+        expect(terminal).toHaveBeenCalledTimes(1);
+        expect(resolveIdentity).not.toHaveBeenCalled();
+        expect(resolveConsentIdentity).not.toHaveBeenCalled();
+        expect(() => broker.start(web(first), "engine")).toThrow("Unexpected source resolution");
+    });
+
+    it("keeps a running worker bound to its launch identity and validates a changed identity on restart", async () => {
+        const started = await start();
+        identity.declaration.packageVersion = "2.0.0";
+        identities.set(web(first), { ...identities.get(web(first))!, sourceFingerprint: "d".repeat(64) });
+        await broker.send(web(first), started.handle, { jsonrpc: "2.0", method: "ping" });
+        await broker.stop(web(first), started.handle);
+        await start();
+        expect(prepare.mock.calls[0][0].declaration.packageVersion).toBe("1.0.0");
+        expect(prepare.mock.calls[1][0].declaration.packageVersion).toBe("2.0.0");
+        expect(prepare.mock.calls[1][0].identity.sourceFingerprint).not.toBe(prepare.mock.calls[0][0].identity.sourceFingerprint);
+    });
+
+    it("rejects traffic to a destroyed owner and suppresses worker delivery", async () => {
+        const started = await start();
+        const receive = jest.fn();
+        broker.onMessage(web(first), started.handle, receive);
+        first.destroyed = true;
+        expect(() => broker.send(web(first), started.handle, { jsonrpc: "2.0", method: "ping" })).toThrow("NOT_AUTHORIZED");
+        children[0].frame({ jsonrpc: "2.0", method: "progress" });
+        await tick();
+        expect(receive).not.toHaveBeenCalled();
     });
 
     it("owner disposal stops only that instance and blocks further starts", async () => {
@@ -290,10 +332,27 @@ describe("WorkerBrokerManager", () => {
         const firstStart = await start();
         const secondStart = await start(second);
         consent.revoke(web(main), prompt().fingerprint);
+        expect(() => broker.send(web(first), firstStart.handle, { jsonrpc: "2.0", method: "ping" })).toThrow();
         await tick();
         expect(children.every((child) => child.stdin.destroyed)).toBe(true);
         expect(() => broker.snapshot(web(first), firstStart.handle)).toThrow();
         expect(() => broker.snapshot(web(second), secondStart.handle)).toThrow();
+    });
+
+    it.each(["source", "declaration", "closed"])("rejects %s changes at the final pre-launch boundary", async (change) => {
+        const original = prepare.getMockImplementation()!;
+        prepare.mockImplementation(async (request, control) => {
+            const prepared = await original(request, control);
+            if (change === "source") identities.set(web(first), { ...identities.get(web(first))!, sourceFingerprint: "d".repeat(64) });
+            if (change === "declaration") identity.declaration.packageVersion = "2.0.0";
+            if (change === "closed") first.destroyed = true;
+            return prepared;
+        });
+        const started = broker.start(web(first), "engine");
+        allow();
+        await expect(started.ready).rejects.toThrow();
+        await tick();
+        expect(launch).not.toHaveBeenCalled();
     });
 
     it("blocks starts throughout tool mutation and waits for preparation to settle before deleting", async () => {
@@ -429,88 +488,35 @@ describe("WorkerBrokerManager", () => {
         expect(launch).not.toHaveBeenCalled();
     });
 
-    it("mutation waits for the default restore adapter close, not its early abort callback", async () => {
-        const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: jest.fn(() => true) });
-        let callback!: (error: NodeJS.ErrnoException | null, stdout: string, stderr: string) => void;
-        jest.mocked(execFile).mockImplementation(((_host: string, _args: string[], _options: unknown, complete: typeof callback) => {
-            callback = complete;
-            return child as unknown as ChildProcess;
-        }) as typeof execFile);
-        prepare.mockImplementation((_request, control) =>
-            defaultExec("/dotnet/dotnet", ["tool", "restore"], {
-                signal: control.signal,
-                cwd: "/cache/stage",
-                env: {},
-                encoding: "utf8",
-                shell: false,
-                timeout: 1000,
-                terminationTimeoutMs: 1000,
-                killSignal: "SIGKILL",
-                maxBuffer: 1024,
-                windowsHide: true,
-            }),
-        );
-        const started = broker.start(web(first), "engine");
-        allow();
-        await tick();
-        const rejected = expect(started.ready).rejects.toThrow("WORKER_STOPPED");
-        const mutate = jest.fn(async () => "updated");
-        const mutation = broker.withToolMutation("tool-a", mutate);
-        let settled = false;
-        const observed = mutation.then(() => {
-            settled = true;
-        });
-        callback(Object.assign(new Error("aborted"), { name: "AbortError" }), "", "");
-        child.emit("exit", null, "SIGKILL");
-        await tick();
-        expect(child.kill).toHaveBeenCalledWith("SIGKILL");
-        expect(settled).toBe(false);
-        expect(mutate).not.toHaveBeenCalled();
-        child.stdout.destroy();
-        child.stderr.destroy();
-        child.emit("close", null, "SIGKILL");
-        await expect(mutation).resolves.toBe("updated");
-        await observed;
-        await rejected;
-        expect(mutate).toHaveBeenCalledTimes(1);
-        expect(launch).not.toHaveBeenCalled();
-        child.stdin.destroy();
-    });
-
-    it.each(["WORKSPACE_INVALID", "RESTORE_STOP_UNVERIFIED"] as const)("rejects mutation and shutdown when aborted preparation cleanup fails: %s", async (code) => {
+    it("releases mutation and shutdown once an aborted preparation settles with a failure", async () => {
         prepare.mockImplementation(
             (_request, control) =>
                 new Promise((_resolve, reject) => {
-                    control.signal.addEventListener("abort", () => reject(new DotNetToolPreparationError(code)), { once: true });
+                    control.signal.addEventListener("abort", () => reject(new DotNetToolPreparationError("WORKSPACE_INVALID")), { once: true });
                 }),
         );
         const started = broker.start(web(first), "engine");
         allow();
         await tick();
-        const mutate = jest.fn(async () => undefined);
-        expectedShutdownFailure = code;
-        await expect(broker.withToolMutation("tool-a", mutate)).rejects.toThrow(code);
-        await expect(broker.disposeOwner(identities.get(web(first))!.owner)).rejects.toThrow(code);
+        const mutate = jest.fn(async () => "updated");
+        await expect(broker.withToolMutation("tool-a", mutate)).resolves.toBe("updated");
         await expect(started.ready).rejects.toThrow("WORKER_STOPPED");
-        expect(mutate).not.toHaveBeenCalled();
+        expect(mutate).toHaveBeenCalledTimes(1);
         expect(launch).not.toHaveBeenCalled();
     });
 
-    it.each(["WORKSPACE_INVALID", "RESTORE_STOP_UNVERIFIED", "RESTORE_FAILED"] as const)("retains spontaneous preparation failure details: %s", async (code) => {
-        prepare.mockRejectedValue(new DotNetToolPreparationError(code));
+    it.each(["WORKSPACE_INVALID", "PACKAGE_INVALID", "DOWNLOAD_FAILED", "PACKAGE_NOT_FOUND"] as const)("reports preparation failures and permits retry: %s", async (code) => {
+        prepare.mockRejectedValueOnce(new DotNetToolPreparationError(code, undefined, "details for diagnostics"));
         const started = broker.start(web(first), "engine");
         allow();
         await expect(started.ready).rejects.toThrow(code);
         await tick();
-        expect(startupFailures).toHaveBeenCalledWith(code);
-        if (code === "WORKSPACE_INVALID" || code === "RESTORE_STOP_UNVERIFIED") {
-            const mutate = jest.fn(async () => undefined);
-            expectedShutdownFailure = code;
-            await expect(broker.withToolMutation("tool-a", mutate)).rejects.toThrow(code);
-            expect(mutate).not.toHaveBeenCalled();
-            expect(() => broker.start(web(first), "engine")).toThrow("ALREADY_STARTED");
-        }
-        if (code !== "RESTORE_FAILED") expect(errors).toHaveBeenCalledWith(expect.objectContaining({ code }));
+        expect(startupFailures).toHaveBeenCalledWith(code, expect.objectContaining({ code, details: "details for diagnostics" }));
+        const mutate = jest.fn(async () => undefined);
+        await broker.withToolMutation("tool-a", mutate);
+        expect(mutate).toHaveBeenCalledTimes(1);
+        await start();
+        expect(launch).toHaveBeenCalledTimes(1);
     });
 
     it("rejects mutation on preparation timeout and permits cleanup retry only after settlement", async () => {

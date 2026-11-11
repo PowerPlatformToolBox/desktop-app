@@ -1,8 +1,24 @@
 import { createHash } from "crypto";
 import { isAbsolute, posix } from "path";
+import type { DotNetToolPreparationErrorCode } from "../../common/types/dotnetTool";
 import type { DotNetDiscoverySelection } from "../../common/types/dotnetWorker";
 import type { NormalizedWorkerDeclaration } from "../../common/types/tool";
 import { parseDotNetVersion, selectWorkerRuntime } from "./dotnetDiscovery";
+
+export class DotNetToolPreparationError extends Error {
+    constructor(
+        readonly code: DotNetToolPreparationErrorCode,
+        message?: string,
+        readonly details?: string,
+    ) {
+        super(message ?? (details ? `DotNet preparation failed: ${code}: ${details}` : `DotNet preparation failed: ${code}`));
+        this.name = "DotNetToolPreparationError";
+    }
+}
+
+export function dotNetPackageInvalid(details: string): DotNetToolPreparationError {
+    return new DotNetToolPreparationError("PACKAGE_INVALID", undefined, details);
+}
 
 export function dotNetStableJson(value: unknown): string {
     if (Array.isArray(value)) return `[${value.map(dotNetStableJson).join(",")}]`;
@@ -73,9 +89,23 @@ function decodeXml(value: string): string {
     });
 }
 
+function stripXmlComments(text: string): string {
+    let result = "";
+    let position = 0;
+    for (let start = text.indexOf("<!--"); start !== -1; start = text.indexOf("<!--", position)) {
+        const end = text.indexOf("-->", start + 4);
+        if (end === -1) throw new Error("Unclosed XML comment");
+        result += text.slice(position, start);
+        position = end + 3;
+    }
+    return result + text.slice(position);
+}
+
 export function parseDotNetPackageXml(text: string): DotNetXmlNode {
-    if (Buffer.byteLength(text) > 256 * 1024 || text.includes("<!") || text.includes("\0")) throw new Error("Unsupported or oversized XML");
-    const input = text.replace(/^\uFEFF/, "").replace(/^\s*<\?xml\s+version=["']1\.0["'](?:\s+encoding=["'][A-Za-z0-9-]+["'])?\s*\?>/, "");
+    if (Buffer.byteLength(text) > 256 * 1024 || text.includes("\0")) throw new Error("Unsupported or oversized XML");
+    const uncommented = stripXmlComments(text);
+    if (uncommented.includes("<!")) throw new Error("XML DOCTYPE, entity and CDATA sections are not supported");
+    const input = uncommented.replace(/^\uFEFF/, "").replace(/^\s*<\?xml\s+version=["']1\.0["'](?:\s+encoding=["'][A-Za-z0-9-]+["'])?(?:\s+standalone=["'](?:yes|no)["'])?\s*\?>/, "");
     const stack: DotNetXmlNode[] = [];
     let root: DotNetXmlNode | undefined;
     let position = 0;
@@ -114,53 +144,54 @@ export function parseDotNetPackageXml(text: string): DotNetXmlNode {
 
 export function dotNetToolSettings(text: string, command: string): string {
     const root = parseDotNetPackageXml(text);
-    const commands = root.children[0];
-    const item = commands?.children[0];
-    if (
-        root.name !== "DotNetCliTool" ||
-        dotNetStableJson(root.attributes) !== dotNetStableJson({ Version: "1" }) ||
-        root.children.length !== 1 ||
-        root.text.trim() ||
-        commands?.name !== "Commands" ||
-        Object.keys(commands.attributes).length ||
-        commands.text.trim() ||
-        commands.children.length !== 1 ||
-        item?.name !== "Command" ||
-        item.text.trim() ||
-        item.children.length ||
-        Object.keys(item.attributes).sort().join(",") !== "EntryPoint,Name,Runner" ||
-        item.attributes.Name !== command ||
-        item.attributes.Runner !== "dotnet"
-    )
-        throw new Error("Unsupported tool settings");
-    const entry = dotNetPackageRelativePath(item.attributes.EntryPoint);
-    if (!entry.endsWith(".dll")) throw new Error("Only managed DLL entrypoints are supported");
+    if (root.name !== "DotNetCliTool") throw dotNetPackageInvalid("DotnetToolSettings.xml root element must be DotNetCliTool");
+    if (root.attributes.Version !== "1" || root.children.some((child) => child.name === "RuntimeIdentifierPackages")) {
+        throw dotNetPackageInvalid("Only framework-dependent tools (DotnetToolSettings Version 1, Runner dotnet) are supported; RID-specific and native executable tools are not");
+    }
+    const commands = root.children.filter((child) => child.name === "Commands").flatMap((child) => child.children.filter((item) => item.name === "Command"));
+    if (commands.length !== 1) throw dotNetPackageInvalid("DotnetToolSettings.xml must declare exactly one command");
+    const item = commands[0];
+    if (item.attributes.Name !== command) throw dotNetPackageInvalid(`DotnetToolSettings.xml command "${item.attributes.Name ?? ""}" does not match the declared command "${command}"`);
+    if (item.attributes.Runner !== "dotnet") throw dotNetPackageInvalid(`Unsupported tool runner "${item.attributes.Runner ?? ""}"; only "dotnet" is supported`);
+    let entry: string;
+    try {
+        entry = dotNetPackageRelativePath(item.attributes.EntryPoint ?? "");
+    } catch {
+        throw dotNetPackageInvalid("DotnetToolSettings.xml EntryPoint is not a safe package-relative path");
+    }
+    if (!entry.toLowerCase().endsWith(".dll")) throw dotNetPackageInvalid("Only managed DLL entry points are supported");
     return entry;
 }
 
 export function verifyDotNetRuntimeConfig(text: string, declaration: NormalizedWorkerDeclaration, selection: DotNetDiscoverySelection): void {
-    const config = JSON.parse(text);
+    let config: { runtimeOptions?: Record<string, unknown> & { framework?: Record<string, unknown> } };
+    try {
+        config = JSON.parse(text);
+    } catch {
+        throw dotNetPackageInvalid("runtimeconfig.json is not valid JSON");
+    }
     const options = config?.runtimeOptions;
     const requirement = declaration.dotnet;
     const nativePolicy = requirement.rollForward === "Latest" ? "LatestMajor" : requirement.rollForward;
-    const explicitPolicy = options && Object.hasOwn(options, "rollForward");
-    const policy = explicitPolicy ? options.rollForward : nativePolicy;
+    if (!options || typeof options !== "object") throw dotNetPackageInvalid("runtimeconfig.json has no runtimeOptions");
+    if (options.tfm !== requirement.targetFramework)
+        throw dotNetPackageInvalid(`runtimeconfig.json tfm "${String(options.tfm)}" does not match declared targetFramework "${requirement.targetFramework}"`);
+    if (options.frameworks !== undefined || options.includedFrameworks !== undefined || options.framework?.name !== "Microsoft.NETCore.App") {
+        throw dotNetPackageInvalid("Worker must be a framework-dependent Microsoft.NETCore.App console tool (no ASP.NET, desktop, or self-contained frameworks)");
+    }
+    if (options.framework.version !== requirement.minimumRuntimeVersion || !parseDotNetVersion(options.framework.version)) {
+        throw dotNetPackageInvalid(`runtimeconfig.json framework version "${String(options.framework.version)}" must equal declared minimumRuntimeVersion "${requirement.minimumRuntimeVersion}"`);
+    }
+    const explicitPolicy = Object.hasOwn(options, "rollForward");
     if (
-        !options ||
-        options.tfm !== requirement.targetFramework ||
-        options.framework?.name !== "Microsoft.NETCore.App" ||
-        options.framework.version !== requirement.minimumRuntimeVersion ||
-        !parseDotNetVersion(options.framework.version) ||
-        options.frameworks !== undefined ||
-        options.includedFrameworks !== undefined ||
-        ["rollForward", "applyPatches", "rollForwardOnNoCandidateFx"].some((field) => Object.hasOwn(options.framework, field)) ||
+        ["rollForward", "applyPatches", "rollForwardOnNoCandidateFx"].some((field) => Object.hasOwn(options.framework ?? {}, field)) ||
         (explicitPolicy && (Object.hasOwn(options, "applyPatches") || Object.hasOwn(options, "rollForwardOnNoCandidateFx"))) ||
-        policy !== nativePolicy ||
+        (explicitPolicy ? options.rollForward : nativePolicy) !== nativePolicy ||
         (options.applyPatches !== undefined && options.applyPatches !== true) ||
         options.rollForwardOnNoCandidateFx !== undefined ||
         selection.nativeRollForward !== nativePolicy
-    )
-        throw new Error("Runtime configuration conflicts with declaration");
-    const selected = selectWorkerRuntime([selection.runtime], requirement);
-    if (!selected.ok) throw new Error("Selected worker runtime no longer satisfies package");
+    ) {
+        throw dotNetPackageInvalid(`runtimeconfig.json roll-forward settings conflict with the declared rollForward "${requirement.rollForward}"`);
+    }
+    if (!selectWorkerRuntime([selection.runtime], requirement).ok) throw dotNetPackageInvalid("Selected .NET runtime no longer satisfies the declared requirement");
 }

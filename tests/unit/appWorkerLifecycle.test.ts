@@ -1,4 +1,4 @@
-import { ToolInstallationCoordinator } from "../../src/main/utilities/appWorkerLifecycle";
+import { ToolInstallationCoordinator } from "../../src/main/utils/appWorkerLifecycle";
 
 describe("ToolInstallationCoordinator", () => {
     function setup() {

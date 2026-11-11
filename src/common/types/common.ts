@@ -48,7 +48,7 @@ export interface CspExceptions {
     "frame-src"?: CspExceptionSource[];
     "media-src"?: CspExceptionSource[];
     /** Allow the tool to open mailto: links in the user's default email client. */
-    "mailto"?: CspExceptionSource[];
+    mailto?: CspExceptionSource[];
 }
 
 /**

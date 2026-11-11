@@ -6,6 +6,13 @@ import { Theme } from "./common";
 import { Connection } from "./connection";
 import { MyToolRating } from "./tool";
 
+export const MIN_COLOR_BORDER_THICKNESS = 1;
+export const MAX_COLOR_BORDER_THICKNESS = 10;
+
+export function isValidColorBorderThickness(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value >= MIN_COLOR_BORDER_THICKNESS && value <= MAX_COLOR_BORDER_THICKNESS;
+}
+
 /**
  * Sort options for installed tools
  */
@@ -30,6 +37,14 @@ export type DeprecatedToolsVisibility = "hide-all" | "show-all" | "show-installe
  * Tool display mode options
  */
 export type ToolDisplayMode = "standard" | "compact";
+export type ProxyMode = "auto" | "manual" | "none";
+
+export interface ProxySettings {
+    mode: ProxyMode;
+    manualProxyUrl?: string;
+    noProxyList?: string[];
+    caBundlePath?: string;
+}
 
 export const PREVIEW_FEATURE_IDS = {
     MCP_SERVER: "mcp-server",
@@ -99,6 +114,18 @@ export interface MarketplaceSource {
 }
 
 /**
+ * Problem encountered while loading a marketplace source.
+ * "error" means the source failed to load; "warning" means it loaded from a degraded path (e.g. backup mirror).
+ */
+export interface MarketplaceSourceIssue {
+    sourceId: string;
+    sourceLabel: string;
+    sourceType: MarketplaceSource["type"];
+    severity: "error" | "warning";
+    message: string;
+}
+
+/**
  * Per-tool CSP consent record.
  * Stores whether consent was granted, and which required/optional domains were
  * present at the time of consent (used for future re-consent detection).
@@ -161,6 +188,7 @@ export interface UserSettings {
     previewFeatures?: PreviewFeatureFlags; // Per-feature preview toggles keyed by preview feature ID
     marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
     sentryTelemetryConsent?: TelemetryConsentChoice | null; // User consent choice for Sentry warning/error telemetry
+    proxy?: ProxySettings; // Node-side proxy settings for network calls in the main process
     toolRatings?: { [toolId: string]: MyToolRating }; // This install's own submitted rating/comment per tool
     reportedToolConcernIds?: string[]; // Tool IDs this install has already submitted a concern report for (local dedupe)
 }

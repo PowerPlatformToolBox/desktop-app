@@ -16,6 +16,7 @@ declare namespace DataverseAPI {
         headers?: AdditionalHeaders;
         body?: unknown;
         contentId?: string;
+        changesetId?: string;
     }
 
     export interface BatchResult {
@@ -23,6 +24,8 @@ declare namespace DataverseAPI {
         status: number;
         statusText?: string;
         headers: Record<string, string>;
+        /** Selected headers from the outer HTTP batch response, shared by every operation result. */
+        batchHeaders?: Record<string, string>;
         body?: unknown;
     }
     /**
@@ -49,10 +52,7 @@ declare namespace DataverseAPI {
     export type EntityRelatedMetadataBasePath = "Attributes" | "Keys" | "ManyToOneRelationships" | "OneToManyRelationships" | "ManyToManyRelationships" | "Privileges";
 
     export type EntityRelatedMetadataPath =
-        | EntityRelatedMetadataBasePath
-        | `${EntityRelatedMetadataBasePath}/${string}`
-        | `${EntityRelatedMetadataBasePath}(${string})`
-        | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
+        EntityRelatedMetadataBasePath | `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
 
     type EntityRelatedMetadataRecordPath = `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
 

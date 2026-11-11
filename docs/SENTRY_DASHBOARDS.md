@@ -14,6 +14,16 @@ The application uses comprehensive Sentry telemetry with:
 
 ## Sentry Data Organization
 
+### Errors & Outages
+
+Application `logError()` calls send an error issue event as well as a structured log. Passing an `Error` directly preserves its original stack via `captureException()`; string messages use `captureMessage()` at error severity. `logFatal()` sends a fatal issue event and a structured log. Informational and warning logs remain logs, not error issues.
+
+The main and renderer SDKs retain their default uncaught-exception and unhandled-rejection integrations. Error events use `sampleRate: 1.0`, independently of performance trace sampling. All error reporting still requires telemetry consent and a configured Sentry DSN, and events pass through the existing privacy scrubbing hooks.
+
+In Sentry's **Errors & Outages** issue view (or an **Errors & Outage** dashboard), include both handled and unhandled events. Remove `error.handled:false` or `error.unhandled:true` filters, and include both `error` and `fatal` levels. For an Issues query, use `issue.category:error` without a handled-state restriction. For an error-event query or dashboard widget, use `event.type:error` without a handled-state restriction. Check project, environment, release, status, and time-range filters as well; these are Sentry-side settings, not application configuration.
+
+Errors deliberately swallowed without logging or explicit capture do not automatically become issue events. Report actionable caught failures with `logError(error, context)` or `captureException(error, context)`.
+
 Sentry organizes data into three main sources:
 
 | Data Source     | Contains                                                                     | Access                                          |

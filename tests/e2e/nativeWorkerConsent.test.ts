@@ -10,7 +10,13 @@ const reviewScript = ts.transpileModule(reviewSource, { compilerOptions: { modul
 const modalStylesSource = readFileSync(path.resolve("src/renderer/modals/sharedStyles.ts"), "utf8");
 const modalStylesScript = ts.transpileModule(modalStylesSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const assets = path.resolve("dist/renderer/assets");
-const stylesheet = readFileSync(path.join(assets, readdirSync(assets).find((file) => file.endsWith(".css"))!), "utf8");
+const stylesheet = readFileSync(
+    path.join(
+        assets,
+        readdirSync(assets).find((file) => file.endsWith(".css"))!,
+    ),
+    "utf8",
+);
 
 async function emitConsent(page: Page): Promise<FrameLocator> {
     await page.evaluate(() => {

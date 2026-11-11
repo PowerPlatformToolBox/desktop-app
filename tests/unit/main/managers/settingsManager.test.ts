@@ -25,6 +25,12 @@ describe("SettingsManager", () => {
             expect(settings.installedTools).toEqual([]);
             expect(settings.favoriteTools).toEqual([]);
             expect(settings.sentryTelemetryConsent).toBeNull();
+            expect(settings.proxy).toEqual({
+                mode: "auto",
+                manualProxyUrl: "",
+                noProxyList: [],
+                caBundlePath: "",
+            });
             expect(settings).not.toHaveProperty("dotnetLocalFeedPath");
         });
     });
@@ -44,6 +50,24 @@ describe("SettingsManager", () => {
             expect(manager.getSetting("autoUpdate")).toBe(false);
         });
 
+        it("normalizes proxy settings when updated", () => {
+            manager.updateUserSettings({
+                proxy: {
+                    mode: "manual",
+                    manualProxyUrl: " http://proxy.local:8080 ",
+                    noProxyList: [" localhost ", "", "127.0.0.1"],
+                    caBundlePath: " /tmp/custom.pem ",
+                },
+            });
+
+            expect(manager.getUserSettings().proxy).toEqual({
+                mode: "manual",
+                manualProxyUrl: "http://proxy.local:8080",
+                noProxyList: ["localhost", "127.0.0.1"],
+                caBundlePath: "/tmp/custom.pem",
+            });
+        });
+
         it("persists connection modal double-click setting", () => {
             manager.updateUserSettings({ enableConnectionDoubleClickConnect: true });
             expect(manager.getSetting("enableConnectionDoubleClickConnect")).toBe(true);
@@ -54,6 +78,27 @@ describe("SettingsManager", () => {
         it("round-trips a setting value", () => {
             manager.setSetting("notificationDuration", 3000);
             expect(manager.getSetting("notificationDuration")).toBe(3000);
+        });
+    });
+
+    describe.each(["categoryColorThickness", "environmentColorThickness"] as const)("%s validation", (key) => {
+        it.each([1, 5, 10])("persists valid thickness %s through both write paths", (value) => {
+            manager.updateUserSettings({ [key]: value });
+            expect(manager.getUserSettings()[key]).toBe(value);
+            manager.setSetting(key, value);
+            expect(manager.getSetting(key)).toBe(value);
+        });
+
+        it.each([500, 11, 0, -1, 1.5, NaN, Infinity, -Infinity, "5", null, undefined])("rejects invalid thickness %s without changing settings", (value) => {
+            manager.setSetting(key, 5);
+
+            expect(() => manager.updateUserSettings({ theme: "dark", [key]: value })).toThrow(/must be a whole number between 1 and 10 pixels/);
+            expect(manager.getSetting("theme")).toBe("system");
+            expect(manager.getSetting(key)).toBe(5);
+
+            // Exercise malformed values that can arrive from untyped IPC callers.
+            expect(() => manager.setSetting(key, value as never)).toThrow(RangeError);
+            expect(manager.getSetting(key)).toBe(5);
         });
     });
 

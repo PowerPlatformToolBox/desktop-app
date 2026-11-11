@@ -13,6 +13,6 @@ module.exports = {
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/explicit-module-boundary-types": "off",
         // Allow underscore-prefixed parameters to be intentionally unused (API compatibility stubs)
-        "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+        "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
 };

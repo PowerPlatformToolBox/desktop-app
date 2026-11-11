@@ -4,14 +4,14 @@ import { StreamMessageReader } from "vscode-jsonrpc/node";
 import type { WorkerProcessLimits, WorkerRpcMessage } from "../../common/types/workerProcess";
 
 export const WORKER_PROCESS_LIMITS: Readonly<WorkerProcessLimits> = Object.freeze({
-    maxFrameBytes: 1024 * 1024,
+    maxFrameBytes: 32 * 1024 * 1024,
     maxHeaderBytes: 1024,
     maxInboundCount: 64,
-    maxInboundBytes: 4 * 1024 * 1024,
+    maxInboundBytes: 64 * 1024 * 1024,
     maxPendingWrites: 64,
-    maxPendingWriteBytes: 4 * 1024 * 1024,
+    maxPendingWriteBytes: 64 * 1024 * 1024,
     maxEarlyMessages: 64,
-    maxEarlyBytes: 4 * 1024 * 1024,
+    maxEarlyBytes: 64 * 1024 * 1024,
     maxStderrBytes: 16 * 1024,
     maxRecords: 256,
     startupTimeoutMs: 10000,

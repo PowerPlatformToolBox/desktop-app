@@ -8,5 +8,6 @@
         "lib": ["ES2022", "DOM"],
         "types": ["node", "jest", "playwright"]
     },
-    "include": ["src/main/**/*", "src/common/**/*", "src/renderer/utils/**/*", "tests/**/*"]
+    "include": ["src/main/**/*", "src/common/**/*", "src/renderer/types/**/*.d.ts", "src/renderer/utils/**/*", "tests/**/*"],
+    "exclude": ["node_modules", "dist", "build"]
 }

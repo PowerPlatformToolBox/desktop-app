@@ -6,11 +6,11 @@
 import type { ConnectionIds, ConnectionTarget } from "../connectionSlots";
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
-import { Connection } from "./connection";
 import { DataverseBatchRequest, DataverseBatchResult, DataverseExecuteRequest, DataverseHeaderConsentDecision, DataverseHeaderConsentRequest, DataverseUser, DataverseUserPage } from "./dataverse";
-import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { Connection } from "./connection";
+import { CspConsentRecord, DataverseHeaderConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSourceIssue, ProxySettings, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolRegistryEntry, ToolSettings } from "./tool";
+import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolManifest, ToolRatingAggregate, ToolReviewContext, ToolRegistryEntry, ToolSettings } from "./tool";
 import { ToolIdea, ToolIdeaSubmission, ToolIdeaUpvoteResult } from "./toolIdea";
 
 /**
@@ -147,6 +147,8 @@ export interface McpServerDetails {
     authHeaderName: string;
     authHeaderValue: string;
     isRunning: boolean;
+    status: "starting" | "running" | "stopped" | "error";
+    error?: string;
 }
 
 export interface McpClientConfigWriteResult {
@@ -174,6 +176,8 @@ export interface McpServerAPI {
     stop: () => Promise<McpServerDetails>;
     configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
     configureVSCode: () => Promise<McpClientConfigWriteResult>;
+    disconnectClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
+    disconnectVSCode: () => Promise<McpClientConfigWriteResult>;
 }
 
 /**
@@ -187,6 +191,7 @@ export interface TroubleshootingAPI {
     checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
     checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
+    testProxyConnection: (settings?: ProxySettings) => Promise<{ success: boolean; message?: string }>;
 }
 
 /**
@@ -281,6 +286,8 @@ export interface ToolboxAPI {
     installTool: (packageName: string) => Promise<Tool>;
     uninstallTool: (packageName: string, toolId: string) => Promise<void>;
     getToolWebviewHtml: (packageName: string) => Promise<string | null>;
+    /** SVG markup of a tool's bundled icon (a path under its `dist/` folder), or null if unavailable. */
+    getToolIconSvg: (toolId: string, iconPath: string) => Promise<string | null>;
     getToolContext: (packageName: string, connectionUrl?: string, accessToken?: string) => Promise<ToolContext>;
     getLatestToolVersion: (packageName: string) => Promise<string | null>;
     updateTool: (packageName: string) => Promise<Tool>;
@@ -387,7 +394,8 @@ export interface ToolboxAPI {
     openDirectoryPicker: () => Promise<string | null>;
 
     // Registry-based tools
-    fetchRegistryTools: () => Promise<ToolRegistryEntry[]>;
+    fetchRegistryTools: (options?: { forceRefresh?: boolean }) => Promise<ToolRegistryEntry[]>;
+    getRegistryIssues: () => Promise<MarketplaceSourceIssue[]>;
     fetchCommunityLinks: () => Promise<CommunityLinksCollection | null>;
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: ToolManifest; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
@@ -397,12 +405,15 @@ export interface ToolboxAPI {
     /** Install the beta (pre-release) npm package for a registry tool and return the loaded Tool. */
     installPrereleaseToolFromNpm: (npmPackageName: string) => Promise<Tool>;
     /** Submit (or update) this install's star rating/comment for a tool; returns the recomputed aggregate. */
-    submitToolRating: (toolId: string, rating: number, comment?: string) => Promise<ToolRatingAggregate>;
+    submitToolRating: (toolId: string, rating: number, comment?: string, toolVersion?: string) => Promise<ToolRatingAggregate>;
+    /** Resolve whether a tool is installed locally (and its installed version) before allowing a review. Rejects if the state cannot be loaded. */
+    getToolReviewContext: (toolId: string) => Promise<ToolReviewContext>;
     /** Get this install's previously submitted rating/comment for a tool, if any. */
     getMyToolRating: (toolId: string) => Promise<MyToolRating | null>;
     fetchToolIdeas: () => Promise<ToolIdea[]>;
     submitToolIdea: (idea: ToolIdeaSubmission) => Promise<void>;
     upvoteToolIdea: (ideaId: string) => Promise<ToolIdeaUpvoteResult>;
+    removeToolIdeaVote: (ideaId: string) => Promise<ToolIdeaUpvoteResult>;
 
     // Split layout namespace
     splitLayout: SplitLayoutAPI;

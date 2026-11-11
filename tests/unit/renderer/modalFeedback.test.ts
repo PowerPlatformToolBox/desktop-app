@@ -34,7 +34,7 @@ describe("connection modal feedback controllers", () => {
         expect(script).toMatch(/data\.type === "success"/);
         expect(script).toContain('? "success" : "error";');
         expect(script).toContain('testFeedback.className = "modal-feedback " + feedbackType;');
-        expect(script).toContain('updateTestFeedback(payload.data);');
+        expect(script).toContain("updateTestFeedback(payload.data);");
     });
 
     it("applies success/error classes in the edit connection modal controller", () => {
@@ -43,6 +43,6 @@ describe("connection modal feedback controllers", () => {
         expect(script).toMatch(/data\.type === "success"/);
         expect(script).toContain('? "success" : "error";');
         expect(script).toContain('testFeedback.className = "modal-feedback " + feedbackType;');
-        expect(script).toContain('updateTestFeedback(payload.data);');
+        expect(script).toContain("updateTestFeedback(payload.data);");
     });
 });

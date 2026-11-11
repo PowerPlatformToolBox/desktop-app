@@ -12,7 +12,7 @@ import {
     resolveDotNetLocalFeedPath,
     resolveDotNetPackageSource,
     validateDotNetLocalFeedDirectory,
-} from "../../../../src/main/utilities/dotnetLocalFeed";
+} from "../../../../src/main/utils/dotnetLocalFeed";
 
 const declaration: NormalizedWorkerDeclaration = {
     kind: "dotnet-tool",

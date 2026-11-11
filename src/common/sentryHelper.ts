@@ -440,9 +440,16 @@ export function logWarn(message: string, data?: Record<string, unknown>): void {
  * Log an error message.
  * Sent to Sentry in all environments.
  */
-export function logError(message: string, data?: Record<string, unknown>): void {
+export function logError(messageOrError: string | Error, data?: Record<string, unknown>): void {
+    const message = messageOrError instanceof Error ? `${messageOrError.name}: ${messageOrError.message}` : messageOrError;
     // eslint-disable-next-line no-console
     console.error("[ERROR]", message, data || "");
+
+    if (messageOrError instanceof Error) {
+        captureException(messageOrError, { extra: data, level: "error" });
+    } else {
+        captureMessage(message, "error", { extra: data });
+    }
 
     if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 
@@ -459,6 +466,8 @@ export function logError(message: string, data?: Record<string, unknown>): void 
 export function logFatal(message: string, data?: Record<string, unknown>): void {
     // eslint-disable-next-line no-console
     console.error("[FATAL]", message, data || "");
+
+    captureMessage(message, "fatal", { extra: data });
 
     if (!sentryModule || !sentryModule.logger || !hasSentryTelemetryConsent()) return;
 

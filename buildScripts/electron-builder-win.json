@@ -4,21 +4,15 @@
         "target": [
             {
                 "target": "nsis",
-                "arch": [
-                    "x64"
-                ]
+                "arch": ["x64"]
             },
             {
                 "target": "msi",
-                "arch": [
-                    "x64"
-                ]
+                "arch": ["x64"]
             },
             {
                 "target": "zip",
-                "arch": [
-                    "x64"
-                ]
+                "arch": ["x64"]
             }
         ],
         "icon": "icons/icon.ico"
@@ -33,9 +27,7 @@
     "protocols": [
         {
             "name": "Power Platform ToolBox Protocol",
-            "schemes": [
-                "pptb"
-            ]
+            "schemes": ["pptb"]
         }
     ]
 }

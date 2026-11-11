@@ -4,7 +4,7 @@ import { EventEmitter } from "events";
 import { PassThrough, Writable } from "stream";
 import type { WorkerLaunchDescriptor, WorkerOwner, WorkerProcessHandle, WorkerRpcMessage } from "../../../../src/common/types/workerProcess";
 import { validateWorkerLaunchDescriptor, WorkerProcessManager, type WorkerChild, type WorkerLaunchOptions, type WorkerProcessDependencies } from "../../../../src/main/managers/workerProcessManager";
-import { immutableWorkerMessage } from "../../../../src/main/utilities/workerStdio";
+import { immutableWorkerMessage } from "../../../../src/main/utils/workerStdio";
 
 const owner: WorkerOwner = { toolId: "tool-a", instanceId: "instance-a" };
 const stranger: WorkerOwner = { toolId: "tool-a", instanceId: "instance-b" };
@@ -930,7 +930,7 @@ describe("serialized backpressure and bounded stopping", () => {
         expect(() => setup.manager.start(owner, "engine")).not.toThrow();
     });
 
-    it.each(["WORKSPACE_INVALID", "RESTORE_STOP_UNVERIFIED"] as const)("verifies canceled preparation only after settlement and retains cleanup failures: %s", async (code) => {
+    it("verifies canceled preparation only after settlement, then releases the slot even when preparation failed", async () => {
         let rejectPreparation!: (error: Error) => void;
         const setup = harness({
             prepare: (_owner, _workerId, signal) =>
@@ -940,16 +940,17 @@ describe("serialized backpressure and bounded stopping", () => {
                 }),
         });
         const started = setup.manager.start(owner, "engine");
-        const disposed = setup.manager.disposeOwner(owner);
-        const rejected = expect(disposed).rejects.toThrow(code);
+        let settled = false;
+        const disposed = setup.manager.disposeOwner(owner).then(() => {
+            settled = true;
+        });
         await flush();
+        expect(settled).toBe(false);
         expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
-        rejectPreparation(Object.assign(new Error(code), { code }));
-        await rejected;
+        rejectPreparation(Object.assign(new Error("WORKSPACE_INVALID"), { code: "WORKSPACE_INVALID" }));
+        await disposed;
         await expect(started.ready).rejects.toThrow("WORKER_STOPPED");
         expect(setup.launch).not.toHaveBeenCalled();
-        expect(setup.manager.snapshot(owner, started.handle)).toBeDefined();
-        expect(() => setup.manager.start(owner, "engine")).toThrow("ALREADY_STARTED");
     });
 
     it("scopes terminal subscriptions to the owning handle and tolerates disposal", async () => {

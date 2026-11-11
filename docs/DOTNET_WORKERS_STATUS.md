@@ -24,6 +24,19 @@ pass. Native consent administration remains main-window-only.
 | PR7   | In progress               | PR6                | Public preload API, browser-compatible RPC adapter and author example; Electron callback flow, disposal, SDK guidance, public-type tests, and developer-only local NuGet feed for unpublished worker iteration.    |
 | PR8   | Not started               | PR7                | .NET 10 and declared platform qualification, packaged-app checks, migration docs and coordinated release of app/types/validator.                                                                                   |
 
+## Preparation Simplification Decision (2026-10-16)
+
+The PR2 SDK selection and PR3 `dotnet tool restore` preparation were replaced
+after repeated field failures (Windows environment isolation, SDK-internal
+`toolResolverCache` paths, stuck staging/lock quarantine). Preparation now
+downloads the exact `.nupkg` from the nuget.org flat container (or reads it from
+the developer local feed), extracts `tools/**` with `yauzl`, and launches the
+entry point with `dotnet exec`. End users need only a compatible .NET runtime;
+no SDK is required. Consent fingerprints are unchanged, so existing approvals
+remain valid. Legacy restore workspaces are removed automatically. See
+[Package Preparation](DOTNET_WORKERS_ENGINEERING.md#package-preparation). The
+PR2/PR3 evidence below is historical.
+
 ## Runtime Declaration Decision (2026-10-05)
 
 Each worker declares its executable target framework, minimum runtime version and
@@ -233,7 +246,7 @@ that the revised contract passes validation.
 ## PR3 Evidence
 
 - Date: 2026-10-05. [Execution log](../.github/plans/plan-dotnet-workers-pr3.md)
-  and [preparation contract](DOTNET_WORKERS_ENGINEERING.md#package-preparation-pr3).
+  and [preparation contract](DOTNET_WORKERS_ENGINEERING.md#package-preparation).
 - 91 focused tests passed: approval-before-I/O, pinned SDK/config/source, exact
   package/command/runtime verification, concurrent preparation, filesystem locks,
   rollback, cleanup failures, integrity checks and warm offline reuse.

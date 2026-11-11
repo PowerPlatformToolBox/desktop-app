@@ -28,6 +28,7 @@ import {
     WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
+import { validateIdeaSubmission } from "../common/utils/ideas";
 import { captureException, captureMessage, logInfo as logSentryInfo, recordSentryTelemetryDisabled } from "../common/sentryHelper";
 import type { DataverseHeaderConsentDecision } from "../common/types";
 import {
@@ -60,6 +61,7 @@ import { NativeWorkerConsentManager } from "./managers/nativeWorkerConsentManage
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
+import { applyProxyEnvironmentBootstrap, ProxyManager } from "./managers/proxyManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { SplitLayoutManager } from "./managers/splitLayoutManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -73,14 +75,19 @@ import { WorkerBrokerManager } from "./managers/workerBrokerManager";
 import { clearLogEntries, readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
-import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
-import { ToolInstallationCoordinator } from "./utilities/appWorkerLifecycle";
-import { mergeDataverseHeaders } from "./utilities/dataverseBatch";
-import { authorizeFilesystemCaller } from "./utilities/filesystemAuthorization";
-import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utilities/nativeWorkerIdentity";
-import { WorkerQuitCoordinator } from "./utilities/workerQuit";
-import { registerWorkerToolIpcHandlers } from "./utilities/workerToolIpc";
+import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utils";
+import { ToolInstallationCoordinator } from "./utils/appWorkerLifecycle";
+import { mergeDataverseHeaders } from "./utils/dataverseBatch";
+import { authorizeFilesystemCaller } from "./utils/filesystemAuthorization";
+import { nativeWorkerSourceFingerprint, resolveNativeWorkerIdentity } from "./utils/nativeWorkerIdentity";
+import { readToolIconSvg } from "./utils/toolIcon";
+import { WorkerQuitCoordinator } from "./utils/workerQuit";
+import { registerWorkerToolIpcHandlers } from "./utils/workerToolIpc";
 import { resolveToolConnectionForRequest } from "./utils/connectionTarget";
+
+// Proxy environment variables must be set before any HTTP-capable manager is instantiated.
+// This bootstrap reads persisted settings and applies proxy env vars early in process startup.
+applyProxyEnvironmentBootstrap();
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -105,6 +112,7 @@ const isFaviconAllowedHost = (hostname: string): boolean => {
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
+    private proxyManager: ProxyManager;
     private installIdManager: InstallIdManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
@@ -158,6 +166,7 @@ class ToolBoxApp {
 
         try {
             this.settingsManager = new SettingsManager();
+            this.proxyManager = new ProxyManager(this.settingsManager);
             this.installIdManager = new InstallIdManager(this.settingsManager);
             const initialSentryConsent = this.settingsManager.getSentryTelemetryConsent();
             const initialInstallId = initialSentryConsent === "yes" || initialSentryConsent === "no" ? this.installIdManager.getInstallId() : undefined;
@@ -177,6 +186,7 @@ class ToolBoxApp {
                 this.installIdManager,
                 process.env.AZURE_BLOB_BASE_URL,
                 this.settingsManager,
+                this.proxyManager,
             );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.nativeWorkerConsentManager = new NativeWorkerConsentManager(
@@ -197,6 +207,7 @@ class ToolBoxApp {
                 consent: this.nativeWorkerConsentManager,
                 discovery: new DotNetDiscoveryManager(),
                 preparationRoot: path.join(app.getPath("userData"), "native-workers"),
+                agentForUrl: (url) => this.proxyManager.getAgentForUrl(url),
                 resolve: (sender, workerId) => {
                     const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(sender.id);
                     if (!instanceId || sender === this.mainWindow?.webContents || this.toolWindowManager?.getToolViews().get(instanceId)?.webContents !== sender) return null;
@@ -216,27 +227,55 @@ class ToolBoxApp {
                     if (!identity) return null;
                     return { owner: { toolId: loaded.toolId, instanceId }, identity, sourceFingerprint: nativeWorkerSourceFingerprint(loaded) };
                 },
-                onStartupFailure: (code) =>
-                    captureException(new Error(`Native worker startup failed: ${code}`), {
+                onStartupFailure: (code, error) => {
+                    const message = error instanceof Error && error.message ? error.message : `Native worker startup failed: ${code}`;
+                    logError(`Native worker startup failed: ${code}`, error);
+                    captureException(error instanceof Error ? error : new Error(message), {
                         tags: { component: "native_worker", failure_code: code },
-                    }),
+                        extra: {
+                            failure_code: code,
+                            ...(error && typeof error === "object" && "details" in error && typeof error.details === "string" ? { details: error.details } : {}),
+                        },
+                    });
+                },
                 onError: (error) => logError("Native worker cleanup failed", error),
             });
             this.protocolHandlerManager = new ProtocolHandlerManager();
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
-            this.authManager = new AuthManager(this.browserManager);
+            this.authManager = new AuthManager(this.browserManager, this.proxyManager);
             this.terminalManager = new TerminalManager();
-            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager, this.proxyManager);
             this.dataverseHeaderConsentManager = new DataverseHeaderConsentManager(
                 this.settingsManager,
                 () => this.mainWindow?.webContents ?? null,
                 (webContentsId) => this.toolWindowManager?.getToolIdentityByWebContents(webContentsId) ?? null,
             );
-            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
+            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager, this.proxyManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
-            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
+            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager, this.proxyManager);
+            this.proxyManager.setCredentialPromptHandler((authInfo) => this.promptForProxyCredentials(authInfo.host || "proxy", authInfo.port));
+            this.proxyManager.setFailureNotifier((notice) => {
+                this.api.showNotification({
+                    title: notice.title,
+                    body: notice.message,
+                    type: "error",
+                    duration: 15000,
+                });
+            });
+            this.mcpServerManager.setStatusChangeHandler((status, error) => {
+                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                    this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
+                        event: ToolBoxEvent.MCP_SERVER_STATUS_CHANGED,
+                        data: { status, error },
+                        timestamp: new Date().toISOString(),
+                    });
+                }
+                if (status !== "starting") {
+                    this.trayManager?.refreshContextMenu();
+                }
+            });
             this.mcpServerManager.setJobChangeHandler((jobId) => {
                 if (this.mainWindow) {
                     this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
@@ -283,6 +322,25 @@ class ToolBoxApp {
      * Set up event listeners
      */
     private setupEventListeners(): void {
+        app.on("login", (event, _webContents, _request, authInfo, callback) => {
+            if (!authInfo.isProxy) {
+                return;
+            }
+
+            event.preventDefault();
+            void this.proxyManager
+                .handleProxyAuthChallenge(authInfo, callback)
+                .then((handled) => {
+                    if (!handled) {
+                        callback("", "");
+                    }
+                })
+                .catch((error) => {
+                    logError(error instanceof Error ? error : new Error(String(error)));
+                    callback("", "");
+                });
+        });
+
         // Listen to tool manager events
         this.toolManager.on("tool:loaded", (tool) => {
             this.api.emitEvent(ToolBoxEvent.TOOL_LOADED, tool);
@@ -431,6 +489,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_REGISTRY_ISSUES);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
@@ -442,6 +501,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML);
         ipcMain.removeHandler(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_ICON_SVG);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_CONTEXT);
         ipcMain.removeHandler(WORKER_CHANNELS.START);
         ipcMain.removeHandler(WORKER_CHANNELS.SEND);
@@ -495,6 +555,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
         ipcMain.removeHandler(UTIL_CHANNELS.RESTART_APP);
+        ipcMain.removeHandler(UTIL_CHANNELS.TEST_PROXY_CONNECTION);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_MINIMIZE);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_CLOSE);
@@ -603,6 +664,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.STOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.DISCONNECT_CLAUDE_DESKTOP);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.DISCONNECT_VSCODE);
     }
 
     /**
@@ -701,6 +764,9 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, async (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
+            if (Object.prototype.hasOwnProperty.call(settings, "proxy")) {
+                this.proxyManager.applyProxyEnvironment();
+            }
             if (Object.prototype.hasOwnProperty.call(settings, "sentryTelemetryConsent")) {
                 const currentSentryConsent = this.settingsManager.getSentryTelemetryConsent();
                 const sentryInitialized = await applyMainSentryConsent(
@@ -718,6 +784,9 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (event, key, value) => {
             this.settingsManager.setSetting(key, value);
+            if (key === "proxy") {
+                this.proxyManager.applyProxyEnvironment();
+            }
             if (key === "sentryTelemetryConsent") {
                 const currentSentryConsent = this.settingsManager.getSentryTelemetryConsent();
                 const sentryInitialized = await applyMainSentryConsent(
@@ -792,11 +861,23 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP, async () => {
-            return await this.mcpServerManager.configureClient("claude-desktop");
+            const result = await this.mcpServerManager.configureClient("claude-desktop");
+            this.trayManager?.refreshContextMenu();
+            return result;
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE, async () => {
-            return await this.mcpServerManager.configureClient("vscode");
+            const result = await this.mcpServerManager.configureClient("vscode");
+            this.trayManager?.refreshContextMenu();
+            return result;
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.DISCONNECT_CLAUDE_DESKTOP, async () => {
+            return await this.mcpServerManager.disconnectClient("claude-desktop");
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.DISCONNECT_VSCODE, async () => {
+            return await this.mcpServerManager.disconnectClient("vscode");
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {
@@ -1253,9 +1334,14 @@ class ToolBoxApp {
             });
         });
 
-        // Fetch available tools from registry
-        ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async () => {
-            return await this.toolManager.fetchAvailableTools();
+        // Fetch available tools from registry (throws when every enabled marketplace source fails)
+        ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async (_, options?: { forceRefresh?: boolean }) => {
+            return await this.toolManager.fetchAvailableTools({ forceRefresh: options?.forceRefresh === true });
+        });
+
+        // Failed or degraded marketplace sources from the last successful registry fetch
+        ipcMain.handle(TOOL_CHANNELS.GET_REGISTRY_ISSUES, () => {
+            return this.toolManager.getRegistryManager().getRegistryIssues();
         });
 
         // Fetch community resource links from Supabase (returns null on failure; renderer falls back to bundled data)
@@ -1316,14 +1402,22 @@ class ToolBoxApp {
         });
 
         // Submit (or update) this install's star rating/comment for a tool
-        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string) => {
+        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string, toolVersion?: string) => {
+            if (typeof toolId !== "string" || !toolId) {
+                throw new Error("A tool is required to submit a review.");
+            }
             if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
                 throw new Error("Rating must be an integer between 1 and 5");
             }
             const trimmedComment = typeof comment === "string" ? comment.trim().slice(0, 500) : undefined;
-            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined);
+            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined, toolVersion);
             this.settingsManager.setMyToolRating(toolId, rating, trimmedComment || undefined);
             return aggregate;
+        });
+
+        // Resolve installation state (and installed version) used to gate reviews
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_REVIEW_CONTEXT, (_, toolId: string) => {
+            return this.toolManager.getToolReviewContext(toolId);
         });
 
         // Get this install's previously submitted rating/comment for a tool, if any
@@ -1350,26 +1444,15 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.SUBMIT, async (_, idea: ToolIdeaSubmission) => {
-            if (!idea || typeof idea.title !== "string" || typeof idea.description !== "string") {
-                throw new Error("A title and description are required.");
-            }
-            const title = idea.title.trim();
-            const description = idea.description.trim();
-            const email = typeof idea.email === "string" ? idea.email.trim() : "";
-            if (!title || title.length > 120) {
-                throw new Error("The title must be between 1 and 120 characters.");
-            }
-            if (!description || description.length > 3000) {
-                throw new Error("The description must be between 1 and 3000 characters.");
-            }
-            if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-                throw new Error("Enter a valid contact email address.");
-            }
-            await this.toolManager.submitToolIdea({ title, description, email: email || undefined });
+            await this.toolManager.submitToolIdea(validateIdeaSubmission(idea));
         });
 
         ipcMain.handle(TOOL_IDEA_CHANNELS.UPVOTE, async (_, ideaId: string) => {
             return this.toolManager.upvoteToolIdea(ideaId);
+        });
+
+        ipcMain.handle(TOOL_IDEA_CHANNELS.REMOVE_VOTE, async (_, ideaId: string) => {
+            return this.toolManager.removeToolIdeaVote(ideaId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -1424,6 +1507,21 @@ class ToolBoxApp {
 
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML, (_, packageName) => {
             return this.toolManager.getToolWebviewHtml(packageName);
+        });
+
+        // Bundled tool icon SVG markup, so the renderer can show colour icons as images and
+        // monochrome (currentColor) icons as theme masks. A mask on a pptb-webview:// URL is a
+        // cross-origin load, which fails for that scheme. URLs (marketplace icons) return null.
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_ICON_SVG, (_, toolId: unknown, iconPath: unknown) => {
+            if (typeof toolId !== "string" || typeof iconPath !== "string" || !iconPath) return null;
+            try {
+                const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
+                const toolBaseDir = tool ? this.browserviewProtocolManager.getToolBaseDirectory(tool) : null;
+                return toolBaseDir ? readToolIconSvg(toolBaseDir, iconPath) : null;
+            } catch (error) {
+                logWarn(`[ToolIcon] Could not load icon for ${toolId}: ${(error as Error).message}`);
+                return null;
+            }
         });
 
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_CONTEXT, (_, packageName, connectionUrl) => {
@@ -1675,6 +1773,10 @@ class ToolBoxApp {
             return await this.checkInternetConnectivity();
         });
 
+        ipcMain.handle(UTIL_CHANNELS.TEST_PROXY_CONNECTION, async (_, settings) => {
+            return await this.proxyManager.testConnection(settings);
+        });
+
         // Event history handler
         ipcMain.handle(UTIL_CHANNELS.GET_EVENT_HISTORY, (_, limit) => {
             return this.api.getEventHistory(limit);
@@ -1711,7 +1813,7 @@ class ToolBoxApp {
 
                 const https = await import("https");
                 return new Promise<string | null>((resolve) => {
-                    const req = https.get(parsedUrl.toString(), { timeout: 5000 }, (res) => {
+                    const req = https.get(parsedUrl.toString(), { timeout: 5000, agent: this.proxyManager.getAgentForUrl(parsedUrl.toString()) }, (res) => {
                         const status = res.statusCode ?? 0;
                         const contentType = res.headers["content-type"] ?? "image/png";
 
@@ -1829,55 +1931,55 @@ class ToolBoxApp {
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { readText } = await import("./utilities/filesystem.js");
+            const { readText } = await import("./utils/filesystem.js");
             return await readText(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { readBinary } = await import("./utilities/filesystem.js");
+            const { readBinary } = await import("./utils/filesystem.js");
             return await readBinary(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { exists } = await import("./utilities/filesystem.js");
+            const { exists } = await import("./utils/filesystem.js");
             return await exists(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (event, filePath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { stat } = await import("./utilities/filesystem.js");
+            const { stat } = await import("./utils/filesystem.js");
             return await stat(filePath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (event, dirPath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, dirPath);
 
-            const { readDirectory } = await import("./utilities/filesystem.js");
+            const { readDirectory } = await import("./utils/filesystem.js");
             return await readDirectory(dirPath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (event, filePath: string, content: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, filePath);
 
-            const { writeText } = await import("./utilities/filesystem.js");
+            const { writeText } = await import("./utils/filesystem.js");
             return await writeText(filePath, content);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (event, dirPath: string) => {
             authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager, dirPath);
 
-            const { createDirectory } = await import("./utilities/filesystem.js");
+            const { createDirectory } = await import("./utils/filesystem.js");
             return await createDirectory(dirPath);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (event, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
             const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
-            const { saveFile } = await import("./utilities/filesystem.js");
+            const { saveFile } = await import("./utils/filesystem.js");
             const selectedPath = await saveFile(defaultPath, content, filters);
 
             // Grant access to the selected path if a tool called this and user selected a file
@@ -1895,7 +1997,7 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (event, options) => {
             const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
-            const { selectPath } = await import("./utilities/filesystem.js");
+            const { selectPath } = await import("./utils/filesystem.js");
             const selectedPath = await selectPath(options);
 
             // Grant access to the selected path if a tool called this and user selected something
@@ -3135,7 +3237,7 @@ class ToolBoxApp {
                         },
                     },
                     {
-                        label: "Suggest a Tool",
+                        label: "Share an idea",
                         click: () => {
                             this.mainWindow?.webContents.send("open-suggest-tool-modal");
                         },
@@ -3651,6 +3753,111 @@ class ToolBoxApp {
         this.sendWhatsNewRequest("auto-update", currentVersion);
     }
 
+    private async promptForProxyCredentials(proxyHost: string, proxyPort?: number): Promise<{ username: string; password: string } | null> {
+        if (!this.modalWindowManager) {
+            return null;
+        }
+
+        const modalId = `proxy-auth-${Date.now()}`;
+        const submitChannel = `${modalId}:submit`;
+        const cancelChannel = `${modalId}:cancel`;
+        const escapedHost = proxyHost.replace(/[<>"'&]/g, "");
+        const escapedPort = typeof proxyPort === "number" ? String(proxyPort) : "";
+        const subtitle = escapedPort ? `${escapedHost}:${escapedPort}` : escapedHost;
+
+        const html = `
+<div class="modal-panel" style="padding: 16px;">
+    <div class="modal-header">
+        <div>
+            <p class="modal-eyebrow">Proxy Authentication</p>
+            <h3>Credentials Required</h3>
+        </div>
+        <button class="icon-button" id="proxy-auth-close-btn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="settings-vscode-item-description" style="margin: 0 0 12px 0;">A proxy server requested authentication for <strong>${subtitle}</strong>.</p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <input id="proxy-auth-username" type="text" class="fluent-input settings-vscode-input" placeholder="Username" autocomplete="username" />
+            <input id="proxy-auth-password" type="password" class="fluent-input settings-vscode-input" placeholder="Password" autocomplete="current-password" />
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" id="proxy-auth-cancel-btn" class="fluent-button fluent-button-secondary">Cancel</button>
+        <button type="button" id="proxy-auth-submit-btn" class="fluent-button fluent-button-primary">Sign In</button>
+    </div>
+</div>
+<script>
+(() => {
+    const bridge = window.modalBridge;
+    if (!bridge) return;
+    const submit = () => {
+        const username = (document.getElementById("proxy-auth-username")?.value || "").trim();
+        const password = document.getElementById("proxy-auth-password")?.value || "";
+        bridge.send(${JSON.stringify(submitChannel)}, { username, password });
+    };
+    const cancel = () => bridge.send(${JSON.stringify(cancelChannel)}, {});
+    document.getElementById("proxy-auth-submit-btn")?.addEventListener("click", submit);
+    document.getElementById("proxy-auth-cancel-btn")?.addEventListener("click", cancel);
+    document.getElementById("proxy-auth-close-btn")?.addEventListener("click", cancel);
+    document.getElementById("proxy-auth-password")?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") submit();
+    });
+})();
+</script>`;
+
+        return await new Promise((resolve) => {
+            let settled = false;
+            const timeout = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    ipcMain.removeListener(MODAL_WINDOW_CHANNELS.MESSAGE, onModalMessage);
+                    this.modalWindowManager?.hideModal();
+                    resolve(null);
+                }
+            }, 120000);
+
+            const finish = (value: { username: string; password: string } | null): void => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
+                ipcMain.removeListener(MODAL_WINDOW_CHANNELS.MESSAGE, onModalMessage);
+                this.modalWindowManager?.hideModal();
+                resolve(value);
+            };
+
+            const onModalMessage = (_event: unknown, payload: { channel?: string; data?: unknown }) => {
+                if (!payload || typeof payload.channel !== "string") {
+                    return;
+                }
+
+                if (payload.channel === cancelChannel) {
+                    finish(null);
+                    return;
+                }
+
+                if (payload.channel === submitChannel && payload.data && typeof payload.data === "object") {
+                    const data = payload.data as { username?: unknown; password?: unknown };
+                    const username = typeof data.username === "string" ? data.username.trim() : "";
+                    const password = typeof data.password === "string" ? data.password : "";
+                    if (!username || !password) {
+                        return;
+                    }
+                    finish({ username, password });
+                }
+            };
+
+            ipcMain.on(MODAL_WINDOW_CHANNELS.MESSAGE, onModalMessage);
+            this.modalWindowManager?.showModal({
+                id: modalId,
+                html,
+                width: 460,
+                height: 280,
+                resizable: false,
+                alwaysOnTop: true,
+            });
+        });
+    }
+
     /**
      * Check Supabase connectivity
      * Tests if the Supabase API is accessible
@@ -3720,33 +3927,7 @@ class ToolBoxApp {
      * Check baseline internet connectivity by reaching GitHub
      */
     private async checkInternetConnectivity(): Promise<{ success: boolean; message?: string }> {
-        const INTERNET_CHECK_URL = "https://api.github.com/zen";
-
-        try {
-            const response = await fetch(INTERNET_CHECK_URL, {
-                method: "GET",
-                headers: { "User-Agent": "PowerPlatformToolBox" },
-            });
-
-            if (response.ok) {
-                logInfo(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
-                return {
-                    success: true,
-                    message: "Internet connectivity verified via GitHub",
-                };
-            }
-            logWarn("[Troubleshooting] Internet connectivity check returned non-OK status");
-            return {
-                success: false,
-                message: `Internet connectivity check failed: HTTP ${response.status}`,
-            };
-        } catch (error) {
-            logError(error as Error);
-            return {
-                success: false,
-                message: error instanceof Error ? error.message : "Network error during internet connectivity check",
-            };
-        }
+        return this.proxyManager.testConnection();
     }
 
     /**
@@ -3791,37 +3972,43 @@ class ToolBoxApp {
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
                     const protocol = url.startsWith("https") ? https : http;
-                    const request = protocol.get(url, (res) => {
-                        if ((res.statusCode === 302 || res.statusCode === 301) && res.headers.location) {
-                            if (redirectDepth > 5) {
-                                reject(new Error("Too many redirects while downloading test tool"));
+                    const request = protocol.get(
+                        url,
+                        {
+                            agent: this.proxyManager.getAgentForUrl(url),
+                        },
+                        (res) => {
+                            if ((res.statusCode === 302 || res.statusCode === 301) && res.headers.location) {
+                                if (redirectDepth > 5) {
+                                    reject(new Error("Too many redirects while downloading test tool"));
+                                    return;
+                                }
+                                logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
+                                download(res.headers.location, redirectDepth + 1);
                                 return;
                             }
-                            logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
-                            download(res.headers.location, redirectDepth + 1);
-                            return;
-                        }
 
-                        if (res.statusCode !== 200) {
-                            reject(new Error(`Download failed: HTTP ${res.statusCode}`));
-                            return;
-                        }
-
-                        const fileStream = createWriteStream(downloadPath);
-                        res.pipe(fileStream);
-
-                        fileStream.on("finish", () => {
-                            fileStream.close();
-                            resolve();
-                        });
-
-                        fileStream.on("error", (err) => {
-                            if (fs.existsSync(downloadPath)) {
-                                fs.unlinkSync(downloadPath);
+                            if (res.statusCode !== 200) {
+                                reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+                                return;
                             }
-                            reject(err);
-                        });
-                    });
+
+                            const fileStream = createWriteStream(downloadPath);
+                            res.pipe(fileStream);
+
+                            fileStream.on("finish", () => {
+                                fileStream.close();
+                                resolve();
+                            });
+
+                            fileStream.on("error", (err) => {
+                                if (fs.existsSync(downloadPath)) {
+                                    fs.unlinkSync(downloadPath);
+                                }
+                                reject(err);
+                            });
+                        },
+                    );
 
                     request.on("error", (err) => {
                         reject(new Error(`Network error: ${err.message}`));
@@ -4020,6 +4207,8 @@ class ToolBoxApp {
 
             await app.whenReady();
             logCheckpoint("Electron app ready");
+
+            await this.proxyManager.initialize();
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();

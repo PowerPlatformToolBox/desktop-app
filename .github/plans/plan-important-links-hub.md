@@ -30,19 +30,19 @@ Add a curated set of external links (newsletters, release plans, calculators/est
 - The links are accessible from the **sidebar** (not the homepage) and grouped under clear headings.
 - The link collection is stored in a **JSON file** (single source of truth) that is easy to maintain.
 - The following links exist in the JSON and appear in the UI grouped as:
-  - **Newsletters**
-    - PP Weekly — https://www.ppweekly.com/
-    - PP Dev Weekly — https://www.ppdevweekly.com/
-  - **Release plans**
-    - Release Plans Visualized — https://releaseplans.net/
-  - **Calculators / estimators**
-    - Dataverse Capacity Calculator — https://dataverse.licensing.guide/
-    - Power Pages Licensing Cost Calculator — https://powerportals.de/tools/power-pages-pricing-calculator.html
-    - Microsoft agent usage estimator — https://microsoft.github.io/copilot-studio-estimator/
+    - **Newsletters**
+        - PP Weekly — https://www.ppweekly.com/
+        - PP Dev Weekly — https://www.ppdevweekly.com/
+    - **Release plans**
+        - Release Plans Visualized — https://releaseplans.net/
+    - **Calculators / estimators**
+        - Dataverse Capacity Calculator — https://dataverse.licensing.guide/
+        - Power Pages Licensing Cost Calculator — https://powerportals.de/tools/power-pages-pricing-calculator.html
+        - Microsoft agent usage estimator — https://microsoft.github.io/copilot-studio-estimator/
 - Clicking any item opens the URL via the app’s “open external” pathway (no in-app navigation).
 - URL opening is safe:
-  - Minimum: only `https:` URLs are allowed.
-  - Strict allowlist: only URLs present in the JSON collection can be opened from this UI.
+    - Minimum: only `https:` URLs are allowed.
+    - Strict allowlist: only URLs present in the JSON collection can be opened from this UI.
 - UI uses Fluent UI Web Components and existing styling conventions (no new visual system).
 - No production `console.*` logging is added.
 - Any previous homepage rendering of this hub is removed/disabled (source of truth is sidebar).
@@ -85,14 +85,14 @@ Rationale:
 ### Process Designer
 
 - Manual validation checklist:
-  - Verify the “Important links” section renders with 3 categories and the 6 items above.
-  - Click-test every link opens the default browser and the app remains usable.
-  - Offline smoke: links still render; clicking doesn’t crash/freeze.
-  - Rapid clicking doesn’t crash the app.
+    - Verify the “Important links” section renders with 3 categories and the 6 items above.
+    - Click-test every link opens the default browser and the app remains usable.
+    - Offline smoke: links still render; clicking doesn’t crash/freeze.
+    - Rapid clicking doesn’t crash the app.
 - Engineering validation:
-  - `pnpm run typecheck`
-  - `pnpm run lint`
-  - `pnpm run build`
+    - `pnpm run typecheck`
+    - `pnpm run lint`
+    - `pnpm run build`
 
 ### UI Designer
 
@@ -101,16 +101,16 @@ Rationale:
 - Categories: three grouped blocks, each a small list of full-width “stealth” buttons.
 - Interaction: clicking opens in the system default browser.
 - Microcopy:
-  - Heading: **Important links**
-  - Helper: **Curated Power Platform resources—news, planning, and quick calculators.**
-  - Category headings: **Newsletters**, **Release plans**, **Calculators / estimators**
+    - Heading: **Important links**
+    - Helper: **Curated Power Platform resources—news, planning, and quick calculators.**
+    - Category headings: **Newsletters**, **Release plans**, **Calculators / estimators**
 
 ### Data Architect
 
 - Provide a minimal JSON structure that is stable and easy to edit:
-  - `version` number
-  - `groups[]` with `id`, `title`, and `links[]`
-  - Each link has `id`, `label`, `url`
+    - `version` number
+    - `groups[]` with `id`, `title`, and `links[]`
+    - Each link has `id`, `label`, `url`
 
 ### Tech Designer
 
@@ -119,24 +119,24 @@ Rationale:
 - Use the existing external-open capability via IPC/preload (`window.toolboxAPI.openExternal(url)`), not raw anchors.
 - Security: validate URL protocol in main before calling `shell.openExternal`; enforce strict allowlist for this UI (based on JSON).
 - Expected touchpoints (subject to confirmation during implementation):
-  - JSON collection: `src/common/data/importantLinks.json` (preferred) or `src/renderer/data/importantLinks.json`
-  - Sidebar UI + wiring: `src/renderer/index.html`, `src/renderer/modules/sidebarManagement.ts` and/or a dedicated new renderer module for links
-  - Remove/disable homepage hub: `src/renderer/modules/homepageManagement.ts` (and any homepage container markup)
-  - Styling: `src/renderer/styles.scss` or an appropriate sidebar stylesheet if present
-  - If needed for hardening: `src/common/ipc/channels.ts`, `src/main/index.ts`, `src/main/preload.ts`, `src/common/types/api.ts`
+    - JSON collection: `src/common/data/importantLinks.json` (preferred) or `src/renderer/data/importantLinks.json`
+    - Sidebar UI + wiring: `src/renderer/index.html`, `src/renderer/modules/sidebarManagement.ts` and/or a dedicated new renderer module for links
+    - Remove/disable homepage hub: `src/renderer/modules/homepageManagement.ts` (and any homepage container markup)
+    - Styling: `src/renderer/styles.scss` or an appropriate sidebar stylesheet if present
+    - If needed for hardening: `src/common/ipc/channels.ts`, `src/main/index.ts`, `src/main/preload.ts`, `src/common/types/api.ts`
 
 #### Implementation deltas (to finish)
 
 - Remove homepage hub UI and rendering:
-  - Delete the homepage section markup for Important links from `src/renderer/index.html` (the `important-links-container` block).
-  - Remove `renderImportantLinksHub()` and related allowlist logic from `src/renderer/modules/homepageManagement.ts`.
-  - Remove homepage-specific CSS for the hub from `src/renderer/styles/homepage.scss` if it becomes unused.
+    - Delete the homepage section markup for Important links from `src/renderer/index.html` (the `important-links-container` block).
+    - Remove `renderImportantLinksHub()` and related allowlist logic from `src/renderer/modules/homepageManagement.ts`.
+    - Remove homepage-specific CSS for the hub from `src/renderer/styles/homepage.scss` if it becomes unused.
 - Make JSON the only maintained collection:
-  - Remove the TS constants collection file `src/renderer/constants/importantLinks.ts` and any exports/imports that still reference `IMPORTANT_LINK_GROUPS` / `IMPORTANT_LINK_ALLOWLIST`.
-  - Ensure sidebar rendering reads exclusively from `src/renderer/data/importantLinks.json`.
+    - Remove the TS constants collection file `src/renderer/constants/importantLinks.ts` and any exports/imports that still reference `IMPORTANT_LINK_GROUPS` / `IMPORTANT_LINK_ALLOWLIST`.
+    - Ensure sidebar rendering reads exclusively from `src/renderer/data/importantLinks.json`.
 - Keep the change tightly scoped:
-  - Revert unrelated changes detected in `src/main/managers/protocolHandlerManager.ts` (an early `return;` in `initialize()` that disables protocol handling).
-  - Avoid landing additional unrelated formatting changes.
+    - Revert unrelated changes detected in `src/main/managers/protocolHandlerManager.ts` (an early `return;` in `initialize()` that disables protocol handling).
+    - Avoid landing additional unrelated formatting changes.
 
 ### Critic
 
