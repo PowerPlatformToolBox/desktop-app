@@ -221,6 +221,10 @@ export async function invokeHeadless(
 
 These messages are stored with the job, surfaced in the MCP Server detail pane, and kept bounded so the log history does not grow without limit.
 
+Open **Details** on an invocation in the MCP Server tab to inspect its logs and result. Dismiss the dialog with **Close** or by clicking the backdrop, including after closing and reopening the MCP Server tab.
+
+The invocation table and details dialog show a single **Status** badge: the live headless job status when available, otherwise the invocation outcome. Without a job record, `in-progress` appears as `in_progress`, while `rejected` and `no-result` remain distinct.
+
 ## Agent-Driven Input Flow
 
 Headless execution is fully agent-driven: PPTB never opens a window, picker, or browser sign-in from a tool call. Instead, anything the user still has to provide is returned to the agent in a single `input_required` response.

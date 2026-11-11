@@ -1,4 +1,5 @@
 import type { AgentInvocationLogEntry, HeadlessJobDetails } from "../../../common/types";
+import { getMcpInvocationStatus, getMcpInvocationStatusBadgeStyle } from "../../modules/mcpInvocationStatus";
 
 function escapeHtml(text: string): string {
     const div = document.createElement("div");
@@ -19,21 +20,6 @@ function formatTimestamp(timestamp: string): string {
         });
     } catch {
         return timestamp;
-    }
-}
-
-function getStatusBadgeStyle(status: string): string {
-    switch (status) {
-        case "completed":
-            return "background: #107c10; color: white;";
-        case "failed":
-            return "background: #d13438; color: white;";
-        case "in_progress":
-            return "background: #0f6cbd; color: white;";
-        case "pending":
-            return "background: #8a8886; color: white;";
-        default:
-            return "background: #6b6b6b; color: white;";
     }
 }
 
@@ -71,18 +57,17 @@ export function getMcpInvocationDetailsContent(logEntry: AgentInvocationLogEntry
         return `<div class="empty-state" style="padding: 14px 16px;"><p>No invocation details are available.</p></div>`;
     }
 
-    const status = job?.status ?? (logEntry?.outcome === "completed" ? "completed" : logEntry?.outcome === "rejected" ? "failed" : "pending");
+    const status = getMcpInvocationStatus(logEntry?.outcome, job?.status);
     const logs = job?.logs ?? [];
     const progressText = job?.progress ? `${job.progress.percent}%${job.progress.message ? ` - ${escapeHtml(job.progress.message)}` : ""}` : "-";
 
     const detailsSummary = `
-        <div style="display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); width: 100%;">
+        <div class="mcp-invocation-summary">
             <div><strong>Tool</strong><div>${escapeHtml(logEntry?.toolName ?? job?.toolName ?? "Unknown")}</div></div>
-            <div><strong>Job / Correlation ID</strong><div style="font-family: monospace; word-break: break-all;">${escapeHtml(job?.jobId ?? logEntry?.correlationId ?? "-")}</div></div>
-            <div><strong>Status</strong><div><span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; ${getStatusBadgeStyle(status)}">${escapeHtml(status)}</span></div></div>
+            <div><strong>Corelation Id</strong><div style="font-family: monospace; word-break: break-all;">${escapeHtml(job?.jobId ?? logEntry?.correlationId ?? "-")}</div></div>
+            <div><strong>Status</strong><div><span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; ${getMcpInvocationStatusBadgeStyle(status)}">${escapeHtml(status)}</span></div></div>
             <div><strong>Progress</strong><div>${progressText}</div></div>
             <div><strong>Invocation Mode</strong><div>${escapeHtml(logEntry?.invocationMode ?? "-")}</div></div>
-            <div><strong>Outcome</strong><div>${escapeHtml(logEntry?.outcome ?? "-")}</div></div>
         </div>
     `;
 

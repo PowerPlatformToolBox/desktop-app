@@ -7477,6 +7477,12 @@ body.dark-theme .global-search-item-badge.badge-settings {
 
 .mcp-invocation-modal-header {
     padding: 14px 16px;
+
+    h3 {
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1.4;
+    }
 }
 
 .mcp-invocation-modal-body {
@@ -7484,6 +7490,45 @@ body.dark-theme .global-search-item-badge.badge-settings {
     padding: 16px;
     display: grid;
     gap: 12px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+
+    .empty-state p {
+        margin: 0;
+        font-size: inherit;
+        font-weight: inherit;
+        line-height: inherit;
+    }
+
+    pre {
+        font-size: inherit;
+        line-height: inherit;
+    }
+}
+
+.mcp-invocation-summary {
+    display: grid;
+    gap: 12px 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+
+    @media (max-width: 760px) {
+        grid-template-columns: 1fr;
+    }
+
+    > div {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-secondary, #8a8886);
+    }
 }
 
 .mcp-modal-section {

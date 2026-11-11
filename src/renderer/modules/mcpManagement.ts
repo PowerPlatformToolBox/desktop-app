@@ -12,6 +12,7 @@ import {
 } from "../modals/mcpInvocationDetails/controller";
 import { getMcpInvocationDetailsContent, getMcpInvocationDetailsModalView } from "../modals/mcpInvocationDetails/view";
 import { getMcpClientPresentation, MCP_CLIENTS } from "./mcpClients";
+import { getMcpInvocationStatus, getMcpInvocationStatusBadgeStyle } from "./mcpInvocationStatus";
 import { openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 
 const MCP_REFRESH_INTERVAL_MS = 2000;
@@ -170,7 +171,6 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                                  <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Timestamp</th>
                                  <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Tool Name</th>
                                  <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Status</th>
-                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Outcome</th>
                                  <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Actions</th>
                              </tr>
                          </thead>
@@ -191,24 +191,6 @@ export function renderMCPServerContent(panel: HTMLElement): void {
     wireMcpLiveUpdates();
     loadAndRenderLogs();
     startMcpRefreshLoop();
-}
-
-/**
- * Outcome badge styles
- */
-function getOutcomeBadgeStyle(outcome: string): string {
-    switch (outcome) {
-        case "in-progress":
-            return "background: #0078d4; color: white;";
-        case "completed":
-            return "background: #107c10; color: white;";
-        case "no-result":
-            return "background: #8a8886; color: white;";
-        case "rejected":
-            return "background: #d13438; color: white;";
-        default:
-            return "background: #6b6b6b; color: white;";
-    }
 }
 
 function updateMcpServerStatusUi(isRunning: boolean, status: "starting" | "running" | "stopped" | "error" = isRunning ? "running" : "stopped"): void {
@@ -303,14 +285,13 @@ async function loadAndRenderLogs(): Promise<void> {
         tbody.innerHTML = logs
             .map((log, index) => {
                 const job = jobStatuses[index];
-                const status = job?.status ?? (log.outcome === "completed" ? "completed" : log.outcome === "rejected" ? "failed" : "no-result");
+                const status = getMcpInvocationStatus(log.outcome, job?.status);
                 return `
             <tr style="border-bottom: 1px solid var(--border-color-light, rgba(0,0,0,0.05));">
                 <td style="padding: 8px; font-size: 13px; white-space: nowrap;">${formatTimestamp(log.timestamp)}</td>
                 <td style="padding: 8px; font-size: 13px;">${escapeHtml(log.toolName)}</td>
-                <td style="padding: 8px; font-size: 13px; text-transform: uppercase;">${escapeHtml(status)}</td>
                 <td style="padding: 8px; font-size: 13px;">
-                    <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; ${getOutcomeBadgeStyle(log.outcome)}">${escapeHtml(log.outcome)}</span>
+                    <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; ${getMcpInvocationStatusBadgeStyle(status)}">${escapeHtml(status)}</span>
                     ${log.error ? `<span style="margin-left: 6px; color: var(--error-color, #d13438); cursor: pointer;" title="${escapeHtml(log.error)}">⚠</span>` : ""}
                 </td>
                 <td style="padding: 8px; font-size: 13px;">

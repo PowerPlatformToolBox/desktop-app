@@ -4,19 +4,14 @@ export const MCP_INVOCATION_MODAL_ID = "mcp-invocation-modal";
 export const MCP_INVOCATION_MODAL_CLOSE_ID = "mcp-invocation-modal-close";
 export const MCP_INVOCATION_MODAL_CONTENT_ID = "mcp-invocation-modal-content";
 
-let controllerBound = false;
 let closeHandler: (() => void) | null = null;
 
 export function initializeMcpInvocationDetailsModalController(onClose: () => void): void {
     closeHandler = onClose;
-    if (controllerBound) {
-        return;
-    }
-
     const modal = document.getElementById(MCP_INVOCATION_MODAL_ID) as HTMLDivElement | null;
     const closeButton = document.getElementById(MCP_INVOCATION_MODAL_CLOSE_ID) as HTMLButtonElement | null;
 
-    if (!modal || !closeButton) {
+    if (!modal || !closeButton || modal.dataset.bound === "true") {
         return;
     }
 
@@ -30,7 +25,7 @@ export function initializeMcpInvocationDetailsModalController(onClose: () => voi
         }
     });
 
-    controllerBound = true;
+    modal.dataset.bound = "true";
 }
 
 export function showMcpInvocationDetailsModal(): void {
