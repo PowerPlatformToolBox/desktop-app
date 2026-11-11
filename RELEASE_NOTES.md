@@ -1,42 +1,43 @@
-# Power Platform ToolBox 1.2.7
+# Power Platform ToolBox v1.2.8
 
 ## Highlights
 
-- Select a Dataverse user to impersonate for a tool instance and see when impersonation is active.
-- Assign tools up to ten positional connection slots, including optional slots, and route requests to the selected environment.
-- Send additional Dataverse request headers after consent, with persistent approvals available for review and revocation.
-- Run independent Dataverse operations in one batch or group writes in an atomic transaction.
-- Connect declared .NET worker processes through a typed API with managed startup, requests, cancellation, and shutdown.
-- Use the refreshed workspace layout with a custom title bar, sidebar controls, full-screen mode, and split-pane tool placement.
+- Configure automatic or manual HTTP/HTTPS proxies for app services and Dataverse requests.
+- Monitor MCP server status and inspect invocation details with improved status feedback.
+- Search across categories with global search tabs and filtering.
+- Select connections through an improved workflow, including connection-aware MCP requests.
+- Run Dataverse batch requests with response headers and transactional changesets.
+- Use declared .NET worker processes with managed startup and communication.
 
 ## Fixes
 
-- Improved multi-connection selection responsiveness and clarified connection assignment in the picker.
-- Preserved positional connection assignments, including empty slots, across restore, duplication, deletion, and tool updates.
-- Added paged Dataverse user search for impersonation selection.
-- Kept modal dialogs above the main window on Linux and constrained long notification messages.
-- Restored missing log recording and improved telemetry scrubbing of sensitive fields.
-- Corrected Dataverse header consent so instance approvals remain limited to the active tool instance.
+- Dataverse: fixed HTTP proxy handling and improved proxy failure diagnostics.
+- Windows: handle command shims during tool package installation.
+- Tools: display color SVG icons and load icons for locally installed tools.
+- Windows: improved .NET worker process handling.
+- Notifications: close notification history after clearing it.
+- Dialogs: fixed button mnemonics in tool message boxes.
+- Dataverse: apply dedicated response size limits to metadata and individual Web API responses.
 
 ## Developer & Build
 
-- Added `features.connections` declarations, numeric connection targets, slot-aware APIs, and positional MCP `connectionNames`.
-- Added `dataverseAPI.executeBatch` and `executeTransaction`, with request validation, consent checks, and per-operation results.
-- Added the typed `toolboxAPI.workers.connect` interface, .NET runtime/package handling, native-execution consent, and JSON-RPC process lifecycle.
-- Added Dataverse impersonation APIs and user-search support for tool authors.
-- Updated title-bar, full-screen, and split-layout controls across the renderer and main-process IPC bridge.
+- MCP: add server status management, invocation status details, and positional connection input support.
+- `dataverseAPI`: expose batch response headers and transactional changesets.
+- Proxy: add Node.js HTTP/HTTPS proxy configuration with automatic detection and manual override.
+- Worker API: reduce unnecessary process checks during request handling.
+- Nix: add source builds, a development shell, and desktop integration with the `pptb://` handler.
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-v1.2.7-Setup.exe
-- macOS: Power-Platform-ToolBox-v1.2.7.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-v1.2.7.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-v1.2.8-Setup.exe
+- macOS: Power-Platform-ToolBox-v1.2.8.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-v1.2.8.AppImage (chmod +x, then run)
 
 ## Notes
 
-- No manual migration needed; existing connection declarations and primary/secondary APIs remain supported.
-- .NET worker support is opt-in; Windows/Linux and packaged-app qualification remains outstanding.
+- No manual migration needed; existing tool connection declarations and primary/secondary APIs remain supported.
+- .NET worker use is opt-in and requires user consent for native execution.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.6...v1.2.7
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.7...v1.2.8
