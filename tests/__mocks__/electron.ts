@@ -40,21 +40,44 @@ export const app = {
 // BrowserWindow mock
 // ---------------------------------------------------------------------------
 export class BrowserWindow {
+    /** All instances created since the last `resetInstances()` call (newest last). Used by tests that need to inspect dynamically created windows, e.g. modal/prompt windows. */
+    static instances: BrowserWindow[] = [];
+    static resetInstances(): void {
+        BrowserWindow.instances = [];
+    }
+
+    constructor() {
+        BrowserWindow.instances.push(this);
+    }
+
     webContents = {
         send: jest.fn(),
         on: jest.fn(),
         executeJavaScript: jest.fn(() => Promise.resolve()),
         getZoomFactor: jest.fn(() => 1),
         isDestroyed: jest.fn(() => false),
+        setWindowOpenHandler: jest.fn(),
     };
-    on = jest.fn();
-    once = jest.fn();
+
+    private readonly listeners = new Map<string, Array<(...args: unknown[]) => void>>();
+    on = jest.fn((event: string, listener: (...args: unknown[]) => void) => {
+        const existing = this.listeners.get(event) ?? [];
+        existing.push(listener);
+        this.listeners.set(event, existing);
+        return this;
+    });
+    once = jest.fn((event: string, listener: (...args: unknown[]) => void) => this.on(event, listener));
     loadURL = jest.fn(() => Promise.resolve());
     loadFile = jest.fn(() => Promise.resolve());
     show = jest.fn();
     hide = jest.fn();
-    close = jest.fn();
+    close = jest.fn(() => this.destroy());
+    // Mimics real BrowserWindow: destroying the window fires any registered "closed" listeners.
+    destroy = jest.fn(() => {
+        for (const listener of this.listeners.get("closed") ?? []) listener();
+    });
     isDestroyed = jest.fn(() => false);
+    setMenu = jest.fn();
     addBrowserView = jest.fn();
     removeBrowserView = jest.fn();
     getBrowserViews = jest.fn(() => [] as BrowserView[]);

@@ -1,12 +1,25 @@
-import { AccountInfo, ConfidentialClientApplication, INetworkModule, LogLevel, NetworkRequestOptions, NetworkResponse, PublicClientApplication } from "@azure/msal-node";
-import { BrowserWindow } from "electron";
+import {
+    AccountInfo,
+    ConfidentialClientApplication,
+    ICachePlugin,
+    INetworkModule,
+    LogLevel,
+    NetworkRequestOptions,
+    NetworkResponse,
+    PublicClientApplication,
+    TokenCacheContext,
+} from "@azure/msal-node";
+import { app, BrowserWindow } from "electron";
+import * as fs from "fs";
 import * as http from "http";
 import * as https from "https";
+import * as path from "path";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { Connection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
+import { EncryptionManager } from "./encryptionManager";
 import type { ProxyManager } from "./proxyManager";
 
 /**
@@ -17,6 +30,8 @@ export class AuthManager {
     private msalApps: Map<string, PublicClientApplication> = new Map();
     // Confidential client instances per connection (isolated by connection ID)
     private confidentialApps: Map<string, ConfidentialClientApplication> = new Map();
+    // Used to encrypt the persisted token cache for extension connection providers (see createCachePlugin)
+    private readonly encryptionManager = new EncryptionManager();
     private activeServer: http.Server | null = null;
     private activeServerTimeout: NodeJS.Timeout | null = null;
     private activePort: number | null = null;
@@ -123,11 +138,61 @@ export class AuthManager {
     }
 
     /**
+     * Directory used to persist encrypted MSAL token caches across app restarts (see createCachePlugin).
+     */
+    private getMsalCacheDirectory(): string {
+        return path.join(app.getPath("userData"), "msal-cache");
+    }
+
+    /**
+     * Build a disk-backed, encrypted MSAL cache plugin for the given cache key.
+     *
+     * The serialized MSAL cache (which includes refresh tokens) is encrypted at rest with
+     * EncryptionManager (OS-level DPAPI/Keychain via Electron's safeStorage), the same mechanism
+     * already used for stored connection secrets. This lets acquireTokenSilent succeed across app
+     * restarts - avoiding a repeat interactive browser login - without ever writing a usable token
+     * to disk in plaintext. If encryption isn't available on this platform, no plugin is created and
+     * the cache falls back to in-memory only (today's behaviour).
+     */
+    private createCachePlugin(cacheKey: string): ICachePlugin {
+        const fileName = cacheKey.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const filePath = path.join(this.getMsalCacheDirectory(), `${fileName}.cache`);
+
+        return {
+            beforeCacheAccess: async (cacheContext: TokenCacheContext) => {
+                try {
+                    const encrypted = await fs.promises.readFile(filePath, "utf8");
+                    const decrypted = this.encryptionManager.decrypt(encrypted);
+                    if (decrypted) cacheContext.tokenCache.deserialize(decrypted);
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+                        logWarn(`[AuthManager] Failed to read persisted token cache, starting with an empty cache: ${(error as Error).message}`);
+                    }
+                }
+            },
+            afterCacheAccess: async (cacheContext: TokenCacheContext) => {
+                if (!cacheContext.cacheHasChanged) return;
+                try {
+                    await fs.promises.mkdir(this.getMsalCacheDirectory(), { recursive: true });
+                    const encrypted = this.encryptionManager.encrypt(cacheContext.tokenCache.serialize());
+                    await fs.promises.writeFile(filePath, encrypted, { mode: 0o600 });
+                } catch (error) {
+                    logWarn(`[AuthManager] Failed to persist token cache: ${(error as Error).message}`);
+                }
+            },
+        };
+    }
+
+    /**
      * Get or create MSAL instance for a given connection
      * Uses connection ID to ensure each connection has its own isolated MSAL instance
      * This prevents account cache collisions when testing with multiple users
+     *
+     * @param persist When true and encryption is available, the token cache is persisted to disk
+     * (encrypted) so a cached account can be reused across app restarts instead of always prompting
+     * interactively. Used for extension connection providers, which otherwise re-prompt on every launch.
      */
-    private getMsalApp(connectionId: string, clientId: string, tenantId: string): PublicClientApplication {
+    private getMsalApp(connectionId: string, clientId: string, tenantId: string, persist = false): PublicClientApplication {
         const key = connectionId; // Use connection ID for isolation
 
         if (!this.msalApps.has(key)) {
@@ -146,10 +211,13 @@ export class AuthManager {
                         logLevel: LogLevel.Warning,
                     },
                 },
-                cache: {
-                    // MSAL will use in-memory cache by default
-                    // This cache persists for the lifetime of the app process
-                },
+                cache:
+                    persist && this.encryptionManager.isEncryptionAvailable()
+                        ? { cachePlugin: this.createCachePlugin(key) }
+                        : {
+                              // MSAL will use in-memory cache by default
+                              // This cache persists for the lifetime of the app process
+                          },
             };
 
             this.msalApps.set(key, new PublicClientApplication(msalConfig));
@@ -641,6 +709,8 @@ export class AuthManager {
                 case "connectionString":
                     // Connection string should have been parsed to its actual auth type
                     throw new Error("Connection string must be parsed before testing. Please check the connection configuration.");
+                case "external":
+                    throw new Error("Connections provided by extensions are managed by their provider and cannot be tested here.");
                 default:
                     throw new Error("Invalid authentication type");
             }
@@ -940,6 +1010,49 @@ export class AuthManager {
             logError("Token refresh failed", error);
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
+    }
+
+    /**
+     * Acquire a Microsoft Entra ID token on behalf of an extension connection provider.
+     * MSAL instances are isolated per provider and app registration. Silent acquisition is tried
+     * first; an interactive browser login is used when no cached account can satisfy the request.
+     *
+     * The token cache is persisted to disk (encrypted) so a previously signed-in account survives
+     * app restarts, meaning providers only need to re-prompt interactively once a cached refresh
+     * token actually expires or is revoked, rather than on every launch.
+     */
+    async acquireEntraTokenForProvider(
+        providerId: string,
+        request: { clientId: string; tenantId?: string; scopes: string[]; loginHint?: string; forceInteractive?: boolean },
+    ): Promise<{ accessToken: string; expiresOn: Date; username?: string }> {
+        const tenantId = request.tenantId || "organizations";
+        const msalApp = this.getMsalApp(`provider:${providerId}:${request.clientId}:${tenantId}`, request.clientId, tenantId, true);
+
+        if (!request.forceInteractive) {
+            const accounts = await msalApp.getTokenCache().getAllAccounts();
+            const account = (request.loginHint && accounts.find((acc) => acc.username.toLowerCase() === request.loginHint!.toLowerCase())) || accounts[0];
+            if (account) {
+                try {
+                    const response = await msalApp.acquireTokenSilent({ account, scopes: request.scopes });
+                    return {
+                        accessToken: response.accessToken,
+                        expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                        username: response.account?.username,
+                    };
+                } catch (error) {
+                    logInfo(`[AuthManager] Silent token acquisition for provider ${providerId} failed; starting interactive login`);
+                }
+            }
+        }
+
+        const port = await this.findAvailablePort();
+        const redirectUri = `http://localhost:${port}`;
+        const authCodeUrl = await msalApp.getAuthCodeUrl({ scopes: request.scopes, redirectUri, loginHint: request.loginHint });
+        // The default system browser is used; provider connections have no browser profile settings
+        const browserContext = { id: `provider:${providerId}`, name: providerId, url: "", environment: "Production", authenticationType: "external", createdAt: "" } as Connection;
+        const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, browserContext, request.scopes, redirectUri, msalApp);
+        const account = authResult.msalAccountId ? await msalApp.getTokenCache().getAccountByHomeId(authResult.msalAccountId) : null;
+        return { accessToken: authResult.accessToken, expiresOn: authResult.expiresOn, username: account?.username };
     }
 
     /**

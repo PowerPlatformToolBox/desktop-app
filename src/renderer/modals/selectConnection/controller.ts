@@ -69,7 +69,8 @@ export function getSelectConnectionModalControllerScript(
         const labels = {
             interactive: "Microsoft Login",
             clientSecret: "Client Secret",
-            usernamePassword: "Username/Password"
+            usernamePassword: "Username/Password",
+            external: "Extension"
         };
         return labels[authType] || authType;
     };

@@ -32,7 +32,7 @@ import {
 } from "./browserWindowModals";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
-type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
+type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString" | "external";
 
 interface ConnectionFormPayload {
     id?: string;
@@ -416,10 +416,10 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string; wan
     }
 
     try {
-        // Authenticate the connection - this will trigger the authentication flow
-        await window.toolboxAPI.connections.authenticate(connectionId);
-
-        // Connect to the selected connection - this will update UI
+        // Connect to the selected connection - this also authenticates it and updates the UI.
+        // Do not call connections.authenticate() separately here: connectToConnection() already
+        // does so, and calling it twice sends two "connect" authentications to the connection's
+        // provider which can trigger multiple UI prompts.
         const connectedId = await connectToConnection(connectionId);
 
         // Verify the connection was successful
@@ -1977,14 +1977,23 @@ function normalizeEnvironment(value?: string): ConnectionEnvironment {
     return map[normalized] || "Dev";
 }
 
-function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePassword" | "connectionString") {
+function formatAuthType(authType: ConnectionAuthenticationType) {
     const labels: Record<string, string> = {
         interactive: "Microsoft Login",
         clientSecret: "Client Secret",
         usernamePassword: "Username/Password",
         connectionString: "Connection String",
+        external: "Extension",
     };
     return labels[authType] || authType;
+}
+
+function getAuthBadgeMarkup(conn: Connection): string {
+    if (conn.authenticationType === "external") {
+        const providerName = escapeHtml(conn.providerName || "Extension");
+        return `<span class="auth-type-badge" title="Provided by the ${providerName} extension">${providerName}</span>`;
+    }
+    return `<span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>`;
 }
 
 function getBrowserBadgeMarkup(conn: Connection): string {
@@ -2103,7 +2112,13 @@ function showConnectionContextMenu(conn: Connection, anchor: HTMLElement): void 
     menu.style.position = "fixed";
     menu.style.zIndex = "50000";
     menu.style.userSelect = "none";
-    menu.innerHTML = `
+    menu.innerHTML = conn.readOnly
+        ? `
+        <div class="context-menu-item" data-menu-action="refresh-provider">
+            <span>Refresh ${escapeHtml(conn.providerName || "extension")} connections</span>
+        </div>
+    `
+        : `
         <div class="context-menu-item" data-menu-action="edit">
             <img src="${editIconPath}" class="context-menu-icon" alt="" />
             <span>Edit Connection</span>
@@ -2154,6 +2169,16 @@ function showConnectionContextMenu(conn: Connection, anchor: HTMLElement): void 
         item.addEventListener("click", async (e) => {
             e.stopPropagation();
             const action = (item as HTMLElement).getAttribute("data-menu-action");
+
+            if (action === "refresh-provider") {
+                closeActiveConnectionContextMenu();
+                try {
+                    await window.toolboxAPI.connections.refreshProviders();
+                } catch (error) {
+                    await window.toolboxAPI.utils.showNotification({ title: "Refresh failed", body: (error as Error).message, type: "error" });
+                }
+                return;
+            }
 
             if (action === "edit") {
                 await editConnection(conn.id);
@@ -2350,7 +2375,7 @@ export async function loadSidebarConnections(): Promise<void> {
                             </div>
                         </div>
                         <div class="connection-item-header-right-pptb">
-                            <button class="icon-button tool-more-btn" data-action="more" data-connection-id="${conn.id}" title="More options" aria-haspopup="true" aria-expanded="false">
+                            <button class="icon-button tool-more-btn" data-action="more" data-connection-id="${escapeHtml(conn.id)}" title="More options" aria-haspopup="true" aria-expanded="false">
                                 <img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />
                             </button>
                         </div>
@@ -2359,7 +2384,7 @@ export async function loadSidebarConnections(): Promise<void> {
                     <div class="connection-item-footer-pptb">
                         <div class="connection-item-meta-left">
                             ${envBadgeMarkup}
-                            <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                            ${getAuthBadgeMarkup(conn)}
                             ${warningBadge}
                         </div>
                         <div class="connection-item-meta-left">
@@ -2382,12 +2407,22 @@ export async function loadSidebarConnections(): Promise<void> {
                     const escapedKey = escapeHtml(displayKey);
                     const catColor = groupKey !== "" ? groupConns.find((c: Connection) => c.categoryColor)?.categoryColor || "" : "";
                     const safeCatColor = catColor && /^#[0-9A-Fa-f]{6}$/.test(catColor) ? escapeHtml(catColor) : "";
+                    // Groups made up entirely of provider-supplied connections have their colour set by the
+                    // provider itself (enforced, consistent across users) rather than chosen locally, so show
+                    // a plain swatch instead of an editable colour picker for them.
+                    const isProviderGroup = groupKey !== "" && groupConns.every((c: Connection) => c.readOnly);
                     const colorSwatchHtml =
-                        groupKey !== ""
-                            ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(
-                                  groupKey,
-                              )}" title="Change category color" />`
-                            : "";
+                        groupKey === ""
+                            ? ""
+                            : isProviderGroup
+                              ? safeCatColor
+                                  ? `<span class="connection-group-color-swatch" style="background-color: ${safeCatColor};" title="Category colour set by ${escapeHtml(
+                                        groupConns[0]?.providerName || "the extension",
+                                    )}"></span>`
+                                  : ""
+                              : `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(
+                                    groupKey,
+                                )}" title="Change category color" />`;
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
                     <div class="connection-group" data-category="${escapedKey}">
@@ -2396,11 +2431,15 @@ export async function loadSidebarConnections(): Promise<void> {
                             ${colorSwatchHtml}
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
-                            <button class="connection-group-export-btn" data-category-key="${escapeHtml(
-                                groupKey,
-                            )}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
+                            ${
+                                groupConns.every((c: Connection) => c.readOnly)
+                                    ? ""
+                                    : `<button class="connection-group-export-btn" data-category-key="${escapeHtml(
+                                          groupKey,
+                                      )}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
                                 <img src="${exportIconPath}" width="12" height="12" alt="Export ${escapedKey} connections" class="connection-group-export-icon" />
-                            </button>
+                            </button>`
+                            }
                         </div>
                         <div class="connection-group-items" data-category="${escapedKey}">
                             ${items}

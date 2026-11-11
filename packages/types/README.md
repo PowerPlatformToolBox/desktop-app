@@ -505,6 +505,10 @@ Add a `pptb.config.json` alongside your `package.json` to tell callers what data
 
 Run `pptb-validate` to validate both `package.json` and `pptb.config.json` at once.
 
+## Connection Providers
+
+Extensions can also contribute connection providers: classes that list Dataverse connections and supply access tokens for them. Declare them in `package.json` under `pptbConnectionProviders`, and use the types in `connectionProvider.d.ts` (`ConnectionProvider`, `ConnectionProviderHost`, and related types). For the full contract, see [docs/CONNECTION_PROVIDERS.md](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/CONNECTION_PROVIDERS.md).
+
 ## Dataverse API Examples
 
 The Dataverse API provides direct access to Microsoft Dataverse operations:

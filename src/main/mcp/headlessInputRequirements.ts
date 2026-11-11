@@ -107,6 +107,8 @@ export function getConnectionAuthStatus(connection: Connection, now = Date.now()
             return "refreshable";
         case "interactive":
             return connection.msalAccountId || connection.refreshToken ? "refreshable" : "sign-in-required";
+        case "external":
+            return connection.accessToken ? "refreshable" : "sign-in-required";
         default:
             return "incomplete-credentials";
     }

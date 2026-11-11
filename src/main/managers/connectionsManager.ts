@@ -1,8 +1,28 @@
 import { randomUUID } from "crypto";
 import Store from "electron-store";
 import { logInfo } from "../../common/logger";
-import { Connection } from "../../common/types";
+import { Connection, isExternalConnectionId, ProviderAuthenticateToolContext } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
+
+/**
+ * Source of connections contributed by extension connection providers.
+ * Connections from this source are never persisted.
+ */
+export interface ExternalConnectionSource {
+    getConnections(): Connection[];
+    getConnectionById(id: string): Connection | null;
+    authenticate(id: string, reason: "connect" | "refresh", tool?: ProviderAuthenticateToolContext): Promise<{ accessToken: string; expiresOn: Date }>;
+}
+
+/**
+ * Tokens for external connections are reused while they remain valid for at least this long
+ */
+const EXTERNAL_TOKEN_MIN_VALIDITY_MS = 5 * 60 * 1000;
+
+/**
+ * Fields of an external connection that the user may change locally (kept in memory only)
+ */
+const EXTERNAL_EDITABLE_FIELDS: (keyof Connection)[] = ["environmentColor", "lastUsedAt"];
 
 /**
  * Sensitive fields that should be encrypted in DataverseConnection objects
@@ -37,6 +57,11 @@ const VALID_AUTH_TYPES = new Set(["interactive", "clientSecret", "usernamePasswo
 export class ConnectionsManager {
     private store: Store<{ connections: Connection[] }>;
     private encryptionManager: EncryptionManager;
+    private externalSource: ExternalConnectionSource | null = null;
+    // In-memory tokens and local customisations for external connections, keyed by connection ID
+    private externalOverlays = new Map<string, Partial<Connection>>();
+    // Resolves the tool currently using a connection, so it can be passed to the provider's authenticate call
+    private toolContextResolver: ((connectionId: string) => ProviderAuthenticateToolContext | null) | null = null;
 
     constructor() {
         this.encryptionManager = new EncryptionManager();
@@ -86,9 +111,78 @@ export class ConnectionsManager {
     }
 
     /**
+     * Attach the source of extension-provided connections. Its connections are appended to the local list.
+     */
+    setExternalConnectionSource(source: ExternalConnectionSource | null): void {
+        this.externalSource = source;
+    }
+
+    /**
+     * Attach a resolver that identifies the tool currently using a connection, so it can be included
+     * in the context passed to a provider's authenticate call.
+     */
+    setToolContextResolver(resolver: ((connectionId: string) => ProviderAuthenticateToolContext | null) | null): void {
+        this.toolContextResolver = resolver;
+    }
+
+    private getExternalConnections(): Connection[] {
+        if (!this.externalSource) return [];
+        return this.externalSource.getConnections().map((connection) => ({ ...connection, ...this.externalOverlays.get(connection.id) }));
+    }
+
+    private getExternalConnectionById(id: string): Connection | null {
+        const connection = this.externalSource?.getConnectionById(id);
+        return connection ? { ...connection, ...this.externalOverlays.get(id) } : null;
+    }
+
+    private updateExternalOverlay(id: string, updates: Partial<Connection>): void {
+        if (!this.getExternalConnectionById(id)) {
+            throw new Error("Connection not found");
+        }
+        this.externalOverlays.set(id, { ...this.externalOverlays.get(id), ...updates });
+    }
+
+    /**
+     * Get an access token for an extension-provided connection, asking the owning provider for a new one
+     * when there is no cached token or it expires within five minutes. Tokens are only held in memory.
+     */
+    async getExternalAccessToken(id: string, reason: "connect" | "refresh" = "connect"): Promise<{ connection: Connection; accessToken: string; expiresOn: Date }> {
+        const connection = this.getExternalConnectionById(id);
+        if (!connection || !this.externalSource) {
+            throw new Error("Connection not found. The extension that provides it may have been removed.");
+        }
+
+        const expiry = connection.tokenExpiry ? new Date(connection.tokenExpiry) : null;
+        if (connection.accessToken && expiry && expiry.getTime() - Date.now() > EXTERNAL_TOKEN_MIN_VALIDITY_MS) {
+            this.updateExternalOverlay(id, { lastUsedAt: new Date().toISOString() });
+            return { connection, accessToken: connection.accessToken, expiresOn: expiry };
+        }
+
+        const result = await this.externalSource.authenticate(id, connection.accessToken ? "refresh" : reason, this.toolContextResolver?.(id) ?? undefined);
+        this.updateConnectionTokens(id, result);
+        return { connection: { ...connection, accessToken: result.accessToken, tokenExpiry: result.expiresOn.toISOString() }, accessToken: result.accessToken, expiresOn: result.expiresOn };
+    }
+
+    /**
+     * Always ask the owning provider to authenticate an extension-provided connection (e.g. when the user opens it),
+     * so providers that require per-session approval can run their flow.
+     */
+    async authenticateExternalConnection(id: string, reason: "connect" | "refresh"): Promise<{ accessToken: string; expiresOn: Date }> {
+        if (!this.externalSource || !this.getExternalConnectionById(id)) {
+            throw new Error("Connection not found. The extension that provides it may have been removed.");
+        }
+        const result = await this.externalSource.authenticate(id, reason, this.toolContextResolver?.(id) ?? undefined);
+        this.updateConnectionTokens(id, result);
+        return result;
+    }
+
+    /**
      * Add a Dataverse connection with encrypted sensitive fields
      */
     addConnection(connection: Connection): void {
+        if (connection.authenticationType === "external" || isExternalConnectionId(connection.id)) {
+            throw new Error("Connections provided by extensions cannot be added manually");
+        }
         const connections = this.store.get("connections");
 
         const encryptedConnection = this.normalizeConnectionForStorage(connection);
@@ -101,6 +195,17 @@ export class ConnectionsManager {
      * Update a Dataverse connection with encryption for sensitive fields
      */
     updateConnection(id: string, updates: Partial<Connection>): void {
+        if (isExternalConnectionId(id)) {
+            const allowed: Partial<Connection> = {};
+            for (const field of EXTERNAL_EDITABLE_FIELDS) {
+                if (field in updates) (allowed as Record<string, unknown>)[field] = updates[field];
+            }
+            if (Object.keys(allowed).length !== Object.keys(updates).length) {
+                throw new Error("Connections provided by extensions are read-only");
+            }
+            this.updateExternalOverlay(id, allowed);
+            return;
+        }
         const connections = this.store.get("connections");
         const index = connections.findIndex((c) => c.id === id);
         if (index !== -1) {
@@ -117,25 +222,39 @@ export class ConnectionsManager {
      * Delete a Dataverse connection
      */
     deleteConnection(id: string): void {
+        if (isExternalConnectionId(id)) {
+            throw new Error("Connections provided by extensions cannot be deleted. Remove them in the source system or uninstall the extension.");
+        }
         const connections = this.store.get("connections");
         const filtered = connections.filter((c) => c.id !== id);
         this.store.set("connections", filtered);
     }
 
     /**
-     * Get all connections with decrypted sensitive fields
+     * Get all connections (local connections followed by extension-provided connections) with decrypted sensitive fields
      */
     getConnections(): Connection[] {
         const connections = this.store.get("connections");
 
         // Decrypt sensitive fields for each connection
-        return connections.map((conn) => this.encryptionManager.decryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
+        return [...connections.map((conn) => this.encryptionManager.decryptFields(conn, SENSITIVE_CONNECTION_FIELDS)), ...this.getExternalConnections()];
+    }
+
+    /**
+     * Get only the connections stored locally by the app
+     */
+    getLocalConnections(): Connection[] {
+        return this.store.get("connections").map((conn) => this.encryptionManager.decryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
     }
 
     /**
      * Update connection tokens with encryption (called after authentication/refresh)
      */
     updateConnectionTokens(id: string, authTokens: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }): void {
+        if (isExternalConnectionId(id)) {
+            this.updateExternalOverlay(id, { lastUsedAt: new Date().toISOString(), accessToken: authTokens.accessToken, tokenExpiry: authTokens.expiresOn.toISOString() });
+            return;
+        }
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === id);
 
@@ -164,6 +283,10 @@ export class ConnectionsManager {
      * This is useful when MSAL cache is cleared (e.g., after app restart) and tokens are no longer valid
      */
     clearConnectionTokens(id: string): void {
+        if (isExternalConnectionId(id)) {
+            this.updateExternalOverlay(id, { accessToken: undefined, tokenExpiry: undefined });
+            return;
+        }
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === id);
 
@@ -195,6 +318,9 @@ export class ConnectionsManager {
 
         for (const connection of connections) {
             this.clearTokensForConnection(connection);
+        }
+        for (const [id, overlay] of this.externalOverlays) {
+            this.externalOverlays.set(id, { ...overlay, accessToken: undefined, tokenExpiry: undefined });
         }
 
         this.store.set("connections", connections);
@@ -260,6 +386,9 @@ export class ConnectionsManager {
      * Get connection by ID with decrypted sensitive fields
      */
     getConnectionById(id: string): Connection | null {
+        if (isExternalConnectionId(id)) {
+            return this.getExternalConnectionById(id);
+        }
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === id);
 
@@ -275,6 +404,10 @@ export class ConnectionsManager {
      * Check if a connection's token is expired
      */
     isConnectionTokenExpired(connectionId: string): boolean {
+        if (isExternalConnectionId(connectionId)) {
+            const external = this.getExternalConnectionById(connectionId);
+            return !!external?.tokenExpiry && new Date(external.tokenExpiry).getTime() <= Date.now();
+        }
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === connectionId);
 
@@ -294,7 +427,7 @@ export class ConnectionsManager {
      * @returns A JSON-serializable export payload.
      */
     exportConnections(ids?: string[]): { version: 1; exportedAt: string; connections: Partial<Connection>[] } {
-        const decrypted = this.getConnections();
+        const decrypted = this.getLocalConnections();
         const toExport = ids && ids.length > 0 ? decrypted.filter((c) => ids.includes(c.id)) : decrypted;
 
         const sanitized = toExport.map((conn) => {

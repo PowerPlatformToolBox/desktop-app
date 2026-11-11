@@ -81,6 +81,8 @@ export default defineConfig(({ mode }) => {
                         toolPreloadBridge: "src/main/toolPreloadBridge.ts",
                         notificationPreload: "src/main/notificationPreload.ts",
                         modalPreload: "src/main/modalPreload.ts",
+                        // Not a preload script: runs extension connection providers inside an Electron utility process
+                        connectionProviderHost: "src/main/connectionProviderHost.ts",
                     },
                     vite: {
                         build: {

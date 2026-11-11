@@ -4,6 +4,7 @@ import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import {
     CspConsentRecord,
     DataverseHeaderConsentRecord,
+    isExternalConnectionId,
     LastUsedToolConnectionInfo,
     LastUsedToolEntry,
     LastUsedToolUpdate,
@@ -603,7 +604,8 @@ export class SettingsManager {
         const toolIds = new Set([...Object.keys(allSlots), ...Object.keys(this.getAllToolConnections()), ...Object.keys(this.getAllToolSecondaryConnections())]);
         for (const toolId of toolIds) {
             const slots = this.getToolConnectionSlots(toolId);
-            const reconciled = slots.map((id) => (id && !validConnectionIds.has(id) ? null : id));
+            // Extension-provided connections are loaded asynchronously after startup, so keep their assignments
+            const reconciled = slots.map((id) => (id && !validConnectionIds.has(id) && !isExternalConnectionId(id) ? null : id));
             if (reconciled.some((id, index) => id !== slots[index])) this.setToolConnectionSlots(toolId, reconciled);
         }
     }

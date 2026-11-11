@@ -32,6 +32,8 @@ import { VersionManager } from "./versionManager";
  */
 interface ToolPackageJson {
     name: string;
+    /** Connection providers contributed by the extension (see docs/CONNECTION_PROVIDERS.md) */
+    pptbConnectionProviders?: unknown[];
     version?: string;
     displayName?: string;
     description?: string;
@@ -1109,7 +1111,10 @@ export class ToolManager extends EventEmitter {
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
-        if (workers || this.registryManager.getInstalledManifestSync(toolId)?.source === "local") await this.registryManager.saveDevelopmentTool(tool, localPath, "local");
+        // Persist local tools that run background code (workers or connection providers) so they are reloaded at startup
+        const declaresConnectionProviders = Array.isArray(packageJson.pptbConnectionProviders) && packageJson.pptbConnectionProviders.length > 0;
+        if (workers || declaresConnectionProviders || this.registryManager.getInstalledManifestSync(toolId)?.source === "local")
+            await this.registryManager.saveDevelopmentTool(tool, localPath, "local");
         this.tools.set(toolId, tool);
         this.emit("tool:loaded", tool);
 
