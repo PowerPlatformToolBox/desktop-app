@@ -2,7 +2,7 @@
  * Filesystem utility functions
  */
 
-import { dialog } from "electron";
+import { dialog, type BrowserWindow, type OpenDialogOptions, type SaveDialogOptions } from "electron";
 import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
@@ -194,7 +194,7 @@ export async function createDirectory(dirPath: string): Promise<void> {
  * Save file dialog and write content
  * MOVED FROM utils namespace - no backward compatibility
  */
-export async function saveFile(defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>): Promise<string | null> {
+export async function saveFile(defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>, parent?: BrowserWindow): Promise<string | null> {
     // Determine filters to use
     let dialogFilters: Array<{ name: string; extensions: string[] }>;
 
@@ -223,10 +223,11 @@ export async function saveFile(defaultPath: string, content: string | Buffer, fi
         }
     }
 
-    const result = await dialog.showSaveDialog({
+    const saveOptions: SaveDialogOptions = {
         defaultPath,
         filters: dialogFilters,
-    });
+    };
+    const result = parent ? await dialog.showSaveDialog(parent, saveOptions) : await dialog.showSaveDialog(saveOptions);
 
     if (result.canceled || !result.filePath) {
         return null;
@@ -244,25 +245,29 @@ export async function saveFile(defaultPath: string, content: string | Buffer, fi
  * Open a system dialog to select a file or folder
  * MOVED FROM utils namespace - no backward compatibility
  */
-export async function selectPath(options?: {
-    type?: "file" | "folder";
-    title?: string;
-    message?: string;
-    buttonLabel?: string;
-    defaultPath?: string;
-    filters?: Array<{ name: string; extensions: string[] }>;
-}): Promise<string | null> {
+export async function selectPath(
+    options?: {
+        type?: "file" | "folder";
+        title?: string;
+        message?: string;
+        buttonLabel?: string;
+        defaultPath?: string;
+        filters?: Array<{ name: string; extensions: string[] }>;
+    },
+    parent?: BrowserWindow,
+): Promise<string | null> {
     const selectionType = options?.type ?? "file";
     const properties: Array<"openFile" | "openDirectory" | "promptToCreate" | "createDirectory"> = selectionType === "folder" ? ["openDirectory", "createDirectory"] : ["openFile"];
 
-    const result = await dialog.showOpenDialog({
+    const openOptions: OpenDialogOptions = {
         title: options?.title,
         message: options?.message,
         buttonLabel: options?.buttonLabel,
         defaultPath: options?.defaultPath,
         filters: selectionType === "file" ? options?.filters : undefined,
         properties,
-    });
+    };
+    const result = parent ? await dialog.showOpenDialog(parent, openOptions) : await dialog.showOpenDialog(openOptions);
 
     if (result.canceled || result.filePaths.length === 0) {
         return null;

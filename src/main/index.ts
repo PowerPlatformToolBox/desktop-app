@@ -1980,7 +1980,7 @@ class ToolBoxApp {
         ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (event, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
             const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
             const { saveFile } = await import("./utils/filesystem.js");
-            const selectedPath = await saveFile(defaultPath, content, filters);
+            const selectedPath = await saveFile(defaultPath, content, filters, this.mainWindow ?? undefined);
 
             // Grant access to the selected path if a tool called this and user selected a file
             if (selectedPath) {
@@ -1998,7 +1998,7 @@ class ToolBoxApp {
         ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (event, options) => {
             const instanceId = authorizeFilesystemCaller(event.sender, this.mainWindow?.webContents, this.toolWindowManager, this.toolFilesystemAccessManager);
             const { selectPath } = await import("./utils/filesystem.js");
-            const selectedPath = await selectPath(options);
+            const selectedPath = await selectPath(options, this.mainWindow ?? undefined);
 
             // Grant access to the selected path if a tool called this and user selected something
             if (selectedPath) {
