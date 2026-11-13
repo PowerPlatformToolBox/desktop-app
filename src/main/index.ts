@@ -166,6 +166,10 @@ class ToolBoxApp {
 
         try {
             this.settingsManager = new SettingsManager();
+            this.settingsManager.updateUserSettings({
+                previousAppOpenedAt: this.settingsManager.getUserSettings().lastAppOpenedAt ?? new Date().toISOString(),
+                lastAppOpenedAt: new Date().toISOString(),
+            });
             this.proxyManager = new ProxyManager(this.settingsManager);
             this.installIdManager = new InstallIdManager(this.settingsManager);
             const initialSentryConsent = this.settingsManager.getSentryTelemetryConsent();
@@ -491,6 +495,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_REGISTRY_ISSUES);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS);
+        ipcMain.removeHandler(TOOL_CHANNELS.FETCH_SPONSORS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
         ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
@@ -1347,6 +1352,19 @@ class ToolBoxApp {
         // Fetch community resource links from Supabase (returns null on failure; renderer falls back to bundled data)
         ipcMain.handle(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS, async () => {
             return await this.toolManager.fetchCommunityLinks();
+        });
+
+        ipcMain.handle(TOOL_CHANNELS.FETCH_SPONSORS, async () => {
+            try {
+                const response = await fetch("https://www.powerplatformtoolbox.com/api/sponsors", { signal: AbortSignal.timeout(15000) });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch sponsors: ${response.status} ${response.statusText}`);
+                }
+                return await response.json();
+            } catch (error) {
+                logError("Failed to fetch homepage sponsors", error);
+                throw error;
+            }
         });
 
         // Fetch known capability tags from Supabase (with built-in fallback)

@@ -6,6 +6,7 @@
 import { resolveConnectionSlots } from "../../common/connectionSlots";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import type { MarketplaceSourceIssue, ToolRegistryEntry } from "../../common/types";
+import { getNewToolsWindow, isToolPublishedSince } from "../../common/types/settings";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
 import { formatPackageSize } from "../utils/packageSize";
@@ -197,6 +198,9 @@ export async function loadMarketplace(options?: { forceRefresh?: boolean }): Pro
     const privateMarketplaceFilterRow = document.getElementById("marketplace-private-marketplace-filter-row") as HTMLElement | null;
     const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
     const userSettings = await window.toolboxAPI.getUserSettings();
+    const newToolsWindow = getNewToolsWindow(userSettings);
+    const newFilterLabel = document.querySelector('label[for="marketplace-new-filter"] span');
+    if (newFilterLabel) newFilterLabel.textContent = `New ${newToolsWindow.label}`;
     const hasConfiguredPrivateMarketplace = (userSettings.marketplaceSources || []).some((source) => source.type === "private");
 
     if (privateMarketplaceFilterRow) {
@@ -250,7 +254,7 @@ export async function loadMarketplace(options?: { forceRefresh?: boolean }): Pro
             }
         }
 
-        const toolIsNew = isToolNew(t);
+        const toolIsNew = isToolPublishedSince(t.createdAt, newToolsWindow.since);
 
         // Category filter
         if (selectedCategory && (!Array.isArray(t.categories) || !t.categories.includes(selectedCategory))) {
@@ -359,8 +363,7 @@ export async function loadMarketplace(options?: { forceRefresh?: boolean }): Pro
                 : "";
             const compactTagsClass = mcpHeadlessEnabled ? "marketplace-item-top-tags has-mcp-badge" : "marketplace-item-top-tags";
 
-            // Check if tool is new (created within last 7 days)
-            const isNewTool = isToolNew(tool);
+            const isNewTool = isToolPublishedSince(tool.createdAt, newToolsWindow.since);
 
             // Show all categories for this tool
             const categoriesHtml = Array.isArray(tool.categories) && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
@@ -614,14 +617,6 @@ function populateMarketplaceFilters(): void {
     if (selectedAuthor && sortedAuthors.includes(selectedAuthor)) {
         authorFilter.value = selectedAuthor;
     }
-}
-
-function isToolNew(tool: ToolDetail): boolean {
-    if (!tool.createdAt) return false;
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const createdDate = new Date(tool.createdAt);
-    return createdDate >= sevenDaysAgo;
 }
 
 /**
@@ -989,7 +984,7 @@ function formatError(error: unknown): string {
 /**
  * Clear all filters in the marketplace section
  */
-function clearMarketplaceFilters(): void {
+function clearMarketplaceFilters(reload = true): void {
     // Clear search input
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
     if (searchInput) {
@@ -1031,7 +1026,7 @@ function clearMarketplaceFilters(): void {
     }
 
     // Reload the marketplace to reflect the cleared filters
-    loadMarketplace();
+    if (reload) void loadMarketplace();
 }
 
 /**
@@ -1082,11 +1077,19 @@ export function clearMarketplaceDropdownFilters(): void {
  * Used when navigating to the marketplace from the new-tools notification banner.
  */
 export function filterMarketplaceByNew(): void {
+    clearMarketplaceFilters(false);
     const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
     if (newFilter) {
         newFilter.checked = true;
     }
     loadMarketplace();
+}
+
+export function filterMarketplaceFromHomepage(filter: "all" | "mcp"): void {
+    clearMarketplaceFilters(false);
+    const mcpFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
+    if (mcpFilter) mcpFilter.checked = filter === "mcp";
+    void loadMarketplace();
 }
 
 /**

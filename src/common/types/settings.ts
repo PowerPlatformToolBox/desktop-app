@@ -148,6 +148,8 @@ export interface DataverseHeaderConsentRecord {
  * User settings for the ToolBox application
  */
 export interface UserSettings {
+    lastAppOpenedAt?: string;
+    previousAppOpenedAt?: string;
     theme: Theme;
     language: string;
     autoUpdate: boolean;
@@ -191,4 +193,21 @@ export interface UserSettings {
     proxy?: ProxySettings; // Node-side proxy settings for network calls in the main process
     toolRatings?: { [toolId: string]: MyToolRating }; // This install's own submitted rating/comment per tool
     reportedToolConcernIds?: string[]; // Tool IDs this install has already submitted a concern report for (local dedupe)
+}
+
+export function getNewToolsWindow(settings: Pick<UserSettings, "lastAppOpenedAt" | "previousAppOpenedAt">, now = Date.now()): { since: number; label: string } {
+    const openedAt = settings.lastAppOpenedAt ? Date.parse(settings.lastAppOpenedAt) : NaN;
+    const sessionStart = Number.isFinite(openedAt) && openedAt <= now ? openedAt : now;
+    const minimumSince = sessionStart - 7 * 24 * 60 * 60 * 1000;
+    const previousOpenedAt = settings.previousAppOpenedAt ? Date.parse(settings.previousAppOpenedAt) : NaN;
+    if (Number.isFinite(previousOpenedAt) && previousOpenedAt < minimumSince) {
+        return { since: previousOpenedAt, label: `since your last visit on ${new Date(previousOpenedAt).toLocaleDateString()}` };
+    }
+    return { since: minimumSince, label: "in the last 7 days" };
+}
+
+export function isToolPublishedSince(createdAt: string | undefined, since: number, now = Date.now()): boolean {
+    if (!createdAt) return false;
+    const publishedAt = Date.parse(createdAt);
+    return Number.isFinite(publishedAt) && publishedAt >= since && publishedAt <= now;
 }

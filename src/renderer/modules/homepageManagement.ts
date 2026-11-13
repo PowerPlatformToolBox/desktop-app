@@ -5,13 +5,13 @@
 
 import { logError } from "../../common/logger";
 import type { LastUsedToolEntry } from "../../common/types";
+import { getNewToolsWindow, isToolPublishedSince } from "../../common/types/settings";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
-import { filterMarketplaceByNew } from "./marketplaceManagement";
-import { switchSidebar } from "./sidebarManagement";
+import { filterMarketplaceByNew, filterMarketplaceFromHomepage } from "./marketplaceManagement";
+import { getCurrentSidebarId, switchSidebar } from "./sidebarManagement";
 import { openToolIdeasModal } from "./toolIdeasModal";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
-
-const SPONSORS_API_URL = "https://www.powerplatformtoolbox.com/api/sponsors";
+import { filterInstalledToolsFromHomepage } from "./toolsSidebarManagement";
 
 interface SponsorData {
     name: string;
@@ -89,6 +89,9 @@ function getSponsorContributionText(sponsor: SponsorData): string {
  * Show the homepage and hide the tool panel
  */
 export function showHomePage(): void {
+    const connectionStatus = document.getElementById("connection-status");
+    if (connectionStatus) connectionStatus.hidden = true;
+    document.getElementById("connection-slot-squares")?.replaceChildren();
     // Hide tool panel
     const toolPanel = document.getElementById("tool-panel");
     if (toolPanel) {
@@ -130,23 +133,14 @@ export async function loadHomepageData(): Promise<void> {
 
 /**
  * Load new tools notification bar
- * Shows tools published in the last 7 days
+ * Shows tools published since the previous launch, with a minimum seven-day window.
  */
 async function loadNewToolsNotification(): Promise<void> {
     try {
         // Get available tools from marketplace
-        const availableTools = await window.toolboxAPI.fetchRegistryTools();
-
-        // Calculate date 7 days ago
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        // Filter tools published in the last 7 days
-        const newTools = availableTools.filter((tool: any) => {
-            if (!tool.createdAt) return false;
-            const createdDate = new Date(tool.createdAt);
-            return createdDate >= sevenDaysAgo;
-        });
+        const [availableTools, settings] = await Promise.all([window.toolboxAPI.fetchRegistryTools(), window.toolboxAPI.getUserSettings()]);
+        const newToolsWindow = getNewToolsWindow(settings);
+        const newTools = availableTools.filter((tool) => isToolPublishedSince(tool.createdAt, newToolsWindow.since));
 
         // Show notification if there are new tools
         const notificationBar = document.getElementById("new-tools-notification");
@@ -155,10 +149,10 @@ async function loadNewToolsNotification(): Promise<void> {
         if (newTools.length > 0 && notificationBar && messageEl) {
             if (newTools.length === 1) {
                 // Single new tool
-                messageEl.textContent = `${newTools[0].name} is now available in the marketplace!`;
+                messageEl.textContent = `${newTools[0].name} was added ${newToolsWindow.label}. Explore it in the marketplace!`;
             } else {
                 // Multiple new tools
-                messageEl.textContent = `${newTools.length} new tools available! Check them out in the marketplace.`;
+                messageEl.textContent = `${newTools.length} new tools added ${newToolsWindow.label}. Explore them in the marketplace!`;
             }
 
             notificationBar.style.display = "flex";
@@ -166,7 +160,7 @@ async function loadNewToolsNotification(): Promise<void> {
             // Add click handler to navigate to marketplace
             notificationBar.style.cursor = "pointer";
             notificationBar.onclick = () => {
-                switchSidebar("marketplace");
+                revealHomepageSidebar("marketplace");
                 filterMarketplaceByNew();
             };
         } else if (notificationBar) {
@@ -181,38 +175,50 @@ async function loadNewToolsNotification(): Promise<void> {
  * Load hero section statistics
  */
 async function loadHeroStats(): Promise<void> {
-    try {
-        // Get installed tools count
-        const allTools = await window.toolboxAPI.getAllTools();
-        const installedCount = allTools.length;
-
-        // Get available tools count from marketplace (fetch registry tools)
-        const availableTools = await window.toolboxAPI.fetchRegistryTools();
-        const availableCount = availableTools.length;
-
-        // Get connections count
-        const connections = await window.toolboxAPI.connections.getAll();
-        const connectionsCount = connections.length;
-
-        // Update stats in the UI
-        const installedCountEl = document.getElementById("stat-installed-count");
-        const availableCountEl = document.getElementById("stat-available-count");
-        const connectionsCountEl = document.getElementById("stat-connections-count");
-
-        if (installedCountEl) {
-            installedCountEl.textContent = installedCount.toString();
+    const statIds = ["stat-installed-count", "stat-available-count", "stat-mcp-count", "stat-connections-count"];
+    for (const id of statIds) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = "Loading";
+            element.classList.add("is-loading");
+            element.setAttribute("aria-busy", "true");
         }
-
-        if (availableCountEl) {
-            availableCountEl.textContent = availableCount.toString();
-        }
-
-        if (connectionsCountEl) {
-            connectionsCountEl.textContent = connectionsCount.toString();
-        }
-    } catch (error) {
-        reportHomepageError("loadHeroStats", error);
     }
+    const [installed, available, connections] = await Promise.allSettled([window.toolboxAPI.getAllTools(), window.toolboxAPI.fetchRegistryTools(), window.toolboxAPI.connections.getAll()]);
+    if (installed.status === "fulfilled") {
+        setHomepageStat("stat-installed-count", installed.value.length);
+        const onboarding = document.getElementById("homepage-first-tool");
+        if (onboarding) onboarding.hidden = installed.value.length !== 0;
+    } else {
+        setHomepageStat("stat-installed-count", null);
+        reportHomepageError("loadInstalledStats", installed.reason);
+    }
+    if (available.status === "fulfilled") {
+        setHomepageStat("stat-available-count", available.value.length);
+        const installedMcpIds = new Set(installed.status === "fulfilled" ? installed.value.filter((tool) => tool.mcpHeadlessEnabled === true).map((tool) => tool.id) : []);
+        setHomepageStat("stat-mcp-count", available.value.filter((tool) => tool.mcpHeadlessEnabled === true || installedMcpIds.has(tool.id)).length);
+    } else {
+        setHomepageStat("stat-available-count", null);
+        setHomepageStat("stat-mcp-count", null);
+        reportHomepageError("loadAvailableStats", available.reason);
+    }
+    if (connections.status === "fulfilled") {
+        setHomepageStat("stat-connections-count", connections.value.length);
+        const onboarding = document.getElementById("homepage-first-connection");
+        if (onboarding) onboarding.hidden = connections.value.length !== 0;
+    } else {
+        setHomepageStat("stat-connections-count", null);
+        reportHomepageError("loadConnectionStats", connections.reason);
+    }
+}
+
+function setHomepageStat(id: string, count: number | null): void {
+    const element = document.getElementById(id);
+    if (!element) return;
+    element.textContent = count === null ? "Unavailable" : count.toString();
+    element.classList.remove("is-loading");
+    element.classList.toggle("is-unavailable", count === null);
+    element.setAttribute("aria-busy", "false");
 }
 
 /**
@@ -335,23 +341,24 @@ async function loadSponsorData(): Promise<void> {
         sponsorsList.style.removeProperty("--sponsor-carousel-duration");
         sponsorsList.innerHTML = `<div class="sponsor-list-loading">Loading sponsors...</div>`;
 
-        const response = await fetch(SPONSORS_API_URL, { cache: "no-store" });
-        if (!response.ok) {
-            throw new Error(`Failed to fetch sponsors: ${response.status} ${response.statusText}`);
+        const data = await window.toolboxAPI.fetchSponsors();
+        const payload = data && typeof data === "object" && "sponsors" in data ? data.sponsors : data;
+        if (!Array.isArray(payload) || !payload.every(isSponsorData)) {
+            throw new Error("Invalid sponsor API response");
         }
-
-        const data: unknown = await response.json();
-        const sponsors = Array.isArray(data) ? sortSponsorsByWebPriority(data.filter(isSponsorData)) : [];
+        const sponsors = sortSponsorsByWebPriority(payload);
+        const privateCount = data && typeof data === "object" && "privateSponsorCount" in data && typeof data.privateSponsorCount === "number" ? data.privateSponsorCount : 0;
 
         sponsorsList.replaceChildren();
 
         if (sponsors.length === 0) {
-            sponsorsSection.hidden = true;
+            if (sponsorsCount) sponsorsCount.textContent = "";
+            sponsorsList.textContent = privateCount > 0 ? `Thank you to our ${privateCount} private sponsors!` : "Be the first to sponsor this project.";
             return;
         }
 
         if (sponsorsCount) {
-            sponsorsCount.textContent = `${sponsors.length} sponsor${sponsors.length === 1 ? "" : "s"}`;
+            sponsorsCount.textContent = `${sponsors.length} public sponsor${sponsors.length === 1 ? "" : "s"}${privateCount > 0 ? ` + ${privateCount} private` : ""}`;
         }
 
         sponsorsList.appendChild(createSponsorMarqueeGroup(sponsors, false));
@@ -363,7 +370,14 @@ async function loadSponsorData(): Promise<void> {
             sponsorsList.classList.add("sponsor-list-static");
         }
     } catch (error) {
-        sponsorsSection.hidden = true;
+        if (sponsorsCount) sponsorsCount.textContent = "";
+        sponsorsList.replaceChildren();
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "fluent-button";
+        retry.textContent = "Unable to load sponsors. Retry";
+        retry.addEventListener("click", () => void loadSponsorData());
+        sponsorsList.appendChild(retry);
         reportHomepageError("loadSponsorData", error);
     }
 }
@@ -667,10 +681,45 @@ async function openTool(toolId: string, options?: LaunchToolOptions): Promise<vo
     }
 }
 
+function revealHomepageSidebar(sidebarId: string): void {
+    if (getCurrentSidebarId() !== sidebarId || document.getElementById("sidebar")?.classList.contains("collapsed")) {
+        switchSidebar(sidebarId);
+    }
+}
+
 /**
  * Set up event handlers for homepage actions
  */
 export function setupHomepageActions(): void {
+    document.getElementById("homepage-updates-btn")?.addEventListener("click", () => {
+        revealHomepageSidebar("tools");
+        filterInstalledToolsFromHomepage("updates");
+    });
+    document.getElementById("homepage-install-first-btn")?.addEventListener("click", () => {
+        revealHomepageSidebar("marketplace");
+        filterMarketplaceFromHomepage("all");
+    });
+    document.getElementById("homepage-add-first-connection-btn")?.addEventListener("click", () => {
+        import("./connectionManagement").then(({ openAddConnectionModal }) => openAddConnectionModal()).catch((error) => reportHomepageError("openAddConnectionModal", error));
+    });
+    for (const [id, sidebar] of [
+        ["stat-installed", "tools"],
+        ["stat-connections", "connections"],
+    ] as const) {
+        document.getElementById(id)?.addEventListener("click", () => {
+            revealHomepageSidebar(sidebar);
+            if (sidebar === "tools") filterInstalledToolsFromHomepage("all");
+        });
+    }
+    for (const [id, filter] of [
+        ["stat-available", "all"],
+        ["stat-mcp", "mcp"],
+    ] as const) {
+        document.getElementById(id)?.addEventListener("click", () => {
+            revealHomepageSidebar("marketplace");
+            filterMarketplaceFromHomepage(filter);
+        });
+    }
     // Sponsor button
     const sponsorBtn = document.getElementById("homepage-sponsor-btn");
     if (sponsorBtn) {
@@ -694,7 +743,8 @@ export function setupHomepageActions(): void {
     if (browseToolsCard) {
         browseToolsCard.addEventListener("click", (e) => {
             e.preventDefault();
-            switchSidebar("marketplace");
+            revealHomepageSidebar("marketplace");
+            filterMarketplaceFromHomepage("all");
         });
     }
 

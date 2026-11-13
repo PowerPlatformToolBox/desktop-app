@@ -30,6 +30,15 @@ export function getModalStyles(isDarkTheme: boolean): string {
         color: ${isDarkTheme ? "#f3f3f3" : "#1f1f1f"};
     }
 
+    .modal-panel,
+    .about-modal-panel,
+    .update-modal-panel,
+    .tool-detail-modal-panel,
+    .troubleshooting-modal-panel {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
     .modal-panel {
         width: 100%;
         height: 100%;

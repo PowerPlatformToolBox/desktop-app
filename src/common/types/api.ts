@@ -397,6 +397,7 @@ export interface ToolboxAPI {
     fetchRegistryTools: (options?: { forceRefresh?: boolean }) => Promise<ToolRegistryEntry[]>;
     getRegistryIssues: () => Promise<MarketplaceSourceIssue[]>;
     fetchCommunityLinks: () => Promise<CommunityLinksCollection | null>;
+    fetchSponsors: () => Promise<unknown>;
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: ToolManifest; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
     isToolUpdating: (toolId: string) => Promise<boolean>;

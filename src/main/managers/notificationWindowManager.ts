@@ -140,7 +140,9 @@ export class NotificationHistoryWindowManager {
             height: this.WINDOW_HEIGHT,
             title: HISTORY_WINDOW_TITLE,
             frame: false,
-            transparent: false,
+            roundedCorners: false,
+            transparent: true,
+            backgroundColor: "#00000000",
             alwaysOnTop: true,
             skipTaskbar: true,
             resizable: false,
@@ -236,6 +238,10 @@ export class NotificationHistoryWindowManager {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root { color-scheme: ${dark ? "dark" : "light"}; }
+        html {
+            background: transparent;
+            clip-path: inset(0 round 8px);
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: ${dark ? "#1e1e1e" : "#ffffff"};
@@ -250,7 +256,7 @@ export class NotificationHistoryWindowManager {
             flex-direction: column;
             height: 100%;
             border: 1px solid ${dark ? "#3c3c3c" : "#e0e0e0"};
-            border-radius: 6px;
+            border-radius: 8px;
             overflow: hidden;
         }
         .notification-history-header {
@@ -513,6 +519,7 @@ export class NotificationWindowManager {
             width: this.WINDOW_WIDTH,
             height: this.calculateWindowHeight(),
             frame: false,
+            roundedCorners: false,
             transparent: true,
             alwaysOnTop: true,
             skipTaskbar: true,
@@ -771,7 +778,8 @@ export class NotificationWindowManager {
         .notification {
             background: ${dark ? "#2d2d2d" : "#ffffff"};
             border-left: 3px solid;
-            border-radius: 4px;
+            border-radius: 8px;
+            overflow: hidden;
             padding: 12px;
             margin-bottom: ${this.PADDING}px;
             display: flex;

@@ -531,30 +531,50 @@
                             <p class="homepage-hero-tagline">A universal desktop app for Power Platform development tools. Build, manage, and deploy with ease.</p>
 
                             <!-- New Tools Notification Bar -->
-                            <div class="new-tools-notification" id="new-tools-notification" style="display: none">
+                            <button type="button" class="new-tools-notification fluent-button" id="new-tools-notification" style="display: none">
                                 <img id="new-tools-icon" class="new-tools-icon" src="icons/dark/star-filled.svg" alt="New tool icon" />
                                 <span class="new-tools-label">New!</span>
                                 <span class="new-tools-message" id="new-tools-message"></span>
-                            </div>
+                            </button>
 
                             <div class="homepage-hero-stats">
-                                <div class="hero-stat">
-                                    <span class="hero-stat-value" id="stat-installed-count">0</span>
+                                <button type="button" class="hero-stat fluent-button" id="stat-installed" title="Browse installed tools">
+                                    <span class="hero-stat-value is-loading" id="stat-installed-count" aria-busy="true">Loading</span>
                                     <span class="hero-stat-label">Tools Installed</span>
-                                </div>
-                                <div class="hero-stat">
-                                    <span class="hero-stat-value" id="stat-available-count">0</span>
+                                </button>
+                                <button type="button" class="hero-stat fluent-button" id="stat-available" title="Browse all marketplace tools">
+                                    <span class="hero-stat-value is-loading" id="stat-available-count" aria-busy="true">Loading</span>
                                     <span class="hero-stat-label">Available Tools</span>
-                                </div>
-                                <div class="hero-stat">
-                                    <span class="hero-stat-value" id="stat-connections-count">0</span>
+                                </button>
+                                <button type="button" class="hero-stat fluent-button" id="stat-mcp" title="Browse MCP-enabled marketplace tools">
+                                    <span class="hero-stat-value is-loading" id="stat-mcp-count" aria-busy="true">Loading</span>
+                                    <span class="hero-stat-label">MCP Enabled Tools</span>
+                                </button>
+                                <button type="button" class="hero-stat fluent-button" id="stat-connections" title="Manage connections">
+                                    <span class="hero-stat-value is-loading" id="stat-connections-count" aria-busy="true">Loading</span>
                                     <span class="hero-stat-label">Connections</span>
+                                </button>
+                            </div>
+                            <div class="homepage-getting-started">
+                                <div class="homepage-onboarding-card" id="homepage-first-tool" hidden>
+                                    <h3>Start with your first tool</h3>
+                                    <p>Explore the marketplace to find tools for your Power Platform work.</p>
+                                    <button type="button" class="fluent-button fluent-button-primary" id="homepage-install-first-btn">Install your first tool</button>
+                                </div>
+                                <div class="homepage-onboarding-card" id="homepage-first-connection" hidden>
+                                    <h3>Connect to your environment</h3>
+                                    <p>Add a Dataverse connection to use tools with your environment.</p>
+                                    <button type="button" class="fluent-button fluent-button-primary" id="homepage-add-first-connection-btn">Add connection</button>
                                 </div>
                             </div>
                         </section>
 
                         <!-- Quick Access Tools Section -->
                         <section class="quick-tools-section">
+                            <div class="homepage-quick-access-header">
+                                <h2>Quick access</h2>
+                                <button type="button" class="fluent-button fluent-button-secondary" id="homepage-updates-btn">Updates available</button>
+                            </div>
                             <div class="quick-tools-grid">
                                 <!-- Favorite Tools Column -->
                                 <div class="quick-tools-column">
@@ -731,7 +751,7 @@
         <!-- Footer with connection status -->
         <footer class="app-footer">
             <div class="footer-content">
-                <span id="connection-status" class="connection-status">No active connection</span>
+                <span id="connection-status" class="connection-status" hidden></span>
                 <div id="connection-slot-squares" class="connection-slot-squares" role="toolbar" aria-label="Additional connections" aria-live="polite"></div>
             </div>
             <div class="footer-content-right">

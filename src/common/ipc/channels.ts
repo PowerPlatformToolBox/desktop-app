@@ -82,6 +82,7 @@ export const TOOL_CHANNELS = {
     FETCH_REGISTRY_TOOLS: "fetch-registry-tools",
     GET_REGISTRY_ISSUES: "get-registry-issues",
     FETCH_COMMUNITY_LINKS: "fetch-community-links",
+    FETCH_SPONSORS: "fetch-sponsors",
     INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
     CHECK_TOOL_UPDATES: "check-tool-updates",
     UPDATE_TOOL: "update-tool",

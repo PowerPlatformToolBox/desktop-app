@@ -40,6 +40,12 @@ function openModal(manager: ModalWindowManager): MockWindow {
 }
 
 describe("ModalWindowManager", () => {
+    it("clips every modal document to consistent 8px corners", () => {
+        const manager = new ModalWindowManager(new BrowserWindow());
+        const modalWindow = openModal(manager);
+        const html = decodeURIComponent(modalWindow.loadURL.mock.calls[0][0]);
+        expect(html).toContain("clip-path: inset(0 round 8px)");
+    });
     beforeEach(() => {
         jest.clearAllMocks();
         jest.mocked(hasSentryTelemetryConsent).mockReturnValue(true);

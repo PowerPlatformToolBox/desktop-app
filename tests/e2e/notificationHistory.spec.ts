@@ -39,6 +39,8 @@ test.describe("Notification history panel", () => {
         const body = "Visual Studio Code is configured and the PPTB MCP server is running. In VS Code, enable and start pptb from MCP: List Servers, and approve trust if prompted.";
         await window.evaluate((message) => window.api.invoke("notification:show", { title: "MCP Client Configured", body: message, type: "success", duration: 0 }), body);
         const historyWindow = await openHistoryWindow(electronApp, window);
+        await expect(historyWindow.locator("#notification-history-panel")).toHaveCSS("border-radius", "8px");
+        await expect(historyWindow.locator("html")).toHaveCSS("clip-path", "inset(0px round 8px)");
         const message = historyWindow.locator(".notification-history-entry__message").filter({ hasText: body });
         await expect(message).toHaveText(body);
         const dimensions = await message.evaluate((element) => ({

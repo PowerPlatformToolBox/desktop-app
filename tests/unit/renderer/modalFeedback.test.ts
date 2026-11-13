@@ -8,6 +8,12 @@ const SUCCESS_FEEDBACK_BACKGROUND = "rgba(16, 124, 16, 0.12)";
 const ERROR_FEEDBACK_BACKGROUND = "rgba(255, 77, 109, 0.12)";
 
 describe("modal feedback styling", () => {
+    it.each([true, false])("uses restrained rounded corners for every shared modal panel (dark: %s)", (dark) => {
+        const styles = getModalStyles(dark);
+        expect(styles).toMatch(
+            /\.modal-panel,\s*\.about-modal-panel,\s*\.update-modal-panel,\s*\.tool-detail-modal-panel,\s*\.troubleshooting-modal-panel\s*\{\s*border-radius: 8px;\s*overflow: hidden;/,
+        );
+    });
     it("includes explicit success and error feedback variants", () => {
         const styles = getModalStyles(false);
 

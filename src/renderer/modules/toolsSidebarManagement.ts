@@ -944,6 +944,8 @@ function updateUpdateAllToolsButton(tools: Array<{ hasUpdate?: boolean; isUpdati
     const isAnyUpdating = tools.some((t) => t.isUpdating);
     const updatesAvailableStatus = document.getElementById("sidebar-update-available-status");
     const updateCount = tools.filter((tool) => tool.hasUpdate).length;
+    const homepageUpdates = document.getElementById("homepage-updates-btn");
+    if (homepageUpdates) homepageUpdates.textContent = `Updates available (${updateCount})`;
 
     updateAllBtn.style.display = hasAnyUpdate ? "flex" : "none";
     updateAllBtn.disabled = isAnyUpdating || bulkUpdateRunning;
@@ -1136,7 +1138,7 @@ export async function retryFailedToolUpdatesFromSidebar(): Promise<void> {
 /**
  * Clear all filters in the installed tools section
  */
-function clearAllFilters(): void {
+function clearAllFilters(reload = true): void {
     // Clear search input
     const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
     if (searchInput) {
@@ -1176,7 +1178,14 @@ function clearAllFilters(): void {
     }
 
     // Reload the sidebar tools to reflect the cleared filters
-    loadSidebarTools();
+    if (reload) void loadSidebarTools();
+}
+
+export function filterInstalledToolsFromHomepage(filter: "all" | "updates"): void {
+    clearAllFilters(false);
+    const updateFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
+    if (updateFilter) updateFilter.checked = filter === "updates";
+    void loadSidebarTools();
 }
 
 /**
