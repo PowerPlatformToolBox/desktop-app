@@ -4916,6 +4916,115 @@ body.dark-theme .sidebar-icon-btn:hover {
     cursor: not-allowed;
 }
 
+.sidebar-update-all-tools-btn {
+    width: auto;
+    gap: 6px;
+    padding: 5px 8px;
+    background: transparent;
+    color: var(--text-color);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.sidebar-installed-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.sidebar-update-available-status {
+    color: #8a8886;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.2;
+}
+
+.sidebar-update-available-status[hidden] {
+    display: none;
+}
+
+.sidebar-bulk-update-status {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 10px 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-background);
+    color: var(--text-color);
+    font-size: 12px;
+}
+
+.sidebar-bulk-update-status[hidden],
+.sidebar-bulk-update-status [hidden] {
+    display: none;
+}
+
+.sidebar-bulk-update-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sidebar-bulk-update-status progress {
+    width: 100%;
+    height: 5px;
+    accent-color: var(--primary-color);
+}
+
+.sidebar-bulk-update-status details {
+    color: var(--text-color);
+}
+
+.sidebar-bulk-update-status summary {
+    cursor: pointer;
+    color: var(--primary-color);
+}
+
+.sidebar-bulk-update-status ul {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.sidebar-bulk-update-retry {
+    flex-shrink: 0;
+    padding: 3px 7px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--primary-color);
+    font: inherit;
+    cursor: pointer;
+}
+
+.sidebar-bulk-update-retry:hover {
+    border-color: var(--primary-color);
+    background: rgba(0, 120, 212, 0.08);
+}
+
+.tool-item-batch-status {
+    margin-top: 4px;
+    color: var(--secondary-text-color, #605e5c);
+    font-size: 11px;
+}
+
+.tool-item-batch-status[data-status="failed"],
+.tool-item-batch-status[data-status="check-failed"] {
+    color: var(--error-color, #d13438);
+}
+
+.tool-item-batch-status[data-status="updated"] {
+    color: var(--success-color, #107c10);
+}
+
 .connection-item-top-tags {
     display: flex;
     gap: 6px;

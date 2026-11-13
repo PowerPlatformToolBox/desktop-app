@@ -1,21 +1,40 @@
-export class ToolUpdateState {
-    private readonly updatingToolIds = new Set<string>();
+export type ToolUpdateStatus = "queued" | "updating" | "updated" | "failed" | "check-failed";
 
-    markUpdating(toolIds: Iterable<string>): void {
+interface ToolUpdateStateEntry {
+    status: ToolUpdateStatus;
+    message?: string;
+}
+
+export class ToolUpdateState {
+    private readonly toolStates = new Map<string, ToolUpdateStateEntry>();
+
+    markQueued(toolIds: Iterable<string>): void {
         for (const toolId of toolIds) {
-            this.updatingToolIds.add(toolId);
+            this.toolStates.set(toolId, { status: "queued" });
         }
     }
 
+    markUpdating(toolId: string): void {
+        this.toolStates.set(toolId, { status: "updating" });
+    }
+
     markComplete(toolId: string): void {
-        this.updatingToolIds.delete(toolId);
+        this.toolStates.set(toolId, { status: "updated" });
+    }
+
+    markFailed(toolId: string, status: "failed" | "check-failed", message: string): void {
+        this.toolStates.set(toolId, { status, message });
     }
 
     isUpdating(toolId: string): boolean {
-        return this.updatingToolIds.has(toolId);
+        return this.toolStates.get(toolId)?.status === "updating";
+    }
+
+    getStatus(toolId: string): ToolUpdateStateEntry | undefined {
+        return this.toolStates.get(toolId);
     }
 
     clear(): void {
-        this.updatingToolIds.clear();
+        this.toolStates.clear();
     }
 }

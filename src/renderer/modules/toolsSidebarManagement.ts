@@ -23,6 +23,24 @@ let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: ()
 const bulkToolUpdateState = new ToolUpdateState();
 
 type CheckboxElement = HTMLInputElement & { _pptbBound?: boolean };
+type BulkUpdateFailure = { toolId: string; toolName: string; phase: "check" | "update"; error: string };
+type BulkUpdatePhase = "idle" | "checking" | "updating" | "complete";
+
+let bulkUpdateRunning = false;
+let bulkUpdateRetryToolIds: string[] = [];
+let bulkUpdateRetryAll = false;
+let bulkUpdateStatus: {
+    phase: BulkUpdatePhase;
+    completed: number;
+    total: number;
+    succeeded: number;
+    currentToolName?: string;
+    failures: BulkUpdateFailure[];
+} = { phase: "idle", completed: 0, total: 0, succeeded: 0, failures: [] };
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * Load and display installed tools in the sidebar
@@ -58,8 +76,12 @@ export async function loadSidebarTools(): Promise<void> {
         const currentMaturityByToolId = new Map(getToolLibrary().map((tool) => [tool.id, tool.maturity]));
         const toolsWithUpdateInfo = await Promise.all(
             tools.map(async (tool: ToolDetail) => {
-                const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
+                const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id).catch((error) => {
+                    logError(`Failed to check for updates for tool ${tool.id}`, error);
+                    return { hasUpdate: false, latestVersion: undefined };
+                });
                 const isUpdating = await window.toolboxAPI.isToolUpdating(tool.id);
+                const batchStatus = bulkToolUpdateState.getStatus(tool.id);
 
                 return {
                     ...tool,
@@ -67,6 +89,7 @@ export async function loadSidebarTools(): Promise<void> {
                     hasUpdate: updateInfo.hasUpdate,
                     isFavorite: favoriteTools.includes(tool.id),
                     isUpdating: isUpdating || bulkToolUpdateState.isUpdating(tool.id),
+                    batchStatus: batchStatus?.status,
                     maturity: currentMaturityByToolId.get(tool.id),
                 };
             }),
@@ -246,7 +269,7 @@ export async function loadSidebarTools(): Promise<void> {
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
-            .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean; isUpdating?: boolean }) => {
+            .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean; isUpdating?: boolean; batchStatus?: string }) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
                 const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
@@ -265,6 +288,17 @@ export async function loadSidebarTools(): Promise<void> {
                 const hasUpdate = !!tool.hasUpdate;
                 const isUpdating = !!tool.isUpdating;
                 const latestVersion = tool.latestVersion;
+                const batchStatusText =
+                    tool.batchStatus === "queued"
+                        ? "Queued for update"
+                        : tool.batchStatus === "updated"
+                          ? "Updated"
+                          : tool.batchStatus === "failed"
+                            ? "Update failed"
+                            : tool.batchStatus === "check-failed"
+                              ? "Could not check for updates"
+                              : "";
+                const batchStatusHtml = batchStatusText ? `<div class="tool-item-batch-status" data-status="${tool.batchStatus}">${batchStatusText}</div>` : "";
                 const description = tool.description || "";
                 const isDeprecated = tool.status === "deprecated";
                 const isUnsupported = tool.isSupported === false;
@@ -337,6 +371,7 @@ export async function loadSidebarTools(): Promise<void> {
                                         ${tool.name}${verifiedBadgeHtml}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
+                                    ${batchStatusHtml}
                                 </div>
                             </div>
                             <div class="tool-item-header-right-pptb">
@@ -376,6 +411,7 @@ export async function loadSidebarTools(): Promise<void> {
                                         ${tool.name}${verifiedBadgeHtml}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
+                                    ${batchStatusHtml}
                                 </div>
                             </div>
                             <div class="tool-item-header-right-pptb">
@@ -414,7 +450,9 @@ export async function loadSidebarTools(): Promise<void> {
                         <div class="tool-item-top-tags">${mcpBadgeHtml}${categoriesHtml}${deprecatedBadgeHtml}${unsupportedBadgeHtml}</div>
                         ${
                             shouldShowUpdateInfo
-                                ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
+                                ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}" ${
+                                      tool.batchStatus === "queued" ? "disabled" : ""
+                                  }>Update</button></div>`
                                 : ""
                         }
                     </div>`;
@@ -452,6 +490,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const action = button.getAttribute("data-action");
                 const toolId = button.getAttribute("data-tool-id");
                 if (!toolId) return;
+                if (bulkUpdateRunning && action === "update") return;
 
                 // Don't allow actions on updating tools (except viewing context menu)
                 const toolCard = button.closest(".tool-item-pptb");
@@ -756,6 +795,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
         }
 
         if (action === "update") {
+            if (bulkUpdateRunning) return;
             await updateToolFromSidebar(tool.id);
             return;
         }
@@ -902,82 +942,194 @@ function updateUpdateAllToolsButton(tools: Array<{ hasUpdate?: boolean; isUpdati
 
     const hasAnyUpdate = tools.some((t) => t.hasUpdate);
     const isAnyUpdating = tools.some((t) => t.isUpdating);
+    const updatesAvailableStatus = document.getElementById("sidebar-update-available-status");
+    const updateCount = tools.filter((tool) => tool.hasUpdate).length;
 
     updateAllBtn.style.display = hasAnyUpdate ? "flex" : "none";
-    updateAllBtn.disabled = isAnyUpdating;
-    updateAllBtn.title = isAnyUpdating ? "Updating tools..." : "Update all tools";
+    updateAllBtn.disabled = isAnyUpdating || bulkUpdateRunning;
+    updateAllBtn.title = bulkUpdateRunning ? "Updating tools..." : "Update all tools";
+    updateAllBtn.setAttribute("aria-busy", String(bulkUpdateRunning));
+    if (updatesAvailableStatus) {
+        updatesAvailableStatus.textContent = `${updateCount} update${updateCount === 1 ? "" : "s"} available`;
+        updatesAvailableStatus.hidden = !hasAnyUpdate || bulkUpdateRunning || bulkUpdateStatus.phase === "complete";
+    }
+}
+
+function renderBulkUpdateStatus(): void {
+    const container = document.getElementById("sidebar-bulk-update-status");
+    const message = document.getElementById("sidebar-bulk-update-message");
+    const progress = document.getElementById("sidebar-bulk-update-progress") as HTMLProgressElement | null;
+    const retryButton = document.getElementById("sidebar-bulk-update-retry") as HTMLButtonElement | null;
+    const details = document.getElementById("sidebar-bulk-update-details") as HTMLDetailsElement | null;
+    const failureList = document.getElementById("sidebar-bulk-update-failures");
+    if (!container || !message || !progress || !retryButton || !details || !failureList) return;
+
+    container.hidden = bulkUpdateStatus.phase === "idle";
+    const updatesAvailableStatus = document.getElementById("sidebar-update-available-status");
+    if (updatesAvailableStatus && bulkUpdateRunning) {
+        updatesAvailableStatus.hidden = true;
+    }
+    const hasFailures = bulkUpdateStatus.failures.length > 0;
+    retryButton.hidden = bulkUpdateRunning || (bulkUpdateRetryToolIds.length === 0 && !bulkUpdateRetryAll);
+    details.hidden = !hasFailures;
+    failureList.replaceChildren();
+
+    for (const failure of bulkUpdateStatus.failures) {
+        const item = document.createElement("li");
+        item.textContent = `${failure.toolName} — ${failure.phase === "check" ? "Update check failed" : "Update failed"}: ${failure.error}`;
+        failureList.appendChild(item);
+    }
+
+    if (bulkUpdateStatus.phase === "checking") {
+        message.textContent = `Checking for updates (${bulkUpdateStatus.completed} of ${bulkUpdateStatus.total})…`;
+        progress.hidden = false;
+        progress.max = Math.max(bulkUpdateStatus.total, 1);
+        progress.value = bulkUpdateStatus.completed;
+    } else if (bulkUpdateStatus.phase === "updating") {
+        message.textContent = `Updating ${bulkUpdateStatus.currentToolName || "tools"} (${Math.min(bulkUpdateStatus.completed + 1, bulkUpdateStatus.total)} of ${bulkUpdateStatus.total})…`;
+        progress.hidden = false;
+        progress.max = Math.max(bulkUpdateStatus.total, 1);
+        progress.value = bulkUpdateStatus.completed;
+    } else {
+        progress.hidden = true;
+        if (hasFailures) {
+            message.textContent =
+                bulkUpdateStatus.succeeded > 0
+                    ? `${bulkUpdateStatus.succeeded} updated; ${bulkUpdateStatus.failures.length} tool(s) need attention.`
+                    : `${bulkUpdateStatus.failures.length} tool(s) need attention.`;
+        } else if (bulkUpdateStatus.succeeded > 0) {
+            message.textContent = `${bulkUpdateStatus.succeeded} tool${bulkUpdateStatus.succeeded === 1 ? "" : "s"} updated successfully.`;
+        } else {
+            message.textContent = "All installed tools are up to date.";
+        }
+    }
 }
 
 /**
  * Update every installed tool that has an update available, one at a time
  * (sequential to avoid concurrent writes to the tool manifest file).
  */
-export async function updateAllToolsFromSidebar(): Promise<void> {
+export async function updateAllToolsFromSidebar(toolIdsToRetry?: string[]): Promise<void> {
     const updateAllBtn = document.getElementById("sidebar-update-all-tools-btn") as HTMLButtonElement | null;
+    if (bulkUpdateRunning) return;
+    bulkUpdateRunning = true;
+    bulkToolUpdateState.clear();
+    bulkUpdateRetryToolIds = [];
+    bulkUpdateRetryAll = false;
+    bulkUpdateStatus = { phase: "checking", completed: 0, total: 0, succeeded: 0, failures: [] };
+    if (updateAllBtn) {
+        updateAllBtn.disabled = true;
+        updateAllBtn.title = "Checking for tool updates...";
+    }
+    renderBulkUpdateStatus();
 
     try {
-        const tools = await window.toolboxAPI.getAllTools();
+        const installedTools = await window.toolboxAPI.getAllTools();
+        const retryToolIdSet = toolIdsToRetry ? new Set(toolIdsToRetry) : null;
+        const tools = retryToolIdSet ? installedTools.filter((tool) => retryToolIdSet.has(tool.id)) : installedTools;
+        bulkUpdateStatus.total = tools.length;
+        renderBulkUpdateStatus();
+
         const updateChecks = await Promise.all(
             tools.map(async (tool) => ({
                 tool,
-                updateInfo: await window.toolboxAPI.checkToolUpdates(tool.id),
+                updateInfo: await window.toolboxAPI
+                    .checkToolUpdates(tool.id)
+                    .catch((error) => {
+                        const message = getErrorMessage(error);
+                        bulkUpdateStatus.failures.push({ toolId: tool.id, toolName: tool.name || tool.id, phase: "check", error: message });
+                        bulkToolUpdateState.markFailed(tool.id, "check-failed", message);
+                        logError(`Failed to check for updates for tool ${tool.id}`, error);
+                        return null;
+                    })
+                    .finally(() => {
+                        bulkUpdateStatus.completed++;
+                        renderBulkUpdateStatus();
+                    }),
             })),
         );
-        const toolsToUpdate = updateChecks.filter((entry) => entry.updateInfo.hasUpdate);
+        const toolsToUpdate = updateChecks.filter((entry) => entry.updateInfo?.hasUpdate);
 
-        if (toolsToUpdate.length === 0) {
-            return;
+        bulkUpdateStatus.phase = "updating";
+        bulkUpdateStatus.completed = 0;
+        bulkUpdateStatus.total = toolsToUpdate.length;
+        bulkToolUpdateState.markQueued(toolsToUpdate.map(({ tool }) => tool.id));
+        if (toolsToUpdate.length > 0) {
+            await loadSidebarTools();
         }
-
-        if (updateAllBtn) {
-            updateAllBtn.disabled = true;
-            updateAllBtn.title = `Updating ${toolsToUpdate.length} tool(s)...`;
-        }
-        bulkToolUpdateState.markUpdating(toolsToUpdate.map(({ tool }) => tool.id));
-        await loadSidebarTools();
-
-        let succeeded = 0;
-        const failures: string[] = [];
+        renderBulkUpdateStatus();
 
         for (const { tool } of toolsToUpdate) {
+            bulkToolUpdateState.markUpdating(tool.id);
+            bulkUpdateStatus.currentToolName = tool.name || tool.id;
+            renderBulkUpdateStatus();
+            await loadSidebarTools();
             try {
                 await window.toolboxAPI.updateTool(tool.id);
-                succeeded++;
-            } catch (error) {
-                failures.push(tool.name || tool.id);
-                logError(`Failed to update tool ${tool.id}`, error);
-            } finally {
+                bulkUpdateStatus.succeeded++;
                 bulkToolUpdateState.markComplete(tool.id);
+            } catch (error) {
+                const message = getErrorMessage(error);
+                bulkUpdateStatus.failures.push({ toolId: tool.id, toolName: tool.name || tool.id, phase: "update", error: message });
+                bulkToolUpdateState.markFailed(tool.id, "failed", message);
+                logError(`Failed to update tool ${tool.id}`, error);
             }
-            // Refresh the sidebar after each tool so progress/spinners stay accurate
+            bulkUpdateStatus.completed++;
+            bulkUpdateStatus.currentToolName = undefined;
+            renderBulkUpdateStatus();
             await loadSidebarTools();
         }
 
-        if (failures.length === 0) {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Tools Updated",
-                body: `${succeeded} tool${succeeded === 1 ? "" : "s"} updated successfully.`,
-                type: "success",
-            });
-        } else {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Update Completed with Errors",
-                body: `${succeeded} of ${toolsToUpdate.length} tool(s) updated. Failed: ${failures.join(", ")}.`,
-                type: succeeded > 0 ? "warning" : "error",
-            });
+        bulkUpdateRetryToolIds = [...new Set(bulkUpdateStatus.failures.map((failure) => failure.toolId))];
+
+        if (bulkUpdateStatus.failures.length > 0) {
+            await window.toolboxAPI.utils
+                .showNotification({
+                    title: "Update Completed with Errors",
+                    body: `${bulkUpdateStatus.succeeded} updated; ${bulkUpdateStatus.failures.length} tool(s) need attention. See the installed tools sidebar for details.`,
+                    type: bulkUpdateStatus.succeeded > 0 ? "warning" : "error",
+                })
+                .catch((error) => logError("Failed to show tool update notification", error));
+        } else if (bulkUpdateStatus.succeeded > 0) {
+            await window.toolboxAPI.utils
+                .showNotification({
+                    title: "Tools Updated",
+                    body: `${bulkUpdateStatus.succeeded} tool${bulkUpdateStatus.succeeded === 1 ? "" : "s"} updated successfully.`,
+                    type: "success",
+                })
+                .catch((error) => logError("Failed to show tool update notification", error));
         }
 
-        await loadMarketplace();
+        await loadMarketplace().catch((error) => logError("Failed to refresh marketplace after tool updates", error));
     } catch (error) {
         logError("Failed to update all tools", error);
-        await window.toolboxAPI.utils.showNotification({
-            title: "Update Failed",
-            body: `Failed to update tools: ${(error as Error).message}`,
-            type: "error",
-        });
+        bulkUpdateStatus.failures.push({ toolId: "", toolName: "Update All", phase: "check", error: getErrorMessage(error) });
+        if (toolIdsToRetry?.length) {
+            bulkUpdateRetryToolIds = [...toolIdsToRetry];
+        } else {
+            bulkUpdateRetryAll = true;
+        }
+        await window.toolboxAPI.utils
+            .showNotification({
+                title: "Update Failed",
+                body: `Failed to update tools: ${getErrorMessage(error)}`,
+                type: "error",
+            })
+            .catch((notificationError) => logError("Failed to show tool update notification", notificationError));
     } finally {
-        bulkToolUpdateState.clear();
+        bulkUpdateStatus.phase = "complete";
+        bulkUpdateStatus.currentToolName = undefined;
+        bulkUpdateRunning = false;
+        renderBulkUpdateStatus();
         await loadSidebarTools();
+    }
+}
+
+export async function retryFailedToolUpdatesFromSidebar(): Promise<void> {
+    if (bulkUpdateRetryAll) {
+        await updateAllToolsFromSidebar();
+    } else if (bulkUpdateRetryToolIds.length > 0) {
+        await updateAllToolsFromSidebar([...bulkUpdateRetryToolIds]);
     }
 }
 

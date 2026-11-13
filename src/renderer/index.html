@@ -107,13 +107,28 @@
                 <!-- Tools Sidebar -->
                 <div class="sidebar-content active" id="sidebar-tools">
                     <div class="sidebar-header">
-                        <h2 class="sidebar-title">INSTALLED</h2>
+                        <div class="sidebar-installed-heading">
+                            <h2 class="sidebar-title">INSTALLED</h2>
+                            <span id="sidebar-update-available-status" class="sidebar-update-available-status" hidden></span>
+                        </div>
                         <div class="sidebar-header-actions">
-                            <button id="sidebar-update-all-tools-btn" class="sidebar-icon-btn" title="Update all tools" aria-label="Update all tools" style="display: none">
+                            <button id="sidebar-update-all-tools-btn" class="sidebar-icon-btn sidebar-update-all-tools-btn" title="Update all tools" aria-label="Update All" style="display: none">
                                 <img id="update-all-tools-icon" width="16" height="16" alt="" aria-hidden="true" />
+                                <span>Update All</span>
                             </button>
                         </div>
                     </div>
+                    <section id="sidebar-bulk-update-status" class="sidebar-bulk-update-status" aria-live="polite" aria-atomic="true" hidden>
+                        <div class="sidebar-bulk-update-status-header">
+                            <span id="sidebar-bulk-update-message"></span>
+                            <button id="sidebar-bulk-update-retry" class="sidebar-bulk-update-retry" type="button" hidden>Retry failed</button>
+                        </div>
+                        <progress id="sidebar-bulk-update-progress" max="1" value="0" aria-label="Update progress" hidden></progress>
+                        <details id="sidebar-bulk-update-details" hidden>
+                            <summary>View update details</summary>
+                            <ul id="sidebar-bulk-update-failures"></ul>
+                        </details>
+                    </section>
                     <div class="sidebar-search-bar">
                         <div class="sidebar-search-input-wrapper">
                             <input type="text" id="tools-search-input" class="search-input" placeholder="Search installed tools..." />
