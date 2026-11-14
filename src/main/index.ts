@@ -59,7 +59,8 @@ import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NativeWorkerConsentManager } from "./managers/nativeWorkerConsentManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
-import { PowerPlatformManager } from "./managers/powerplatformManager";
+import { PowerPlatformManager, type PowerPlatformCategory } from "./managers/powerplatformManager";
+import type { PowerPlatformMethod, PowerPlatformRawOptions } from "../common/powerplatformApi";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { applyProxyEnvironmentBootstrap, ProxyManager } from "./managers/proxyManager";
 import { SettingsManager } from "./managers/settingsManager";
@@ -654,6 +655,7 @@ class ToolBoxApp {
 
         // Power Platform handlers
         ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
+        ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST_RAW);
 
         // Agent invocation logging handlers
         ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
@@ -2097,6 +2099,22 @@ class ToolBoxApp {
         });
 
         // Power Platform API handlers
+        ipcMain.handle(
+            POWERPLATFORM_CHANNELS.REQUEST_RAW,
+            async (
+                event,
+                category: PowerPlatformCategory,
+                method: PowerPlatformMethod,
+                path = "",
+                body?: unknown,
+                headers?: Record<string, string>,
+                connectionTarget?: ConnectionTarget,
+                options?: PowerPlatformRawOptions,
+            ) => {
+                const connectionId = resolveToolConnectionForRequest(this.toolWindowManager, event.sender.id, connectionTarget);
+                return this.powerPlatformManager.requestRaw(connectionId, category, method, path, body, headers, options);
+            },
+        );
         ipcMain.handle(
             POWERPLATFORM_CHANNELS.REQUEST,
             async (

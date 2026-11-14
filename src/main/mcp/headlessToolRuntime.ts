@@ -4,6 +4,7 @@ import * as path from "path";
 import { pathToFileURL } from "url";
 import { normalizeConnectionTarget, type ConnectionTarget } from "../../common/connectionSlots";
 import { logError, logInfo } from "../../common/logger";
+import { createPowerPlatformRawClient } from "../../common/powerplatformApi";
 import type { Connection, DataverseBatchRequest, DataverseBatchResult, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, MetadataOperationOptions, ToolSettings } from "../../common/types";
 import { ToolManifest } from "../../common/types";
 import { ConnectionsManager } from "../managers/connectionsManager";
@@ -641,7 +642,6 @@ async function installHeadlessGlobals(manifest: ToolManifest, input: Record<stri
     const toolboxApiWithDataverse = buildHeadlessToolboxApi(manifest, input, context, services);
     const { dataverse: dataverseAPI, ...toolboxAPI } = toolboxApiWithDataverse;
     globalScope.window = globalThis as unknown as Record<string, unknown>;
-    globalScope.toolboxAPI = toolboxAPI;
     globalScope.dataverseAPI = dataverseAPI;
     globalScope.powerplatformAPI = {
         Analytics: buildPowerPlatformCategoryClient(manifest, context, services, "Analytics"),
@@ -660,6 +660,7 @@ async function installHeadlessGlobals(manifest: ToolManifest, input: Record<stri
         UserManagement: buildPowerPlatformCategoryClient(manifest, context, services, "UserManagement"),
         WorkflowAgents: buildPowerPlatformCategoryClient(manifest, context, services, "WorkflowAgents"),
     };
+    globalScope.toolboxAPI = toolboxAPI;
 
     return () => {
         globalScope.window = previousWindow;
@@ -676,6 +677,13 @@ function buildPowerPlatformCategoryClient(
     category: Parameters<NonNullable<PowerPlatformManager["request"]>>[1],
 ) {
     return {
+        Raw: createPowerPlatformRawClient(async (method, path, body, headers, connectionTarget = "primary", options) => {
+            if (!services.powerPlatformManager) {
+                throw new Error(`powerplatformAPI.${category}.Raw.${method} is not available in headless mode.`);
+            }
+            const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
+            return services.powerPlatformManager.requestRaw(connection.id, category, method, path, body, headers, options);
+        }),
         Get: (relativePath = "", connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
             requestPowerPlatform(manifest, context, services, category, "GET", relativePath, undefined, headers, connectionTarget),
         Post: (relativePath = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>

@@ -710,6 +710,117 @@ const env = await powerplatformAPI.EnvironmentManagement.Get("environments/{envi
 const data = await powerplatformAPI.Governance.Get("environments/{environmentId}/governance?api-version=2024-10-01");
 ```
 
+### Raw Responses and Binary Downloads
+
+Requires PPTB **1.2.9 or later** and `@pptb/types` **1.2.9 or later**. Set
+`features.minAPI` to `"1.2.9"` (or a newer version required by your tool).
+No new manifest feature or CSP exception is needed. Older builds, including
+prereleases without this capability, do not provide `Raw`.
+
+Opt in per call by adding `.Raw`. Existing parsed methods are unchanged:
+
+```typescript
+const client = powerplatformAPI.EnvironmentManagement;
+const parsed = await client.Get(path);
+const response = await client.Raw.Get(path);
+
+response.status; // HTTP status code
+response.headers["location"]; // Header names are always lowercase
+response.headers["retry-after"]; // Delay-seconds or HTTP-date, if supplied
+response.headers["content-type"];
+response.body; // Uint8Array; zero-length for an empty response
+```
+
+`Raw` provides `Get`, `Post`, `Put`, `Patch`, and `Delete` with the same argument
+order as their parsed counterparts. All accept a final optional
+`{ requireDelegatedAuthentication: true }` argument. Connection targets support
+`"primary"`, `"secondary"`, and zero-based numeric slots.
+
+The following illustrates the individual requests in an asynchronous export
+workflow; `exportPath` and the operation status fields depend on the endpoint:
+
+```typescript
+const client = powerplatformAPI.EnvironmentManagement;
+const target = "primary";
+const options = { requireDelegatedAuthentication: true };
+const started = await client.Raw.Post(exportPath, parameters, target, undefined, options);
+// An empty 202 body is valid. Read Location and Retry-After, not JSON.
+const location = started.headers["location"];
+if (!location) throw new Error("The service did not return an operation location.");
+
+// Wait according to Retry-After before each poll; repeat until the operation succeeds.
+const operation = await client.Raw.Get(location, target, undefined, options);
+const progress = JSON.parse(new TextDecoder().decode(operation.body));
+
+// Only after checking the endpoint-specific succeeded state:
+const downloadLocation = operation.headers["location"];
+if (!downloadLocation) throw new Error("The service did not return a download location.");
+const download = await client.Raw.Get(downloadLocation, target, undefined, options);
+const compressedBytes = download.body;
+```
+
+Keep the same connection target and delegated requirement throughout the workflow.
+The host uses and refreshes the connection's Power Platform token; tokens are never
+returned to the tool. A delegated requirement rejects app-only connections for
+that request without disabling app-only authentication on other APIs.
+
+Every supplied location is validated **before authentication**: HTTPS, exact host
+`api.powerplatform.com`, default HTTPS port, and the same category namespace.
+Embedded credentials, fragments, ambiguous paths, and namespace escapes are
+rejected. Redirects are not followed automatically. Authorization, host routing,
+and framing headers are host-managed and cannot be overridden on raw requests.
+
+`Retry-After` may contain delay-seconds or an HTTP-date. For example:
+
+```typescript
+function retryDelayMs(value: string): number {
+    if (/^\d+$/.test(value)) return Number(value) * 1000;
+    const deadline = Date.parse(value);
+    if (!Number.isFinite(deadline)) throw new Error("Invalid Retry-After header.");
+    return Math.max(0, deadline - Date.now());
+}
+```
+
+Use the endpoint's documented polling interval when this header is absent, and
+provide a timeout/cancellation policy rather than polling indefinitely.
+
+Binary bodies are not decoded or decompressed automatically. An
+`application/gzip` file remains gzip bytes even without `Content-Encoding`.
+To decode one in a tool renderer:
+
+```typescript
+const stream = new Blob([new Uint8Array(compressedBytes)]).stream().pipeThrough(new DecompressionStream("gzip"));
+const text = await new Response(stream).text();
+// Use text directly for CSV, or JSON.parse(text) for JSON.
+```
+
+Raw methods reject non-2xx responses with a **plain object**, not an `Error`
+instance, so HTTP metadata survives Electron context isolation:
+
+```typescript
+try {
+    await client.Raw.Get(path);
+} catch (error: unknown) {
+    if (error && typeof error === "object" && "name" in error && error.name === "PowerPlatformHttpError") {
+        const failure = error as PowerPlatformAPI.HttpError;
+        // Includes 401, 403, 404, 429, and server errors.
+        const status = failure.status;
+        const retryAfter = failure.headers["retry-after"];
+        const message = failure.message; // API code/message when available
+        const bytes = failure.body; // Original error body, including detailed API errors
+        // Surface a suitable notification; do not log response contents or sensitive URLs.
+    } else {
+        // Authentication, target validation, or transport failure; no completed HTTP response.
+        // Surface the failure using your existing notification/error handling.
+    }
+}
+```
+
+Response headers with repeated values are joined with `", "`. This API is not a
+cookie-management interface. Header values are otherwise retained as received.
+The same raw client is available through `window.powerplatformAPI` in renderer tools
+and `globalThis.powerplatformAPI` in headless tools.
+
 ### Available Categories
 
 The Power Platform API exposes the following categories, each with `Get`, `Post`, `Put`, `Patch`, and `Delete` methods:

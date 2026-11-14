@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 
-import { TOOL_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../../src/common/ipc/channels";
+import { POWERPLATFORM_CHANNELS, TOOL_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../../src/common/ipc/channels";
+import type PowerPlatformAPI = require("../../../packages/types/powerplatformAPI");
 
 const mockExposeMainWorld = jest.fn();
 const mockIpcOn = jest.fn();
@@ -31,6 +32,35 @@ function loadToolApi() {
 }
 
 describe("tool preload connection APIs", () => {
+    it("exposes raw clients with public signatures, connection targets and lossless bodies", async () => {
+        loadToolApi();
+        const api: PowerPlatformAPI.API = mockExposeMainWorld.mock.calls.find(([name]) => name === "powerplatformAPI")?.[1];
+        const body = new Uint8Array([0x1f, 0x8b, 0, 0xff, 0x80]);
+        const response = { status: 200, headers: { "content-type": "application/gzip" }, body };
+        mockIpcInvoke.mockResolvedValue(response);
+        const client = api.Analytics.Raw;
+        const options = { requireDelegatedAuthentication: true };
+        expect(await client.Get("download", 2, { Accept: "application/gzip" }, options)).toEqual(response);
+        expect(mockIpcInvoke).toHaveBeenLastCalledWith(POWERPLATFORM_CHANNELS.REQUEST_RAW, "Analytics", "GET", "download", undefined, { Accept: "application/gzip" }, 2, options);
+        await client.Post("exports", { format: "csv" }, "secondary");
+        expect(mockIpcInvoke).toHaveBeenLastCalledWith(POWERPLATFORM_CHANNELS.REQUEST_RAW, "Analytics", "POST", "exports", { format: "csv" }, undefined, "secondary", undefined);
+        await client.Put("exports", {}, 0);
+        await client.Patch("exports", {}, 1);
+        await client.Delete("exports", "primary", undefined, { ids: [1] }, options);
+        expect(mockIpcInvoke).toHaveBeenLastCalledWith(POWERPLATFORM_CHANNELS.REQUEST_RAW, "Analytics", "DELETE", "exports", { ids: [1] }, undefined, "primary", options);
+        expect(Object.values(api).every((category) => typeof category.Raw.Get === "function")).toBe(true);
+        await api.Analytics.Get("exports", 2);
+        expect(mockIpcInvoke).toHaveBeenLastCalledWith(POWERPLATFORM_CHANNELS.REQUEST, "Analytics", "GET", "exports", undefined, undefined, 2);
+    });
+
+    it("rejects raw HTTP failures with cloneable metadata instead of losing fields on Error", async () => {
+        loadToolApi();
+        const api: PowerPlatformAPI.API = mockExposeMainWorld.mock.calls.find(([name]) => name === "powerplatformAPI")?.[1];
+        const response = { status: 429, headers: { "retry-after": "5" }, body: new TextEncoder().encode('{"error":{"code":"Throttled","message":"Wait"}}') };
+        mockIpcInvoke.mockResolvedValue(response);
+        await expect(api.Analytics.Raw.Get("exports")).rejects.toEqual({ ...response, name: "PowerPlatformHttpError", message: "Throttled: Wait", code: "Throttled" });
+    });
+
     it("preserves null gaps and resolves a later numeric slot", async () => {
         const { api, setContext } = loadToolApi();
         setContext({ toolId: "sample-tool", instanceId: "sample-instance", connectionIds: ["primary-id", null, "third-id", "fourth-id"] });

@@ -4,6 +4,7 @@ import { pathToFileURL } from "url";
 import type { ConnectionTarget } from "../../../../src/common/connectionSlots";
 import type { Connection, ToolManifest } from "../../../../src/common/types";
 import { invokeHeadlessTool, type HeadlessInvokeContext, type HeadlessRuntimeServices } from "../../../../src/main/mcp/headlessToolRuntime";
+import type { createPowerPlatformRawClient } from "../../../../src/common/powerplatformApi";
 
 jest.mock("fs", () => ({
     existsSync: jest.fn((filePath: string) => filePath.endsWith("headless.js")),
@@ -29,6 +30,7 @@ interface RuntimeGlobals {
     powerplatformAPI: {
         PowerApps: {
             Get: (relativePath: string, target?: ConnectionTarget) => Promise<unknown>;
+            Raw: ReturnType<typeof createPowerPlatformRawClient>;
         };
     };
 }
@@ -50,6 +52,7 @@ describe("headless runtime connection slots", () => {
     const getAllEntitiesMetadata = jest.fn().mockResolvedValue([]);
     const executeBatch = jest.fn().mockResolvedValue([]);
     const request = jest.fn().mockResolvedValue({ ok: true });
+    const requestRaw = jest.fn();
     const services = {
         connectionsManager: { getConnectionById, getConnections: jest.fn(() => connections) },
         dataverseManager: {
@@ -58,7 +61,7 @@ describe("headless runtime connection slots", () => {
             executeBatch,
             withAdditionalHeaders: jest.fn((_headers: unknown, operation: () => Promise<unknown>) => operation()),
         },
-        powerPlatformManager: { request },
+        powerPlatformManager: { request, requestRaw },
     } as unknown as HeadlessRuntimeServices;
 
     function invoke(overrides: Partial<HeadlessInvokeContext>, operation: (apis: RuntimeGlobals, context: HeadlessInvokeContext) => Promise<Record<string, unknown>>) {
@@ -75,6 +78,19 @@ describe("headless runtime connection slots", () => {
     }
 
     beforeEach(() => jest.clearAllMocks());
+
+    it("provides raw response and error parity through the headless runtime", async () => {
+        const response = { status: 200, headers: { "content-type": "application/gzip" }, body: new Uint8Array([31, 139, 255, 0]) };
+        requestRaw.mockResolvedValue(response);
+        await invoke({ connectionIds: connections.map((connection) => connection.id) }, async ({ powerplatformAPI }) => {
+            const options = { requireDelegatedAuthentication: true };
+            expect(await powerplatformAPI.PowerApps.Raw.Get("exports", 2, undefined, options)).toEqual(response);
+            expect(requestRaw).toHaveBeenLastCalledWith("conn-2", "PowerApps", "GET", "exports", undefined, undefined, options);
+            requestRaw.mockResolvedValue({ ...response, status: 403, body: new TextEncoder().encode('{"message":"Forbidden"}') });
+            await expect(powerplatformAPI.PowerApps.Raw.Get("exports", "secondary")).rejects.toMatchObject({ name: "PowerPlatformHttpError", status: 403, message: "Forbidden" });
+            return {};
+        });
+    });
 
     it("routes numeric slots 2+ and secondary through the actual runtime APIs", async () => {
         await invoke({ connectionIds: connections.map((connection) => connection.id) }, async ({ toolboxAPI, dataverseAPI, powerplatformAPI }) => {
