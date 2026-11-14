@@ -32,6 +32,8 @@ for (const scenario of [
 
         const message = toastWindow!.locator(".notification-message");
         await expect(message).toHaveText(body);
+        await expect(toastWindow!.locator(".notification")).toHaveCSS("border-radius", "8px");
+        await expect(toastWindow!.locator(".notification")).toHaveCSS("overflow", "hidden");
 
         const dimensions = await message.evaluate((element) => ({
             visibleWidth: element.clientWidth,

@@ -165,6 +165,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     fetchRegistryTools: (options?: { forceRefresh?: boolean }) => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, options),
     getRegistryIssues: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_REGISTRY_ISSUES),
     fetchCommunityLinks: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS),
+    fetchSponsors: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_SPONSORS),
     getKnownCapabilityTags: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_TOOL_UPDATES, toolId),

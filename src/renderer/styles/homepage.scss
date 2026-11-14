@@ -48,7 +48,9 @@ body.dark-theme .homepage-hero-tagline {
 }
 
 /* New Tools Notification Bar */
-.new-tools-notification {
+.new-tools-notification.fluent-button {
+    width: 100%;
+    color: inherit;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -62,18 +64,18 @@ body.dark-theme .homepage-hero-tagline {
     transition: all 0.2s ease;
 }
 
-.new-tools-notification:hover {
+.new-tools-notification.fluent-button:hover {
     background: linear-gradient(135deg, rgba(106, 0, 255, 0.15) 0%, rgba(139, 0, 255, 0.15) 100%);
     border-color: rgba(106, 0, 255, 0.5);
     transform: translateY(-1px);
 }
 
-body.dark-theme .new-tools-notification {
+body.dark-theme .new-tools-notification.fluent-button {
     background: linear-gradient(135deg, rgba(106, 0, 255, 0.15) 0%, rgba(139, 0, 255, 0.15) 100%);
     border-color: rgba(106, 0, 255, 0.4);
 }
 
-body.dark-theme .new-tools-notification:hover {
+body.dark-theme .new-tools-notification.fluent-button:hover {
     background: linear-gradient(135deg, rgba(106, 0, 255, 0.2) 0%, rgba(139, 0, 255, 0.2) 100%);
     border-color: rgba(106, 0, 255, 0.6);
 }
@@ -117,12 +119,19 @@ body.dark-theme .new-tools-message {
 /* Hero stats */
 .homepage-hero-stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 24px;
     margin-top: 32px;
 }
 
-.hero-stat {
+.hero-stat.fluent-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    font: inherit;
+    cursor: pointer;
     text-align: center;
     padding: 20px;
     background: var(--card-background, var(--bg-color));
@@ -131,7 +140,13 @@ body.dark-theme .new-tools-message {
     transition: all 0.2s ease;
 }
 
-.hero-stat:hover {
+.hero-stat.fluent-button:focus-visible,
+.new-tools-notification.fluent-button:focus-visible {
+    outline: 2px solid var(--accent-color, #6a00ff);
+    outline-offset: 3px;
+}
+
+.hero-stat.fluent-button:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-hover, 0 4px 16px rgba(0, 0, 0, 0.1));
 }
@@ -145,8 +160,22 @@ body.dark-theme .hero-stat {
     display: block;
     font-size: 32px;
     font-weight: 700;
+    line-height: 40px;
     color: var(--accent-color, #6a00ff);
     margin-bottom: 8px;
+}
+
+.hero-stat-value.is-loading,
+.hero-stat-value.is-unavailable {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.hero-stat-value.is-loading {
+    background: var(--border-color);
+    border-radius: 4px;
+    width: 100%;
+    max-width: 100px;
 }
 
 .hero-stat-label {
@@ -155,6 +184,76 @@ body.dark-theme .hero-stat {
     color: var(--text-secondary, #605e5c);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    line-height: 18px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.homepage-getting-started {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.homepage-getting-started:not(:has(.homepage-onboarding-card:not([hidden]))) {
+    display: none;
+}
+
+.homepage-onboarding-card {
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-background, var(--bg-color));
+    text-align: left;
+}
+
+.homepage-onboarding-card[hidden] {
+    display: none;
+}
+
+.homepage-onboarding-card h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+.homepage-onboarding-card p {
+    color: var(--text-secondary);
+    margin: 0 0 16px;
+    font-size: 14px;
+}
+
+.homepage-quick-access-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.homepage-quick-access-header h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+#home-view {
+    container-type: inline-size;
+}
+
+@container (max-width: 1000px) {
+    .homepage-hero-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+    }
+}
+
+@container (max-width: 480px) {
+    .homepage-hero-stats {
+        grid-template-columns: 1fr;
+    }
 }
 
 body.dark-theme .hero-stat-label {
@@ -975,11 +1074,6 @@ body.dark-theme .homepage-footer-link {
 @media (max-width: 768px) {
     .homepage-wrapper {
         padding: 32px 24px;
-    }
-
-    .homepage-hero-stats {
-        grid-template-columns: 1fr;
-        gap: 16px;
     }
 
     .sponsor-tiers {

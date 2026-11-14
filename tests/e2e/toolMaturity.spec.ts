@@ -10,6 +10,63 @@ async function getToolIds(locator: Locator): Promise<string[]> {
 }
 
 test.describe("Tool maturity", () => {
+    for (const fail of [false, true]) {
+        test(`bulk-update ${fail ? "failure" : "success"} summaries can be dismissed without returning on refresh`, async ({ electronApp, window }) => {
+            await electronApp.evaluate(({ ipcMain }, fail) => {
+                let updated = false;
+                ipcMain.removeHandler("check-tool-updates");
+                ipcMain.handle("check-tool-updates", () => ({ hasUpdate: !updated, latestVersion: "2.0.0" }));
+                ipcMain.removeHandler("update-tool");
+                ipcMain.handle("update-tool", async () => {
+                    await new Promise((resolve) => setTimeout(resolve, 500));
+                    if (fail) throw new Error("Test update failure");
+                    updated = true;
+                    return { version: "2.0.0" };
+                });
+            }, fail);
+            await window.reload();
+            await window.locator("#sidebar-update-all-tools-btn").click();
+            const summary = window.locator("#sidebar-bulk-update-status");
+            const dismiss = window.getByRole("button", { name: "Dismiss update summary" });
+            await expect(summary).toBeVisible();
+            await expect(dismiss).toBeHidden();
+            await expect(dismiss).toBeVisible({ timeout: 15000 });
+            await expect(window.locator("#sidebar-bulk-update-message")).toContainText(fail ? "need attention" : "updated successfully");
+            if (fail) await expect(window.locator("#sidebar-bulk-update-retry")).toBeVisible();
+            await dismiss.click();
+            await expect(summary).toBeHidden();
+            await window.locator("#tools-search-input").fill("Zulu");
+            await expect(summary).toBeHidden();
+        });
+    }
+
+    test("Verified status only adds a badge, not special card styling", async ({ window }) => {
+        for (const section of ["tools", "marketplace"]) {
+            if (section === "marketplace") await window.locator('[data-sidebar="marketplace"]').click();
+            const card = window.locator(section === "tools" ? "#sidebar-tools-list .tool-item-pptb.verified" : "#marketplace-tools-list .marketplace-item-pptb.verified").first();
+            await expect(card.locator(".tool-verified-badge")).toHaveCount(1);
+            for (const hovered of [false, true]) {
+                if (hovered) await card.hover();
+                const styles = await card.evaluate((element) => {
+                    const previousStyle = element.getAttribute("style");
+                    (element as HTMLElement).style.transition = "none";
+                    const readStyle = () => {
+                        const style = getComputedStyle(element);
+                        return { border: style.borderColor, background: style.backgroundColor, shadow: style.boxShadow };
+                    };
+                    const verified = readStyle();
+                    element.classList.remove("verified");
+                    const ordinary = readStyle();
+                    element.classList.add("verified");
+                    if (previousStyle === null) element.removeAttribute("style");
+                    else element.setAttribute("style", previousStyle);
+                    return { verified, ordinary };
+                });
+                expect(styles.verified).toEqual(styles.ordinary);
+            }
+        }
+    });
+
     test("Marketplace badges and sorts Verified tools first", async ({ electronApp, window }) => {
         const testEnvironment = await electronApp.evaluate(() => ({
             mode: process.env.PPTB_TEST_MODE,

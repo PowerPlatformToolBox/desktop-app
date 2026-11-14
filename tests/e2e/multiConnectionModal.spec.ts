@@ -140,6 +140,8 @@ test.describe("Multi-connection selection modal", () => {
     test("opens the multi-slot selector for a zero-to-three optional connection range", async ({ electronApp, window }) => {
         const modal = await launchFixtureTool(window, electronApp, "e2e-optional-zero-to-three");
 
+        await expect(modal.locator(".modal-panel")).toHaveCSS("border-radius", "8px");
+        await expect(modal.locator("html")).toHaveCSS("clip-path", "inset(0px round 8px)");
         await expect(modal.locator(".info-message")).toContainText("Choose at least 0 connections");
         await expect(modal.locator(".info-message")).toContainText("up to 3 slots");
         await expect(modal.locator("[data-slot-row]")).toHaveCount(0);

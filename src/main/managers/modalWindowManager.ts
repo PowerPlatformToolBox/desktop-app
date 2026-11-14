@@ -100,6 +100,7 @@ export class ModalWindowManager {
             parent: this.mainWindow,
             modal: true,
             frame: false,
+            roundedCorners: false,
             transparent: true,
             resizable: this.currentOptions?.resizable ?? false,
             skipTaskbar: true,
@@ -243,6 +244,9 @@ export class ModalWindowManager {
             height: 100%;
             background: transparent;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        html {
+            clip-path: inset(0 round 8px);
         }
     </style>
 </head>

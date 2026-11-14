@@ -13,6 +13,36 @@ jest.mock("../../../src/renderer/modules/toolManagement", () => ({}));
 jest.mock("../../../src/renderer/modules/toolsSidebarManagement", () => ({}));
 
 import { loadMarketplace } from "../../../src/renderer/modules/marketplaceManagement";
+import { getNewToolsWindow, isToolPublishedSince } from "../../../src/common/types/settings";
+
+describe("new tools discovery window", () => {
+    const now = Date.parse("2026-11-13T00:00:00.000Z");
+    const lastAppOpenedAt = new Date(now).toISOString();
+
+    it.each([undefined, "invalid", "2026-11-11T00:00:00.000Z", "2026-11-14T00:00:00.000Z"])("uses at least seven days for a previous visit of %s", (previousAppOpenedAt) => {
+        expect(getNewToolsWindow({ lastAppOpenedAt, previousAppOpenedAt }, now)).toEqual({
+            since: Date.parse("2026-11-06T00:00:00.000Z"),
+            label: "in the last 7 days",
+        });
+    });
+
+    it("includes all tools from a ten-day absence, and keeps the window stable within the session", () => {
+        const settings = { lastAppOpenedAt, previousAppOpenedAt: "2026-11-03T00:00:00.000Z" };
+        const window = getNewToolsWindow(settings, now);
+        expect(window.since).toBe(Date.parse(settings.previousAppOpenedAt));
+        expect(window.label).toContain("since your last visit on");
+        expect(getNewToolsWindow(settings, now + 86400000)).toEqual(window);
+        expect(isToolPublishedSince("2026-11-04T00:00:00.000Z", window.since, now)).toBe(true);
+    });
+
+    it("includes the boundary and rejects older, missing, invalid, and future publication dates", () => {
+        const { since } = getNewToolsWindow({}, now);
+        expect(isToolPublishedSince(new Date(since).toISOString(), since, now)).toBe(true);
+        for (const date of [undefined, "invalid", new Date(since - 1).toISOString(), new Date(now + 1).toISOString()]) {
+            expect(isToolPublishedSince(date, since, now)).toBe(false);
+        }
+    });
+});
 
 describe("marketplace author filter", () => {
     const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
@@ -30,7 +60,7 @@ describe("marketplace author filter", () => {
         };
         Object.defineProperty(globalThis, "document", {
             configurable: true,
-            value: { getElementById: jest.fn((id: string) => elements[id] ?? null) },
+            value: { getElementById: jest.fn((id: string) => elements[id] ?? null), querySelector: jest.fn(() => null) },
         });
         Object.defineProperty(globalThis, "window", {
             configurable: true,

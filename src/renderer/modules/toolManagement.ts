@@ -1439,10 +1439,10 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
 
     if (slotSquaresElement) slotSquaresElement.replaceChildren();
 
-    if (!activeToolId) {
-        // No active tool, show "Not Connected"
-        statusElement.hidden = false;
-        statusElement.textContent = "Not Connected";
+    const activeTool = activeToolId ? openTools.get(activeToolId) : undefined;
+    if (!activeTool || activeTool.isDetailTab || document.getElementById("home-view")?.classList.contains("active")) {
+        statusElement.hidden = true;
+        statusElement.textContent = "";
         statusElement.className = "connection-status";
         statusElement.style.color = "";
         statusElement.style.backgroundColor = "";
@@ -1450,9 +1450,6 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         updateToolPanelBorder(null);
         return;
     }
-
-    const activeTool = openTools.get(activeToolId);
-    if (!activeTool) return;
 
     const slots = resolveConnectionSlots(activeTool.tool.features);
     statusElement.hidden = slots.max === 0;
@@ -1466,6 +1463,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     }
 
     const connections = await window.toolboxAPI.connections.getAll();
+    if (openTools.get(activeToolId ?? "") !== activeTool || document.getElementById("home-view")?.classList.contains("active")) return;
     const toolConnectionId = activeTool.connectionId;
     const toolConnection = toolConnectionId ? connections.find((connection: Connection) => connection.id === toolConnectionId) : null;
     const toolConnectionSlots = activeTool.connectionIds ?? [activeTool.connectionId, activeTool.secondaryConnectionId];
