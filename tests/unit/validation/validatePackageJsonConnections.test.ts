@@ -19,6 +19,11 @@ const validPackage = (features: ToolPackageJson["features"]): ToolPackageJson =>
 });
 
 describe("package.json features.connections validation", () => {
+    it("accepts raw API consumers using minAPI without a new manifest feature", async () => {
+        const packageJson = validPackage({ connections: 1, minAPI: "1.2.9", enabledForPowerPlatformAPI: true });
+        await expect(validatePackageJson(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+        await expect(mirroredValidator.validatePackageJson(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+    });
     it.each([0, 1, 2, 10])("accepts numeric connection count %i", async (connections) => {
         const result = await validatePackageJson(validPackage({ connections }), { skipUrlChecks: true });
         expect(result.valid).toBe(true);

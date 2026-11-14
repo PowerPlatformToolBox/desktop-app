@@ -27,6 +27,7 @@ import {
     WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logInfo } from "../common/logger";
+import { createPowerPlatformRawClient, type PowerPlatformRawResponse } from "../common/powerplatformApi";
 import type { DataverseBatchRequest, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 import { createWorkerToolAPI } from "../common/types/workerToolApiClient";
 import type { WorkerToolEvent } from "../common/types/workerToolApi";
@@ -166,6 +167,10 @@ const POWER_PLATFORM_CATEGORIES: PowerPlatformCategory[] = [
 ];
 
 const buildPowerPlatformCategoryClient = (category: PowerPlatformCategory) => ({
+    Raw: createPowerPlatformRawClient(
+        (method, path, body, headers, connectionTarget, options) =>
+            ipcRenderer.invoke(POWERPLATFORM_CHANNELS.REQUEST_RAW, category, method, path, body, headers, connectionTarget, options) as Promise<PowerPlatformRawResponse>,
+    ),
     Get: (path = "", connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
         ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "GET" as PowerPlatformMethod, path, undefined, headers, connectionTarget),
     Post: (path = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>

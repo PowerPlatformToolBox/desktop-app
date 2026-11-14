@@ -137,6 +137,12 @@ Add the `minAPI` field to your tool's `package.json`:
 
 ### 2. Use @pptb/types Package
 
+Tools using `powerplatformAPI.<Category>.Raw` require PPTB and `@pptb/types`
+1.2.9 or later and should declare `features.minAPI: "1.2.9"` or newer. This is
+an additive API: existing parsed methods and the host's backward-compatibility
+floor are unchanged. Opt-in is per method call, not a new manifest feature.
+Prereleases built before the capability was added do not supply it.
+
 Install the appropriate version as a dev dependency:
 
 ```bash
