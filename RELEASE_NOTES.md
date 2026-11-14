@@ -11,6 +11,7 @@
 
 ## Fixes
 
+- UI: completed bulk-update summaries can be dismissed. Progress remains visible while updates run, and failures remain available for review and retry until dismissed.
 - Dataverse: fixed HTTP proxy handling and improved proxy failure diagnostics.
 - Windows: handle command shims during tool package installation.
 - Tools: display color SVG icons and load icons for locally installed tools.

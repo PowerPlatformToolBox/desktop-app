@@ -962,6 +962,8 @@ function renderBulkUpdateStatus(): void {
     const message = document.getElementById("sidebar-bulk-update-message");
     const progress = document.getElementById("sidebar-bulk-update-progress") as HTMLProgressElement | null;
     const retryButton = document.getElementById("sidebar-bulk-update-retry") as HTMLButtonElement | null;
+    const dismissButton = document.getElementById("sidebar-bulk-update-dismiss");
+    if (dismissButton) dismissButton.hidden = bulkUpdateStatus.phase !== "complete";
     const details = document.getElementById("sidebar-bulk-update-details") as HTMLDetailsElement | null;
     const failureList = document.getElementById("sidebar-bulk-update-failures");
     if (!container || !message || !progress || !retryButton || !details || !failureList) return;
@@ -1005,6 +1007,13 @@ function renderBulkUpdateStatus(): void {
             message.textContent = "All installed tools are up to date.";
         }
     }
+}
+
+export function dismissBulkUpdateStatus(): void {
+    if (bulkUpdateRunning || bulkUpdateStatus.phase !== "complete") return;
+    bulkUpdateStatus.phase = "idle";
+    renderBulkUpdateStatus();
+    void loadSidebarTools();
 }
 
 /**

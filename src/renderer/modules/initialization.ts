@@ -62,7 +62,7 @@ import {
     setupKeyboardShortcuts,
     showHomePage,
 } from "./toolManagement";
-import { clearInstalledToolsDropdownFilters, loadSidebarTools, retryFailedToolUpdatesFromSidebar, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
+import { clearInstalledToolsDropdownFilters, dismissBulkUpdateStatus, loadSidebarTools, retryFailedToolUpdatesFromSidebar, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
 
 /**
  * Initialize the application
@@ -363,6 +363,7 @@ function setupSidebarButtons(): void {
             logError(error instanceof Error ? error : new Error(String(error)));
         });
     });
+    document.getElementById("sidebar-bulk-update-dismiss")?.addEventListener("click", dismissBulkUpdateStatus);
 
     // Sidebar add connection button
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");

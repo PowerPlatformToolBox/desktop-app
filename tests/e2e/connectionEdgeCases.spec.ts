@@ -168,10 +168,20 @@ test("cold app restart restores all three saved slots", async ({ electronApp, wi
         },
     });
     try {
-        await restarted.evaluate(({ ipcMain }) => {
-            ipcMain.removeHandler("set-active-connection");
-            ipcMain.handle("set-active-connection", async () => undefined);
-        });
+        await expect
+            .poll(async () => {
+                try {
+                    await restarted.evaluate(({ ipcMain }) => {
+                        ipcMain.removeHandler("set-active-connection");
+                        ipcMain.handle("set-active-connection", async () => undefined);
+                    });
+                    return true;
+                } catch (error) {
+                    if (error instanceof Error && error.message.includes("Execution context was destroyed")) return false;
+                    throw error;
+                }
+            })
+            .toBe(true);
         let mainWindow: Page | undefined;
         await expect
             .poll(
@@ -226,7 +236,8 @@ test("blocked delete skips confirmation; last close immediately clears footer an
     await toolTabs(window).locator(".tool-tab-close").click();
     await expect(window.locator("#tool-tabs .tool-tab")).toHaveCount(0);
     await expect(window.locator("#connection-slot-squares button")).toHaveCount(0, { timeout: 1_500 });
-    await expect(window.locator("#connection-status")).toHaveText("Not Connected", { timeout: 1_500 });
+    await expect(window.locator("#connection-status")).toBeHidden({ timeout: 1_500 });
+    await expect(window.locator("#connection-status")).toHaveText("", { timeout: 1_500 });
     expect(await window.evaluate((id) => window.toolboxAPI.connections.getDeleteBlocker(id), assignedIds[2])).toBeNull();
     await window.locator(`#sidebar-connections-list [data-action="more"][data-connection-id="${assignedIds[2]}"]`).click();
     await window.locator('[data-menu-action="delete"]').click();
