@@ -6,6 +6,7 @@ import type { AddressInfo } from "net";
 import os from "os";
 import path from "path";
 import type { ToolManifest } from "../../../../src/common/types";
+import type { AzureApiManager } from "../../../../src/main/managers/azureApiManager";
 import { CONNECTION_SELECTION_INSTRUCTIONS } from "../../../../src/main/mcp/headlessInputRequirements";
 import { invokeHeadlessTool } from "../../../../src/main/mcp/headlessToolRuntime";
 import { McpServerManager } from "../../../../src/main/mcp/mcpServer";
@@ -41,6 +42,7 @@ describe("MCP agent-driven headless input flow", () => {
     let client: Client;
     let connections: TestConnection[];
     const launchToolWithContext = jest.fn().mockResolvedValue({ done: true });
+    const azureApiManager = { invoke: jest.fn() } as unknown as AzureApiManager;
     const authManager = {
         authenticateInteractive: jest.fn(),
         authenticateClientSecret: jest.fn(),
@@ -130,6 +132,7 @@ describe("MCP agent-driven headless input flow", () => {
         (manager as any).connectionsManager = connectionsManager;
         (manager as any).authManager = authManager;
         manager.setToolWindowManager({ launchToolWithContext } as any);
+        manager.setAzureApiManager(azureApiManager);
         (invokeHeadlessTool as jest.Mock).mockImplementation(async (_manifest, input, context) => ({ input, names: context.connectionNames, tokens: context.authTokens }));
         await manager.start();
         const port = ((manager as unknown as { httpServer: Server }).httpServer.address() as AddressInfo).port;
@@ -201,6 +204,8 @@ describe("MCP agent-driven headless input flow", () => {
         expect(response.isError).not.toBe(true);
         expect(invokeHeadlessTool).toHaveBeenCalledTimes(1);
         expect((invokeHeadlessTool as jest.Mock).mock.calls[0][2]).toMatchObject({ connectionIds: ["conn-dev"], connectionNames: ["Contoso Dev"], authTokens: ["dev-token"] });
+        expect((invokeHeadlessTool as jest.Mock).mock.calls[0][2].timeoutMs).toBeGreaterThan(0);
+        expect((invokeHeadlessTool as jest.Mock).mock.calls[0][3].azureApiManager).toBe(azureApiManager);
         expect(authManager.authenticateInteractive).not.toHaveBeenCalled();
         expect(authManager.authenticateClientSecret).not.toHaveBeenCalled();
         expect(authManager.authenticateUsernamePassword).not.toHaveBeenCalled();

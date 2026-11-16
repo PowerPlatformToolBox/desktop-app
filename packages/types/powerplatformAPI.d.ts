@@ -20,10 +20,52 @@ declare namespace PowerPlatformAPI {
     export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
     /**
+     * Unmodified HTTP response. Available from PPTB 1.2.9.
+     * Gzip file bodies remain compressed; decode/decompress explicitly.
+     */
+    export interface RawResponse {
+        status: number;
+        /** Lowercase keys, e.g. headers["location"]. Repeated values are joined with ", ". */
+        headers: Record<string, string>;
+        /** Lossless bytes, including a zero-length array for an empty response. */
+        body: Uint8Array;
+    }
+
+    export interface RawRequestOptions {
+        /** Require a user-authenticated connection, including when following a returned location. */
+        requireDelegatedAuthentication?: boolean;
+    }
+
+    /**
+     * Non-2xx raw requests reject with this plain object (not an Error instance).
+     * HTTP metadata survives IPC/context isolation. Transport/auth/validation failures reject with Error.
+     */
+    export interface HttpError extends RawResponse {
+        name: "PowerPlatformHttpError";
+        message: string;
+        code?: string;
+    }
+
+    /**
+     * Opt-in binary client; all methods reject non-2xx responses with HttpError.
+     * Paths may be category-relative or an HTTPS Location on api.powerplatform.com
+     * within this same category. Redirects are not followed automatically.
+     */
+    export interface RawCategoryClient {
+        Get: (path?: string, connectionTarget?: ConnectionTarget, headers?: Record<string, string>, options?: RawRequestOptions) => Promise<RawResponse>;
+        Post: (path?: string, body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>, options?: RawRequestOptions) => Promise<RawResponse>;
+        Put: (path?: string, body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>, options?: RawRequestOptions) => Promise<RawResponse>;
+        Patch: (path?: string, body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>, options?: RawRequestOptions) => Promise<RawResponse>;
+        Delete: (path?: string, connectionTarget?: ConnectionTarget, headers?: Record<string, string>, body?: unknown, options?: RawRequestOptions) => Promise<RawResponse>;
+    }
+
+    /**
      * Power Platform API category client interface
      * Provides generic HTTP methods for each API category
      */
     export interface CategoryClient {
+        /** Opt in to HTTP metadata and binary bytes without changing parsed methods. Requires PPTB 1.2.9. */
+        Raw: RawCategoryClient;
         /**
          * Make a GET request to the category endpoint
          * @param path Relative path after the category base URL (e.g., "environments/{environmentId}/apps/{app}?api-version=2024-10-01")

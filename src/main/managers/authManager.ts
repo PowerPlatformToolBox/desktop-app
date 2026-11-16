@@ -1,5 +1,6 @@
 import { AccountInfo, ConfidentialClientApplication, INetworkModule, LogLevel, NetworkRequestOptions, NetworkResponse, PublicClientApplication } from "@azure/msal-node";
 import { BrowserWindow } from "electron";
+import { createHash, randomBytes } from "crypto";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
@@ -8,11 +9,183 @@ import { Connection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
 import type { ProxyManager } from "./proxyManager";
+import { azureError, isAzureError } from "../../common/azureApi";
 
 /**
  * Manages authentication for Power Platform connections
  */
 export class AuthManager {
+    private azureRenewals = new Map<string, Promise<string>>();
+    private azureInteractive = new Set<string>();
+
+    invalidateConnection(connectionId: string): void {
+        this.msalApps.delete(connectionId);
+        this.confidentialApps.delete(connectionId);
+        for (const key of this.azureRenewals.keys()) {
+            if (key.startsWith(`${connectionId}:`)) this.azureRenewals.delete(key);
+        }
+    }
+
+    async getAzureAccount(connection: Connection): Promise<{ accountId: string; tenantId?: string; displayName?: string } | null> {
+        if (connection.authenticationType === "clientSecret") {
+            return connection.clientId && connection.clientSecret && connection.tenantId ? { accountId: connection.clientId, tenantId: connection.tenantId } : null;
+        }
+        if (!connection.msalAccountId) return null;
+        const app = this.getMsalApp(connection.id, connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d", connection.tenantId || "organizations");
+        const accounts = await app.getTokenCache().getAllAccounts();
+        const account = accounts.find((candidate) => candidate.homeAccountId === connection.msalAccountId);
+        return account ? { accountId: account.homeAccountId, tenantId: account.tenantId, displayName: account.name || account.username } : null;
+    }
+
+    async acquireAzureToken(connection: Connection, scopes: string[], interactive: boolean, forceRefresh: boolean, signal: AbortSignal, claims?: string): Promise<string> {
+        signal.throwIfAborted();
+        const key = `${connection.id}:${JSON.stringify(scopes)}:${forceRefresh}:${claims ?? ""}`;
+        if (!interactive && this.azureRenewals.has(key)) return this.azureRenewals.get(key)!;
+        const acquire = async (): Promise<string> => {
+            try {
+                if (connection.authenticationType === "clientSecret") {
+                    if (!connection.clientId || !connection.clientSecret || !connection.tenantId) throw azureError("notConfigured", "Configure the connection's client ID, secret and tenant.");
+                    const app = this.getConfidentialApp(connection.id, connection.clientId, connection.clientSecret, connection.tenantId);
+                    const result = await app.acquireTokenByClientCredential({
+                        scopes: [scopes[0].startsWith("https://graph.microsoft.com/") ? "https://graph.microsoft.com/.default" : "https://management.azure.com/.default"],
+                        skipCache: forceRefresh,
+                        ...(claims ? { claims } : {}),
+                    });
+                    if (!result?.accessToken) throw azureError("authenticationFailed", "Application authentication returned no access token.");
+                    return result.accessToken;
+                }
+                if (connection.authenticationType !== "interactive" && connection.authenticationType !== "usernamePassword") {
+                    throw azureError("notConfigured", "Parse the connection string and authenticate the Dataverse connection first.");
+                }
+                const app = this.getMsalApp(connection.id, connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d", connection.tenantId || "organizations");
+                const accounts = await app.getTokenCache().getAllAccounts();
+                const account = accounts.find((candidate) => candidate.homeAccountId === connection.msalAccountId);
+                if (!account) throw azureError("notConnected", "Reconnect this Dataverse connection first to establish its account.");
+                try {
+                    const result = await app.acquireTokenSilent({
+                        account,
+                        scopes,
+                        authority: `https://login.microsoftonline.com/${account.tenantId}`,
+                        forceRefresh: forceRefresh || !!claims,
+                        ...(claims ? { claims } : {}),
+                    });
+                    return result.accessToken;
+                } catch (error) {
+                    if (!interactive || !this.isInteractionRequiredError(error)) throw error;
+                    signal.throwIfAborted();
+                    return await this.authenticateAzureInteractive(connection, app, account, scopes, signal, claims);
+                }
+            } catch (error) {
+                if (interactive && signal.aborted) throw signal.reason;
+                if (isAzureError(error)) throw error;
+                if (this.isInteractionRequiredError(error)) throw azureError("interactionRequired", "Additional consent, MFA or Conditional Access requires explicit authentication.");
+                logWarn("Additional Azure API authentication failed");
+                throw azureError("authenticationFailed", "Could not authenticate to the selected API. Verify application permissions, tenant consent and connection credentials.");
+            }
+        };
+        const result = acquire();
+        if (interactive) return result;
+        this.azureRenewals.set(key, result);
+        try {
+            return await result;
+        } finally {
+            if (this.azureRenewals.get(key) === result) this.azureRenewals.delete(key);
+        }
+    }
+
+    private async authenticateAzureInteractive(connection: Connection, app: PublicClientApplication, account: AccountInfo, scopes: string[], signal: AbortSignal, claims?: string): Promise<string> {
+        if (this.azureInteractive.has(connection.id)) throw azureError("limitExceeded", "Authentication is already in progress for this connection.");
+        this.azureInteractive.add(connection.id);
+        try {
+            return await new Promise<string>((resolve, reject) => {
+                const verifier = randomBytes(32).toString("base64url");
+                const state = randomBytes(32).toString("base64url");
+                let finished = false;
+                let exchanging = false;
+                const finish = (error?: unknown, token?: string) => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(timer);
+                    signal.removeEventListener("abort", abort);
+                    server.close();
+                    server.closeAllConnections();
+                    if (error) reject(error);
+                    else resolve(token!);
+                };
+                const abort = () => finish(signal.reason);
+                const server = http.createServer(async (req, res) => {
+                    let url: URL;
+                    try {
+                        url = new URL(req.url || "/", "http://localhost");
+                    } catch {
+                        logWarn("Rejected malformed Azure authentication callback");
+                        res.writeHead(400).end("Invalid authentication callback.");
+                        return;
+                    }
+                    if (req.method !== "GET" || url.pathname !== "/" || url.searchParams.get("state") !== state || exchanging) {
+                        res.writeHead(400).end("Invalid authentication callback.");
+                        return;
+                    }
+                    const code = url.searchParams.get("code");
+                    if (!code || url.searchParams.has("error")) {
+                        res.once("finish", () => finish(azureError("authenticationFailed", "Sign-in or consent was declined.")));
+                        res.writeHead(400).end("Authentication was not completed. Return to Power Platform ToolBox.");
+                        return;
+                    }
+                    exchanging = true;
+                    try {
+                        const address = server.address();
+                        if (!address || typeof address === "string") throw new Error("No loopback listener");
+                        const result = await app.acquireTokenByCode({
+                            code,
+                            scopes,
+                            authority: `https://login.microsoftonline.com/${account.tenantId}`,
+                            redirectUri: `http://localhost:${address.port}`,
+                            codeVerifier: verifier,
+                        });
+                        if (finished) return;
+                        if (result.account?.homeAccountId !== account.homeAccountId || result.account?.tenantId !== account.tenantId) {
+                            throw azureError("authenticationFailed", "Use the same account and tenant as the Dataverse connection. Reconnect Dataverse to switch identity.");
+                        }
+                        res.once("finish", () => finish(undefined, result.accessToken));
+                        res.writeHead(200, { "Content-Type": "text/plain", "Cache-Control": "no-store" }).end("Authentication completed. Return to Power Platform ToolBox.");
+                    } catch (error) {
+                        res.once("finish", () => finish(isAzureError(error) ? error : azureError("authenticationFailed", "Unable to complete Azure API authentication.")));
+                        res.writeHead(400).end("Authentication failed. Return to Power Platform ToolBox.");
+                    }
+                });
+                const timer = setTimeout(() => finish(azureError("timeout", "Azure authentication timed out.")), AuthManager.AUTH_TIMEOUT_MS);
+                server.on("error", () => finish(azureError("networkError", "Unable to open the local authentication listener.")));
+                signal.addEventListener("abort", abort, { once: true });
+                if (signal.aborted) {
+                    abort();
+                    return;
+                }
+                server.listen(0, "localhost", () => {
+                    const address = server.address();
+                    if (!address || typeof address === "string" || finished) return;
+                    void app
+                        .getAuthCodeUrl({
+                            scopes,
+                            authority: `https://login.microsoftonline.com/${account.tenantId}`,
+                            redirectUri: `http://localhost:${address.port}`,
+                            codeChallenge: createHash("sha256").update(verifier).digest("base64url"),
+                            codeChallengeMethod: "S256",
+                            state,
+                            loginHint: account.username,
+                            prompt: "select_account",
+                            ...(claims ? { claims } : {}),
+                        })
+                        .then((url) => {
+                            if (!finished) return this.browserManager.openBrowserWithProfile(url, connection);
+                        })
+                        .catch(() => finish(azureError("authenticationFailed", "Unable to open Azure sign-in in the configured browser.")));
+                });
+            });
+        } finally {
+            this.azureInteractive.delete(connection.id);
+        }
+    }
     // MSAL instances per connection (isolated by connection ID)
     private msalApps: Map<string, PublicClientApplication> = new Map();
     // Confidential client instances per connection (isolated by connection ID)
@@ -950,5 +1123,6 @@ export class AuthManager {
         logInfo("[AuthManager] Cleaning up MSAL instances");
         this.msalApps.clear();
         this.confidentialApps.clear();
+        this.azureRenewals.clear();
     }
 }

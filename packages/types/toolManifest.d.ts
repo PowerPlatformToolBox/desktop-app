@@ -10,6 +10,12 @@ export interface ToolConnectionRange {
 
 /** Feature declarations supported in a tool package.json `features` object. */
 export interface ToolPackageFeatures {
+    /** Preferred API declarations. Omitted required defaults to false. Graph needs explicit delegated read scopes. */
+    apis?: {
+        pp?: { required?: boolean };
+        arm?: { required?: boolean };
+        graph?: { required?: boolean; scopes: string[] };
+    };
     /** Exact count from 0 to 10, or a range with 0 <= min <= max <= 10. */
     connections?: ToolConnectionRequirement;
     /**
@@ -24,6 +30,9 @@ export interface ToolPackageFeatures {
     connectionRequirement?: "required" | "optional";
     /** Minimum ToolBox API version required by this tool. */
     minAPI?: string;
-    /** Restrict connection selection to connections enabled for the Power Platform API. */
+    /**
+     * Legacy Power Platform requirement hint. Does not block selection.
+     * @deprecated Use `apis.pp.required` instead. Retained for backward compatibility.
+     */
     enabledForPowerPlatformAPI?: boolean;
 }

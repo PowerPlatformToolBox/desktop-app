@@ -9,6 +9,7 @@ import type { ConnectionTarget } from "../common/connectionSlots";
 import { normalizeConnectionTarget, resolveConnectionSlots } from "../common/connectionSlots";
 import {
     AGENT_INVOCATION_CHANNELS,
+    AZURE_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     DATAVERSE_HEADER_CONSENT_CHANNELS,
@@ -48,6 +49,9 @@ import {
     ToolIdeaSubmission,
 } from "../common/types";
 import { AuthManager } from "./managers/authManager";
+import { AzureApiManager } from "./managers/azureApiManager";
+import { azureError, isAzureError, type AzureAPI, type AzureResult } from "../common/azureApi";
+import { resolveToolApis } from "../../packages/validation/src/apiFeatures";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
@@ -59,7 +63,8 @@ import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NativeWorkerConsentManager } from "./managers/nativeWorkerConsentManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
-import { PowerPlatformManager } from "./managers/powerplatformManager";
+import { PowerPlatformManager, type PowerPlatformCategory } from "./managers/powerplatformManager";
+import type { PowerPlatformMethod, PowerPlatformRawOptions } from "../common/powerplatformApi";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { applyProxyEnvironmentBootstrap, ProxyManager } from "./managers/proxyManager";
 import { SettingsManager } from "./managers/settingsManager";
@@ -134,6 +139,8 @@ class ToolBoxApp {
     private nativeWorkerConsentManager: NativeWorkerConsentManager;
     private workerBrokerManager: WorkerBrokerManager;
     private powerPlatformManager: PowerPlatformManager;
+    private azureApiManager: AzureApiManager;
+    private azureOwners = new Set<number>();
     private toolFilesystemAccessManager: ToolFileSystemAccessManager;
     private mcpServerManager: McpServerManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
@@ -256,9 +263,19 @@ class ToolBoxApp {
                 (webContentsId) => this.toolWindowManager?.getToolIdentityByWebContents(webContentsId) ?? null,
             );
             this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager, this.proxyManager);
+            this.azureApiManager = new AzureApiManager(this.connectionsManager, this.authManager, this.proxyManager, (owner, event) => {
+                for (const view of this.toolWindowManager?.getToolViews().values() ?? []) {
+                    if (view.webContents.id === owner && !view.webContents.isDestroyed()) view.webContents.send(AZURE_CHANNELS.CHANGED, event);
+                }
+            });
+            this.connectionsManager.onAuthenticationChanged((id, resetClient) => {
+                this.azureApiManager.invalidate(id);
+                if (resetClient) this.authManager.invalidateConnection(id);
+            });
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager, this.proxyManager);
+            this.mcpServerManager.setAzureApiManager(this.azureApiManager);
             this.proxyManager.setCredentialPromptHandler((authInfo) => this.promptForProxyCredentials(authInfo.host || "proxy", authInfo.port));
             this.proxyManager.setFailureNotifier((notice) => {
                 this.api.showNotification({
@@ -654,6 +671,9 @@ class ToolBoxApp {
 
         // Power Platform handlers
         ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
+        ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST_RAW);
+        ipcMain.removeHandler(AZURE_CHANNELS.INVOKE);
+        ipcMain.removeHandler(AZURE_CHANNELS.CANCEL);
 
         // Agent invocation logging handlers
         ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
@@ -2096,7 +2116,104 @@ class ToolBoxApp {
             };
         });
 
+        const azureEnvelope = async <T>(work: () => T | Promise<T>): Promise<AzureResult<T>> => {
+            try {
+                return { ok: true, value: await work() };
+            } catch (error) {
+                if (!isAzureError(error)) logWarn("Azure IPC operation rejected");
+                return { ok: false, error: isAzureError(error) ? error : azureError("invalidRequest", "The Azure operation was rejected. Check the connection and request parameters.") };
+            }
+        };
+        const azureCaller = (event: IpcMainInvokeEvent) => {
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            const identity = this.toolWindowManager?.getLoadedToolIdentityByWebContents(event.sender.id);
+            if (!instanceId || !identity || event.senderFrame !== event.sender.mainFrame || this.toolWindowManager?.getToolViews().get(instanceId)?.webContents !== event.sender) {
+                throw azureError("capabilityDenied", "Only an active tool's main frame may access Azure APIs.");
+            }
+            const tool = this.toolManager.getTool(identity.toolId);
+            if (!tool || tool.version !== identity.toolVersion || !identity.sourcePath) throw azureError("capabilityDenied", "Reload the tool after changing its installed version.");
+            const manifestPath = path.join(identity.sourcePath, "package.json");
+            if (fs.statSync(manifestPath).size > 1024 * 1024) throw azureError("capabilityDenied", "Tool manifest exceeds the size limit.");
+            const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+            if (!manifest || typeof manifest !== "object" || !("version" in manifest) || manifest.version !== identity.toolVersion)
+                throw azureError("capabilityDenied", "Reload the tool after changing its manifest.");
+            const features = "features" in manifest ? manifest.features : undefined;
+            const resolved = resolveToolApis(features);
+            if (resolved.errors.length) throw azureError("capabilityDenied", "Invalid or conflicting API declarations. Fix the tool manifest and reload.");
+            const permissions: AzureAPI.Permissions = {
+                ...(resolved.apis.arm ? { arm: true } : {}),
+                ...(resolved.apis.graph ? { graph: resolved.apis.graph.scopes } : {}),
+            };
+            if (!this.azureOwners.has(event.sender.id)) {
+                this.azureOwners.add(event.sender.id);
+                event.sender.once("destroyed", () => {
+                    this.azureApiManager.disposeOwner(event.sender.id);
+                    this.azureOwners.delete(event.sender.id);
+                });
+            }
+            return { tool, identity, permissions };
+        };
+        ipcMain.handle(AZURE_CHANNELS.CANCEL, (event, requestId: unknown) =>
+            azureEnvelope(() => {
+                azureCaller(event);
+                this.azureApiManager.cancel(event.sender.id, requestId);
+            }),
+        );
+        ipcMain.handle(AZURE_CHANNELS.INVOKE, (event, action: unknown, resource: unknown, payload: unknown, options?: AzureAPI.Options) =>
+            azureEnvelope(async () => {
+                const { tool, identity, permissions } = azureCaller(event);
+                if (options !== undefined && (!options || typeof options !== "object" || Array.isArray(options))) throw azureError("invalidRequest", "Invalid request options.");
+                const target = normalizeConnectionTarget(options?.connectionTarget === undefined ? "primary" : options.connectionTarget);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, target);
+                if (!connectionId) throw azureError("notConnected", "Connect this tool to a Dataverse environment first.");
+                return this.azureApiManager.invoke(
+                    {
+                        owner: event.sender.id,
+                        connectionId,
+                        permissions,
+                        isCurrent: () =>
+                            !event.sender.isDestroyed() &&
+                            this.toolWindowManager?.getLoadedToolIdentityByWebContents(event.sender.id) === identity &&
+                            this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id, target) === connectionId,
+                        approve: async (apiResource, scopes) => {
+                            const result = await dialog.showMessageBox(this.mainWindow!, {
+                                type: "question",
+                                title: "Allow read-only API access?",
+                                message: `${tool.name} requests ${apiResource === "arm" ? "Azure Resource Manager" : "Microsoft Graph"} access.`,
+                                detail: `Connection: ${this.connectionsManager.getConnectionById(connectionId)?.name ?? connectionId}\nPermissions: ${scopes.join(", ")}\n\nPPTB will proxy read-only requests without exposing tokens. Application authentication uses the registration's granted application permissions. Approval lasts for this tool session.`,
+                                buttons: ["Cancel", "Allow"],
+                                defaultId: 0,
+                                cancelId: 0,
+                                noLink: true,
+                            });
+                            return result.response === 1;
+                        },
+                    },
+                    action,
+                    resource,
+                    payload,
+                    options,
+                );
+            }),
+        );
+
         // Power Platform API handlers
+        ipcMain.handle(
+            POWERPLATFORM_CHANNELS.REQUEST_RAW,
+            async (
+                event,
+                category: PowerPlatformCategory,
+                method: PowerPlatformMethod,
+                path = "",
+                body?: unknown,
+                headers?: Record<string, string>,
+                connectionTarget?: ConnectionTarget,
+                options?: PowerPlatformRawOptions,
+            ) => {
+                const connectionId = resolveToolConnectionForRequest(this.toolWindowManager, event.sender.id, connectionTarget);
+                return this.powerPlatformManager.requestRaw(connectionId, category, method, path, body, headers, options);
+            },
+        );
         ipcMain.handle(
             POWERPLATFORM_CHANNELS.REQUEST,
             async (
@@ -3580,7 +3697,12 @@ class ToolBoxApp {
         );
 
         this.mcpServerManager.setToolWindowManager(this.toolWindowManager);
-        this.toolWindowManager.setOnOwnerDisposing((owner) => this.workerBrokerManager.disposeOwner(owner));
+        this.toolWindowManager.setConnectionChangedHandler((owner) => this.azureApiManager.connectionChanged(owner));
+        this.toolWindowManager.setOnOwnerDisposing((owner) => {
+            const view = this.toolWindowManager?.getToolViews().get(owner.instanceId);
+            if (view) this.azureApiManager.disposeOwner(view.webContents.id);
+            return this.workerBrokerManager.disposeOwner(owner);
+        });
 
         // Initialize SplitLayoutManager — depends on the shared toolViews map from ToolWindowManager
         this.splitLayoutManager = new SplitLayoutManager(this.mainWindow, this.settingsManager, this.toolWindowManager.getToolViews());

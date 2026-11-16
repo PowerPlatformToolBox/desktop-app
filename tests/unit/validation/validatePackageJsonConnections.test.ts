@@ -19,6 +19,69 @@ const validPackage = (features: ToolPackageJson["features"]): ToolPackageJson =>
 });
 
 describe("package.json features.connections validation", () => {
+    it.each([true, false])("keeps legacy PP %s valid with a deprecation warning in both validators", async (enabledForPowerPlatformAPI) => {
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            const result = await validate(validPackage({ connections: 1, enabledForPowerPlatformAPI }), { skipUrlChecks: true });
+            expect(result.valid).toBe(true);
+            expect(result.warnings).toContain("features.enabledForPowerPlatformAPI is deprecated; use features.apis.pp.required instead");
+            expect(result.errors).toEqual([]);
+        }
+    });
+
+    it("warns for matching dual PP declarations but not modern-only or absent declarations", async () => {
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            const matching = await validate(validPackage({ connections: 1, enabledForPowerPlatformAPI: true, apis: { pp: { required: true } } }), { skipUrlChecks: true });
+            expect(matching.valid).toBe(true);
+            expect(matching.warnings).toContain("features.enabledForPowerPlatformAPI is deprecated; use features.apis.pp.required instead");
+            for (const features of [{ connections: 1 }, { connections: 1, apis: { pp: { required: true } } }]) {
+                const result = await validate(validPackage(features), { skipUrlChecks: true });
+                expect(result.valid).toBe(true);
+                expect(result.warnings.some((warning) => warning.includes("features.enabledForPowerPlatformAPI"))).toBe(false);
+            }
+        }
+    });
+
+    it("accepts the preferred API schema in both validator surfaces", async () => {
+        const packageJson = validPackage({ connections: 1, apis: { pp: { required: true }, arm: { required: true }, graph: { required: false, scopes: ["Reports.Read.All"] } } });
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            await expect(validate(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+        }
+    });
+
+    it.each([
+        { apis: { graph: true } },
+        { apis: { graph: { required: true } } },
+        { apis: { graph: { scopes: ["Mail.Send"] } } },
+        { apis: { arm: { required: "true" } } },
+        { enabledForPowerPlatformAPI: true, apis: { pp: { required: false } } },
+        { azure: { arm: true }, apis: { arm: { required: true } } },
+    ])("rejects invalid or conflicting new declarations consistently: %j", async (features) => {
+        const packageJson = validPackage({ connections: 1, ...features } as ToolPackageJson["features"]);
+        const current = await validatePackageJson(packageJson, { skipUrlChecks: true });
+        const mirror = await mirroredValidator.validatePackageJson(packageJson, { skipUrlChecks: true });
+        expect(current.valid).toBe(false);
+        expect(mirror.errors).toEqual(current.errors);
+    });
+    it("accepts read-only Azure capabilities in both published validator surfaces", async () => {
+        const packageJson = validPackage({ connections: 1, minAPI: "1.2.9", apis: { arm: {}, graph: { scopes: ["User.Read", "Reports.Read.All"] } } });
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            await expect(validate(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+        }
+    });
+
+    it.each(["User.ReadWrite.All", "https://graph.microsoft.com/User.Read", "Mail.Send"])("rejects unsafe Graph capability %s in both validator surfaces", async (permission) => {
+        const packageJson = validPackage({ connections: 1, apis: { graph: { scopes: [permission] } } });
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            const result = await validate(packageJson, { skipUrlChecks: true });
+            expect(result.valid).toBe(false);
+            expect(result.errors).toEqual(expect.arrayContaining([expect.stringContaining("read-only delegated permission")]));
+        }
+    });
+    it("accepts raw API consumers using minAPI without a new manifest feature", async () => {
+        const packageJson = validPackage({ connections: 1, minAPI: "1.2.9", enabledForPowerPlatformAPI: true });
+        await expect(validatePackageJson(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+        await expect(mirroredValidator.validatePackageJson(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+    });
     it.each([0, 1, 2, 10])("accepts numeric connection count %i", async (connections) => {
         const result = await validatePackageJson(validPackage({ connections }), { skipUrlChecks: true });
         expect(result.valid).toBe(true);

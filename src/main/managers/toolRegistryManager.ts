@@ -1031,7 +1031,15 @@ export class ToolRegistryManager extends EventEmitter {
             sourceUrl: tool.downloadUrl,
             readmeUrl: tool.readmeUrl,
             cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
-            features: tool.features || packageJson.features, // Include features from registry or package.json
+            features: {
+                ...(tool.features || packageJson.features),
+                ...(packageJson.features?.apis
+                    ? {
+                          apis: packageJson.features.apis,
+                          enabledForPowerPlatformAPI: packageJson.features.enabledForPowerPlatformAPI,
+                      }
+                    : {}),
+            },
             categories: tool.categories,
             license: tool.license || packageJson.license,
             size: tool.size,

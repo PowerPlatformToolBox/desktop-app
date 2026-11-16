@@ -38,6 +38,11 @@ interface InvocationContextMetadata {
  * - Clean tool switching by showing/hiding BrowserViews
  */
 export class ToolWindowManager {
+    private connectionChangedHandler?: (webContentsId: number) => void;
+
+    setConnectionChangedHandler(handler: (webContentsId: number) => void): void {
+        this.connectionChangedHandler = handler;
+    }
     private mainWindow: BrowserWindow;
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private connectionsManager: ConnectionsManager;
@@ -741,7 +746,7 @@ export class ToolWindowManager {
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
                 logInfo("[ToolWindowManager] Inter-tool invocation awaiting connection selection", invocationLogContext);
-                effectiveConnectionIds = await this.promptForInvocationConnections(requestId, tool.name, connectionSlots.min, connectionSlots.max, effectiveConnectionIds);
+                effectiveConnectionIds = await this.promptForInvocationConnections(requestId, tool.name, connectionSlots.min, connectionSlots.max, effectiveConnectionIds, tool.features);
             } catch (err) {
                 const error = new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
                 logError("[ToolWindowManager] Inter-tool invocation connection selection failed", { ...invocationLogContext, error: error.message });
@@ -812,7 +817,14 @@ export class ToolWindowManager {
      * Returns a Promise that resolves with the selected connection IDs once the user confirms,
      * or rejects if the user cancels the dialog.
      */
-    private promptForInvocationConnections(requestId: string, toolName: string, minConnections: number, maxConnections: number, inheritedConnectionIds: ConnectionIds): Promise<ConnectionIds> {
+    private promptForInvocationConnections(
+        requestId: string,
+        toolName: string,
+        minConnections: number,
+        maxConnections: number,
+        inheritedConnectionIds: ConnectionIds,
+        apiFeatures?: Tool["features"],
+    ): Promise<ConnectionIds> {
         return new Promise((resolve, reject) => {
             this.pendingConnectionPrompts.set(requestId, { resolve, reject });
             this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, {
@@ -821,6 +833,7 @@ export class ToolWindowManager {
                 minConnections,
                 maxConnections,
                 inheritedConnectionIds,
+                apiFeatures,
             });
         });
     }
@@ -1389,6 +1402,9 @@ export class ToolWindowManager {
         }
 
         const previous = this.toolConnectionInfo.get(instanceId);
+        if (previous?.connectionIds.length !== connectionIds.length || previous?.connectionIds.some((id, index) => id !== connectionIds[index])) {
+            this.connectionChangedHandler?.(toolView.webContents.id);
+        }
         const impersonatedUsers = [...(previous?.impersonatedUsers ?? [])];
         connectionIds.forEach((connectionId, index) => {
             if (previous?.connectionIds[index] !== connectionId) impersonatedUsers[index] = null;

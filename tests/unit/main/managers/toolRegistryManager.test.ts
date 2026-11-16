@@ -323,10 +323,11 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         await expect(manager.removeToolIdeaVote("invalid")).rejects.toThrow("valid idea ID");
     });
 
-    it("persists release metadata on install and uses registry install for updates", async () => {
+    it.each([false, true])("persists release metadata and package API declarations on install (new APIs: %s)", async (withApis) => {
         const extractedPath = path.join(toolsDirectory, "extracted");
         fs.mkdirSync(extractedPath, { recursive: true });
-        fs.writeFileSync(path.join(extractedPath, "package.json"), JSON.stringify({ name: "@contoso/catalog-tool", version: "2.3.0" }));
+        const apis = { pp: { required: false }, arm: { required: true }, graph: { scopes: ["User.Read"] } };
+        fs.writeFileSync(path.join(extractedPath, "package.json"), JSON.stringify({ name: "@contoso/catalog-tool", version: "2.3.0", ...(withApis ? { features: { connections: 1, apis } } : {}) }));
 
         const release = mapSupabaseToolRow({ ...catalogRow, connections: '{"max":3,"min":0}' });
         const manager = new ToolRegistryManager(toolsDirectory, "https://supabase.example", "anon-key");
@@ -343,7 +344,7 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
             version: "2.3.0",
             sourceUrl: catalogRow.download,
             readmeUrl: catalogRow.readme_url,
-            features: release.features,
+            features: withApis ? { ...release.features, apis, enabledForPowerPlatformAPI: undefined } : release.features,
             minAPI: "1.2.0",
             mcpHeadlessEnabled: true,
             maturity: "verified",
@@ -351,6 +352,7 @@ describe("ToolRegistryManager Supabase rollout and install", () => {
         const persistedManifest = JSON.parse(fs.readFileSync(path.join(toolsDirectory, "manifest.json"), "utf-8")).tools[0];
         expect(persistedManifest.readmeUrl).toBe(catalogRow.readme_url);
         expect(persistedManifest.features.connections).toEqual({ min: 0, max: 3 });
+        if (withApis) expect(persistedManifest.features.apis).toEqual(apis);
         expect(persistedManifest).not.toHaveProperty("readme");
 
         const appManager = new ToolManager(toolsDirectory);

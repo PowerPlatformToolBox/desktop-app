@@ -19,6 +19,7 @@ import {
 } from "../constants";
 import type { OpenTool, SessionData } from "../types/index";
 import { getConnectionSlotSquarePresentation, getEmptyConnectionSlotPresentation } from "../utils/connectionSlotStatus";
+import { getRequiredApis } from "../utils/connectionApis";
 import { authenticateRestoredSlots, copyConnectionSlots } from "../utils/sessionConnectionSlots";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
@@ -148,9 +149,8 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
     }
 
     const connectionSlots = resolveConnectionSlots(targetTool.tool.features);
-    const requirePowerPlatformApi = targetTool.tool.features?.enabledForPowerPlatformAPI === true;
-
     try {
+        const requirePowerPlatformApi = getRequiredApis(targetTool.tool.features);
         if (connectionSlots.max > 1) {
             const result = await openSelectMultiConnectionModal(
                 {
@@ -431,7 +431,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                             toolName: tool.name,
                             initialConnectionIds: selectedIds,
                         },
-                        tool.features?.enabledForPowerPlatformAPI === true,
+                        getRequiredApis(tool.features),
                     );
                     connectionIds = result.connectionIds.slice(0, connectionSlots.max);
                     primaryConnectionId = connectionIds[0] ?? null;
@@ -457,7 +457,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 // Regular single-connection flow - prompt if no stored connection
                 logInfo("Showing connection selection modal for new instance...");
                 try {
-                    const { connectionId: selectedConnectionId, impersonationUser } = await openSelectConnectionModal(null, tool.name, tool.features?.enabledForPowerPlatformAPI === true);
+                    const { connectionId: selectedConnectionId, impersonationUser } = await openSelectConnectionModal(null, tool.name, getRequiredApis(tool.features));
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
@@ -1606,7 +1606,7 @@ async function openConnectionSlotPicker(instanceId: string, slotIndex: number): 
         const { openSelectConnectionModal } = await import("./connectionManagement");
         const connectionIds = [...(tool.connectionIds ?? [tool.connectionId, tool.secondaryConnectionId])];
         const currentConnectionId = connectionIds[slotIndex] ?? null;
-        const result = await openSelectConnectionModal(currentConnectionId, tool.tool.name, tool.tool.features?.enabledForPowerPlatformAPI === true, Boolean(currentConnectionId));
+        const result = await openSelectConnectionModal(currentConnectionId, tool.tool.name, getRequiredApis(tool.tool.features), Boolean(currentConnectionId));
         if (result.cleared) {
             connectionIds[slotIndex] = null;
             await setToolConnectionSlots(instanceId, connectionIds);
@@ -1917,7 +1917,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
             connectionId: selectedConnectionId,
             impersonationUser,
             cleared,
-        } = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name, false, Boolean(activeTool.secondaryConnectionId));
+        } = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name, getRequiredApis(activeTool.tool?.features), Boolean(activeTool.secondaryConnectionId));
 
         if (cleared && activeToolId) {
             await setToolSecondaryConnection(activeToolId, null);
@@ -2092,14 +2092,17 @@ export function initializeInvocationBanner(): void {
  * PROVIDE_INVOCATION_CONNECTIONS.
  */
 export function initializeInvocationConnectionsPrompt(): void {
-    window.toolboxAPI.onInvocationConnectionsPrompt(async ({ requestId, toolName, minConnections, maxConnections, inheritedConnectionIds }) => {
+    window.toolboxAPI.onInvocationConnectionsPrompt(async ({ requestId, toolName, minConnections, maxConnections, inheritedConnectionIds, apiFeatures }) => {
         try {
-            const result = await openSelectMultiConnectionModal({
-                minConnections,
-                maxConnections,
-                toolName,
-                initialConnectionIds: inheritedConnectionIds,
-            });
+            const result = await openSelectMultiConnectionModal(
+                {
+                    minConnections,
+                    maxConnections,
+                    toolName,
+                    initialConnectionIds: inheritedConnectionIds,
+                },
+                getRequiredApis(apiFeatures),
+            );
             const connectionIds = [...result.connectionIds];
             if (!connectionIds[0] && inheritedConnectionIds[0]) connectionIds[0] = inheritedConnectionIds[0];
             await window.toolboxAPI.provideInvocationConnections(requestId, {

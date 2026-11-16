@@ -10,6 +10,7 @@ import { resolveConnectionSlots } from "../../common/connectionSlots";
 import { logError, logInfo } from "../../common/logger";
 import { Connection, McpClientConfigStatus, McpServerStatus, ToolManifest, ToolMetadata } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
+import type { AzureApiManager } from "../managers/azureApiManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
 import { HeadlessJobRecord, HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
@@ -259,6 +260,7 @@ export class McpServerManager {
     private authManager: AuthManager | null = null;
     private dataverseManager: DataverseManager | null = null;
     private powerPlatformManager: PowerPlatformManager | null = null;
+    private azureApiManager: AzureApiManager | null = null;
     private expectedToken: string;
     private agentToolsCache: { tools: AgentTool[] } | null = null;
     private headlessInvocationManager: HeadlessToolInvocationManager;
@@ -312,6 +314,10 @@ export class McpServerManager {
 
     setJobChangeHandler(handler: ((jobId: string) => void) | null): void {
         this.headlessInvocationManager.setJobChangeHandler(handler);
+    }
+
+    setAzureApiManager(manager: AzureApiManager): void {
+        this.azureApiManager = manager;
     }
 
     setStatusChangeHandler(handler: ((status: McpServerStatus, error?: string) => void) | null): void {
@@ -1327,6 +1333,7 @@ export class McpServerManager {
                                         connectionNames: resolvedAuthContext.connectionNames,
                                         connectionUrls: resolvedAuthContext.connectionUrls,
                                         authTokens: resolvedAuthContext.authTokens,
+                                        timeoutMs: effectiveTimeoutMs,
                                         updateProgress: (percent, message) => {
                                             this.headlessInvocationManager.updateProgress(jobId, percent, message);
                                         },
@@ -1337,6 +1344,7 @@ export class McpServerManager {
                                         connectionsManager: this.connectionsManager ?? undefined,
                                         dataverseManager: this.dataverseManager ?? undefined,
                                         powerPlatformManager: this.powerPlatformManager ?? undefined,
+                                        azureApiManager: this.azureApiManager ?? undefined,
                                     },
                                 );
 

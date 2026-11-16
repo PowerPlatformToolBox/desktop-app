@@ -21,6 +21,7 @@ import { getSelectImpersonationUserModalView, ImpersonationPickerContext } from 
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
 import { getSelectMultiConnectionModalView, SelectMultiConnectionModalOptions } from "../modals/selectMultiConnection/view";
 import { sortConnections } from "../utils/connectionSorting";
+import type { ApiRequirements } from "../utils/connectionApis";
 import {
     closeBrowserWindowModal,
     offBrowserWindowModalClosed,
@@ -58,6 +59,8 @@ interface ConnectionFormPayload {
     environmentColor?: string;
     categoryColor?: string;
     enabledForPowerPlatformAPI?: boolean;
+    enabledForAzureAPI?: boolean;
+    enabledForGraphAPI?: boolean;
 }
 
 interface AuthenticateConnectionAction {
@@ -202,7 +205,7 @@ let highlightConnectionId: string | null = null;
 let requestingToolName: string | undefined = undefined;
 
 // Store whether the tool requires Power Platform API connections
-let requirePowerPlatformApi: boolean = false;
+let requirePowerPlatformApi: ApiRequirements = false;
 let selectMultiConnectionOptions: SelectMultiConnectionModalOptions | null = null;
 let connectionModalDoubleClickConnectEnabled: boolean = false;
 let allowClearSelectedConnection: boolean = false;
@@ -317,7 +320,7 @@ export function initializeSelectConnectionModalBridge(): void {
 export async function openSelectConnectionModal(
     toolConnectionId?: string | null,
     toolName?: string,
-    enabledForPowerPlatformAPI: boolean = false,
+    enabledForPowerPlatformAPI: ApiRequirements = false,
     allowClearSelection: boolean = false,
 ): Promise<{ connectionId: string | null; impersonationUser: DataverseUser | null; cleared: boolean }> {
     return new Promise((resolve, reject) => {
@@ -386,7 +389,7 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
     }
 }
 
-function buildSelectConnectionModalHtml(enabledForPowerPlatformAPI: boolean = false): string {
+function buildSelectConnectionModalHtml(enabledForPowerPlatformAPI: ApiRequirements = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName, allowClearSelectedConnection);
     const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS, enabledForPowerPlatformAPI, connectionModalDoubleClickConnectEnabled, allowClearSelectedConnection);
@@ -512,6 +515,8 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                     environmentColor: conn.environmentColor,
                     categoryColor: conn.categoryColor,
                     enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
+                    enabledForAzureAPI: conn.enabledForAzureAPI,
+                    enabledForGraphAPI: conn.enabledForGraphAPI,
                 })),
             },
         });
@@ -629,12 +634,12 @@ export function initializeSelectMultiConnectionModalBridge(): void {
  * @param toolName - Optional name of the tool requesting the connections (shown in modal header)
  * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
  */
-export async function openSelectMultiConnectionModal(options: SelectMultiConnectionModalOptions, enabledForPowerPlatformAPI?: boolean): Promise<SelectMultiConnectionResult>;
-export async function openSelectMultiConnectionModal(isSecondaryRequired?: boolean, toolName?: string, enabledForPowerPlatformAPI?: boolean): Promise<SelectMultiConnectionResult>;
+export async function openSelectMultiConnectionModal(options: SelectMultiConnectionModalOptions, enabledForPowerPlatformAPI?: ApiRequirements): Promise<SelectMultiConnectionResult>;
+export async function openSelectMultiConnectionModal(isSecondaryRequired?: boolean, toolName?: string, enabledForPowerPlatformAPI?: ApiRequirements): Promise<SelectMultiConnectionResult>;
 export async function openSelectMultiConnectionModal(
     optionsOrIsSecondaryRequired: SelectMultiConnectionModalOptions | boolean = true,
-    toolNameOrEnabledForPowerPlatformAPI?: string | boolean,
-    legacyEnabledForPowerPlatformAPI = false,
+    toolNameOrEnabledForPowerPlatformAPI?: string | ApiRequirements,
+    legacyEnabledForPowerPlatformAPI: ApiRequirements = false,
 ): Promise<SelectMultiConnectionResult> {
     const options: SelectMultiConnectionModalOptions =
         typeof optionsOrIsSecondaryRequired === "boolean"
@@ -644,7 +649,12 @@ export async function openSelectMultiConnectionModal(
                   toolName: typeof toolNameOrEnabledForPowerPlatformAPI === "string" ? toolNameOrEnabledForPowerPlatformAPI : undefined,
               }
             : optionsOrIsSecondaryRequired;
-    const enabledForPowerPlatformAPI = typeof optionsOrIsSecondaryRequired === "boolean" ? legacyEnabledForPowerPlatformAPI : toolNameOrEnabledForPowerPlatformAPI === true;
+    const enabledForPowerPlatformAPI =
+        typeof optionsOrIsSecondaryRequired === "boolean"
+            ? legacyEnabledForPowerPlatformAPI
+            : typeof toolNameOrEnabledForPowerPlatformAPI === "string"
+              ? false
+              : (toolNameOrEnabledForPowerPlatformAPI ?? false);
     const isSecondaryRequired = options.minConnections > 1;
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
@@ -708,7 +718,7 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
     }
 }
 
-function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true, enabledForPowerPlatformAPI: boolean = false): string {
+function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true, enabledForPowerPlatformAPI: ApiRequirements = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const modalOptions = selectMultiConnectionOptions ?? isSecondaryRequired;
     const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, modalOptions, requestingToolName);
@@ -913,6 +923,8 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
                     environmentColor: conn.environmentColor,
                     categoryColor: conn.categoryColor,
                     enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
+                    enabledForAzureAPI: conn.enabledForAzureAPI,
+                    enabledForGraphAPI: conn.enabledForGraphAPI,
                 })),
             },
         });
@@ -1783,7 +1795,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     }
 
     const authType = normalizeAuthenticationType(formPayload.authenticationType);
-    const requiresPowerPlatformClientId = formPayload.enabledForPowerPlatformAPI === true;
+    const requiresAdditionalApiClientId = formPayload.enabledForPowerPlatformAPI === true || formPayload.enabledForAzureAPI === true || formPayload.enabledForGraphAPI === true;
 
     // Special validation for connection string
     if (authType === "connectionString") {
@@ -1798,8 +1810,8 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
             return "Invalid connection string format. Please ensure it includes at least a URL parameter.";
         }
 
-        if (requiresPowerPlatformClientId && !sanitizeInput(parsed.clientId)) {
-            return "Client ID is required when Power Platform API is enabled.";
+        if (requiresAdditionalApiClientId && !sanitizeInput(parsed.clientId)) {
+            return "Client ID is required in the connection string when any additional API is enabled.";
         }
 
         // Validate URL format (commercial, GCC High, and DoD environments)
@@ -1839,12 +1851,12 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
             return "Username and Password are required for Username/Password authentication.";
         }
 
-        if (requiresPowerPlatformClientId && !sanitizeInput(formPayload.usernamePasswordClientId)) {
-            return "Client ID is required for Username/Password authentication when Power Platform API is enabled.";
+        if (requiresAdditionalApiClientId && !sanitizeInput(formPayload.usernamePasswordClientId)) {
+            return "Client ID is required for Username/Password authentication when any additional API is enabled.";
         }
     } else if (authType === "interactive") {
-        if (requiresPowerPlatformClientId && !sanitizeInput(formPayload.optionalClientId)) {
-            return "Client ID is required for Microsoft Login (OAuth) when Power Platform API is enabled.";
+        if (requiresAdditionalApiClientId && !sanitizeInput(formPayload.optionalClientId)) {
+            return "Client ID is required for Microsoft Login (OAuth) when any additional API is enabled.";
         }
     }
 
@@ -1871,6 +1883,8 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
             environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
             authenticationType: parsed.authenticationType!,
             createdAt: new Date().toISOString(),
+            enabledForAzureAPI: formPayload.enabledForAzureAPI === true,
+            enabledForGraphAPI: formPayload.enabledForGraphAPI === true,
         };
 
         // Add auth-specific fields from parsed connection string
@@ -1911,6 +1925,8 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         createdAt: new Date().toISOString(),
         // Note: isActive is NOT part of DataverseConnection - it's a UI-level property
         enabledForPowerPlatformAPI: formPayload.enabledForPowerPlatformAPI === true,
+        enabledForAzureAPI: formPayload.enabledForAzureAPI === true,
+        enabledForGraphAPI: formPayload.enabledForGraphAPI === true,
     };
 
     // Browser settings apply to all auth types (used for opening URLs with authentication)

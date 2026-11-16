@@ -10,6 +10,8 @@ export type ToolSafeConnection = {
     environmentColor?: string;
     categoryColor?: string;
     enabledForPowerPlatformAPI?: boolean;
+    enabledForAzureAPI?: boolean;
+    enabledForGraphAPI?: boolean;
     scopesForPowerPlatformAPI?: string[];
 };
 
@@ -31,7 +33,7 @@ export function toToolSafeConnectionUpdates(connection: unknown): Partial<ToolSa
     if (source.environment === "Dev" || source.environment === "Test" || source.environment === "UAT" || source.environment === "Production") {
         result.environment = source.environment;
     }
-    for (const key of ["isActive", "enabledForPowerPlatformAPI"] as const) {
+    for (const key of ["isActive", "enabledForPowerPlatformAPI", "enabledForAzureAPI", "enabledForGraphAPI"] as const) {
         if (typeof source[key] === "boolean") {
             result[key] = source[key];
         }

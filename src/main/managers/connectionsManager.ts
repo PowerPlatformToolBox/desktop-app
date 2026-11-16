@@ -35,6 +35,16 @@ const VALID_AUTH_TYPES = new Set(["interactive", "clientSecret", "usernamePasswo
  * Manages Dataverse connections with encryption for sensitive data
  */
 export class ConnectionsManager {
+    private authenticationListeners = new Set<(id: string, resetClient: boolean) => void>();
+
+    onAuthenticationChanged(listener: (id: string, resetClient: boolean) => void): () => void {
+        this.authenticationListeners.add(listener);
+        return () => this.authenticationListeners.delete(listener);
+    }
+
+    private authenticationChanged(id: string, resetClient = false): void {
+        for (const listener of this.authenticationListeners) listener(id, resetClient);
+    }
     private store: Store<{ connections: Connection[] }>;
     private encryptionManager: EncryptionManager;
 
@@ -107,9 +117,16 @@ export class ConnectionsManager {
             const existingConnection = this.encryptionManager.decryptFields(connections[index], SENSITIVE_CONNECTION_FIELDS);
             const decryptedUpdates = this.encryptionManager.decryptFields(updates as Connection, SENSITIVE_CONNECTION_FIELDS);
             const mergedConnection = { ...existingConnection, ...decryptedUpdates };
+            const credentialsChanged = (["url", "authenticationType", "clientId", "clientSecret", "tenantId", "username", "password"] as const).some(
+                (key) => key in updates && existingConnection[key] !== mergedConnection[key],
+            );
+            const azureChanged =
+                credentialsChanged || existingConnection.enabledForAzureAPI !== mergedConnection.enabledForAzureAPI || existingConnection.enabledForGraphAPI !== mergedConnection.enabledForGraphAPI;
+            if (credentialsChanged) this.clearTokensForConnection(mergedConnection);
 
             connections[index] = this.normalizeConnectionForStorage(mergedConnection);
             this.store.set("connections", connections);
+            if (azureChanged) this.authenticationChanged(id, credentialsChanged);
         }
     }
 
@@ -120,6 +137,7 @@ export class ConnectionsManager {
         const connections = this.store.get("connections");
         const filtered = connections.filter((c) => c.id !== id);
         this.store.set("connections", filtered);
+        this.authenticationChanged(id, true);
     }
 
     /**
@@ -143,6 +161,7 @@ export class ConnectionsManager {
             throw new Error("Connection not found");
         }
 
+        const accountChanged = authTokens.msalAccountId !== undefined && authTokens.msalAccountId !== connection.msalAccountId;
         // Update lastUsedAt timestamp
         connection.lastUsedAt = new Date().toISOString();
 
@@ -157,6 +176,7 @@ export class ConnectionsManager {
         }
 
         this.store.set("connections", connections);
+        if (accountChanged) this.authenticationChanged(id);
     }
 
     /**
@@ -174,6 +194,7 @@ export class ConnectionsManager {
         this.clearTokensForConnection(connection);
         this.store.set("connections", connections);
         logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+        this.authenticationChanged(id, true);
     }
 
     private clearTokensForConnection(connection: Connection): void {
@@ -199,6 +220,7 @@ export class ConnectionsManager {
 
         this.store.set("connections", connections);
         logInfo(`[ConnectionsManager] Cleared tokens for all connections`);
+        for (const connection of connections) this.authenticationChanged(connection.id, true);
     }
 
     /**
@@ -426,6 +448,8 @@ export class ConnectionsManager {
                 categoryColor: typeof entry.categoryColor === "string" ? entry.categoryColor : undefined,
                 hasIncompleteCredentials,
                 enabledForPowerPlatformAPI: typeof entry.enabledForPowerPlatformAPI === "boolean" ? entry.enabledForPowerPlatformAPI : false,
+                enabledForAzureAPI: entry.enabledForAzureAPI === true,
+                enabledForGraphAPI: entry.enabledForGraphAPI === true,
             };
 
             // Encrypt sensitive fields and persist

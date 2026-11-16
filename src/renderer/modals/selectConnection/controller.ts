@@ -1,6 +1,7 @@
 import { UIConnectionData } from "../../../common/types/connection";
 import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
+import { getConnectionApiUtilitiesScript, type ApiRequirements } from "../../utils/connectionApis";
 
 export interface SelectConnectionModalChannelIds {
     selectConnection: string;
@@ -21,7 +22,7 @@ export interface ConnectionListData {
  */
 export function getSelectConnectionModalControllerScript(
     channels: SelectConnectionModalChannelIds,
-    enabledForPowerPlatformAPI: boolean = false,
+    enabledForPowerPlatformAPI: ApiRequirements = false,
     enableDoubleClickConnect: boolean = false,
     allowClearSelection: boolean = false,
 ): string {
@@ -31,7 +32,7 @@ export function getSelectConnectionModalControllerScript(
 <script>
 (() => {
     const CHANNELS = ${serializedChannels};
-    const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    ${getConnectionApiUtilitiesScript(enabledForPowerPlatformAPI)}
     const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
     const ALLOW_CLEAR_SELECTION = ${allowClearSelection};
     const modalBridge = window.modalBridge;
@@ -149,6 +150,7 @@ ${sortingUtilities}
         if (Array.isArray(connectionsData)) {
             allConnections = connectionsData;
         }
+        updateApiRequirementBanner(allConnections.filter((connection) => connection.id === selectedConnectionId));
 
         if (options.sortOption) {
             injectedSortOption = sanitizeSortOption(options.sortOption);
@@ -201,7 +203,7 @@ ${sortingUtilities}
             const envBadgeClass = envColor ? 'connection-env-badge' : \`connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}\`;
             const catColor = conn.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(conn.categoryColor) ? conn.categoryColor : null;
             const catBadgeMarkup = conn.category ? \`<span class="category-badge" \${catColor ? \`style="background-color:\${catColor}1a;color:\${catColor};border:1px solid \${catColor}4d"\` : ''}>\${escapeHtml(conn.category)}</span>\` : '';
-            const ppApiBadgeMarkup = conn.enabledForPowerPlatformAPI === true ? '<span class="power-platform-api-badge">PP API</span>' : '';
+            const ppApiBadgeMarkup = getApiBadgeMarkup(conn);
             return \`
             <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${escapeHtml(conn.id)}">
                 <div class="connection-header">
@@ -324,6 +326,7 @@ ${sortingUtilities}
 
     const selectConnection = (connectionId) => {
         selectedConnectionId = connectionId;
+        updateApiRequirementBanner(allConnections.filter((connection) => connection.id === connectionId));
         
         // Update UI to show selected state
         const connectionItems = connectionsListContainer?.querySelectorAll('.connection-item');
@@ -468,13 +471,7 @@ ${sortingUtilities}
         console.warn("modalBridge.onMessage is not available");
     }
 
-    // Show Power Platform API info message if required
-    if (ENABLED_FOR_POWER_PLATFORM_API === true) {
-        const ppApiInfo = document.getElementById("power-platform-api-info");
-        if (ppApiInfo) {
-            ppApiInfo.style.display = "block";
-        }
-    }
+    updateApiRequirementBanner();
     
     // Request connections list from main process
     modalBridge.send(CHANNELS.populateConnections, {});

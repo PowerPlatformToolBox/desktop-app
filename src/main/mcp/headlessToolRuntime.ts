@@ -3,10 +3,15 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { normalizeConnectionTarget, type ConnectionTarget } from "../../common/connectionSlots";
+import { azureError, createAzureAPI, isAzureError, type AzureAPI, type AzureResult } from "../../common/azureApi";
+import { AZURE_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo } from "../../common/logger";
+import { createPowerPlatformRawClient } from "../../common/powerplatformApi";
 import type { Connection, DataverseBatchRequest, DataverseBatchResult, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, MetadataOperationOptions, ToolSettings } from "../../common/types";
 import { ToolManifest } from "../../common/types";
 import { ConnectionsManager } from "../managers/connectionsManager";
+import type { AzureApiManager } from "../managers/azureApiManager";
+import { resolveToolApis } from "../../../packages/validation/src/apiFeatures";
 import { DataverseManager } from "../managers/dataverseManager";
 import { PowerPlatformManager } from "../managers/powerplatformManager";
 import { SettingsManager } from "../managers/settingsManager";
@@ -33,6 +38,7 @@ export interface HeadlessInvokeContext {
     connectionNames?: string[];
     connectionUrls?: Array<string | null>;
     authTokens?: Array<string | undefined>;
+    timeoutMs?: number;
     updateProgress: (percent: number, message?: string) => void;
     logger: {
         debug: (message: string) => void;
@@ -47,7 +53,10 @@ export interface HeadlessRuntimeServices {
     connectionsManager?: ConnectionsManager;
     dataverseManager?: DataverseManager;
     powerPlatformManager?: PowerPlatformManager;
+    azureApiManager?: AzureApiManager;
 }
+
+let nextAzureOwner = -1;
 
 interface HeadlessToolboxAPI {
     getToolContext: () => Promise<Record<string, unknown> | null>;
@@ -304,6 +313,8 @@ function toToolSafeConnection(connection: Connection | null): Record<string, unk
         environmentColor: connection.environmentColor,
         categoryColor: connection.categoryColor,
         enabledForPowerPlatformAPI: connection.enabledForPowerPlatformAPI,
+        enabledForAzureAPI: connection.enabledForAzureAPI,
+        enabledForGraphAPI: connection.enabledForGraphAPI,
         scopesForPowerPlatformAPI: connection.scopesForPowerPlatformAPI,
     };
 }
@@ -637,12 +648,77 @@ async function installHeadlessGlobals(manifest: ToolManifest, input: Record<stri
     const previousToolboxApi = globalScope.toolboxAPI;
     const previousDataverseApi = globalScope.dataverseAPI;
     const previousPowerPlatformApi = globalScope.powerplatformAPI;
+    const previousAzureApi = globalScope.azureAPI;
+    const owner = nextAzureOwner--;
+    let active = true;
+    const disposeAzure = () => {
+        active = false;
+        services.azureApiManager?.disposeOwner(owner);
+    };
+    const deadline = context.timeoutMs === undefined ? undefined : setTimeout(disposeAzure, context.timeoutMs);
+    deadline?.unref();
+    const azureAPI = createAzureAPI(
+        async (channel, ...args): Promise<AzureResult<unknown>> => {
+            try {
+                if (!active) throw azureError("cancelled", "The headless invocation ended or exceeded its deadline.");
+                const manager = services.azureApiManager;
+                if (!manager) throw azureError("notConfigured", "Azure API manager is not available in headless mode.");
+                const manifestPath = path.join(manifest.installPath, "package.json");
+                if (fs.statSync(manifestPath).size > 1024 * 1024) throw azureError("capabilityDenied", "Tool manifest exceeds the size limit.");
+                const packageJson: unknown = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+                if (!isRecord(packageJson) || packageJson.version !== manifest.version) throw azureError("capabilityDenied", "Reload the tool after changing its manifest.");
+                const resolved = resolveToolApis(packageJson.features);
+                if (resolved.errors.length) throw azureError("capabilityDenied", "Invalid or conflicting API declarations. Fix the installed tool manifest.");
+                if (channel === AZURE_CHANNELS.CANCEL) {
+                    manager.cancel(owner, args[0]);
+                    return { ok: true, value: undefined };
+                }
+                const [action, resource, payload, options] = args;
+                if (options !== undefined && !isRecord(options)) throw azureError("invalidRequest", "Invalid request options.");
+                const requestOptions: AzureAPI.Options | undefined = options;
+                const target = normalizeConnectionTarget(requestOptions?.connectionTarget === undefined ? "primary" : requestOptions.connectionTarget);
+                const connection = resolveConnection(manifest, context, services, target);
+                if (!connection) throw azureError("notConnected", `No saved connection is available at slot ${target} for headless Azure access.`);
+                return {
+                    ok: true,
+                    value: await manager.invoke(
+                        {
+                            owner,
+                            connectionId: connection.id,
+                            permissions: {
+                                ...(resolved.apis.arm ? { arm: true } : {}),
+                                ...(resolved.apis.graph ? { graph: resolved.apis.graph.scopes } : {}),
+                            },
+                            isCurrent: () => active && resolveConnection(manifest, context, services, target)?.id === connection.id,
+                            headless: true,
+                            approve: async () => true,
+                        },
+                        action,
+                        resource,
+                        payload,
+                        requestOptions,
+                    ),
+                };
+            } catch (error) {
+                if (!isAzureError(error)) logError("[MCP][Headless] Azure operation rejected", error);
+                return {
+                    ok: false,
+                    error: isAzureError(error) ? error : azureError("invalidRequest", "The Azure operation was rejected. Check the installed manifest, connection and request parameters."),
+                };
+            }
+        },
+        (listener) => {
+            if (!active) throw azureError("cancelled", "The headless invocation ended.");
+            if (!services.azureApiManager) throw azureError("notConfigured", "Azure API manager is not available in headless mode.");
+            return services.azureApiManager.subscribeOwner(owner, listener);
+        },
+    );
 
     const toolboxApiWithDataverse = buildHeadlessToolboxApi(manifest, input, context, services);
     const { dataverse: dataverseAPI, ...toolboxAPI } = toolboxApiWithDataverse;
     globalScope.window = globalThis as unknown as Record<string, unknown>;
-    globalScope.toolboxAPI = toolboxAPI;
     globalScope.dataverseAPI = dataverseAPI;
+    globalScope.azureAPI = azureAPI;
     globalScope.powerplatformAPI = {
         Analytics: buildPowerPlatformCategoryClient(manifest, context, services, "Analytics"),
         AppManagement: buildPowerPlatformCategoryClient(manifest, context, services, "AppManagement"),
@@ -660,12 +736,16 @@ async function installHeadlessGlobals(manifest: ToolManifest, input: Record<stri
         UserManagement: buildPowerPlatformCategoryClient(manifest, context, services, "UserManagement"),
         WorkflowAgents: buildPowerPlatformCategoryClient(manifest, context, services, "WorkflowAgents"),
     };
+    globalScope.toolboxAPI = toolboxAPI;
 
     return () => {
+        if (deadline) clearTimeout(deadline);
+        disposeAzure();
         globalScope.window = previousWindow;
         globalScope.toolboxAPI = previousToolboxApi;
         globalScope.dataverseAPI = previousDataverseApi;
         globalScope.powerplatformAPI = previousPowerPlatformApi;
+        globalScope.azureAPI = previousAzureApi;
     };
 }
 
@@ -676,6 +756,13 @@ function buildPowerPlatformCategoryClient(
     category: Parameters<NonNullable<PowerPlatformManager["request"]>>[1],
 ) {
     return {
+        Raw: createPowerPlatformRawClient(async (method, path, body, headers, connectionTarget = "primary", options) => {
+            if (!services.powerPlatformManager) {
+                throw new Error(`powerplatformAPI.${category}.Raw.${method} is not available in headless mode.`);
+            }
+            const connection = requireResolvedConnection(manifest, context, services, connectionTarget);
+            return services.powerPlatformManager.requestRaw(connection.id, category, method, path, body, headers, options);
+        }),
         Get: (relativePath = "", connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
             requestPowerPlatform(manifest, context, services, category, "GET", relativePath, undefined, headers, connectionTarget),
         Post: (relativePath = "", body?: unknown, connectionTarget?: ConnectionTarget, headers?: Record<string, string>) =>
@@ -738,7 +825,7 @@ export async function invokeHeadlessTool(manifest: ToolManifest, input: Record<s
 
                 return result;
             } catch (error) {
-                lastError = error instanceof Error ? error : new Error(String(error));
+                lastError = error instanceof Error ? error : new Error(isAzureError(error) ? error.message : String(error));
                 logError(`[MCP][Headless] Failed entry ${entryPath}`, lastError);
             }
         }
