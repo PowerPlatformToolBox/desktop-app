@@ -4,5 +4,7 @@ packages:
 
 ignoredBuiltDependencies:
     - "@parcel/watcher"
-    - electron
     - esbuild
+
+onlyBuiltDependencies:
+    - electron
