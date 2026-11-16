@@ -51,7 +51,7 @@ export interface ToolFeatures {
     /**
      * Whether this tool requires connections enabled for Power Platform API
      * Legacy requirement hint. Connections remain selectable when not enabled.
-     * Prefer apis.pp for new tools.
+     * @deprecated Use `apis.pp.required` instead. Retained for backward compatibility.
      */
     enabledForPowerPlatformAPI?: boolean;
 }

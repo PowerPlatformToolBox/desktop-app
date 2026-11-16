@@ -19,6 +19,28 @@ const validPackage = (features: ToolPackageJson["features"]): ToolPackageJson =>
 });
 
 describe("package.json features.connections validation", () => {
+    it.each([true, false])("keeps legacy PP %s valid with a deprecation warning in both validators", async (enabledForPowerPlatformAPI) => {
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            const result = await validate(validPackage({ connections: 1, enabledForPowerPlatformAPI }), { skipUrlChecks: true });
+            expect(result.valid).toBe(true);
+            expect(result.warnings).toContain("features.enabledForPowerPlatformAPI is deprecated; use features.apis.pp.required instead");
+            expect(result.errors).toEqual([]);
+        }
+    });
+
+    it("warns for matching dual PP declarations but not modern-only or absent declarations", async () => {
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            const matching = await validate(validPackage({ connections: 1, enabledForPowerPlatformAPI: true, apis: { pp: { required: true } } }), { skipUrlChecks: true });
+            expect(matching.valid).toBe(true);
+            expect(matching.warnings).toContain("features.enabledForPowerPlatformAPI is deprecated; use features.apis.pp.required instead");
+            for (const features of [{ connections: 1 }, { connections: 1, apis: { pp: { required: true } } }]) {
+                const result = await validate(validPackage(features), { skipUrlChecks: true });
+                expect(result.valid).toBe(true);
+                expect(result.warnings.some((warning) => warning.includes("features.enabledForPowerPlatformAPI"))).toBe(false);
+            }
+        }
+    });
+
     it("accepts the preferred API schema in both validator surfaces", async () => {
         const packageJson = validPackage({ connections: 1, apis: { pp: { required: true }, arm: { required: true }, graph: { required: false, scopes: ["Reports.Read.All"] } } });
         for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {

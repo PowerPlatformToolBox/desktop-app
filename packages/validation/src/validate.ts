@@ -30,6 +30,7 @@ export interface Features {
     multiConnection?: "required" | "optional" | "none";
     connectionRequirement?: "required" | "optional";
     minAPI?: string;
+    /** @deprecated Use `apis.pp.required` instead. Retained for backward compatibility. */
     enabledForPowerPlatformAPI?: boolean;
 }
 
@@ -500,6 +501,7 @@ export async function validatePackageJson(packageJson: ToolPackageJson, options:
                 }
             }
             if (features.enabledForPowerPlatformAPI !== undefined) {
+                warnings.push("features.enabledForPowerPlatformAPI is deprecated; use features.apis.pp.required instead");
                 if (typeof features.enabledForPowerPlatformAPI !== "boolean") {
                     errors.push("features.enabledForPowerPlatformAPI must be a boolean (true or false)");
                 }

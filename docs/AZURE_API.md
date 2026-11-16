@@ -43,7 +43,7 @@ User/admin consent depends on permission and tenant consent policy. Admin consen
 
 MFA and supported Conditional Access challenges are handled in host/browser authentication. Claims challenges stay inside the host; explicit `authenticate()` retries them. Policies requiring an unsupported native broker/compliant-device integration can still deny access; do not use password fallback.
 
-Only **Azure public cloud**, `management.azure.com`, and Graph `graph.microsoft.com/v1.0` are supported. Government/China authorities, sovereign ARM/Graph endpoints, arbitrary audiences, Graph beta, workers and MCP/headless execution are not exposed by this API.
+Only **Azure public cloud**, `management.azure.com`, and Graph `graph.microsoft.com/v1.0` are supported. Government/China authorities, sovereign ARM/Graph endpoints, arbitrary audiences, Graph beta and workers are not exposed by this API. MCP headless tools use the same host-managed client as described below.
 
 All ARM/Graph requests and MSAL exchanges use the existing `ProxyManager`, including proxy agents/custom CA behavior. Browser sign-in uses the configured system browser/profile and its own browser/OS proxy configuration, as with existing sign-in.
 
@@ -74,13 +74,32 @@ Existing tools require no migration:
 | `enabledForPowerPlatformAPI: true`            | PP declared and required |
 | `enabledForPowerPlatformAPI: false` or absent | No PP requirement        |
 
-The existing `enabledForPowerPlatformAPI` field remains supported alongside `apis.arm` and `apis.graph`. If both `enabledForPowerPlatformAPI` and `apis.pp` are supplied, their required status must match; conflicts are validation errors and host access is denied. The interim `features.azure` format is not supported: declare ARM and Graph only through `features.apis`.
+The manifest field `features.enabledForPowerPlatformAPI` is **deprecated**, but remains supported for backward compatibility. Both validators emit a warning when it is supplied (true or false); this warning alone does not invalidate the package. Replace it with `features.apis.pp.required`, preserving its boolean value. This does not deprecate the connection's `enabledForPowerPlatformAPI` enablement flag. If both manifest declarations are supplied, their required status must match; conflicts are validation errors and host access is denied. The interim `features.azure` format is not supported: declare ARM and Graph only through `features.apis`.
 
 Both validator surfaces use the same normalization rules; the host rechecks the loaded tool's actual package manifest rather than trusting registry metadata.
 
 Connection selectors show one compact enabled-API badge in fixed order, e.g. **PP, ARM, Graph**. No enabled APIs means no badge. Hover or keyboard focus reveals full names and clarifies that enablement does not verify authentication or authorization. A compact **Required APIs: PP, ARM. Choose connections with matching tags.** banner lists only required APIs. Selecting a connection missing enablement shows **Selected connection missing: ARM.** Multi-selection checks assigned connections. These warnings do not prevent selecting a connection.
 
 Call `authenticate()` from a user action. A host-owned confirmation identifies the tool, connection, resource and requested permissions. Approval is session-bound to the tool instance, connection and declaration. Ordinary requests never unexpectedly open sign-in windows. Existing PP API enablement remains separate; no new API is required to use Dataverse.
+
+### MCP headless execution
+
+Declare the same `features.apis` entries in the installed package and enable ARM/Graph on the saved Dataverse connection. Use the existing `agents.headless`/`agents.headlessEntry` configuration and MCP connection-selection/authentication flow; no additional Azure-specific opt-in is needed.
+
+During `invokeHeadless`, `globalThis.azureAPI` (also `window.azureAPI`) exposes the same ARM/Graph methods and structured errors. Requests use the invocation's assigned connection slots, not the app's active connection. Empty/deleted slots reject with `notConnected`; safe connection metadata includes the ARM/Graph enablement flags.
+
+Like the Power Platform headless client, Azure acquires its own resource token on demand: silent MSAL acquisition/renewal first, host-managed browser sign-in if consent/MFA/Conditional Access requires it. There is **no extra PPTB API approval dialog** and no requirement to approve a windowed Azure request first. Entra consent and Azure/Graph authorization still apply. `authenticate()` is also available for an explicit retry, including a claims challenge. A headless run does not open the tool UI, but sign-in can require user interaction; it is not an unattended authentication guarantee.
+
+```typescript
+/// <reference types="@pptb/types" />
+
+export async function invokeHeadless() {
+    const subscriptions = await globalThis.azureAPI.arm.listSubscriptions();
+    return { subscriptions: subscriptions.data?.value ?? [] };
+}
+```
+
+Tokens remain inside the host's Azure authentication/transport; no Azure token is added to invocation context. The same read-only methods, pinned origins, proxy handling, request deadlines, throttling diagnostics and opaque pagination apply. `connectionTarget` selects `"primary"`, `"secondary"` or a numeric slot. `cancelRequest()` and `onConnectionChanged()` are available. Page handles and cancellation IDs are isolated per invocation; pending Azure requests, handles and event subscriptions are disposed when execution returns, fails or reaches its MCP job deadline. Do not retain the client after the invocation.
 
 ## Requests and read-only boundary
 

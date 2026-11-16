@@ -275,6 +275,7 @@ class ToolBoxApp {
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager, this.proxyManager);
+            this.mcpServerManager.setAzureApiManager(this.azureApiManager);
             this.proxyManager.setCredentialPromptHandler((authInfo) => this.promptForProxyCredentials(authInfo.host || "proxy", authInfo.port));
             this.proxyManager.setFailureNotifier((notice) => {
                 this.api.showNotification({

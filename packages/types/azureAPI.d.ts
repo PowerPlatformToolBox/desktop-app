@@ -80,7 +80,7 @@ export namespace AzureAPI {
 
     export interface ReadClient {
         getConnectionState(connectionTarget?: ConnectionTarget): Promise<ConnectionState>;
-        /** Explicit host confirmation and, if necessary, browser consent for this connection's account. */
+        /** Windowed: host approval and optional browser sign-in. Headless: host sign-in without an additional PPTB approval dialog. */
         authenticate(options?: Options): Promise<ConnectionState>;
         Get<T = unknown>(path: string, options?: Options): Promise<Response<T>>;
         nextPage<T = unknown>(continuation: string, options?: Options): Promise<Response<T>>;
@@ -143,6 +143,8 @@ export namespace AzureAPI {
 }
 
 declare global {
+    /** Available while invokeHeadless runs; uses its assigned saved connections and host-managed authentication. */
+    var azureAPI: AzureAPI.API;
     interface Window {
         azureAPI: AzureAPI.API;
     }

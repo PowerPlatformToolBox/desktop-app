@@ -30,6 +30,9 @@ export interface ToolPackageFeatures {
     connectionRequirement?: "required" | "optional";
     /** Minimum ToolBox API version required by this tool. */
     minAPI?: string;
-    /** Legacy Power Platform requirement hint; use apis.pp for new tools. Does not block selection. */
+    /**
+     * Legacy Power Platform requirement hint. Does not block selection.
+     * @deprecated Use `apis.pp.required` instead. Retained for backward compatibility.
+     */
     enabledForPowerPlatformAPI?: boolean;
 }

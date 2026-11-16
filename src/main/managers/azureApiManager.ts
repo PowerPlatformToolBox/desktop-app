@@ -14,6 +14,8 @@ export interface AzureCaller {
     permissions: unknown;
     isCurrent(): boolean;
     approve(resource: AzureAPI.Resource, scopes: string[]): Promise<boolean>;
+    /** Host-only execution mode; never taken from tool request options. */
+    headless?: boolean;
 }
 
 interface Page {
@@ -134,6 +136,7 @@ export class AzureApiManager {
     private owners = new Map<number, Set<string>>();
     private states = new Map<string, "ready" | "interactionRequired">();
     private claims = new Map<string, string>();
+    private listeners = new Map<number, Set<(event: AzureAPI.ConnectionChangedEvent) => void>>();
 
     constructor(
         private readonly connections: Pick<ConnectionsManager, "getConnectionById">,
@@ -141,6 +144,27 @@ export class AzureApiManager {
         private readonly proxy: Pick<ProxyManager, "getAgentForUrl">,
         private readonly changed: (owner: number, event: AzureAPI.ConnectionChangedEvent) => void = () => undefined,
     ) {}
+
+    subscribeOwner(owner: number, listener: (event: AzureAPI.ConnectionChangedEvent) => void): () => void {
+        const listeners = this.listeners.get(owner) ?? new Set();
+        listeners.add(listener);
+        this.listeners.set(owner, listeners);
+        return () => {
+            listeners.delete(listener);
+            if (!listeners.size) this.listeners.delete(owner);
+        };
+    }
+
+    private emitChanged(owner: number, event: AzureAPI.ConnectionChangedEvent): void {
+        this.changed(owner, event);
+        for (const listener of this.listeners.get(owner) ?? []) {
+            try {
+                listener(event);
+            } catch {
+                logWarn("Headless Azure connection-change listener failed");
+            }
+        }
+    }
 
     invalidate(connectionId: string): void {
         this.generations.set(connectionId, this.generation(connectionId) + 1);
@@ -154,7 +178,7 @@ export class AzureApiManager {
                 for (const key of this.approvals) if (key.startsWith(prefix)) this.approvals.delete(key);
                 for (const key of this.states.keys()) if (key.startsWith(prefix)) this.states.delete(key);
                 for (const key of this.claims.keys()) if (key.startsWith(prefix)) this.claims.delete(key);
-                this.changed(owner, { connectionId, reason: "connectionChanged" });
+                this.emitChanged(owner, { connectionId, reason: "connectionChanged" });
             }
         }
     }
@@ -166,11 +190,12 @@ export class AzureApiManager {
         for (const key of this.states.keys()) if (key.startsWith(`${owner}:`)) this.states.delete(key);
         for (const key of this.claims.keys()) if (key.startsWith(`${owner}:`)) this.claims.delete(key);
         this.owners.delete(owner);
+        this.listeners.delete(owner);
     }
 
     connectionChanged(owner: number): void {
         for (const [key, operation] of this.active) if (key.startsWith(`${owner}:`)) operation.abort.abort(azureError("connectionChanged", "The tool's connection selection changed."));
-        for (const connectionId of this.owners.get(owner) ?? []) this.changed(owner, { connectionId, reason: "connectionChanged" });
+        for (const connectionId of this.owners.get(owner) ?? []) this.emitChanged(owner, { connectionId, reason: "connectionChanged" });
         this.disposeOwner(owner);
     }
 
@@ -230,10 +255,10 @@ export class AzureApiManager {
         const generation = this.generation(connection.id);
         const approvalKey = `${caller.owner}:${connection.id}:${resource}:${JSON.stringify(scopes)}:${generation}`;
         const state = await this.state(connection, resource, approvalKey);
+        if (!caller.isCurrent() || generation !== this.generation(connection.id)) throw azureError("connectionChanged", "The tool connection changed.");
         const owners = this.owners.get(caller.owner) ?? new Set<string>();
         owners.add(connection.id);
         this.owners.set(caller.owner, owners);
-        if (!caller.isCurrent() || generation !== this.generation(connection.id)) throw azureError("connectionChanged", "The tool connection changed.");
         if (action === "state") return state;
         const check: AzureAPI.CostAccessCheck | undefined =
             action === "checkCosts" && resource === "arm"
@@ -292,17 +317,17 @@ export class AzureApiManager {
             });
         try {
             if (action === "authenticate") {
-                if (!(await wait(caller.approve(resource, scopes)))) throw azureError("consentRequired", "API access was declined in the host.");
+                if (!caller.headless && !(await wait(caller.approve(resource, scopes)))) throw azureError("consentRequired", "API access was declined in the host.");
                 ensureCurrent();
                 await wait(acquireToken(true, false));
                 ensureCurrent();
                 this.approvals.add(approvalKey);
                 this.states.set(approvalKey, "ready");
                 this.claims.delete(approvalKey);
-                this.changed(caller.owner, { connectionId: connection.id, reason: "authenticated" });
+                this.emitChanged(caller.owner, { connectionId: connection.id, reason: "authenticated" });
                 return this.state(connection, resource, approvalKey);
             }
-            if (!this.approvals.has(approvalKey)) throw azureError("consentRequired", "Call authenticate() from a user action to approve this tool's read-only API access.");
+            if (!caller.headless && !this.approvals.has(approvalKey)) throw azureError("consentRequired", "Call authenticate() from a user action to approve this tool's read-only API access.");
             let url: URL;
             let method: "GET" | "POST" = "GET";
             let body: string | undefined;
@@ -323,7 +348,7 @@ export class AzureApiManager {
                 body = page.body;
                 visited = page.visited;
             } else throw azureError("invalidRequest", "Unsupported read-only API operation.");
-            let token = await wait(acquireToken(false, false));
+            let token = await wait(acquireToken(caller.headless === true, false));
             ensureCurrent();
             let response = await this.request(url, method, body, token, abort.signal);
             if (response.status === 401) {
@@ -331,7 +356,7 @@ export class AzureApiManager {
                     this.claims.set(approvalKey, response.claims);
                     throw azureError("interactionRequired", "The API requires additional Conditional Access authentication. Use authenticate() to reconnect.");
                 }
-                token = await wait(acquireToken(false, true));
+                token = await wait(acquireToken(caller.headless === true, true));
                 ensureCurrent();
                 response = await this.request(url, method, body, token, abort.signal);
                 if (response.status === 401 && response.claims) {
@@ -387,7 +412,7 @@ export class AzureApiManager {
             if (isAzureError(error)) {
                 if (error.code === "interactionRequired" || error.code === "authenticationFailed") {
                     this.states.set(approvalKey, "interactionRequired");
-                    this.changed(caller.owner, { connectionId: connection.id, reason: "interactionRequired" });
+                    this.emitChanged(caller.owner, { connectionId: connection.id, reason: "interactionRequired" });
                 }
                 return failure(error);
             }

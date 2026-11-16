@@ -383,6 +383,7 @@ async function validatePackageJson(packageJson, options = {}) {
             }
 
             if (features.enabledForPowerPlatformAPI !== undefined) {
+                warnings.push("features.enabledForPowerPlatformAPI is deprecated; use features.apis.pp.required instead");
                 if (typeof features.enabledForPowerPlatformAPI !== "boolean") {
                     errors.push("features.enabledForPowerPlatformAPI must be a boolean (true or false)");
                 }

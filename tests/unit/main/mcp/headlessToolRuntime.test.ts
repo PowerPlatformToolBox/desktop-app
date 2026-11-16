@@ -1,6 +1,10 @@
 /// <reference types="jest" />
 
 import { pathToFileURL } from "url";
+import * as fs from "fs";
+import type { AzureAPI } from "../../../../src/common/azureApi";
+import { azureError } from "../../../../src/common/azureApi";
+import type { AzureCaller } from "../../../../src/main/managers/azureApiManager";
 import type { ConnectionTarget } from "../../../../src/common/connectionSlots";
 import type { Connection, ToolManifest } from "../../../../src/common/types";
 import { invokeHeadlessTool, type HeadlessInvokeContext, type HeadlessRuntimeServices } from "../../../../src/main/mcp/headlessToolRuntime";
@@ -8,11 +12,14 @@ import type { createPowerPlatformRawClient } from "../../../../src/common/powerp
 
 jest.mock("fs", () => ({
     existsSync: jest.fn((filePath: string) => filePath.endsWith("headless.js")),
+    statSync: jest.fn(() => ({ size: 500 })),
+    readFileSync: jest.fn(),
 }));
 jest.mock("../../../../src/common/logger", () => ({ logInfo: jest.fn(), logError: jest.fn() }));
 
 type SafeConnection = Record<string, unknown> | null;
 interface RuntimeGlobals {
+    azureAPI: AzureAPI.API;
     toolboxAPI: {
         getToolContext: () => Promise<Record<string, unknown>>;
         connections: {
@@ -35,7 +42,7 @@ interface RuntimeGlobals {
     };
 }
 
-const manifest = { id: "headless-test", installPath: "/headless-test" } as ToolManifest;
+const manifest = { id: "headless-test", version: "1.0.0", installPath: "/headless-test" } as ToolManifest;
 const entryUrl = pathToFileURL("/headless-test/headless.js").href;
 const mockInvokeHeadless = jest.fn();
 jest.doMock(entryUrl, () => ({ invokeHeadless: mockInvokeHeadless }), { virtual: true });
@@ -46,6 +53,8 @@ describe("headless runtime connection slots", () => {
         name: `Environment ${index}`,
         url: `https://env${index}.crm.dynamics.com`,
         accessToken: `secret-${index}`,
+        enabledForAzureAPI: true,
+        enabledForGraphAPI: true,
     })) as Connection[];
     const getConnectionById = jest.fn((id: string) => connections.find((connection) => connection.id === id) ?? null);
     const queryData = jest.fn().mockResolvedValue({ ok: true });
@@ -53,6 +62,11 @@ describe("headless runtime connection slots", () => {
     const executeBatch = jest.fn().mockResolvedValue([]);
     const request = jest.fn().mockResolvedValue({ ok: true });
     const requestRaw = jest.fn();
+    const azureInvoke = jest.fn();
+    const azureCancel = jest.fn();
+    const disposeOwner = jest.fn();
+    const unsubscribe = jest.fn();
+    const subscribeOwner = jest.fn().mockReturnValue(unsubscribe);
     const services = {
         connectionsManager: { getConnectionById, getConnections: jest.fn(() => connections) },
         dataverseManager: {
@@ -62,6 +76,7 @@ describe("headless runtime connection slots", () => {
             withAdditionalHeaders: jest.fn((_headers: unknown, operation: () => Promise<unknown>) => operation()),
         },
         powerPlatformManager: { request, requestRaw },
+        azureApiManager: { invoke: azureInvoke, cancel: azureCancel, disposeOwner, subscribeOwner },
     } as unknown as HeadlessRuntimeServices;
 
     function invoke(overrides: Partial<HeadlessInvokeContext>, operation: (apis: RuntimeGlobals, context: HeadlessInvokeContext) => Promise<Record<string, unknown>>) {
@@ -77,7 +92,136 @@ describe("headless runtime connection slots", () => {
         return invokeHeadlessTool(manifest, {}, context, services);
     }
 
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => {
+        jest.clearAllMocks();
+        azureInvoke.mockReset().mockResolvedValue({ status: 200, headers: {}, data: { value: [] } });
+        (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({ version: manifest.version, features: { apis: { arm: {}, graph: { scopes: ["Reports.Read.All"] } } } }));
+        (fs.statSync as jest.Mock).mockReturnValue({ size: 500 });
+    });
+
+    it("exposes the shared ARM/Graph client and routes all operations to assigned slots without approval", async () => {
+        await invoke({ connectionIds: connections.map((connection) => connection.id) }, async ({ azureAPI, toolboxAPI }) => {
+            expect((globalThis as unknown as { window: RuntimeGlobals }).window.azureAPI).toBe(azureAPI);
+            await azureAPI.arm.getConnectionState(2);
+            await azureAPI.graph.authenticate({ connectionTarget: "secondary" });
+            await azureAPI.arm.listSubscriptions({ connectionTarget: 3 });
+            await azureAPI.graph.Get("/v1.0/reports/getTeamsUserActivityUserDetail(period='D7')");
+            await azureAPI.arm.queryCosts("/subscriptions/00000000-0000-0000-0000-000000000001", {
+                type: "ActualCost",
+                timeframe: "MonthToDate",
+                dataset: { granularity: "Daily" },
+            });
+            await azureAPI.arm.checkCostAccess("/subscriptions/00000000-0000-0000-0000-000000000001");
+            await azureAPI.arm.nextPage("opaque", { connectionTarget: 2 });
+            await azureAPI.cancelRequest("request-1");
+            const stop = azureAPI.onConnectionChanged(jest.fn());
+            stop();
+            expect(await toolboxAPI.connections.getConnection(2)).not.toHaveProperty("accessToken");
+            expect(await toolboxAPI.connections.getConnection(2)).toMatchObject({ enabledForAzureAPI: true, enabledForGraphAPI: true });
+            return {};
+        });
+        expect(azureInvoke.mock.calls.map(([caller, action, resource]) => [caller.connectionId, action, resource])).toEqual([
+            ["conn-2", "state", "arm"],
+            ["conn-1", "authenticate", "graph"],
+            ["conn-3", "get", "arm"],
+            ["conn-0", "get", "graph"],
+            ["conn-0", "costs", "arm"],
+            ["conn-0", "checkCosts", "arm"],
+            ["conn-2", "next", "arm"],
+        ]);
+        const caller: AzureCaller = azureInvoke.mock.calls[0][0];
+        expect(caller).toMatchObject({ headless: true, permissions: { arm: true, graph: ["Reports.Read.All"] } });
+        expect(caller.owner).toBeLessThan(0);
+        expect(azureCancel).toHaveBeenCalledWith(caller.owner, "request-1");
+        expect(disposeOwner).toHaveBeenCalledWith(caller.owner);
+        expect(caller.isCurrent()).toBe(false);
+        expect(unsubscribe).toHaveBeenCalled();
+    });
+
+    it("uses installed declarations rather than cached metadata and rejects malformed or changed manifests", async () => {
+        await invoke({ connectionId: "conn-0" }, async ({ azureAPI }) => {
+            (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({ version: manifest.version, features: { apis: { graph: { scopes: ["User.Read"] } } } }));
+            await azureAPI.graph.Get("/v1.0/me");
+            expect(azureInvoke.mock.calls[0][0].permissions).toEqual({ graph: ["User.Read"] });
+            for (const packageJson of [
+                { version: "changed" },
+                { version: manifest.version, features: { azure: { arm: true } } },
+                { version: manifest.version, features: { apis: { graph: { scopes: ["User.ReadWrite.All"] } } } },
+            ]) {
+                (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify(packageJson));
+                await expect(azureAPI.arm.listSubscriptions()).rejects.toMatchObject({ code: "capabilityDenied" });
+            }
+            (fs.statSync as jest.Mock).mockReturnValue({ size: 1024 * 1024 + 1 });
+            await expect(azureAPI.arm.listSubscriptions()).rejects.toMatchObject({ code: "capabilityDenied" });
+            return {};
+        });
+        expect(azureInvoke).toHaveBeenCalledTimes(1);
+    });
+
+    it("preserves structured failures and does not fill empty Azure connection slots", async () => {
+        await invoke({ connectionIds: ["conn-0", null, "conn-2"] }, async ({ azureAPI }) => {
+            await expect(azureAPI.arm.listSubscriptions({ connectionTarget: "secondary" })).rejects.toMatchObject({ code: "notConnected" });
+            const error = azureError("throttled", "Retry later", { status: 429, retryAfterMs: 5000, requestId: "safe-id" });
+            azureInvoke.mockRejectedValue(error);
+            await expect(azureAPI.arm.listSubscriptions({ connectionTarget: 2 })).rejects.toEqual(error);
+            return {};
+        });
+        expect(azureInvoke).toHaveBeenCalledTimes(1);
+    });
+
+    it("restores prior globals and invalidates retained Azure clients after execution", async () => {
+        const scope = globalThis as unknown as Record<string, unknown>;
+        const previous = scope.azureAPI;
+        let retained: AzureAPI.API | undefined;
+        try {
+            scope.azureAPI = { sentinel: true };
+            await invoke({ connectionId: "conn-0" }, async ({ azureAPI }) => {
+                retained = azureAPI;
+                await azureAPI.arm.listSubscriptions();
+                return {};
+            });
+            expect(scope.azureAPI).toEqual({ sentinel: true });
+            await expect(retained!.arm.listSubscriptions()).rejects.toMatchObject({ code: "cancelled" });
+        } finally {
+            scope.azureAPI = previous;
+        }
+    });
+
+    it("disposes Azure requests when the headless job deadline expires", async () => {
+        await invoke({ connectionId: "conn-0", timeoutMs: 5 }, async ({ azureAPI }) => {
+            await azureAPI.arm.listSubscriptions();
+            const caller: AzureCaller = azureInvoke.mock.calls[0][0];
+            await new Promise((resolve) => setTimeout(resolve, 15));
+            expect(caller.isCurrent()).toBe(false);
+            expect(disposeOwner).toHaveBeenCalledWith(caller.owner);
+            await expect(azureAPI.graph.Get("/v1.0/me")).rejects.toMatchObject({ code: "cancelled" });
+            return {};
+        });
+    });
+
+    it("cleans up on failure and exposes a clear error if the Azure host service is unavailable", async () => {
+        const scope = globalThis as unknown as Record<string, unknown>;
+        const previous = scope.azureAPI;
+        await expect(
+            invoke({ connectionId: "conn-0" }, async ({ azureAPI }) => {
+                await azureAPI.arm.listSubscriptions();
+                throw azureError("accessDenied", "Azure access denied");
+            }),
+        ).rejects.toThrow("Azure access denied");
+        expect(scope.azureAPI).toBe(previous);
+        expect(disposeOwner).toHaveBeenCalled();
+        mockInvokeHeadless.mockImplementation(async () => {
+            const api = (globalThis as unknown as RuntimeGlobals).azureAPI;
+            await expect(api.arm.listSubscriptions()).rejects.toMatchObject({ code: "notConfigured" });
+            return {};
+        });
+        await invokeHeadlessTool(
+            manifest,
+            {},
+            { toolId: manifest.id, toolName: "Headless Test", invocationMode: "two-way", updateProgress: jest.fn(), logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } },
+            {},
+        );
+    });
 
     it("provides raw response and error parity through the headless runtime", async () => {
         const response = { status: 200, headers: { "content-type": "application/gzip" }, body: new Uint8Array([31, 139, 255, 0]) };

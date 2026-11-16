@@ -88,6 +88,41 @@ describe("Azure host API", () => {
         expect(https.request).not.toHaveBeenCalled();
     });
 
+    it("acquires headless tokens on demand without approval but retains capability and enablement checks", async () => {
+        caller.headless = true;
+        await manager.invoke(caller, "get", "arm", "/subscriptions?api-version=2022-12-01");
+        expect(caller.approve).not.toHaveBeenCalled();
+        expect(token).toHaveBeenCalledWith(connection, ["https://management.azure.com/.default"], true, false, expect.any(AbortSignal));
+        await manager.invoke(caller, "authenticate", "graph", undefined);
+        expect(caller.approve).not.toHaveBeenCalled();
+        expect(token).toHaveBeenLastCalledWith(connection, ["https://graph.microsoft.com/User.Read"], true, false, expect.any(AbortSignal));
+        await expect(manager.invoke({ ...caller, permissions: {} }, "get", "arm", costPath)).rejects.toMatchObject({ code: "capabilityDenied" });
+        connection.enabledForGraphAPI = false;
+        await expect(manager.invoke(caller, "get", "graph", "/v1.0/me")).rejects.toMatchObject({ code: "notConfigured" });
+        expect(token).toHaveBeenCalledTimes(2);
+    });
+
+    it("isolates headless pagination, cancellation and events by invocation owner", async () => {
+        caller.headless = true;
+        const event = jest.fn();
+        manager.subscribeOwner(caller.owner, event);
+        responses.push({ data: { value: [], nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&page=2" } });
+        const page = (await manager.invoke(caller, "get", "arm", "/subscriptions?api-version=2022-12-01")) as AzureAPI.Response;
+        await expect(manager.invoke({ ...caller, owner: -2 }, "next", "arm", page.continuation)).rejects.toMatchObject({ code: "invalidContinuation" });
+        await expect(manager.invoke(caller, "next", "arm", page.continuation)).resolves.toMatchObject({ status: 200 });
+        responses.push({ pending: true });
+        const pending = manager.invoke(caller, "get", "arm", costPath, { requestId: "headless-request" });
+        while (requests.length < 3) await Promise.resolve();
+        manager.cancel(-2, "headless-request");
+        manager.invalidate(connection.id);
+        await expect(pending).rejects.toMatchObject({ code: "connectionChanged" });
+        expect(event).toHaveBeenCalledWith({ connectionId: connection.id, reason: "connectionChanged" });
+        manager.disposeOwner(caller.owner);
+        event.mockClear();
+        manager.invalidate(connection.id);
+        expect(event).not.toHaveBeenCalled();
+    });
+
     it("renews once on 401, routes through the configured proxy, and strips secret headers", async () => {
         await authenticate();
         responses.push({ status: 401 }, { data: { value: [] }, headers: { "set-cookie": "private", "x-ms-request-id": "safe", "retry-after": "5" } });

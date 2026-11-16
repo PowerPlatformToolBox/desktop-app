@@ -76,7 +76,9 @@ subscription Cost Query POSTs are supported. The original `1.2.9-beta.0` did not
 
 `required` defaults to false and controls connection-selector guidance, not whether access is granted.
 Use `pp: { "required": true }` for Power Platform requirements. Existing
-`features.enabledForPowerPlatformAPI` remains supported without migration;
+`features.enabledForPowerPlatformAPI` is deprecated but remains supported for backward compatibility.
+Validation warns when it is supplied (true or false); migrate to `features.apis.pp.required` with the same boolean value.
+The connection enablement flag of the same name is not deprecated;
 conflicting legacy/new PP declarations are rejected. ARM and Graph use only `features.apis`.
 
 See the [setup/API guide](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/AZURE_API.md),
@@ -862,7 +864,13 @@ The Power Platform API exposes the following categories, each with `Get`, `Post`
 
 ## API Reference
 
-The Power Platform ToolBox exposes three main APIs to tools:
+The Power Platform ToolBox exposes the ToolBox, Dataverse, Power Platform and optional Azure/Graph APIs to tools.
+
+### Azure API in MCP headless tools
+
+`globalThis.azureAPI` and `window.azureAPI` provide the same typed read-only ARM/Graph clients during `invokeHeadless`. Declare `features.apis.arm` and/or `features.apis.graph` and enable those APIs on the invocation's saved Dataverse connection. Resource authentication occurs on demand in the host, like Power Platform API authentication: no additional PPTB approval dialog, but Entra sign-in/consent may require interaction. Tokens are not exposed.
+
+Connection slots, cancellation, pagination, structured diagnostics and connection-change events work in both run styles. Azure clients and page handles are invocation-bound. See [Azure API setup and headless execution](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/AZURE_API.md).
 
 ### ToolBox API (`window.toolboxAPI`)
 
