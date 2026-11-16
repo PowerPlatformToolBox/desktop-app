@@ -63,6 +63,25 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
 npm install --save-dev @pptb/types
 ```
 
+## Azure Resource Manager and Microsoft Graph
+
+PPTB 1.2.9 builds containing Azure API support expose standalone `window.azureAPI.arm` and
+`window.azureAPI.graph`. Enable each optional resource on the existing Dataverse connection;
+the host acquires separate tokens using that connection's authentication and proxy settings.
+No token or secret is exposed to tool JavaScript.
+
+Declare `features.apis` (e.g. `{ "arm": { "required": true }, "graph": { "required": false, "scopes": ["User.Read"] } }`) and call the resource's
+`authenticate()` from a user action for host confirmation. Only read-only GETs and validated
+subscription Cost Query POSTs are supported. The original `1.2.9-beta.0` did not contain these types.
+
+`required` defaults to false and controls connection-selector guidance, not whether access is granted.
+Use `pp: { "required": true }` for Power Platform requirements. Existing
+`features.enabledForPowerPlatformAPI` remains supported without migration;
+conflicting legacy/new PP declarations are rejected. ARM and Graph use only `features.apis`.
+
+See the [setup/API guide](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/AZURE_API.md),
+[public declarations](./azureAPI.d.ts), and [daily-cost example](./examples/azure-costs.ts).
+
 ## Tool Validation
 
 The `@pptb/types` package ships with a `pptb-validate` binary that validates your tool's `package.json` against the **same rules** used by the official Power Platform ToolBox review process. Running it before publishing helps you catch configuration problems early, reduces failed reviews, and avoids publishing unnecessary npm versions.

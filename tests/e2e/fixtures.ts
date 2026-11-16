@@ -187,6 +187,17 @@ export const test = base.extend<AppFixtures>({
                 { id: "e2e-four-connection-range", name: "E2E Four Connection Range", features: { connections: { min: 3, max: 4 } } },
                 { id: "e2e-single-connection", name: "E2E Single Connection" },
                 { id: "e2e-no-connection", name: "E2E No Connection", features: { connections: 0 } },
+                {
+                    id: "e2e-required-apis-single",
+                    name: "E2E Required APIs Single",
+                    features: { connections: 1, apis: { pp: { required: true }, arm: { required: true }, graph: { required: true, scopes: ["User.Read"] } } },
+                },
+                {
+                    id: "e2e-required-apis-multi",
+                    name: "E2E Required APIs Multi",
+                    features: { connections: 2, apis: { pp: { required: true }, arm: { required: true }, graph: { required: true, scopes: ["User.Read"] } } },
+                },
+                { id: "e2e-legacy-api", name: "E2E Legacy API", features: { connections: 1, enabledForPowerPlatformAPI: true, apis: { arm: {} } } },
             ];
             const installedTools = toolDefinitions.map((tool) => {
                 const installPath = path.join(toolsDirectory, tool.id);
@@ -213,6 +224,9 @@ export const test = base.extend<AppFixtures>({
                             {
                                 id: "e2e-dev-connection",
                                 name: "E2E Development",
+                                enabledForPowerPlatformAPI: true,
+                                enabledForAzureAPI: true,
+                                enabledForGraphAPI: true,
                                 url: "https://dev.crm.dynamics.com",
                                 environment: "Dev",
                                 authenticationType: "interactive",
@@ -221,6 +235,7 @@ export const test = base.extend<AppFixtures>({
                             {
                                 id: "e2e-test-connection",
                                 name: "E2E Test",
+                                enabledForPowerPlatformAPI: true,
                                 url: "https://test.crm.dynamics.com",
                                 environment: "Test",
                                 authenticationType: "interactive",
@@ -229,6 +244,8 @@ export const test = base.extend<AppFixtures>({
                             {
                                 id: "e2e-uat-connection",
                                 name: "E2E UAT",
+                                enabledForAzureAPI: true,
+                                enabledForGraphAPI: true,
                                 url: "https://uat.crm.dynamics.com",
                                 environment: "UAT",
                                 authenticationType: "interactive",

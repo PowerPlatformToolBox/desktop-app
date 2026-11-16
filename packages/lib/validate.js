@@ -1,5 +1,6 @@
 // @ts-check
 "use strict";
+const { resolveToolApis } = require("./apiFeatures");
 
 /**
  * Tool validation logic for Power Platform ToolBox tools.
@@ -9,7 +10,7 @@
 /** @typedef {{ name: string; url?: string }} Contributor */
 /** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
-/** @typedef {{ connections?: number | { min?: number; max?: number }; multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
+/** @typedef {{ connections?: number | { min?: number; max?: number }; multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean; apis?: { pp?: { required?: boolean }; arm?: { required?: boolean }; graph?: { required?: boolean; scopes: string[] } } }} Features */
 /**
  * @typedef {{
  *   name: string;
@@ -317,13 +318,14 @@ async function validatePackageJson(packageJson, options = {}) {
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
             errors.push("features must be a non-array object with optional 'connections', 'multiConnection', 'connectionRequirement', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["connections", "multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
+            const VALID_FEATURE_KEYS = ["connections", "multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI", "apis"];
             const featureKeys = Object.keys(features);
             const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
 
             if (invalidKeys.length > 0) {
                 errors.push(`features can only contain ${VALID_FEATURE_KEYS.map((k) => `'${k}'`).join(", ")} properties. Invalid properties: ${invalidKeys.join(", ")}`);
             }
+            errors.push(...resolveToolApis(features).errors);
 
             const usesModernConnections = features.connections !== undefined;
             const usesLegacyConnectionFields = features.multiConnection !== undefined || features.connectionRequirement !== undefined;

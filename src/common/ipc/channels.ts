@@ -308,6 +308,12 @@ export const POWERPLATFORM_CHANNELS = {
     REQUEST_RAW: "powerplatform.requestRaw",
 } as const;
 
+export const AZURE_CHANNELS = {
+    INVOKE: "azure:invoke",
+    CANCEL: "azure:cancel",
+    CHANGED: "azure:changed",
+} as const;
+
 // Protocol handler-related IPC channels
 export const PROTOCOL_CHANNELS = {
     PROTOCOL_INSTALL_TOOL: "protocol:install-tool",

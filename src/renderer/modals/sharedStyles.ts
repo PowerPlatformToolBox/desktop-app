@@ -176,6 +176,68 @@ export function getModalStyles(isDarkTheme: boolean): string {
         margin-bottom: 16px;
     }
 
+    .additional-apis {
+        min-width: 0;
+        margin-inline: 0;
+        padding: 16px;
+        gap: 0;
+    }
+
+    .additional-apis legend {
+        padding: 0 6px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .additional-apis .helper-text {
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .additional-api-option {
+        padding: 12px 0;
+        border-bottom: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
+    }
+
+    .additional-api-option .checkbox-wrapper {
+        margin: 0;
+        gap: 10px;
+        line-height: 20px;
+    }
+
+    .additional-api-option .modal-checkbox {
+        flex-shrink: 0;
+        margin: 2px 0 0;
+    }
+
+    .additional-api-option .checkbox-label {
+        font-weight: 500;
+    }
+
+    .additional-api-option .helper-text {
+        margin: 4px 0 0 26px;
+    }
+
+    .additional-api-details {
+        padding-top: 12px;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .additional-api-details summary {
+        cursor: pointer;
+    }
+
+    .additional-api-details summary:focus-visible {
+        outline: 2px solid #0e639c;
+        outline-offset: 3px;
+        border-radius: 2px;
+    }
+
+    .additional-api-details .helper-text {
+        margin-top: 8px;
+    }
+
     .password-wrapper {
         position: relative;
     }
@@ -484,6 +546,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
     }
 
     .power-platform-api-badge {
+        white-space: nowrap;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -496,6 +559,41 @@ export function getModalStyles(isDarkTheme: boolean): string {
         background: ${isDarkTheme ? "rgba(14, 99, 156, 0.22)" : "rgba(14, 99, 156, 0.14)"};
         color: ${isDarkTheme ? "#89d7ff" : "#0e639c"};
         border: 1px solid ${isDarkTheme ? "rgba(76, 194, 255, 0.35)" : "rgba(14, 99, 156, 0.35)"};
+    }
+
+    [data-api-tooltip] {
+        position: relative;
+    }
+
+    [data-api-tooltip]:focus-visible {
+        outline: 2px solid #0e639c;
+        outline-offset: 2px;
+    }
+
+    [data-api-tooltip]:focus-visible::after {
+        content: attr(data-api-tooltip);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 0;
+        z-index: 20;
+        width: 280px;
+        max-width: calc(100vw - 80px);
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: ${isDarkTheme ? "#333338" : "#ffffff"};
+        color: ${isDarkTheme ? "#f3f3f3" : "#1f1f1f"};
+        border: 1px solid ${isDarkTheme ? "#606066" : "#b3b3b3"};
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 1.5;
+        white-space: normal;
+        pointer-events: none;
+    }
+
+    .power-platform-api-badge:focus-visible::after {
+        left: 50%;
+        transform: translateX(-50%);
     }
 
     .fluent-button:disabled {

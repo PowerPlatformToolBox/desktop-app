@@ -141,7 +141,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, optionsO
             } to continue.
         </div>
         <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
-            <span>This tool uses Power Platform API. Selecting a connection that is not enabled for PP API may cause issues while using this tool.</span>
+            <span>Required APIs: PP. Choose connections with matching tags.</span>
         </div>
         
         <div class="modal-search-container">
@@ -288,7 +288,7 @@ function getConnectionSlotsModalView(isDarkTheme: boolean, options: SelectMultiC
     <div class="modal-header"><div>${toolNameHtml}<h3>Select Connections</h3></div><button id="close-select-multi-connection-modal" class="icon-button" aria-label="Close">&times;</button></div>
     <div class="modal-body">
         <div class="info-message">Choose at least ${minConnections} connection${minConnections === 1 ? "" : "s"}. You can assign up to ${maxConnections} slots.</div>
-        <div id="power-platform-api-info-multi" class="modal-warning" style="display:none;margin-bottom:12px"><span>This tool uses Power Platform API. Select connections enabled for PP API.</span></div>
+        <div id="power-platform-api-info-multi" class="modal-warning" style="display:none;margin-bottom:12px"><span>Required APIs: PP. Choose connections with matching tags.</span></div>
         <div class="slot-selection-layout">
             <div id="connection-slot-rail" class="connection-slot-rail">${slots}<button id="add-connection-slot-btn" class="connection-slot-add" type="button" ${initialSlotCount >= maxConnections ? "disabled" : ""}>+ Add connection</button></div>
             <div class="slot-connections-pane">

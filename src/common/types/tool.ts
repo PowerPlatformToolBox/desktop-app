@@ -24,6 +24,7 @@ export interface CapabilityTagEntry {
  * Tool features configuration
  */
 export interface ToolFeatures {
+    apis?: import("../../../packages/types/toolManifest").ToolPackageFeatures["apis"];
     /** Exact count or permitted range of connections used by this tool. */
     connections?: number | { min?: number; max?: number };
     /**
@@ -49,8 +50,8 @@ export interface ToolFeatures {
     minAPI?: string;
     /**
      * Whether this tool requires connections enabled for Power Platform API
-     * When true, only connections with Client ID/Secret authentication and
-     * enabledForPowerPlatformAPI=true will be shown in the connection selection modal.
+     * Legacy requirement hint. Connections remain selectable when not enabled.
+     * Prefer apis.pp for new tools.
      */
     enabledForPowerPlatformAPI?: boolean;
 }

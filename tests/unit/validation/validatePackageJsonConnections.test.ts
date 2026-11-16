@@ -19,6 +19,42 @@ const validPackage = (features: ToolPackageJson["features"]): ToolPackageJson =>
 });
 
 describe("package.json features.connections validation", () => {
+    it("accepts the preferred API schema in both validator surfaces", async () => {
+        const packageJson = validPackage({ connections: 1, apis: { pp: { required: true }, arm: { required: true }, graph: { required: false, scopes: ["Reports.Read.All"] } } });
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            await expect(validate(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+        }
+    });
+
+    it.each([
+        { apis: { graph: true } },
+        { apis: { graph: { required: true } } },
+        { apis: { graph: { scopes: ["Mail.Send"] } } },
+        { apis: { arm: { required: "true" } } },
+        { enabledForPowerPlatformAPI: true, apis: { pp: { required: false } } },
+        { azure: { arm: true }, apis: { arm: { required: true } } },
+    ])("rejects invalid or conflicting new declarations consistently: %j", async (features) => {
+        const packageJson = validPackage({ connections: 1, ...features } as ToolPackageJson["features"]);
+        const current = await validatePackageJson(packageJson, { skipUrlChecks: true });
+        const mirror = await mirroredValidator.validatePackageJson(packageJson, { skipUrlChecks: true });
+        expect(current.valid).toBe(false);
+        expect(mirror.errors).toEqual(current.errors);
+    });
+    it("accepts read-only Azure capabilities in both published validator surfaces", async () => {
+        const packageJson = validPackage({ connections: 1, minAPI: "1.2.9", apis: { arm: {}, graph: { scopes: ["User.Read", "Reports.Read.All"] } } });
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            await expect(validate(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });
+        }
+    });
+
+    it.each(["User.ReadWrite.All", "https://graph.microsoft.com/User.Read", "Mail.Send"])("rejects unsafe Graph capability %s in both validator surfaces", async (permission) => {
+        const packageJson = validPackage({ connections: 1, apis: { graph: { scopes: [permission] } } });
+        for (const validate of [validatePackageJson, mirroredValidator.validatePackageJson]) {
+            const result = await validate(packageJson, { skipUrlChecks: true });
+            expect(result.valid).toBe(false);
+            expect(result.errors).toEqual(expect.arrayContaining([expect.stringContaining("read-only delegated permission")]));
+        }
+    });
     it("accepts raw API consumers using minAPI without a new manifest feature", async () => {
         const packageJson = validPackage({ connections: 1, minAPI: "1.2.9", enabledForPowerPlatformAPI: true });
         await expect(validatePackageJson(packageJson, { skipUrlChecks: true })).resolves.toMatchObject({ valid: true });

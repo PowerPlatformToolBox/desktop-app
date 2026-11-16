@@ -36,6 +36,9 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const configureNote = document.getElementById("connection-configure-note");
     const testFeedback = document.getElementById("connection-test-feedback");
     const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
+    const azureApiCheckbox = document.getElementById("connection-enabled-for-azure-api");
+    const graphApiCheckbox = document.getElementById("connection-enabled-for-graph-api");
+    const isAdditionalApiEnabled = () => [ppApiCheckbox, azureApiCheckbox, graphApiCheckbox].some((checkbox) => checkbox instanceof HTMLInputElement && checkbox.checked);
     const ppApiWrapper = document.getElementById("power-platform-api-wrapper");
     const ppApiHelp = document.getElementById("power-platform-api-help");
     const browserTypeSelect = document.getElementById("connection-browser-type");
@@ -84,7 +87,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     };
 
     const shouldShowConfigureFooter = () => {
-        return Boolean(getCurrentClientId()) || (ppApiCheckbox instanceof HTMLInputElement && ppApiCheckbox.checked);
+        return Boolean(getCurrentClientId()) || isAdditionalApiEnabled();
     };
 
     const isPowerPlatformApiEnabled = () => {
@@ -239,12 +242,12 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (!showPowerPlatformApiOption && ppApiCheckbox instanceof HTMLInputElement) {
             ppApiCheckbox.checked = false;
         }
-        updatePowerPlatformClientIdRequirement();
+        updateAdditionalApiClientIdRequirement();
         updateConfigureFooterState();
     };
 
-    const updatePowerPlatformClientIdRequirement = () => {
-        const requiresClientId = ppApiCheckbox instanceof HTMLInputElement ? ppApiCheckbox.checked : false;
+    const updateAdditionalApiClientIdRequirement = () => {
+        const requiresClientId = isAdditionalApiEnabled();
 
         if (interactiveClientIdInput instanceof HTMLInputElement) {
             interactiveClientIdInput.required = requiresClientId;
@@ -254,10 +257,10 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         }
 
         if (interactiveClientIdLabel) {
-            interactiveClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
+            interactiveClientIdLabel.textContent = requiresClientId ? "Client ID (Required for additional APIs)" : "Client ID (Optional)";
         }
         if (usernamePasswordClientIdLabel) {
-            usernamePasswordClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
+            usernamePasswordClientIdLabel.textContent = requiresClientId ? "Client ID (Required for additional APIs)" : "Client ID (Optional)";
         }
         updateConfigureFooterState();
     };
@@ -400,6 +403,8 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
         enabledForPowerPlatformAPI: (document.getElementById("connection-enabled-for-powerplatform-api")?.checked) ?? false,
+        enabledForAzureAPI: document.getElementById("connection-enabled-for-azure-api")?.checked === true,
+        enabledForGraphAPI: document.getElementById("connection-enabled-for-graph-api")?.checked === true,
         category: (() => {
             const sel = document.getElementById("connection-category-select");
             if (!(sel instanceof HTMLSelectElement)) return "";
@@ -439,12 +444,16 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (envSelect) envSelect.value = connection.environment || "Dev";
         
         if (authTypeSelect) authTypeSelect.value = connection.authenticationType || "interactive";
+        const azureApiCheckbox = document.getElementById("connection-enabled-for-azure-api");
+        const graphApiCheckbox = document.getElementById("connection-enabled-for-graph-api");
+        if (azureApiCheckbox instanceof HTMLInputElement) azureApiCheckbox.checked = connection.enabledForAzureAPI === true;
+        if (graphApiCheckbox instanceof HTMLInputElement) graphApiCheckbox.checked = connection.enabledForGraphAPI === true;
 
         const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
         if (ppApiCheckbox instanceof HTMLInputElement) {
             ppApiCheckbox.checked = connection.enabledForPowerPlatformAPI === true;
         }
-        updatePowerPlatformClientIdRequirement();
+        updateAdditionalApiClientIdRequirement();
         
         // Populate browser settings (applies to all auth types)
         setInputValue("connection-browser-type", connection.browserType || "default");
@@ -585,9 +594,10 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
                 ppApiCheckbox.checked = false;
             }
         }
-        updatePowerPlatformClientIdRequirement();
+        updateAdditionalApiClientIdRequirement();
     });
-    updatePowerPlatformClientIdRequirement();
+    [azureApiCheckbox, graphApiCheckbox].forEach((checkbox) => checkbox?.addEventListener("change", updateAdditionalApiClientIdRequirement));
+    updateAdditionalApiClientIdRequirement();
 
     // Environment color picker setup
     const envSelectEl = document.getElementById("connection-environment");

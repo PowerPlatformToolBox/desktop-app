@@ -14,6 +14,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { ConnectionIds, ConnectionTarget } from "../common/connectionSlots";
 import { normalizeConnectionTarget } from "../common/connectionSlots";
 import {
+    AZURE_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
@@ -27,6 +28,7 @@ import {
     WORKER_CHANNELS,
 } from "../common/ipc/channels";
 import { logInfo } from "../common/logger";
+import { createAzureAPI, type AzureAPI } from "../common/azureApi";
 import { createPowerPlatformRawClient, type PowerPlatformRawResponse } from "../common/powerplatformApi";
 import type { DataverseBatchRequest, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 import { createWorkerToolAPI } from "../common/types/workerToolApiClient";
@@ -192,6 +194,17 @@ const powerPlatformApi = POWER_PLATFORM_CATEGORIES.reduce(
 );
 
 // Expose toolboxAPI to the tool window
+contextBridge.exposeInMainWorld(
+    "azureAPI",
+    createAzureAPI(
+        (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+        (listener) => {
+            const handler = (_event: Electron.IpcRendererEvent, payload: AzureAPI.ConnectionChangedEvent) => listener(payload);
+            ipcRenderer.on(AZURE_CHANNELS.CHANGED, handler);
+            return () => ipcRenderer.removeListener(AZURE_CHANNELS.CHANGED, handler);
+        },
+    ),
+);
 contextBridge.exposeInMainWorld("toolboxAPI", {
     workers: workerToolAPI,
     // Tool Info

@@ -338,7 +338,16 @@ export interface ToolboxAPI {
     /** Subscribe to invocation banner state changes (main → renderer push). */
     onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => void;
     /** Subscribe to multi-connection prompts triggered when an invoked callee requires a secondary connection. */
-    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; minConnections: number; maxConnections: number; inheritedConnectionIds: ConnectionIds }) => void) => void;
+    onInvocationConnectionsPrompt: (
+        callback: (prompt: {
+            requestId: string;
+            toolName: string;
+            minConnections: number;
+            maxConnections: number;
+            inheritedConnectionIds: ConnectionIds;
+            apiFeatures?: import("./tool").ToolFeatures;
+        }) => void,
+    ) => void;
     /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
     provideInvocationConnections: (requestId: string, result: { connectionIds: ConnectionIds; primaryConnectionId?: string | null; secondaryConnectionId?: string | null } | null) => Promise<void>;
     /**

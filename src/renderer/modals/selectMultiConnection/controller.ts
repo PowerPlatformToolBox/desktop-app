@@ -1,6 +1,7 @@
 import { UIConnectionData } from "../../../common/types/connection";
 import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
+import { getConnectionApiUtilitiesScript, type ApiRequirements } from "../../utils/connectionApis";
 import type { SelectMultiConnectionModalOptions } from "./view";
 
 export interface SelectMultiConnectionModalChannelIds {
@@ -24,7 +25,7 @@ export interface ConnectionListData {
 export function getSelectMultiConnectionModalControllerScript(
     channels: SelectMultiConnectionModalChannelIds,
     optionsOrIsSecondaryRequired: boolean | SelectMultiConnectionModalOptions = true,
-    enabledForPowerPlatformAPI: boolean = false,
+    enabledForPowerPlatformAPI: ApiRequirements = false,
     enableDoubleClickConnect: boolean = false,
     impersonationIconUrl?: string,
 ): string {
@@ -40,7 +41,7 @@ export function getSelectMultiConnectionModalControllerScript(
 (() => {
     const CHANNELS = ${serializedChannels};
     const IS_SECONDARY_REQUIRED = ${isSecondaryRequired};
-    const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    ${getConnectionApiUtilitiesScript(enabledForPowerPlatformAPI)}
     const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
@@ -223,7 +224,7 @@ ${sortingUtilities}
             const envBadgeClass = envColor ? 'connection-env-badge' : \`connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}\`;
             const catColor = conn.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(conn.categoryColor) ? conn.categoryColor : null;
             const catBadgeMarkup = conn.category ? \`<span class="category-badge" \${catColor ? \`style="background-color:\${catColor}1a;color:\${catColor};border:1px solid \${catColor}4d"\` : ''}>\${escapeHtml(conn.category)}</span>\` : '';
-            const ppApiBadgeMarkup = conn.enabledForPowerPlatformAPI === true ? '<span class="power-platform-api-badge">PP API</span>' : '';
+            const ppApiBadgeMarkup = getApiBadgeMarkup(conn);
             
             return \`
             <div class="connection-item \${isAuthenticated ? 'authenticated' : ''} \${isDisabled ? 'disabled' : ''}" 
@@ -394,6 +395,7 @@ ${sortingUtilities}
     };
 
     const updateConfirmButtonState = () => {
+        updateApiRequirementBanner(allConnections.filter((connection) => [authenticatedPrimaryConnectionId, authenticatedSecondaryConnectionId].includes(connection.id)));
         if (confirmButton) {
             // If secondary is required, both must be selected
             // If secondary is optional, only primary is required
@@ -540,13 +542,7 @@ ${sortingUtilities}
         console.warn("modalBridge.onMessage is not available");
     }
 
-    // Show Power Platform API info message if required
-    if (ENABLED_FOR_POWER_PLATFORM_API === true) {
-        const ppApiInfo = document.getElementById("power-platform-api-info-multi");
-        if (ppApiInfo) {
-            ppApiInfo.style.display = "block";
-        }
-    }
+    updateApiRequirementBanner();
 
     // Request connections list from main process
     modalBridge.send(CHANNELS.populateConnections, {});
@@ -557,7 +553,7 @@ ${sortingUtilities}
 function getConnectionSlotsModalControllerScript(
     channels: SelectMultiConnectionModalChannelIds,
     options: SelectMultiConnectionModalOptions,
-    enabledForPowerPlatformAPI: boolean,
+    enabledForPowerPlatformAPI: ApiRequirements,
     enableDoubleClickConnect: boolean,
     impersonationIconUrl?: string,
 ): string {
@@ -571,7 +567,7 @@ function getConnectionSlotsModalControllerScript(
     const MIN_CONNECTIONS = ${options.minConnections};
     const MAX_CONNECTIONS = ${options.maxConnections};
     const INITIAL_CONNECTION_IDS = ${initialConnectionIds};
-    const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
+    ${getConnectionApiUtilitiesScript(enabledForPowerPlatformAPI)}
     const ENABLE_DOUBLE_CLICK_CONNECT = ${enableDoubleClickConnect};
     const IMPERSONATION_ICON_URL = ${JSON.stringify(impersonationIconUrl ?? "icons/light/impersonate.svg")};
     const modalBridge = window.modalBridge;
@@ -700,7 +696,7 @@ ${sortingUtilities}
             const duplicate = slotIds.some((id, index) => index !== activeSlot && id === connection.id);
             const envClass = "connection-env-badge env-" + escapeHtml(String(connection.environment).toLowerCase());
             const category = connection.category ? '<span class="category-badge">' + escapeHtml(connection.category) + '</span>' : "";
-            const ppApi = connection.enabledForPowerPlatformAPI ? '<span class="power-platform-api-badge">PP API</span>' : "";
+            const ppApi = getApiBadgeMarkup(connection);
             const connecting = pendingConnectionIds.has(connection.id);
             const selectionControl = selected
                 ? '<span class="connection-selected-indicator" role="status" aria-label="Selected for Connection ' + (activeSlot + 1) + '" title="Selected for Connection ' + (activeSlot + 1) + '"><span class="connection-selected-check" aria-hidden="true">&#10003;</span><span>Selected</span></span>'
@@ -738,6 +734,7 @@ ${sortingUtilities}
     };
 
     const updateState = () => {
+        updateApiRequirementBanner(allConnections.filter((connection) => slotIds.includes(connection.id)));
         if (duplicateWarning) {
             const assignedId = slotIds[activeSlot];
             duplicateWarning.hidden = !assignedId || !slotIds.some((id, index) => index !== activeSlot && id === assignedId);
@@ -793,10 +790,6 @@ ${sortingUtilities}
             renderConnections();
         }
     });
-    if (ENABLED_FOR_POWER_PLATFORM_API) {
-        const warning = document.getElementById("power-platform-api-info-multi");
-        if (warning) warning.style.display = "block";
-    }
     renderRail();
     renderConnections();
     updateState();

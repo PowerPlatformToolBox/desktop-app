@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 
-import { POWERPLATFORM_CHANNELS, TOOL_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../../src/common/ipc/channels";
+import { AZURE_CHANNELS, POWERPLATFORM_CHANNELS, TOOL_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../../src/common/ipc/channels";
+import type { AzureAPI } from "../../../packages/types/azureAPI";
 import type PowerPlatformAPI = require("../../../packages/types/powerplatformAPI");
 
 const mockExposeMainWorld = jest.fn();
@@ -32,6 +33,15 @@ function loadToolApi() {
 }
 
 describe("tool preload connection APIs", () => {
+    it("exposes Azure only as a standalone host-proxied client", async () => {
+        const { api } = loadToolApi();
+        const azure: AzureAPI.API = mockExposeMainWorld.mock.calls.find(([name]) => name === "azureAPI")?.[1];
+        expect(api).not.toHaveProperty("azure");
+        expect(azure.arm).not.toHaveProperty("getToken");
+        mockIpcInvoke.mockResolvedValue({ ok: true, value: { status: 200, headers: {}, data: { id: "user" } } });
+        await expect(azure.graph.Get("/v1.0/me", { connectionTarget: 2 })).resolves.toMatchObject({ data: { id: "user" } });
+        expect(mockIpcInvoke).toHaveBeenLastCalledWith(AZURE_CHANNELS.INVOKE, "get", "graph", "/v1.0/me", { connectionTarget: 2 });
+    });
     it("exposes raw clients with public signatures, connection targets and lossless bodies", async () => {
         loadToolApi();
         const api: PowerPlatformAPI.API = mockExposeMainWorld.mock.calls.find(([name]) => name === "powerplatformAPI")?.[1];

@@ -51,6 +51,8 @@ export interface Connection {
     hasIncompleteCredentials?: boolean;
     // Whether this connection can be used for Power Platform API operations
     enabledForPowerPlatformAPI?: boolean;
+    enabledForAzureAPI?: boolean;
+    enabledForGraphAPI?: boolean;
     // Granted scopes for Power Platform API authentication
     scopesForPowerPlatformAPI?: string[];
     // Separate access token for Power Platform API (https://api.powerplatform.com scope)
@@ -95,6 +97,8 @@ export interface UIConnectionData {
     categoryColor?: string;
     hasIncompleteCredentials?: boolean;
     enabledForPowerPlatformAPI?: boolean;
+    enabledForAzureAPI?: boolean;
+    enabledForGraphAPI?: boolean;
 }
 
 /**

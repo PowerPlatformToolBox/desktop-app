@@ -39,6 +39,22 @@ describe("ToolWindowManager loaded identity", () => {
         return { manager, protocol, settings, mainWindow, terminals, filesystem };
     }
 
+    it("notifies Azure session cleanup when connection slot assignments actually change", async () => {
+        const { manager } = createManager();
+        const tool: Tool = { id: "tool-a", name: "Tool A", version: "1.0.0", description: "", features: { connections: 0 }, localPath: "/local/tool" };
+        await manager.launchTool("tool-a-123-abc", tool, null);
+        const changed = jest.fn();
+        manager.setConnectionChangedHandler(changed);
+        await manager.updateToolConnections("tool-a-123-abc", ["connection-a", null, "connection-c"]);
+        expect(changed).toHaveBeenCalledWith(manager.getToolViews().get("tool-a-123-abc")?.webContents.id);
+        changed.mockClear();
+        await manager.updateToolConnections("tool-a-123-abc", ["connection-a", null, "connection-c"]);
+        expect(changed).not.toHaveBeenCalled();
+        await manager.updateToolConnections("tool-a-123-abc", ["connection-a", null, null]);
+        expect(changed).toHaveBeenCalledTimes(1);
+        await manager.closeTool("tool-a-123-abc", { force: true });
+    });
+
     it.each(["external-destroy", "close"])("fully finalizes %s exactly once and resolves pending invocation with null", async (cause) => {
         const { manager, mainWindow, terminals, filesystem } = createManager();
         const tool: Tool = { id: "tool-a", name: "Tool A", version: "1.0.0", description: "", features: { connections: 0 }, localPath: "/local/tool" };

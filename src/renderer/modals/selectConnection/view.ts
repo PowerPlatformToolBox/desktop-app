@@ -34,7 +34,7 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
             Please select a connection to connect to your Dataverse environment before using this tool.
         </div>
         <div id="power-platform-api-info" class="modal-warning" style="display: none; margin-bottom: 12px;">
-            <span>This tool uses Power Platform API. Selecting a connection that is not enabled for PP API may cause issues while using this tool.</span>
+            <span>Required APIs: PP. Choose connections with matching tags.</span>
         </div>
         <div class="modal-search-container">
             <div class="modal-search-bar">

@@ -37,11 +37,36 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 </select>
             </div>
         </div>
-        <div class="checkbox-wrapper" id="power-platform-api-wrapper" style="margin-bottom: 12px;">
-            <input type="checkbox" id="connection-enabled-for-powerplatform-api" class="modal-checkbox" />
-            <label for="connection-enabled-for-powerplatform-api" class="checkbox-label">Enable for Power Platform API</label>
-        </div>
-        <p class="helper-text" id="power-platform-api-help" style="margin-top: 0; margin-bottom: 12px;">Check this to allow this connection to be used for Power Platform API tools.</p>
+        <fieldset class="field-group additional-apis" aria-describedby="additional-apis-help">
+            <legend>Additional APIs (Optional)</legend>
+            <p class="helper-text" id="additional-apis-help">Choose which APIs tools can use with this connection. Any enabled API requires an explicit client ID. Dataverse remains the primary sign-in.</p>
+            <div class="additional-api-option" id="power-platform-api-wrapper">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="connection-enabled-for-powerplatform-api" class="modal-checkbox" aria-describedby="power-platform-api-help" />
+                    <label for="connection-enabled-for-powerplatform-api" class="checkbox-label">Enable Power Platform API</label>
+                </div>
+                <p class="helper-text" id="power-platform-api-help">Allow tools to use the Power Platform API. Requires a configured client ID.</p>
+            </div>
+            <div class="additional-api-option">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="connection-enabled-for-azure-api" class="modal-checkbox" aria-describedby="azure-api-help" />
+                    <label for="connection-enabled-for-azure-api" class="checkbox-label">Enable Azure Resource Manager API</label>
+                </div>
+                <p class="helper-text" id="azure-api-help">Read Azure subscriptions, resources and costs where you have access.</p>
+            </div>
+            <div class="additional-api-option">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="connection-enabled-for-graph-api" class="modal-checkbox" aria-describedby="graph-api-help" />
+                    <label for="connection-enabled-for-graph-api" class="checkbox-label">Enable Microsoft Graph API</label>
+                </div>
+                <p class="helper-text" id="graph-api-help">Read Microsoft 365 data using the permissions approved for each tool.</p>
+            </div>
+            <details class="additional-api-details">
+                <summary>Azure and Graph sign-in requirements</summary>
+                <p class="helper-text">Uses this connection's account, tenant and application. Additional API consent is requested only when a tool needs it. ARM requires Azure permissions; Graph requires its own delegated or application permissions.</p>
+                <p class="helper-text">Provide a client ID for an application configured for the selected APIs. For connection strings, include the client ID in the string. Username/password cannot bypass MFA or Conditional Access. Public cloud only.</p>
+            </details>
+        </fieldset>
         <div class="form-group">
             <label for="connection-url">Environment URL</label>
             <input type="text" id="connection-url" class="modal-input" placeholder="https://org.crm.dynamics.com" />

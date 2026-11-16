@@ -24,6 +24,24 @@ describe("ConnectionsManager", () => {
         manager = new ConnectionsManager();
     });
 
+    it("invalidates Azure sessions on account and credential changes but not display-only edits", () => {
+        manager.addConnection(makeConnection({ accessToken: "token", msalAccountId: "account", enabledForAzureAPI: true }));
+        const listener = jest.fn();
+        manager.onAuthenticationChanged(listener);
+        manager.updateConnection("conn-1", { name: "Renamed" });
+        expect(listener).not.toHaveBeenCalled();
+        manager.updateConnection("conn-1", { enabledForGraphAPI: true });
+        expect(listener).toHaveBeenLastCalledWith("conn-1", false);
+        expect(manager.getConnectionById("conn-1")?.accessToken).toBe("token");
+        manager.updateConnection("conn-1", { tenantId: "new-tenant" });
+        expect(listener).toHaveBeenLastCalledWith("conn-1", true);
+        expect(manager.getConnectionById("conn-1")?.accessToken).toBeUndefined();
+        manager.updateConnectionTokens("conn-1", { accessToken: "new-token", expiresOn: new Date(), msalAccountId: "new-account" });
+        expect(listener).toHaveBeenLastCalledWith("conn-1", false);
+        manager.clearConnectionTokens("conn-1");
+        expect(listener).toHaveBeenLastCalledWith("conn-1", true);
+    });
+
     // -----------------------------------------------------------------------
     // addConnection / getConnections
     // -----------------------------------------------------------------------
