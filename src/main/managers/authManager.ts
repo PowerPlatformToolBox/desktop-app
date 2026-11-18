@@ -20,6 +20,7 @@ export class AuthManager {
 
     invalidateConnection(connectionId: string): void {
         this.msalApps.delete(connectionId);
+        this.msalAppFingerprints.delete(connectionId);
         this.confidentialApps.delete(connectionId);
         for (const key of this.azureRenewals.keys()) {
             if (key.startsWith(`${connectionId}:`)) this.azureRenewals.delete(key);
@@ -188,6 +189,11 @@ export class AuthManager {
     }
     // MSAL instances per connection (isolated by connection ID)
     private msalApps: Map<string, PublicClientApplication> = new Map();
+    // Client and authority used to build each cached public client, so a tenant change replaces it
+    private msalAppFingerprints = new Map<string, string>();
+    // Environment directory discovered from the org WhoAmI challenge, keyed by normalized org URL
+    private environmentTenantCache = new Map<string, string>();
+    private static readonly AUTHORITY_ALIASES = new Set(["organizations", "common", "consumers"]);
     // Confidential client instances per connection (isolated by connection ID)
     private confidentialApps: Map<string, ConfidentialClientApplication> = new Map();
     private activeServer: http.Server | null = null;
@@ -298,16 +304,19 @@ export class AuthManager {
     /**
      * Get or create MSAL instance for a given connection
      * Uses connection ID to ensure each connection has its own isolated MSAL instance
-     * This prevents account cache collisions when testing with multiple users
+     * This prevents account cache collisions when testing with multiple users.
+     * A new client id or authority replaces the cached instance, including the shared test-connection id.
      */
     private getMsalApp(connectionId: string, clientId: string, tenantId: string): PublicClientApplication {
         const key = connectionId; // Use connection ID for isolation
+        const authority = this.authorityUrl(tenantId);
+        const fingerprint = `${clientId}|${authority}`;
 
-        if (!this.msalApps.has(key)) {
+        if (!this.msalApps.has(key) || this.msalAppFingerprints.get(key) !== fingerprint) {
             const msalConfig = {
                 auth: {
                     clientId,
-                    authority: `https://login.microsoftonline.com/${tenantId}`,
+                    authority,
                 },
                 system: {
                     networkClient: this.createNetworkClient(),
@@ -326,34 +335,145 @@ export class AuthManager {
             };
 
             this.msalApps.set(key, new PublicClientApplication(msalConfig));
+            this.msalAppFingerprints.set(key, fingerprint);
         }
 
         return this.msalApps.get(key)!;
     }
 
+    private authorityUrl(tenantId: string): string {
+        return `https://login.microsoftonline.com/${tenantId}`;
+    }
+
+    private normalizeEnvironmentUrl(url: string): string {
+        return url.replace(/\/$/, "");
+    }
+
+    private isAuthorityAlias(tenantId?: string): boolean {
+        const value = tenantId?.trim();
+        return !value || AuthManager.AUTHORITY_ALIASES.has(value.toLowerCase());
+    }
+
+    /**
+     * Read the environment directory from Dataverse's unauthenticated WhoAmI challenge.
+     * Guest sign-in has to use this tenant; `organizations` selects the user's home directory.
+     */
+    private async discoverEnvironmentTenant(connection: Connection): Promise<string | undefined> {
+        const resource = this.normalizeEnvironmentUrl(connection.url);
+        const cached = this.environmentTenantCache.get(resource);
+        if (cached) return cached;
+
+        try {
+            const header = await this.requestAuthChallenge(`${resource}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`);
+            const tenant = this.parseEnvironmentTenant(header);
+            if (tenant) this.environmentTenantCache.set(resource, tenant);
+            return tenant;
+        } catch {
+            logWarn("Environment tenant discovery failed");
+            return undefined;
+        }
+    }
+
+    private async resolveAuthorityTenant(connection: Connection): Promise<{ authorityTenant: string; environmentTenant?: string }> {
+        const environmentTenant = await this.discoverEnvironmentTenant(connection);
+        const configured = connection.tenantId?.trim();
+        const authorityTenant = !this.isAuthorityAlias(configured) ? configured! : environmentTenant || configured || "organizations";
+        return { authorityTenant, environmentTenant };
+    }
+
+    private requestAuthChallenge(url: string): Promise<string | string[] | undefined> {
+        return new Promise((resolve, reject) => {
+            const urlObj = new URL(url);
+            const request = https.request(
+                {
+                    hostname: urlObj.hostname,
+                    port: 443,
+                    path: urlObj.pathname + urlObj.search,
+                    method: "GET",
+                    agent: this.proxyManager.getAgentForUrl(url),
+                    timeout: 15000,
+                    headers: {
+                        Accept: "application/json",
+                        "OData-MaxVersion": "4.0",
+                        "OData-Version": "4.0",
+                    },
+                },
+                (response) => {
+                    const header = response.headers["www-authenticate"];
+                    response.resume();
+                    resolve(header);
+                },
+            );
+            request.on("error", reject);
+            request.on("timeout", () => request.destroy(new Error("Environment tenant discovery timed out")));
+            request.end();
+        });
+    }
+
+    private parseEnvironmentTenant(header: string | string[] | undefined): string | undefined {
+        const value = Array.isArray(header) ? header.join(", ") : header;
+        if (!value) return undefined;
+        const match = /authorization_uri="?https:\/\/login\.microsoftonline\.com\/([^/"\s,]+)/i.exec(value);
+        if (!match || this.isAuthorityAlias(match[1])) return undefined;
+        return match[1];
+    }
+
+    private readAccessTokenTenant(accessToken: string): string | undefined {
+        const segment = accessToken.split(".")[1];
+        if (!segment) return undefined;
+        try {
+            const payload = JSON.parse(Buffer.from(segment, "base64url").toString("utf8")) as { tid?: unknown };
+            return typeof payload.tid === "string" ? payload.tid : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * @returns true when the token directory matches the environment and a guest-access hint is useful
+     */
+    private assertEnvironmentToken(accessToken: string, environmentTenant?: string): boolean {
+        if (!environmentTenant) return false;
+        const tokenTenant = this.readAccessTokenTenant(accessToken);
+        if (!tokenTenant) return false;
+        if (tokenTenant.toLowerCase() !== environmentTenant.toLowerCase()) {
+            throw new Error(`Signed in to the wrong directory. This environment is in tenant ${environmentTenant}.`);
+        }
+        return true;
+    }
+
+    private persistedEnvironmentTenant(connection: Connection, environmentTenant?: string): string | undefined {
+        return this.isAuthorityAlias(connection.tenantId) ? environmentTenant : undefined;
+    }
+
     /**
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
-    async authenticateInteractive(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
+    async authenticateInteractive(
+        connection: Connection,
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[]; environmentTenantId?: string }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
-        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
-        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        const { authorityTenant, environmentTenant } = await this.resolveAuthorityTenant(connection);
+        const authority = this.authorityUrl(authorityTenant);
+        const msalApp = this.getMsalApp(connection.id, clientId, authorityTenant);
 
         try {
             // Find an available port for the OAuth redirect server
             const port = await this.findAvailablePort();
             const redirectUri = `http://localhost:${port}`;
 
-            const scopes = [`${connection.url}/.default`];
+            const scopes = [`${this.normalizeEnvironmentUrl(connection.url)}/.default`];
 
-            // Create authorization URL with optional login_hint
+            // Create authorization URL with optional login_hint. Authority is the environment directory for guests.
             const authCodeUrlParameters: {
                 scopes: string[];
                 redirectUri: string;
+                authority: string;
                 loginHint?: string;
             } = {
                 scopes: scopes,
                 redirectUri: redirectUri,
+                authority,
             };
 
             // Add login_hint if username is provided (for OAuth MFA)
@@ -364,11 +484,12 @@ export class AuthManager {
             const authCodeUrl = await msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
             // Start local HTTP server and wait for auth code, then validate before showing success
-            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp, async (accessToken) => {
-                await this.validateEnvironmentAccess(connection, accessToken);
+            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp, authority, async (accessToken) => {
+                const matchedEnvironment = this.assertEnvironmentToken(accessToken, environmentTenant);
+                await this.validateEnvironmentAccess(connection, accessToken, matchedEnvironment);
             });
 
-            return authResult;
+            return { ...authResult, environmentTenantId: this.persistedEnvironmentTenant(connection, environmentTenant) };
         } catch (error) {
             logError("Interactive authentication failed", error);
             // Error is already displayed in the localhost browser page during listenForAuthCodeAndValidate
@@ -477,6 +598,7 @@ export class AuthManager {
         scopes: string[],
         redirectUri: string,
         msalApp: PublicClientApplication,
+        authority: string,
         postTokenValidation?: (accessToken: string) => Promise<void>,
     ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
         // Close any existing server before starting a new one
@@ -534,6 +656,7 @@ export class AuthManager {
                             code: code,
                             scopes: scopes,
                             redirectUri: redirectUri,
+                            authority,
                         };
 
                         const response = await msalApp.acquireTokenByCode(tokenRequest);
@@ -707,16 +830,19 @@ export class AuthManager {
      * Note: This flow is not recommended and may not work with MFA-enabled accounts
      * Note: Only delegated access is supported - uses user_impersonation scope
      */
-    async authenticateUsernamePassword(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
+    async authenticateUsernamePassword(
+        connection: Connection,
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[]; environmentTenantId?: string }> {
         if (!connection.username || !connection.password) {
             throw new Error("Username and password are required for password authentication");
         }
 
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts
-        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        const { authorityTenant, environmentTenant } = await this.resolveAuthorityTenant(connection);
+        const authority = this.authorityUrl(authorityTenant);
+        const msalApp = this.getMsalApp(connection.id, clientId, authorityTenant);
         // Username/password flow only supports delegated access (user_impersonation)
-        const scopes = [`${connection.url}/user_impersonation`];
+        const scopes = [`${this.normalizeEnvironmentUrl(connection.url)}/user_impersonation`];
 
         try {
             // Use MSAL's acquireTokenByUsernamePassword method
@@ -724,6 +850,7 @@ export class AuthManager {
                 scopes: scopes,
                 username: connection.username,
                 password: connection.password,
+                authority,
             };
 
             const response = await msalApp.acquireTokenByUsernamePassword(usernamePasswordRequest);
@@ -732,8 +859,9 @@ export class AuthManager {
                 throw new Error("Failed to acquire access token");
             }
 
+            const matchedEnvironment = this.assertEnvironmentToken(response.accessToken, environmentTenant);
             // Validate user has access to the environment by performing a WhoAmI check
-            await this.validateEnvironmentAccess(connection, response.accessToken);
+            await this.validateEnvironmentAccess(connection, response.accessToken, matchedEnvironment);
 
             // Return tokens with MSAL account ID for silent token acquisition
             return {
@@ -742,6 +870,7 @@ export class AuthManager {
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
                 msalAccountId: response.account?.homeAccountId, // Store for silent token acquisition
                 scopes: Array.isArray(response.scopes) ? response.scopes : scopes,
+                environmentTenantId: this.persistedEnvironmentTenant(connection, environmentTenant),
             };
         } catch (error) {
             logError("Username/password authentication failed", error);
@@ -819,7 +948,7 @@ export class AuthManager {
             }
 
             // Make a simple API call to verify the connection
-            const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
+            const whoAmIUrl = `${this.normalizeEnvironmentUrl(connection.url)}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
             const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
             const data = JSON.parse(response);
 
@@ -924,9 +1053,9 @@ export class AuthManager {
      * @param accessToken The access token to use for the WhoAmI call
      * @throws Error if the user does not have access to the environment
      */
-    private async validateEnvironmentAccess(connection: Connection, accessToken: string): Promise<void> {
+    private async validateEnvironmentAccess(connection: Connection, accessToken: string, guestAccessHint = false): Promise<void> {
         try {
-            const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
+            const whoAmIUrl = `${this.normalizeEnvironmentUrl(connection.url)}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
             const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
             const data = JSON.parse(response);
 
@@ -940,7 +1069,8 @@ export class AuthManager {
             // Enhance error message for permission-related failures
             const errorMessage = (error as Error).message;
             if (errorMessage.includes("401") || errorMessage.includes("403")) {
-                throw new Error("You do not have permission to access this environment. Please verify the user account matches the selected environment.");
+                const guestHint = guestAccessHint ? " Guest access to Dataverse may be restricted in this environment." : "";
+                throw new Error(`You do not have permission to access this environment. Please verify the user account matches the selected environment.${guestHint}`);
             }
             throw new Error(`Environment access validation failed: ${errorMessage}`);
         }
@@ -951,10 +1081,9 @@ export class AuthManager {
      * @param connection The connection to find account for
      * @returns Promise with the account or undefined if not found
      */
-    private async findMsalAccount(connection: Connection): Promise<AccountInfo | undefined> {
+    private async findMsalAccount(connection: Connection, tenantId: string): Promise<AccountInfo | undefined> {
         try {
             const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-            const tenantId = connection.tenantId || "organizations";
             const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
 
             const accounts = await msalApp.getTokenCache().getAllAccounts();
@@ -970,7 +1099,8 @@ export class AuthManager {
      * @returns Promise<boolean> true if account exists in cache, false otherwise
      */
     async hasAccountInCache(connection: Connection): Promise<boolean> {
-        const account = await this.findMsalAccount(connection);
+        const { authorityTenant } = await this.resolveAuthorityTenant(connection);
+        const account = await this.findMsalAccount(connection, authorityTenant);
         return account !== undefined;
     }
 
@@ -982,14 +1112,16 @@ export class AuthManager {
      */
     async acquireTokenSilently(connection: Connection): Promise<{ accessToken: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
-        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        const { authorityTenant, environmentTenant } = await this.resolveAuthorityTenant(connection);
+        const authority = this.authorityUrl(authorityTenant);
+        const msalApp = this.getMsalApp(connection.id, clientId, authorityTenant);
         // Use user_impersonation scope for username/password flow (delegated access only)
         // For interactive flow, both .default and user_impersonation work
-        const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`];
+        const resource = this.normalizeEnvironmentUrl(connection.url);
+        const scopes = connection.authenticationType === "usernamePassword" ? [`${resource}/user_impersonation`] : [`${resource}/.default`];
 
         // Get the account from MSAL cache
-        const account = await this.findMsalAccount(connection);
+        const account = await this.findMsalAccount(connection, authorityTenant);
 
         if (!account) {
             throw new Error("No cached account found. Please authenticate again.");
@@ -1003,13 +1135,17 @@ export class AuthManager {
             const response = await msalApp.acquireTokenSilent({
                 account: account,
                 scopes: scopes,
+                authority,
             });
+
+            this.assertEnvironmentToken(response.accessToken, environmentTenant);
 
             return {
                 accessToken: response.accessToken,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
+            if (error instanceof Error && error.message.startsWith("Signed in to the wrong directory.")) throw error;
             // Silent acquisition failed - likely refresh token expired
             logWarn("Silent token acquisition failed - re-authentication required");
             throw new Error("Token refresh failed. Please authenticate again.");
@@ -1024,12 +1160,13 @@ export class AuthManager {
      */
     async acquirePowerPlatformToken(connection: Connection): Promise<{ accessToken: string; expiresOn: Date; scopes?: string[] }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
-        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        const { authorityTenant, environmentTenant } = await this.resolveAuthorityTenant(connection);
+        const authority = this.authorityUrl(authorityTenant);
+        const msalApp = this.getMsalApp(connection.id, clientId, authorityTenant);
         const scope = "https://api.powerplatform.com/.default";
 
         // Get the account from MSAL cache
-        const account = await this.findMsalAccount(connection);
+        const account = await this.findMsalAccount(connection, authorityTenant);
 
         if (!account) {
             throw new Error("No cached account found. Please authenticate again.");
@@ -1039,7 +1176,10 @@ export class AuthManager {
             const response = await msalApp.acquireTokenSilent({
                 account: account,
                 scopes: [scope],
+                authority,
             });
+
+            this.assertEnvironmentToken(response.accessToken, environmentTenant);
 
             return {
                 accessToken: response.accessToken,
@@ -1047,9 +1187,10 @@ export class AuthManager {
                 scopes: Array.isArray(response.scopes) ? response.scopes : [scope],
             };
         } catch (error) {
+            if (error instanceof Error && error.message.startsWith("Signed in to the wrong directory.")) throw error;
             if (this.isInteractionRequiredError(error)) {
                 logInfo("Power Platform token requires interactive consent/sign-in; starting interactive flow");
-                return await this.acquirePowerPlatformTokenInteractive(connection, msalApp);
+                return await this.acquirePowerPlatformTokenInteractive(connection, msalApp, authority, environmentTenant);
             }
 
             logWarn("Power Platform token silent acquisition failed - re-authentication required");
@@ -1057,7 +1198,12 @@ export class AuthManager {
         }
     }
 
-    private async acquirePowerPlatformTokenInteractive(connection: Connection, msalApp: PublicClientApplication): Promise<{ accessToken: string; expiresOn: Date; scopes?: string[] }> {
+    private async acquirePowerPlatformTokenInteractive(
+        connection: Connection,
+        msalApp: PublicClientApplication,
+        authority: string,
+        environmentTenant?: string,
+    ): Promise<{ accessToken: string; expiresOn: Date; scopes?: string[] }> {
         const port = await this.findAvailablePort();
         const redirectUri = `http://localhost:${port}`;
         const scopes = ["https://api.powerplatform.com/.default"];
@@ -1065,10 +1211,13 @@ export class AuthManager {
         const authCodeUrl = await msalApp.getAuthCodeUrl({
             scopes,
             redirectUri,
+            authority,
             loginHint: connection.username,
         });
 
-        const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp);
+        const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp, authority, async (accessToken) => {
+            this.assertEnvironmentToken(accessToken, environmentTenant);
+        });
 
         return {
             accessToken: authResult.accessToken,
@@ -1085,8 +1234,9 @@ export class AuthManager {
      */
     async refreshAccessToken(connection: Connection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; scopes?: string[] }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
-        const scope = scopes ? scopes.join(" ") : `${connection.url}/.default`;
+        const { authorityTenant, environmentTenant } = await this.resolveAuthorityTenant(connection);
+        const tokenEndpoint = `${this.authorityUrl(authorityTenant)}/oauth2/v2.0/token`;
+        const scope = scopes ? scopes.join(" ") : `${this.normalizeEnvironmentUrl(connection.url)}/.default`;
 
         const postData = new URLSearchParams({
             client_id: clientId,
@@ -1102,6 +1252,8 @@ export class AuthManager {
             if (data.error) {
                 throw new Error(data.error_description || data.error);
             }
+
+            this.assertEnvironmentToken(data.access_token, environmentTenant);
 
             return {
                 accessToken: data.access_token,
@@ -1122,6 +1274,8 @@ export class AuthManager {
     cleanup(): void {
         logInfo("[AuthManager] Cleaning up MSAL instances");
         this.msalApps.clear();
+        this.msalAppFingerprints.clear();
+        this.environmentTenantCache.clear();
         this.confidentialApps.clear();
         this.azureRenewals.clear();
     }

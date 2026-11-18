@@ -110,7 +110,7 @@ export class ConnectionsManager {
     /**
      * Update a Dataverse connection with encryption for sensitive fields
      */
-    updateConnection(id: string, updates: Partial<Connection>): void {
+    updateConnection(id: string, updates: Partial<Connection>, options?: { preserveAuthentication?: boolean }): void {
         const connections = this.store.get("connections");
         const index = connections.findIndex((c) => c.id === id);
         if (index !== -1) {
@@ -122,11 +122,12 @@ export class ConnectionsManager {
             );
             const azureChanged =
                 credentialsChanged || existingConnection.enabledForAzureAPI !== mergedConnection.enabledForAzureAPI || existingConnection.enabledForGraphAPI !== mergedConnection.enabledForGraphAPI;
-            if (credentialsChanged) this.clearTokensForConnection(mergedConnection);
+            // Saving the directory just used for sign-in must keep that session's tokens and MSAL cache
+            if (credentialsChanged && !options?.preserveAuthentication) this.clearTokensForConnection(mergedConnection);
 
             connections[index] = this.normalizeConnectionForStorage(mergedConnection);
             this.store.set("connections", connections);
-            if (azureChanged) this.authenticationChanged(id, credentialsChanged);
+            if (azureChanged) this.authenticationChanged(id, options?.preserveAuthentication ? false : credentialsChanged);
         }
     }
 
