@@ -36,6 +36,11 @@ describe("ConnectionsManager", () => {
         manager.updateConnection("conn-1", { tenantId: "new-tenant" });
         expect(listener).toHaveBeenLastCalledWith("conn-1", true);
         expect(manager.getConnectionById("conn-1")?.accessToken).toBeUndefined();
+        manager.updateConnectionTokens("conn-1", { accessToken: "kept-token", expiresOn: new Date(), msalAccountId: "account" });
+        manager.updateConnection("conn-1", { tenantId: "environment-tenant" }, { preserveAuthentication: true });
+        expect(listener).toHaveBeenLastCalledWith("conn-1", false);
+        expect(manager.getConnectionById("conn-1")?.accessToken).toBe("kept-token");
+        expect(manager.getConnectionById("conn-1")?.tenantId).toBe("environment-tenant");
         manager.updateConnectionTokens("conn-1", { accessToken: "new-token", expiresOn: new Date(), msalAccountId: "new-account" });
         expect(listener).toHaveBeenLastCalledWith("conn-1", false);
         manager.clearConnectionTokens("conn-1");

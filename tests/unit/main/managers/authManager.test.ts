@@ -1,6 +1,7 @@
 import { ConfidentialClientApplication, INetworkModule, PublicClientApplication } from "@azure/msal-node";
 import { EventEmitter } from "events";
 import * as https from "https";
+import type { Connection } from "../../../../src/common/types";
 import { AuthManager } from "../../../../src/main/managers/authManager";
 import type { BrowserManager } from "../../../../src/main/managers/browserManager";
 import type { ProxyManager } from "../../../../src/main/managers/proxyManager";
@@ -110,5 +111,122 @@ describe("Authentication proxy routing", () => {
         await expect(result).resolves.toBe('{"UserId":"user"}');
         expect(https.request).toHaveBeenCalledWith(expect.objectContaining({ method, agent: getAgentForUrl.mock.results[0].value }), expect.any(Function));
         expect(getAgentForUrl).toHaveBeenCalledWith(url);
+    });
+});
+
+const ENVIRONMENT_TENANT = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const OTHER_TENANT = "11111111-2222-3333-4444-555555555555";
+
+function accessTokenFor(tenantId: string): string {
+    return `header.${Buffer.from(JSON.stringify({ tid: tenantId })).toString("base64url")}.signature`;
+}
+
+function guestConnection(overrides: Partial<Connection> = {}): Connection {
+    return {
+        id: "test",
+        name: "Guest",
+        url: "https://org.crm.dynamics.com/",
+        environment: "Dev",
+        authenticationType: "interactive",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        ...overrides,
+    };
+}
+
+describe("Guest environment authority", () => {
+    const getAgentForUrl = jest.fn(() => ({ proxy: "configured-agent" }));
+    let manager: AuthManager;
+    let internal: {
+        parseEnvironmentTenant(header: string | string[] | undefined): string | undefined;
+        resolveAuthorityTenant(connection: Connection): Promise<{ authorityTenant: string; environmentTenant?: string }>;
+        getMsalApp(connectionId: string, clientId: string, tenantId: string): PublicClientApplication;
+        assertEnvironmentToken(accessToken: string, environmentTenant?: string): boolean;
+    };
+    let tokenTenant = ENVIRONMENT_TENANT;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        tokenTenant = ENVIRONMENT_TENANT;
+        manager = new AuthManager({} as BrowserManager, { getAgentForUrl } as unknown as ProxyManager);
+        internal = manager as unknown as typeof internal;
+        (https.request as jest.Mock).mockImplementation((options: { path?: string }, callback: (response: EventEmitter) => void) => {
+            const response = Object.assign(new EventEmitter(), {
+                statusCode: 200,
+                headers: {} as Record<string, string>,
+                resume: jest.fn(),
+            });
+            const request = Object.assign(new EventEmitter(), { end: jest.fn(), write: jest.fn(), destroy: jest.fn() });
+            if (options.path?.includes("WhoAmI")) {
+                response.statusCode = 401;
+                response.headers["www-authenticate"] = `Bearer authorization_uri=https://login.microsoftonline.com/${ENVIRONMENT_TENANT}/oauth2/authorize, resource_id=https://org.crm.dynamics.com/`;
+                callback(response);
+                return request;
+            }
+            callback(response);
+            process.nextTick(() => {
+                response.emit("data", JSON.stringify({ access_token: accessTokenFor(tokenTenant), expires_in: 3600 }));
+                response.emit("end");
+            });
+            return request;
+        });
+    });
+
+    it("reads the environment tenant from a quoted or bare authorization challenge", () => {
+        expect(internal.parseEnvironmentTenant('Bearer authorization_uri="https://login.microsoftonline.com/tenant-guid/oauth2/authorize"')).toBe("tenant-guid");
+        expect(internal.parseEnvironmentTenant(["Bearer authorization_uri=https://login.microsoftonline.com/from-array/oauth2/authorize"])).toBe("from-array");
+        expect(internal.parseEnvironmentTenant("Bearer authorization_uri=https://login.microsoftonline.com/organizations/oauth2/authorize")).toBeUndefined();
+        expect(internal.parseEnvironmentTenant(undefined)).toBeUndefined();
+    });
+
+    it("uses the discovered environment tenant when the connection tenant is empty or an alias", async () => {
+        await expect(internal.resolveAuthorityTenant(guestConnection())).resolves.toEqual({
+            authorityTenant: ENVIRONMENT_TENANT,
+            environmentTenant: ENVIRONMENT_TENANT,
+        });
+        await expect(internal.resolveAuthorityTenant(guestConnection({ tenantId: "organizations" }))).resolves.toEqual({
+            authorityTenant: ENVIRONMENT_TENANT,
+            environmentTenant: ENVIRONMENT_TENANT,
+        });
+        expect(https.request).toHaveBeenCalledTimes(1);
+        expect(getAgentForUrl).toHaveBeenCalledWith("https://org.crm.dynamics.com/api/data/v9.2/WhoAmI");
+    });
+
+    it("keeps an explicit tenant as the authority", async () => {
+        await expect(internal.resolveAuthorityTenant(guestConnection({ tenantId: OTHER_TENANT }))).resolves.toEqual({
+            authorityTenant: OTHER_TENANT,
+            environmentTenant: ENVIRONMENT_TENANT,
+        });
+    });
+
+    it("replaces the cached public client when the authority changes", () => {
+        internal.getMsalApp("test", "client", "organizations");
+        internal.getMsalApp("test", "client", ENVIRONMENT_TENANT);
+        expect(PublicClientApplication).toHaveBeenCalledTimes(2);
+        expect(PublicClientApplication).toHaveBeenLastCalledWith(expect.objectContaining({ auth: expect.objectContaining({ authority: `https://login.microsoftonline.com/${ENVIRONMENT_TENANT}` }) }));
+    });
+
+    it("refreshes through the discovered tenant and rejects a home-directory token", async () => {
+        const refreshed = await manager.refreshAccessToken(guestConnection({ tenantId: "common" }), "refresh-token");
+        expect(refreshed.accessToken).toBe(accessTokenFor(ENVIRONMENT_TENANT));
+        const tokenRequest = (https.request as jest.Mock).mock.calls.map((call) => call[0]).find((options) => String(options.path).includes("/token"));
+        expect(tokenRequest.path).toBe(`/${ENVIRONMENT_TENANT}/oauth2/v2.0/token`);
+
+        tokenTenant = OTHER_TENANT;
+        await expect(manager.refreshAccessToken(guestConnection({ id: "other", tenantId: OTHER_TENANT }), "refresh-token")).rejects.toThrow(
+            `Signed in to the wrong directory. This environment is in tenant ${ENVIRONMENT_TENANT}.`,
+        );
+        const explicitRequest = (https.request as jest.Mock).mock.calls
+            .map((call) => call[0])
+            .filter((options) => String(options.path).includes("/token"))
+            .at(-1);
+        expect(explicitRequest.path).toBe(`/${OTHER_TENANT}/oauth2/v2.0/token`);
+        await expect(manager.refreshAccessToken(guestConnection({ id: "mismatch" }), "refresh-token")).rejects.toThrow("Signed in to the wrong directory");
+        await expect(manager.refreshAccessToken(guestConnection({ id: "mismatch-permission" }), "refresh-token")).rejects.not.toThrow("You do not have permission");
+    });
+
+    it("reports a directory match without treating a missing tenant claim as a mismatch", () => {
+        expect(internal.assertEnvironmentToken(accessTokenFor(ENVIRONMENT_TENANT), ENVIRONMENT_TENANT)).toBe(true);
+        expect(internal.assertEnvironmentToken("not-a-jwt", ENVIRONMENT_TENANT)).toBe(false);
+        expect(() => internal.assertEnvironmentToken(accessTokenFor(OTHER_TENANT), ENVIRONMENT_TENANT)).toThrow("Signed in to the wrong directory");
     });
 });

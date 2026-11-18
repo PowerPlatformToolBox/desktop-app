@@ -689,7 +689,7 @@ export class McpServerManager {
             throw new Error(`Connection '${connection.name}' is missing credentials. Complete it in the PPTB app before using it.`);
         }
 
-        let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string } | null;
+        let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; environmentTenantId?: string } | null;
 
         switch (connection.authenticationType) {
             case "clientSecret":
@@ -721,6 +721,9 @@ export class McpServerManager {
             expiresOn: authResult.expiresOn,
             msalAccountId: authResult.msalAccountId,
         });
+        if (authResult.environmentTenantId) {
+            this.connectionsManager.updateConnection(connection.id, { tenantId: authResult.environmentTenantId }, { preserveAuthentication: true });
+        }
 
         return authResult.accessToken;
     }

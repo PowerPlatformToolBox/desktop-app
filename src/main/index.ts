@@ -1061,7 +1061,7 @@ class ToolBoxApp {
 
             // Authenticate based on the authentication type
             try {
-                let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
+                let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; environmentTenantId?: string };
 
                 switch (connection.authenticationType) {
                     case "interactive":
@@ -1088,6 +1088,9 @@ class ToolBoxApp {
                     expiresOn: authResult.expiresOn,
                     msalAccountId: authResult.msalAccountId,
                 });
+                if (authResult.environmentTenantId) {
+                    this.connectionsManager.updateConnection(id, { tenantId: authResult.environmentTenantId }, { preserveAuthentication: true });
+                }
 
                 // Clear notification tracking since we have a new active connection
                 this.notifiedExpiredTokens.clear();
