@@ -180,6 +180,12 @@ The packaged application will be available in the `build/` directory.
 
 ## Development Configuration
 
+After installing dependencies and building the application, run `pnpm run dev` to start the development server and Electron.
+
+The workspace allows Electron's install script to download its executable. If an existing installation reports "Electron failed to install correctly", run `pnpm rebuild electron`, then retry `pnpm run dev`.
+
+If rebuilding reports success but the executable is still missing on Node 24, run `pnpm --config.use-node-version=22.22.0 rebuild electron` to run the installer under Node 22, then retry `pnpm run dev`.
+
 ### Telemetry and Error Tracking
 
 Power Platform ToolBox uses [Sentry.io](https://sentry.io) for error tracking and telemetry.
